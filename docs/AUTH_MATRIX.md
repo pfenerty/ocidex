@@ -190,7 +190,7 @@ cookies carry no ceiling and are unaffected.
 | Method | Path | Operation | Class | Capability | Write | Notes |
 |---|---|---|---|---|---|---|
 | GET | `/api/v1/registries` | `list-registries` | `authenticated` | — |  | Own plus public registries. |
-| POST | `/api/v1/registries` | `create-registry` | `authenticated` | — | ✓ | Creates the namespace and source beneath it, owned by the caller. |
+| POST | `/api/v1/registries` | `create-registry` | `authenticated` | — | ✓ | A new or omitted `namespace` is created and owned by the caller. Naming an existing namespace requires manage_source in it, checked in the handler; a non-member gets 404. |
 | GET | `/api/v1/registries/by-name/{name}` | `get-registry-by-name` | `authenticated` | — |  | A private registry the caller does not own 404s. |
 | GET | `/api/v1/registries/drift-feed` | `list-recent-drift` | `authenticated` | — |  | Rows filtered via visible_namespace_ids; admins see every namespace. |
 | POST | `/api/v1/registries/test-connection` | `test-registry-connection` | `admin` | — | ✓ | Dials an arbitrary caller-supplied host from inside the cluster. |

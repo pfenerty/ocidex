@@ -4,6 +4,7 @@ import (
 	"context"
 	"crypto/rand"
 	"encoding/hex"
+	"errors"
 	"fmt"
 	"log/slog"
 	"net/http"
@@ -276,7 +277,7 @@ func (h *Handler) CreateRegistry(ctx context.Context, in *CreateRegistryInput) (
 	if err := validateVerificationConfig(verificationMode, in.Body.TrustPublicKey, in.Body.TrustIdentity, in.Body.TrustIssuer); err != nil {
 		return nil, err
 	}
-	reg, err := h.registryService.Create(ctx, service.CreateRegistryParams{
+	reg, err := h.createRegistry(ctx, user, service.CreateRegistryParams{
 		Name:                in.Body.Name,
 		Namespace:           in.Body.Namespace,
 		Type:                regType,
@@ -301,12 +302,68 @@ func (h *Handler) CreateRegistry(ctx context.Context, in *CreateRegistryInput) (
 		ManagedRef:          in.Body.ManagedRef,
 	})
 	if err != nil {
-		return nil, mapServiceError(err)
+		return nil, err
 	}
 	return &CreateRegistryOutput{Body: CreateRegistryResponseBody{
 		RegistryResponse: toRegistryResponse(reg, h.cfg.APIBaseURL, nil),
 		WebhookSecret:    generatedSecret,
 	}}, nil
+}
+
+// createRegistry creates a registry, authorizing the caller against the
+// namespace the request names when that namespace already exists
+// (ocidex-avsz.2). Without this, naming another tenant's namespace planted a
+// registry — URL, credentials, schedule and all — inside it.
+//
+// The service only ever creates a named namespace; one that exists comes back
+// as ErrNamespaceExists. That includes the race where another request creates
+// it between the lookup here and the insert there, which is why the check
+// re-runs once on that sentinel rather than trusting the first lookup.
+func (h *Handler) createRegistry(
+	ctx context.Context, user service.AuthUser, params service.CreateRegistryParams,
+) (service.Registry, error) {
+	for attempt := 0; ; attempt++ {
+		if params.Namespace != "" {
+			id, err := h.authorizeExistingNamespace(ctx, user, params.Namespace, authz.CapManageSource)
+			if err != nil {
+				return service.Registry{}, err
+			}
+			params.NamespaceID = id
+		}
+		reg, err := h.registryService.Create(ctx, params)
+		if errors.Is(err, service.ErrNamespaceExists) && attempt == 0 {
+			continue
+		}
+		if err != nil {
+			return service.Registry{}, mapServiceError(err)
+		}
+		return reg, nil
+	}
+}
+
+// authorizeExistingNamespace looks up the namespace called name and, if it
+// exists, requires c in it, returning its ID. A namespace that does not exist
+// yields "" and no error: creating it makes the caller its owner.
+//
+// A caller with no membership gets 404 rather than 403, so the endpoint cannot
+// be used to probe which names other tenants have taken.
+func (h *Handler) authorizeExistingNamespace(
+	ctx context.Context, user service.AuthUser, name string, c authz.Capability,
+) (string, error) {
+	ns, err := h.namespaceService.GetByName(ctx, name)
+	if errors.Is(err, service.ErrNotFound) {
+		return "", nil
+	}
+	if err != nil {
+		return "", mapServiceError(err)
+	}
+	if _, member := user.Grants[ns.ID]; !member && user.Role != roleAdmin {
+		return "", huma.Error404NotFound("namespace not found")
+	}
+	if !can(user, ns.ID, c) {
+		return "", huma.Error403Forbidden("forbidden")
+	}
+	return ns.ID, nil
 }
 
 // RegenerateWebhookSecret generates a new webhook secret for a registry (owner or admin).

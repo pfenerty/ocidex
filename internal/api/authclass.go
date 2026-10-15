@@ -264,7 +264,7 @@ var authRules = map[string]AuthRule{
 	"list-registries":            {Class: ClassAuthenticated, Notes: "Own plus public registries."},
 	"get-registry":               {Class: ClassAuthenticated, Notes: "A private registry the caller does not own 404s."},
 	"get-registry-by-name":       {Class: ClassAuthenticated, Notes: "A private registry the caller does not own 404s."},
-	"create-registry":            {Class: ClassAuthenticated, Write: true, Notes: "Creates the namespace and source beneath it, owned by the caller."},
+	"create-registry":            {Class: ClassAuthenticated, Write: true, Notes: "A new or omitted `namespace` is created and owned by the caller. Naming an existing namespace requires manage_source in it, checked in the handler; a non-member gets 404."},
 	"update-registry":            {Class: ClassCapability, Cap: authz.CapManageSource, Write: true, Notes: noteManageRegistryMW},
 	"delete-registry":            {Class: ClassCapability, Cap: authz.CapManageSource, Write: true, Notes: noteManageRegistryMW},
 	"scan-registry":              {Class: ClassCapability, Cap: authz.CapTriggerScan, Write: true, Notes: "RequireCapability(trigger_scan) middleware."},

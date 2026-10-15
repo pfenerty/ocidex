@@ -181,6 +181,23 @@ func TestCrossTenantDenialIsNotFound(t *testing.T) {
 		})
 	}
 
+	// ocidex-avsz.2: naming another tenant's namespace on create used to plant
+	// the registry inside it. It must 404 like every read above, and write
+	// nothing.
+	t.Run("create registry into another tenant's namespace", func(t *testing.T) {
+		body := `{"name":"planted","namespace":"owner-tenant","type":"generic","url":"registry.example.com",` +
+			`"insecure":false,"scan_mode":"webhook","repositories":[],"repository_patterns":[],"tag_patterns":[]}`
+		resp, err := doWithAuth(t, http.MethodPost, srv.URL+"/api/v1/registries", body, outsiderKey)
+		is.NoErr(err)
+		resp.Body.Close()
+		if resp.StatusCode != http.StatusNotFound {
+			t.Errorf("POST registry into owner-tenant as outsider: got %d, want 404", resp.StatusCode)
+		}
+		var n int
+		is.NoErr(pool.QueryRow(t.Context(), `SELECT count(*) FROM source WHERE name = 'planted'`).Scan(&n))
+		is.Equal(n, 0)
+	})
+
 	// The artifact sub-collections answer differently, and correctly. They do
 	// not 404 on an invisible artifact — but they do not 404 on a *nonexistent*
 	// one either. Both come back 200 with an empty page, so the two cases are

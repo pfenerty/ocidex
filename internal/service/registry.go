@@ -313,8 +313,15 @@ type CreateRegistryParams struct {
 	// means "give it a namespace of its own named after it", the pre-ADR-039
 	// shape. The operator sets this from the CR's K8s namespace so every
 	// OCIRegistry in a K8s namespace shares one OCIDex tenancy boundary.
-	// A namespace named here is created on first use.
+	// A namespace named here is created on first use; if it already exists,
+	// Create returns ErrNamespaceExists rather than attaching to it, because
+	// whether the caller may do that is an authorization decision this layer
+	// does not make.
 	Namespace string
+
+	// NamespaceID places the registry in an existing namespace the caller has
+	// already been authorized against. It takes precedence over Namespace.
+	NamespaceID string
 }
 
 // UpdateRegistryParams holds the parameters for updating an existing registry.
@@ -440,18 +447,27 @@ func (s *registryService) Create(ctx context.Context, params CreateRegistryParam
 	}), nil
 }
 
-// resolveNamespace turns params.Namespace into the id CreateRegistry should
-// place the source under. An empty name yields an invalid (NULL) UUID, which
-// tells the query to mint a namespace of the registry's own. A named namespace
-// is looked up and created on first use — the operator reconciles many
-// OCIRegistry CRs into one K8s namespace and cannot order their creation.
+// resolveNamespace turns params into the id CreateRegistry should place the
+// source under. An explicit NamespaceID is used as given. An empty name yields
+// an invalid (NULL) UUID, which tells the query to mint a namespace of the
+// registry's own. A named namespace is created — and only created: one that
+// already exists, or that a concurrent request creates first, is reported as
+// ErrNamespaceExists so the caller can authorize against it and retry with its
+// NamespaceID (ocidex-avsz.2).
 func (s *registryService) resolveNamespace(ctx context.Context, params CreateRegistryParams, visibility string) (pgtype.UUID, error) {
+	if params.NamespaceID != "" {
+		id, err := parseUUID(params.NamespaceID)
+		if err != nil {
+			return pgtype.UUID{}, ErrNotFound
+		}
+		return id, nil
+	}
 	if params.Namespace == "" {
 		return pgtype.UUID{}, nil
 	}
-	ns, err := s.repo.GetNamespaceByName(ctx, params.Namespace)
+	_, err := s.repo.GetNamespaceByName(ctx, params.Namespace)
 	if err == nil {
-		return ns.Namespace.ID, nil
+		return pgtype.UUID{}, ErrNamespaceExists
 	}
 	if !errors.Is(err, pgx.ErrNoRows) {
 		return pgtype.UUID{}, fmt.Errorf("looking up namespace %q: %w", params.Namespace, err)
@@ -462,12 +478,8 @@ func (s *registryService) resolveNamespace(ctx context.Context, params CreateReg
 		Visibility:  visibility,
 	})
 	if err != nil {
-		// A concurrent reconcile won the race; re-read rather than fail.
 		if isUniqueViolation(err) {
-			ns, getErr := s.repo.GetNamespaceByName(ctx, params.Namespace)
-			if getErr == nil {
-				return ns.Namespace.ID, nil
-			}
+			return pgtype.UUID{}, ErrNamespaceExists
 		}
 		return pgtype.UUID{}, fmt.Errorf("creating namespace %q: %w", params.Namespace, err)
 	}

@@ -208,18 +208,18 @@ func TestRegistryCreate_NoNamespaceLeavesNamespaceIDNull(t *testing.T) {
 	is.Equal(captured.Valid, false)
 }
 
-func TestRegistryCreate_ReusesExistingNamespace(t *testing.T) {
+// Naming a namespace that exists does not attach to it: whether the caller may
+// is the API layer's call (ocidex-avsz.2), so the service reports it instead.
+func TestRegistryCreate_ExistingNamespaceReturnsSentinel(t *testing.T) {
 	is := is.New(t)
-	existing := pgtype.UUID{Bytes: [16]byte{9}, Valid: true}
-	var captured pgtype.UUID
 	svc := newTestRegistryService(&fakeRegistryRepo{
-		createFn: func(_ context.Context, arg repository.CreateRegistryParams) (repository.Registry, error) {
-			captured = arg.NamespaceID
+		createFn: func(_ context.Context, _ repository.CreateRegistryParams) (repository.Registry, error) {
+			t.Fatal("registry must not be created into an existing namespace by name")
 			return repository.Registry{}, nil
 		},
 		getNamespaceByNameFn: func(_ context.Context, name string) (repository.GetNamespaceByNameRow, error) {
 			is.Equal(name, "team-a")
-			return repository.GetNamespaceByNameRow{Namespace: repository.Namespace{ID: existing}}, nil
+			return repository.GetNamespaceByNameRow{Namespace: repository.Namespace{ID: pgtype.UUID{Bytes: [16]byte{9}, Valid: true}}}, nil
 		},
 		createNamespaceFn: func(_ context.Context, _ repository.CreateNamespaceParams) (repository.CreateNamespaceRow, error) {
 			t.Fatal("existing namespace should not be re-created")
@@ -232,8 +232,31 @@ func TestRegistryCreate_ReusesExistingNamespace(t *testing.T) {
 		URL: "https://r.example.com", ScanMode: "webhook",
 	})
 
+	is.True(errors.Is(err, ErrNamespaceExists))
+}
+
+// An explicit NamespaceID is used as given, without a lookup by name.
+func TestRegistryCreate_UsesNamespaceID(t *testing.T) {
+	is := is.New(t)
+	var captured pgtype.UUID
+	svc := newTestRegistryService(&fakeRegistryRepo{
+		createFn: func(_ context.Context, arg repository.CreateRegistryParams) (repository.Registry, error) {
+			captured = arg.NamespaceID
+			return repository.Registry{}, nil
+		},
+		getNamespaceByNameFn: func(_ context.Context, _ string) (repository.GetNamespaceByNameRow, error) {
+			t.Fatal("NamespaceID must not be resolved by name")
+			return repository.GetNamespaceByNameRow{}, nil
+		},
+	})
+
+	_, err := svc.Create(context.Background(), CreateRegistryParams{
+		Name: "r", Namespace: "team-a", NamespaceID: "09000000-0000-0000-0000-000000000000",
+		Type: "generic", URL: "https://r.example.com", ScanMode: "webhook",
+	})
+
 	is.NoErr(err)
-	is.Equal(captured, existing)
+	is.Equal(captured, pgtype.UUID{Bytes: [16]byte{9}, Valid: true})
 }
 
 // Nothing orders OCIRegistry reconciles, so the first registry into a namespace
@@ -265,24 +288,14 @@ func TestRegistryCreate_CreatesNamespaceOnFirstUse(t *testing.T) {
 	is.Equal(capturedVis, "private")
 }
 
-// Two reconciles racing on the same new namespace: the loser re-reads instead of
-// failing the whole registry create.
-func TestRegistryCreate_NamespaceRaceReReads(t *testing.T) {
+// Two creates racing on the same new namespace: the loser reports the
+// namespace as existing rather than re-reading it and attaching unchecked.
+func TestRegistryCreate_NamespaceRaceReturnsSentinel(t *testing.T) {
 	is := is.New(t)
-	winner := pgtype.UUID{Bytes: [16]byte{3}, Valid: true}
-	lookups := 0
-	var captured pgtype.UUID
 	svc := newTestRegistryService(&fakeRegistryRepo{
-		createFn: func(_ context.Context, arg repository.CreateRegistryParams) (repository.Registry, error) {
-			captured = arg.NamespaceID
+		createFn: func(_ context.Context, _ repository.CreateRegistryParams) (repository.Registry, error) {
+			t.Fatal("registry must not be created after losing the namespace race")
 			return repository.Registry{}, nil
-		},
-		getNamespaceByNameFn: func(_ context.Context, _ string) (repository.GetNamespaceByNameRow, error) {
-			lookups++
-			if lookups == 1 {
-				return repository.GetNamespaceByNameRow{}, pgx.ErrNoRows
-			}
-			return repository.GetNamespaceByNameRow{Namespace: repository.Namespace{ID: winner}}, nil
 		},
 		createNamespaceFn: func(_ context.Context, _ repository.CreateNamespaceParams) (repository.CreateNamespaceRow, error) {
 			return repository.CreateNamespaceRow{}, &pgconn.PgError{Code: "23505"}
@@ -294,9 +307,7 @@ func TestRegistryCreate_NamespaceRaceReReads(t *testing.T) {
 		URL: "https://r.example.com", ScanMode: "webhook",
 	})
 
-	is.NoErr(err)
-	is.Equal(captured, winner)
-	is.Equal(lookups, 2)
+	is.True(errors.Is(err, ErrNamespaceExists))
 }
 
 func TestRegistryCreate_UniqueViolationReturnsConflict(t *testing.T) {

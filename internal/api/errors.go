@@ -23,7 +23,7 @@ func mapServiceError(err error) error {
 		return huma.Error404NotFound("not found")
 	}
 
-	if errors.Is(err, service.ErrConflict) {
+	if errors.Is(err, service.ErrConflict) || errors.Is(err, service.ErrNamespaceExists) {
 		return huma.Error409Conflict("conflict")
 	}
 
