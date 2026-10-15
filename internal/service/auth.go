@@ -203,7 +203,45 @@ func (s *authService) ExchangeCodeForUser(ctx context.Context, provider, code, v
 	if id.Subject == "" {
 		return AuthUser{}, fmt.Errorf("%s returned an identity with no subject", provider)
 	}
-	return s.resolveIdentity(ctx, id)
+	u, err := s.resolveIdentity(ctx, id)
+	if err != nil {
+		return AuthUser{}, err
+	}
+	return s.promoteBootstrapAdmin(ctx, id, u)
+}
+
+// promoteBootstrapAdmin raises u to installation admin when the identity it
+// signed in with is listed in BOOTSTRAP_ADMINS. It runs at sign-in rather than
+// at startup so an operator can list an account before it exists.
+//
+// It only ever promotes. An admin who demotes a listed account by hand sees it
+// promoted again at its next sign-in; removing it from the list is what makes a
+// demotion stick.
+func (s *authService) promoteBootstrapAdmin(ctx context.Context, id auth.Identity, u AuthUser) (AuthUser, error) {
+	if u.Role == roleAdmin || !s.isBootstrapAdmin(id) {
+		return u, nil
+	}
+	row, err := s.repo.UpdateUserRole(ctx, repository.UpdateUserRoleParams{ID: u.ID, Role: roleAdmin})
+	if err != nil {
+		return AuthUser{}, fmt.Errorf("promoting bootstrap admin: %w", err)
+	}
+	slog.InfoContext(ctx, "promoted bootstrap admin", "provider", id.Provider)
+	u.Role = row.Role
+	return u, nil
+}
+
+// isBootstrapAdmin matches on (provider, subject) and nothing else — never on
+// email, for the reason resolveIdentity gives.
+func (s *authService) isBootstrapAdmin(id auth.Identity) bool {
+	if s.cfg == nil {
+		return false
+	}
+	for _, ref := range s.cfg.BootstrapAdmins {
+		if ref.Provider == id.Provider && ref.Subject == id.Subject {
+			return true
+		}
+	}
+	return false
 }
 
 // resolveIdentity maps an Identity onto the account that holds it, creating the

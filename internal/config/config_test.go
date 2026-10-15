@@ -109,6 +109,66 @@ func TestLoad(t *testing.T) {
 			},
 		},
 		{
+			name: "BOOTSTRAP_ADMINS parses github and oidc entries",
+			env: map[string]string{
+				"DATABASE_URL":     "postgres://localhost/test",
+				"NATS_URL":         "nats://localhost:4222",
+				"BOOTSTRAP_ADMINS": " github:42 , oidc:corp:a:b|c,",
+			},
+			check: func(is *is.I, cfg *config.Config) {
+				is.Equal(cfg.BootstrapAdmins, []config.IdentityRef{
+					{Provider: "github", Subject: "42"},
+					{Provider: "oidc:corp", Subject: "a:b|c"},
+				})
+			},
+		},
+		{
+			name: "BOOTSTRAP_ADMINS unset is empty",
+			env: map[string]string{
+				"DATABASE_URL": "postgres://localhost/test",
+				"NATS_URL":     "nats://localhost:4222",
+			},
+			check: func(is *is.I, cfg *config.Config) {
+				is.Equal(len(cfg.BootstrapAdmins), 0)
+			},
+		},
+		{
+			name: "BOOTSTRAP_ADMINS bare subject is rejected",
+			env: map[string]string{
+				"DATABASE_URL":     "postgres://localhost/test",
+				"NATS_URL":         "nats://localhost:4222",
+				"BOOTSTRAP_ADMINS": "16961380",
+			},
+			wantErr: true,
+		},
+		{
+			name: "BOOTSTRAP_ADMINS unknown provider is rejected",
+			env: map[string]string{
+				"DATABASE_URL":     "postgres://localhost/test",
+				"NATS_URL":         "nats://localhost:4222",
+				"BOOTSTRAP_ADMINS": "gitlab:1",
+			},
+			wantErr: true,
+		},
+		{
+			name: "BOOTSTRAP_ADMINS oidc without name is rejected",
+			env: map[string]string{
+				"DATABASE_URL":     "postgres://localhost/test",
+				"NATS_URL":         "nats://localhost:4222",
+				"BOOTSTRAP_ADMINS": "oidc:abc",
+			},
+			wantErr: true,
+		},
+		{
+			name: "BOOTSTRAP_ADMINS empty subject is rejected",
+			env: map[string]string{
+				"DATABASE_URL":     "postgres://localhost/test",
+				"NATS_URL":         "nats://localhost:4222",
+				"BOOTSTRAP_ADMINS": "github:",
+			},
+			wantErr: true,
+		},
+		{
 			name: "overrides",
 			env: map[string]string{
 				"PORT":                     "9090",
@@ -144,7 +204,7 @@ func TestLoad(t *testing.T) {
 			os.Unsetenv("NATS_URL") //nolint:errcheck
 
 			// Clear OAuth vars — no longer required by config.Load().
-			for _, k := range []string{"GITHUB_CLIENT_ID", "GITHUB_CLIENT_SECRET", "SESSION_SECRET"} {
+			for _, k := range []string{"GITHUB_CLIENT_ID", "GITHUB_CLIENT_SECRET", "SESSION_SECRET", "BOOTSTRAP_ADMINS"} {
 				t.Setenv(k, "")
 				os.Unsetenv(k) //nolint:errcheck
 			}

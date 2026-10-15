@@ -72,6 +72,14 @@ type Config struct {
 	// an IdP that insists on a distinct URI per client.
 	OIDCRedirectURL string `env:"OIDC_REDIRECT_URL" envDefault:"http://localhost:8080/auth/callback"`
 
+	// BootstrapAdminsRaw lists the identities promoted to installation admin
+	// when they sign in: comma-separated "github:<subject>" or
+	// "oidc:<name>:<subject>". It is how an installation gets its first admin.
+	// Matched on (provider, subject) only, never email (ADR-047). Parsed into
+	// BootstrapAdmins by validate.
+	BootstrapAdminsRaw string `env:"BOOTSTRAP_ADMINS"`
+	BootstrapAdmins    []IdentityRef
+
 	// Frontend URL — used as the post-OAuth redirect target and for CORS defaults.
 	FrontendURL string `env:"FRONTEND_URL" envDefault:"http://localhost:3000"`
 
@@ -401,10 +409,57 @@ func (c *K8sAgentConfig) SlogLevel() slog.Level {
 	return parseSlogLevel(c.LogLevel)
 }
 
+// IdentityRef names one sign-in identity by its user_identity key.
+type IdentityRef struct {
+	Provider string
+	Subject  string
+}
+
+// ParseIdentityRefs parses a comma-separated list of "github:<subject>" or
+// "oidc:<name>:<subject>" entries. The subject is everything after the
+// provider, so a subject containing colons survives. Blank entries are
+// skipped; anything else malformed is an error naming the entry.
+func ParseIdentityRefs(raw string) ([]IdentityRef, error) {
+	var refs []IdentityRef
+	for _, entry := range strings.Split(raw, ",") {
+		entry = strings.TrimSpace(entry)
+		if entry == "" {
+			continue
+		}
+		head, rest, ok := strings.Cut(entry, ":")
+		if !ok {
+			return nil, fmt.Errorf("%q: want github:<subject> or oidc:<name>:<subject>", entry)
+		}
+		var ref IdentityRef
+		switch head {
+		case "github":
+			ref = IdentityRef{Provider: "github", Subject: rest}
+		case "oidc":
+			name, subject, ok := strings.Cut(rest, ":")
+			if !ok || name == "" {
+				return nil, fmt.Errorf("%q: want oidc:<name>:<subject>", entry)
+			}
+			ref = IdentityRef{Provider: "oidc:" + name, Subject: subject}
+		default:
+			return nil, fmt.Errorf("%q: unknown provider %q (want github or oidc)", entry, head)
+		}
+		if ref.Subject == "" {
+			return nil, fmt.Errorf("%q: subject is empty", entry)
+		}
+		refs = append(refs, ref)
+	}
+	return refs, nil
+}
+
 func (c *Config) validate() error {
 	if c.NATSURL == "" {
 		return fmt.Errorf("NATS_URL is required")
 	}
+	admins, err := ParseIdentityRefs(c.BootstrapAdminsRaw)
+	if err != nil {
+		return fmt.Errorf("BOOTSTRAP_ADMINS: %w", err)
+	}
+	c.BootstrapAdmins = admins
 	// Half-configured OIDC is worse than none: the login button would exist
 	// and fail. Discovery itself is validated at startup in cmd/ocidex.
 	if c.OIDCIssuerURL != "" && c.OIDCClientID == "" {

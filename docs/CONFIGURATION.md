@@ -86,6 +86,17 @@ Login routes: `/auth/login` (defaults to GitHub) and `/auth/login/{provider}`, w
 so an OIDC-only deployment refuses `/auth/login/github` rather than half-starting a flow. `GET /api/v1/auth/providers` lists what this
 deployment has configured; the login page draws its buttons from it.
 
+#### First admin
+
+| Variable | Default | Description |
+|----------|---------|-------------|
+| `BOOTSTRAP_ADMINS` | `""` | Comma-separated identities promoted to installation admin when they sign in: `github:<subject>` or `oidc:<name>:<subject>`. `<subject>` is the issuer's stable user id — the numeric GitHub user id (`gh api users/<login> --jq .id`), or the OIDC `sub` claim — and may itself contain colons. Matched on (provider, subject) only, never email ([ADR-047](adr/0047-provider-agnostic-identity.md)). A malformed entry fails startup. |
+
+Nothing else creates an admin: a fresh install has none, and every new account starts as
+`viewer`. Promotion happens at sign-in, so an account can be listed before it exists. It
+only ever promotes — an admin demoted by hand is promoted again at their next sign-in until
+they are removed from the list.
+
 Signed-in users can link a second issuer to their account from `/admin/account`. A subject
 already linked to a different account is refused with 409 — OCIDex never merges accounts —
 and so is unlinking an account's last remaining identity.

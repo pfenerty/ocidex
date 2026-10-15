@@ -36,6 +36,10 @@ api:
   env:
     environment: production
     logLevel: info
+    # BOOTSTRAP_ADMINS: identities promoted to installation admin at sign-in,
+    # comma-separated "github:<user id>" or "oidc:<name>:<sub>". A fresh
+    # install has no admin until one of these signs in.
+    bootstrapAdmins: ""
     frontendUrl: ""
     corsAllowedOrigins: ""
     apiBaseUrl: ""

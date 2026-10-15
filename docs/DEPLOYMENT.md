@@ -371,6 +371,7 @@ lives in the homelab repo, under
        api:
          env:
            environment: development
+           bootstrapAdmins: "github:<your-github-user-id>"
            frontendUrl: "https://ocidex.app"
            githubRedirectUrl: "https://ocidex.app/auth/callback"
            corsAllowedOrigins: "https://ocidex.app"
@@ -407,7 +408,10 @@ lives in the homelab repo, under
      reported revision matches the newest published chart
    - `curl -fsS https://ocidex.app/health` and `/ready`
    - Browser → `https://ocidex.app` → "Sign in with GitHub" → OAuth round-trip
-     lands back on the SPA authenticated
+     lands back on the SPA authenticated, as admin. A fresh install has no
+     admin until an identity listed in `api.env.bootstrapAdmins`
+     (`BOOTSTRAP_ADMINS`, see [CONFIGURATION.md](CONFIGURATION.md#first-admin))
+     signs in; GitHub's numeric user id is `gh api users/<login> --jq .id`.
    - Upload a small CycloneDX SBOM via the UI; confirm it lists and you can
      open it
 
