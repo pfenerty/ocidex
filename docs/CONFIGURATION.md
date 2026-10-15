@@ -127,7 +127,7 @@ and so is unlinking an account's last remaining identity.
 
 | Variable | Default | Description |
 |----------|---------|-------------|
-| `FRONTEND_URL` | `http://localhost:3000` | Post-login redirect target and CORS default. Only the port matters — hostname is derived from the login request. |
+| `FRONTEND_URL` | `http://localhost:3000` | Post-login redirect target and CORS default. With `ENVIRONMENT=production` the redirect is this URL exactly. Outside production the redirect follows the login request's hostname with this URL's port — so several dev hostnames work — but only when that origin is in `CORS_ALLOWED_ORIGINS`; any other host falls back to this URL. |
 | `CORS_ALLOWED_ORIGINS` | `""` | Comma-separated CORS origins, each a bare `scheme://host[:port]` (no path, not even `/`). Empty falls back to `FRONTEND_URL`. With `ENVIRONMENT=production` a `*` or a malformed entry fails startup; in development `*` is only warned about. The same set decides which origins may send cookie-authenticated writes. |
 | `API_BASE_URL` | `""` | Public base URL of the API, used to populate the OpenAPI `servers` block for tooling/docs. Optional. |
 

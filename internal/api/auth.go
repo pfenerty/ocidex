@@ -44,10 +44,23 @@ const (
 		"excluding public resources owned by others."
 )
 
-// deriveFrontendURL returns a frontend URL using the request's host with the
-// port from the configured FRONTEND_URL. This lets the post-OAuth redirect
-// follow the host the browser used (e.g. Tailscale IP or localhost).
-func deriveFrontendURL(r *http.Request, configuredFrontendURL string) string {
+// deriveFrontendURL returns where the browser goes after signing in.
+//
+// In production that is FRONTEND_URL verbatim (ocidex-mqav.4): behind a
+// TLS-terminating proxy r.TLS is nil, so deriving the scheme sent users to
+// http://, and the Host header is the client's to choose.
+//
+// Outside production the request's host with FRONTEND_URL's port is used, so
+// the redirect follows the host the browser used (a Tailscale IP or
+// localhost) — but only when that origin is one allowedOrigins already
+// trusts. A foreign Host falls back to FRONTEND_URL, and a "*" in
+// allowedOrigins trusts nothing here: it would hand the redirect back to the
+// header. The scheme comes from r.TLS alone; X-Forwarded-Proto is not
+// trusted.
+func deriveFrontendURL(r *http.Request, configuredFrontendURL, environment string, allowedOrigins []string) string {
+	if environment == envProduction {
+		return configuredFrontendURL
+	}
 	parsed, err := url.Parse(configuredFrontendURL)
 	if err != nil {
 		return configuredFrontendURL
@@ -61,11 +74,16 @@ func deriveFrontendURL(r *http.Request, configuredFrontendURL string) string {
 	if h, _, splitErr := net.SplitHostPort(host); splitErr == nil {
 		host = h
 	}
-	port := parsed.Port()
-	if port != "" {
-		return scheme + "://" + host + ":" + port
+	derived := scheme + "://" + host
+	if port := parsed.Port(); port != "" {
+		derived += ":" + port
 	}
-	return scheme + "://" + host
+	for _, o := range allowedOrigins {
+		if n := normalizeOrigin(o); n != "" && n == normalizeOrigin(derived) {
+			return derived
+		}
+	}
+	return configuredFrontendURL
 }
 
 // HandleLogin initiates the OAuth/OIDC flow for the requested provider.
@@ -118,10 +136,11 @@ func (h *Handler) beginOAuth(r *http.Request, provider string, extra map[string]
 	verifier := base64.RawURLEncoding.EncodeToString(verifierRaw)
 
 	data := map[string]string{
-		"nonce":        base64.RawURLEncoding.EncodeToString(nonce),
-		"frontend_url": deriveFrontendURL(r, h.cfg.FrontendURL),
-		"provider":     provider,
-		"verifier":     verifier,
+		"nonce": base64.RawURLEncoding.EncodeToString(nonce),
+		"frontend_url": deriveFrontendURL(r, h.cfg.FrontendURL, h.cfg.Environment,
+			parseCORSOrigins(h.cfg.CORSAllowedOrigins, h.cfg.FrontendURL)),
+		"provider": provider,
+		"verifier": verifier,
 	}
 	for k, v := range extra {
 		data[k] = v

@@ -36,8 +36,9 @@ type ctxKeyRequest struct{}
 //
 // It exists for the handful of huma handlers that need something huma's typed
 // input cannot carry: the Host and TLS state of the connection, which is how
-// deriveFrontendURL follows the host the browser actually used rather than the
-// one in configuration. Handlers that only need headers, path, or body must
+// deriveFrontendURL can follow the host the browser actually used (outside
+// production, and only to an allowed origin) rather than the one in
+// configuration. Handlers that only need headers, path, or body must
 // keep declaring them on their input struct.
 func WithRequest(next http.Handler) http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
