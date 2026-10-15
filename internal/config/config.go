@@ -4,6 +4,7 @@ package config
 import (
 	"fmt"
 	"log/slog"
+	"net/url"
 	"strconv"
 	"strings"
 	"time"
@@ -458,6 +459,9 @@ const (
 	SignupExisting = "existing"
 )
 
+// envProduction is the ENVIRONMENT value that turns on production-only checks.
+const envProduction = "production"
+
 // SameSite values for SESSION_COOKIE_SAMESITE.
 const (
 	SameSiteLax    = "lax"
@@ -532,10 +536,10 @@ func (c *Config) validate() error {
 	if c.SecretBox, err = secretbox.Parse(c.DataEncryptionKeys, c.DataEncryptionActiveKey); err != nil {
 		return fmt.Errorf("DATA_ENCRYPTION_KEYS: %w", err)
 	}
-	if c.SecretBox == nil && c.Environment == "production" {
+	if c.SecretBox == nil && c.Environment == envProduction {
 		return fmt.Errorf("DATA_ENCRYPTION_KEYS is required when ENVIRONMENT=production (ADR-051)")
 	}
-	if c.SessionCookieSameSite, err = sessionCookieSameSite(c.SessionCookieSameSite, c.Environment); err != nil {
+	if err := c.validateBrowserPolicy(); err != nil {
 		return err
 	}
 	// Half-configured OIDC is worse than none: the login button would exist
@@ -549,6 +553,58 @@ func (c *Config) validate() error {
 	return nil
 }
 
+// validateBrowserPolicy checks the settings that govern what a browser on
+// another origin may do with the API: the session cookie's SameSite and the
+// CORS allow-list.
+func (c *Config) validateBrowserPolicy() error {
+	var err error
+	if c.SessionCookieSameSite, err = sessionCookieSameSite(c.SessionCookieSameSite, c.Environment); err != nil {
+		return err
+	}
+	return validateCORSOrigins(c.CORSAllowedOrigins, c.Environment)
+}
+
+// validateCORSOrigins checks CORS_ALLOWED_ORIGINS (ocidex-mqav.3). CORS is
+// served with credentials, so a wildcard lets every site read authenticated
+// responses: in production it, and anything that is not a bare
+// scheme://host[:port] origin a browser could send, fails the load. A path,
+// even "/", never matches a browser's Origin header and would silently lock
+// the SPA out. Outside production a wildcard is only warned about.
+func validateCORSOrigins(raw, environment string) error {
+	for _, o := range strings.Split(raw, ",") {
+		o = strings.TrimSpace(o)
+		if o == "" {
+			continue
+		}
+		if environment != envProduction {
+			if o == "*" {
+				slog.Warn("CORS: wildcard origin '*' used with AllowCredentials — this is insecure in production")
+			}
+			continue
+		}
+		if o == "*" {
+			return fmt.Errorf("CORS_ALLOWED_ORIGINS: wildcard '*' is not allowed with ENVIRONMENT=production: list the SPA's origin(s) explicitly")
+		}
+		if !isOrigin(o) {
+			return fmt.Errorf("CORS_ALLOWED_ORIGINS: %q is not an origin: want scheme://host[:port] with an http or https scheme and no path", o)
+		}
+	}
+	return nil
+}
+
+// isOrigin reports whether s is a bare http(s) origin: scheme://host[:port],
+// no user info, path, query or fragment.
+func isOrigin(s string) bool {
+	u, err := url.Parse(s)
+	if err != nil || u.Host == "" || u.User != nil {
+		return false
+	}
+	if u.Scheme != "http" && u.Scheme != "https" {
+		return false
+	}
+	return u.Path == "" && u.RawQuery == "" && u.Fragment == "" && !u.ForceQuery
+}
+
 // sessionCookieSameSite normalizes SESSION_COOKIE_SAMESITE, refusing "none"
 // outside production: browsers drop a SameSite=None cookie that is not Secure,
 // and the session cookie is only Secure in production.
@@ -558,7 +614,7 @@ func sessionCookieSameSite(raw, environment string) (string, error) {
 	case "", SameSiteLax, SameSiteStrict:
 		return v, nil
 	case SameSiteNone:
-		if environment != "production" {
+		if environment != envProduction {
 			return "", fmt.Errorf("SESSION_COOKIE_SAMESITE=none requires ENVIRONMENT=production: browsers drop a SameSite=None cookie that is not Secure")
 		}
 		return v, nil

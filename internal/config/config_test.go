@@ -91,6 +91,138 @@ func TestLoad(t *testing.T) {
 			wantErr: true,
 		},
 		{
+			name: "CORS origin * in production",
+			env: map[string]string{
+				"DATABASE_URL":               "postgres://localhost/test",
+				"NATS_URL":                   "nats://localhost:4222",
+				"ENVIRONMENT":                "production",
+				"CORS_ALLOWED_ORIGINS":       "*",
+				"DATA_ENCRYPTION_KEYS":       "k1:" + testKey,
+				"DATA_ENCRYPTION_ACTIVE_KEY": "k1",
+			},
+			wantErr: true,
+		},
+		{
+			name: "CORS origin * in development",
+			env: map[string]string{
+				"DATABASE_URL":         "postgres://localhost/test",
+				"NATS_URL":             "nats://localhost:4222",
+				"ENVIRONMENT":          "development",
+				"CORS_ALLOWED_ORIGINS": "*",
+			},
+			wantErr: false,
+		},
+		{
+			name: "CORS origin https://a.example in production",
+			env: map[string]string{
+				"DATABASE_URL":               "postgres://localhost/test",
+				"NATS_URL":                   "nats://localhost:4222",
+				"ENVIRONMENT":                "production",
+				"CORS_ALLOWED_ORIGINS":       "https://a.example",
+				"DATA_ENCRYPTION_KEYS":       "k1:" + testKey,
+				"DATA_ENCRYPTION_ACTIVE_KEY": "k1",
+			},
+			wantErr: false,
+		},
+		{
+			name: "CORS origin https://a.example in development",
+			env: map[string]string{
+				"DATABASE_URL":         "postgres://localhost/test",
+				"NATS_URL":             "nats://localhost:4222",
+				"ENVIRONMENT":          "development",
+				"CORS_ALLOWED_ORIGINS": "https://a.example",
+			},
+			wantErr: false,
+		},
+		{
+			name: "CORS origin https://a.example:8443, http://b.example in production",
+			env: map[string]string{
+				"DATABASE_URL":               "postgres://localhost/test",
+				"NATS_URL":                   "nats://localhost:4222",
+				"ENVIRONMENT":                "production",
+				"CORS_ALLOWED_ORIGINS":       "https://a.example:8443, http://b.example",
+				"DATA_ENCRYPTION_KEYS":       "k1:" + testKey,
+				"DATA_ENCRYPTION_ACTIVE_KEY": "k1",
+			},
+			wantErr: false,
+		},
+		{
+			name: "CORS origin https://a.example:8443, http://b.example in development",
+			env: map[string]string{
+				"DATABASE_URL":         "postgres://localhost/test",
+				"NATS_URL":             "nats://localhost:4222",
+				"ENVIRONMENT":          "development",
+				"CORS_ALLOWED_ORIGINS": "https://a.example:8443, http://b.example",
+			},
+			wantErr: false,
+		},
+		{
+			name: "CORS origin https://a.example/path in production",
+			env: map[string]string{
+				"DATABASE_URL":               "postgres://localhost/test",
+				"NATS_URL":                   "nats://localhost:4222",
+				"ENVIRONMENT":                "production",
+				"CORS_ALLOWED_ORIGINS":       "https://a.example/path",
+				"DATA_ENCRYPTION_KEYS":       "k1:" + testKey,
+				"DATA_ENCRYPTION_ACTIVE_KEY": "k1",
+			},
+			wantErr: true,
+		},
+		{
+			name: "CORS origin https://a.example/path in development",
+			env: map[string]string{
+				"DATABASE_URL":         "postgres://localhost/test",
+				"NATS_URL":             "nats://localhost:4222",
+				"ENVIRONMENT":          "development",
+				"CORS_ALLOWED_ORIGINS": "https://a.example/path",
+			},
+			wantErr: false,
+		},
+		{
+			name: "CORS origin https://a.example/ in production",
+			env: map[string]string{
+				"DATABASE_URL":               "postgres://localhost/test",
+				"NATS_URL":                   "nats://localhost:4222",
+				"ENVIRONMENT":                "production",
+				"CORS_ALLOWED_ORIGINS":       "https://a.example/",
+				"DATA_ENCRYPTION_KEYS":       "k1:" + testKey,
+				"DATA_ENCRYPTION_ACTIVE_KEY": "k1",
+			},
+			wantErr: true,
+		},
+		{
+			name: "CORS origin https://a.example/ in development",
+			env: map[string]string{
+				"DATABASE_URL":         "postgres://localhost/test",
+				"NATS_URL":             "nats://localhost:4222",
+				"ENVIRONMENT":          "development",
+				"CORS_ALLOWED_ORIGINS": "https://a.example/",
+			},
+			wantErr: false,
+		},
+		{
+			name: "CORS origin a.example in production",
+			env: map[string]string{
+				"DATABASE_URL":               "postgres://localhost/test",
+				"NATS_URL":                   "nats://localhost:4222",
+				"ENVIRONMENT":                "production",
+				"CORS_ALLOWED_ORIGINS":       "a.example",
+				"DATA_ENCRYPTION_KEYS":       "k1:" + testKey,
+				"DATA_ENCRYPTION_ACTIVE_KEY": "k1",
+			},
+			wantErr: true,
+		},
+		{
+			name: "CORS origin a.example in development",
+			env: map[string]string{
+				"DATABASE_URL":         "postgres://localhost/test",
+				"NATS_URL":             "nats://localhost:4222",
+				"ENVIRONMENT":          "development",
+				"CORS_ALLOWED_ORIGINS": "a.example",
+			},
+			wantErr: false,
+		},
+		{
 			name: "OIDC off by default",
 			env: map[string]string{
 				"DATABASE_URL": "postgres://localhost/test",

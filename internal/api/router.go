@@ -1,7 +1,6 @@
 package api
 
 import (
-	"log/slog"
 	"net/http"
 	"strings"
 	"time"
@@ -1186,6 +1185,8 @@ func registerJobOps(api huma.API, h *Handler) {
 
 // parseCORSOrigins splits a comma-separated origins string into a slice.
 // When raw is empty, frontendURL is used as the default allowed origin.
+// Validation — the production ban on '*' and on malformed origins, and the
+// development warning — happens at config load (ocidex-mqav.3).
 func parseCORSOrigins(raw, frontendURL string) []string {
 	parts := strings.Split(raw, ",")
 	origins := make([]string, 0, len(parts))
@@ -1196,12 +1197,6 @@ func parseCORSOrigins(raw, frontendURL string) []string {
 	}
 	if len(origins) == 0 && frontendURL != "" {
 		return []string{frontendURL}
-	}
-	for _, o := range origins {
-		if o == "*" {
-			slog.Warn("CORS: wildcard origin '*' used with AllowCredentials — this is insecure in production")
-			break
-		}
 	}
 	return origins
 }
