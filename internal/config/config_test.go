@@ -50,6 +50,47 @@ func TestLoad(t *testing.T) {
 			},
 		},
 		{
+			name: "session cookie SameSite defaults to lax",
+			env: map[string]string{
+				"DATABASE_URL": "postgres://localhost/test",
+				"NATS_URL":     "nats://localhost:4222",
+			},
+			check: func(is *is.I, cfg *config.Config) {
+				is.Equal(cfg.SessionCookieSameSite, config.SameSiteLax)
+			},
+		},
+		{
+			name: "session cookie SameSite is case-insensitive",
+			env: map[string]string{
+				"DATABASE_URL":            "postgres://localhost/test",
+				"NATS_URL":                "nats://localhost:4222",
+				"SESSION_COOKIE_SAMESITE": "Strict",
+			},
+			check: func(is *is.I, cfg *config.Config) {
+				is.Equal(cfg.SessionCookieSameSite, config.SameSiteStrict)
+			},
+		},
+		{
+			// SameSite=None without Secure is dropped by browsers, and Secure
+			// is only set in production.
+			name: "session cookie SameSite none outside production is rejected",
+			env: map[string]string{
+				"DATABASE_URL":            "postgres://localhost/test",
+				"NATS_URL":                "nats://localhost:4222",
+				"SESSION_COOKIE_SAMESITE": "none",
+			},
+			wantErr: true,
+		},
+		{
+			name: "session cookie SameSite unknown value is rejected",
+			env: map[string]string{
+				"DATABASE_URL":            "postgres://localhost/test",
+				"NATS_URL":                "nats://localhost:4222",
+				"SESSION_COOKIE_SAMESITE": "relaxed",
+			},
+			wantErr: true,
+		},
+		{
 			name: "OIDC off by default",
 			env: map[string]string{
 				"DATABASE_URL": "postgres://localhost/test",

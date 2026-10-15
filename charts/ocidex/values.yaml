@@ -64,6 +64,11 @@ api:
     # SELF_SERVICE_NAMESPACES: "false" stops global viewers creating namespaces
     # (or registries that mint one). See docs/DEPLOYMENT.md "Hardening".
     selfServiceNamespaces: "true"
+    # SESSION_COOKIE_SAMESITE: "lax" works whenever the SPA and the API share a
+    # registrable domain (ocidex.example.com + api.ocidex.example.com). Set
+    # "none" only when the SPA is served from a different site. See
+    # docs/CONFIGURATION.md.
+    sessionCookieSameSite: lax
     frontendUrl: ""
     corsAllowedOrigins: ""
     apiBaseUrl: ""

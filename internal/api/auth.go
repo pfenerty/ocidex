@@ -19,6 +19,7 @@ import (
 
 	"github.com/pfenerty/ocidex/internal/auth"
 	"github.com/pfenerty/ocidex/internal/authz"
+	"github.com/pfenerty/ocidex/internal/config"
 	"github.com/pfenerty/ocidex/internal/service"
 )
 
@@ -225,20 +226,7 @@ func (h *Handler) HandleCallback(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	secure := h.cfg.Environment == envProduction
-	sameSite := http.SameSiteNoneMode
-	if !secure {
-		sameSite = http.SameSiteLaxMode
-	}
-	http.SetCookie(w, &http.Cookie{ //nolint:gosec // G124: Secure is env-conditional; dev runs over http.
-		Name:     sessionCookieName,
-		Value:    token,
-		Path:     "/",
-		MaxAge:   h.cfg.SessionMaxAgeDays * 86400,
-		HttpOnly: true,
-		SameSite: sameSite,
-		Secure:   secure,
-	})
+	http.SetCookie(w, h.sessionCookie(token, h.cfg.SessionMaxAgeDays*86400))
 
 	frontendURL := stateData["frontend_url"]
 	if frontendURL == "" {
@@ -247,29 +235,41 @@ func (h *Handler) HandleCallback(w http.ResponseWriter, r *http.Request) {
 	http.Redirect(w, r, frontendURL, http.StatusSeeOther)
 }
 
+// sessionCookie builds the session cookie with the attributes every path that
+// sets or clears it must agree on: a clear whose attributes differ from the
+// set is ignored by the browser. SameSite comes from SESSION_COOKIE_SAMESITE
+// (ocidex-mqav.2); Secure is forced on for SameSite=None, which browsers
+// otherwise reject, and config validation only allows None in production.
+func (h *Handler) sessionCookie(value string, maxAge int) *http.Cookie {
+	sameSite := http.SameSiteLaxMode
+	switch h.cfg.SessionCookieSameSite {
+	case config.SameSiteStrict:
+		sameSite = http.SameSiteStrictMode
+	case config.SameSiteNone:
+		sameSite = http.SameSiteNoneMode
+	}
+	return &http.Cookie{ //nolint:gosec // G124: Secure is env-conditional; dev runs over http.
+		Name:     sessionCookieName,
+		Value:    value,
+		Path:     "/",
+		MaxAge:   maxAge,
+		HttpOnly: true,
+		SameSite: sameSite,
+		Secure:   h.cfg.Environment == envProduction || sameSite == http.SameSiteNoneMode,
+	}
+}
+
 // HandleLogout clears the session.
 func (h *Handler) HandleLogout(w http.ResponseWriter, r *http.Request) {
 	c, err := r.Cookie(sessionCookieName)
 	if err == nil {
 		_ = h.authService.DeleteSession(r.Context(), c.Value)
 	}
-	// Attributes mirror HandleCallback's setter so the clear is accepted in
-	// both dev (http) and production (https).
-	secure := h.cfg.Environment == envProduction
-	sameSite := http.SameSiteNoneMode
-	if !secure {
-		sameSite = http.SameSiteLaxMode
-	}
-	http.SetCookie(w, &http.Cookie{ //nolint:gosec // G124: Secure is env-conditional; dev runs over http.
-		Name:     sessionCookieName,
-		Value:    "",
-		Path:     "/",
-		MaxAge:   -1,
-		Expires:  time.Unix(0, 0),
-		HttpOnly: true,
-		SameSite: sameSite,
-		Secure:   secure,
-	})
+	// Built by the same helper as HandleCallback's setter, so the clear
+	// carries matching attributes and the browser accepts it.
+	expired := h.sessionCookie("", -1) //nolint:gosec // G124: attributes come from sessionCookie, as on the setter.
+	expired.Expires = time.Unix(0, 0)
+	http.SetCookie(w, expired)
 	w.WriteHeader(http.StatusNoContent)
 }
 

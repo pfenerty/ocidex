@@ -108,6 +108,7 @@ authoritative default set.
 | `SELF_SERVICE_NAMESPACES` | `api.env.selfServiceNamespaces` | `true` |
 | `EGRESS_*` | `egressGuard.*` | defaults (private ranges refused) |
 | `SESSION_MAX_AGE_DAYS` | Default | `7` |
+| `SESSION_COOKIE_SAMESITE` | `api.env.sessionCookieSameSite` | `lax` |
 | `AUDIT_LOG_ENABLED` | Default | `true` |
 
 `NATS_URL` is templated from `ocidex.fullname`, so it tracks the release name —

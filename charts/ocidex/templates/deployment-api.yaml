@@ -54,6 +54,8 @@ spec:
               value: {{ .Values.api.env.signupMode | quote }}
             - name: SELF_SERVICE_NAMESPACES
               value: {{ .Values.api.env.selfServiceNamespaces | quote }}
+            - name: SESSION_COOKIE_SAMESITE
+              value: {{ .Values.api.env.sessionCookieSameSite | quote }}
             {{- if .Values.api.env.bootstrapAdmins }}
             - name: BOOTSTRAP_ADMINS
               value: {{ .Values.api.env.bootstrapAdmins | quote }}

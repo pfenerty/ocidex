@@ -9,6 +9,16 @@ Run `make release VERSION=vX.Y.Z` to cut a release.
 
 ### Upgrade notes
 
+- **The session cookie is now `SameSite=Lax` in production (ocidex-mqav.2).** It
+  was `SameSite=None`. Lax works whenever the SPA and the API share a registrable
+  domain. A deployment that serves the SPA from a **different** registrable domain
+  must set `SESSION_COOKIE_SAMESITE=none` (chart: `api.env.sessionCookieSameSite`),
+  or every API call from the SPA will arrive without its session.
+- **Cookie-authenticated writes must come from a trusted origin (ocidex-mqav.1).**
+  A `POST`/`PUT`/`PATCH`/`DELETE` that authenticates by session cookie is refused
+  with 403 unless its `Origin` (or `Referer`) is in `CORS_ALLOWED_ORIGINS` (or
+  `FRONTEND_URL` when that is unset) or is the API's own origin (`API_BASE_URL`).
+  API-key clients are unaffected.
 - **Registry credentials are encrypted at rest (ocidex-d90k, ADR-051).** Add
   `DATA_ENCRYPTION_KEYS=<id>:<base64 32 bytes>` and `DATA_ENCRYPTION_ACTIVE_KEY=<id>`
   to the chart's `existingSecret` **before** upgrading: with `ENVIRONMENT=production`

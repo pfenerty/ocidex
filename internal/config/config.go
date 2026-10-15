@@ -59,6 +59,12 @@ type Config struct {
 	GitHubRedirectURL  string `env:"GITHUB_REDIRECT_URL" envDefault:"http://localhost:8080/auth/callback"`
 	SessionSecret      string `env:"SESSION_SECRET"` //nolint:gosec
 	SessionMaxAgeDays  int    `env:"SESSION_MAX_AGE_DAYS" envDefault:"7"`
+	// SessionCookieSameSite is the session cookie's SameSite attribute: "lax",
+	// "strict" or "none". Lax suffices whenever the SPA and the API share a
+	// registrable domain; "none" is for an SPA on a different site, and is only
+	// accepted in production, where the cookie is Secure. Empty (a Config not
+	// built by Load) reads as lax.
+	SessionCookieSameSite string `env:"SESSION_COOKIE_SAMESITE" envDefault:"lax"`
 
 	// Generic OIDC. Setting OIDC_ISSUER_URL is what enables the provider;
 	// leaving it empty leaves OCIDex GitHub-only, exactly as before.
@@ -452,6 +458,13 @@ const (
 	SignupExisting = "existing"
 )
 
+// SameSite values for SESSION_COOKIE_SAMESITE.
+const (
+	SameSiteLax    = "lax"
+	SameSiteStrict = "strict"
+	SameSiteNone   = "none"
+)
+
 // IdentityRef names one sign-in identity by its user_identity key.
 type IdentityRef struct {
 	Provider string
@@ -522,6 +535,9 @@ func (c *Config) validate() error {
 	if c.SecretBox == nil && c.Environment == "production" {
 		return fmt.Errorf("DATA_ENCRYPTION_KEYS is required when ENVIRONMENT=production (ADR-051)")
 	}
+	if c.SessionCookieSameSite, err = sessionCookieSameSite(c.SessionCookieSameSite, c.Environment); err != nil {
+		return err
+	}
 	// Half-configured OIDC is worse than none: the login button would exist
 	// and fail. Discovery itself is validated at startup in cmd/ocidex.
 	if c.OIDCIssuerURL != "" && c.OIDCClientID == "" {
@@ -531,6 +547,24 @@ func (c *Config) validate() error {
 		return fmt.Errorf("OIDC_ISSUER_URL is required when OIDC_CLIENT_ID is set")
 	}
 	return nil
+}
+
+// sessionCookieSameSite normalizes SESSION_COOKIE_SAMESITE, refusing "none"
+// outside production: browsers drop a SameSite=None cookie that is not Secure,
+// and the session cookie is only Secure in production.
+func sessionCookieSameSite(raw, environment string) (string, error) {
+	v := strings.ToLower(strings.TrimSpace(raw))
+	switch v {
+	case "", SameSiteLax, SameSiteStrict:
+		return v, nil
+	case SameSiteNone:
+		if environment != "production" {
+			return "", fmt.Errorf("SESSION_COOKIE_SAMESITE=none requires ENVIRONMENT=production: browsers drop a SameSite=None cookie that is not Secure")
+		}
+		return v, nil
+	}
+	return "", fmt.Errorf("SESSION_COOKIE_SAMESITE must be %q, %q or %q, got %q",
+		SameSiteLax, SameSiteStrict, SameSiteNone, raw)
 }
 
 // egressPolicy builds a netguard.Policy from the EGRESS_* settings, naming the

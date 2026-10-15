@@ -50,6 +50,17 @@ is required in every case, because it signs the cookies every provider's flow de
 |----------|---------|-------------|
 | `SESSION_SECRET` | — | Cookie signing key. Required. Min 32 bytes. Generate with: `openssl rand -hex 32` |
 | `SESSION_MAX_AGE_DAYS` | `7` | How long login sessions last. |
+| `SESSION_COOKIE_SAMESITE` | `lax` | Session cookie `SameSite`: `lax`, `strict` or `none`. `none` is accepted only with `ENVIRONMENT=production` (it forces `Secure`). See below. |
+
+`SameSite` is decided by **site**, not origin: two hosts are same-site when they share a
+registrable domain, so `ocidex.example.com` serving the SPA and `api.ocidex.example.com`
+serving the API are same-site and work with the default `lax`, which also stops most
+cross-site request forgery on its own. Set `none` only when the SPA is on a different
+registrable domain from the API (say `ocidex-ui.net` against `api.ocidex.example.com`) —
+the browser will not send a `lax` cookie on those cross-site fetches, and every API call
+will look signed out. `strict` additionally withholds the cookie on top-level navigation
+from another site, so a link into OCIDex from elsewhere lands signed out until the SPA's
+first API call.
 
 #### GitHub OAuth
 
