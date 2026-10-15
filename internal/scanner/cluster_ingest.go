@@ -61,7 +61,7 @@ func SubmitForRunningImage(ctx context.Context, reg service.Registry, repo, dige
 	if !reg.Enabled {
 		return 0, nil
 	}
-	if !reg.MatchesRepository(repo) {
+	if !reg.ClaimsRepository(repo) {
 		return 0, nil
 	}
 	if repo == "" || digest == "" {

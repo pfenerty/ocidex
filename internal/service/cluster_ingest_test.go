@@ -47,6 +47,16 @@ func TestResolveIngestTarget(t *testing.T) {
 		ID: "r-narrow", Name: "quay-team", URL: "quay.io", Enabled: true,
 		RepositoryPatterns: []string{"team/**"},
 	}
+	// Two per-org registries on one host, scoped by explicit repositories, as
+	// ghcr.io requires (ocidex-o0vq).
+	otherCorp := Registry{
+		ID: "r-othercorp", Name: "ghcr.io/othercorp", URL: "ghcr.io", Enabled: true,
+		Repositories: []string{"othercorp/api", "othercorp/sync"},
+	}
+	thirdParty := Registry{
+		ID: "r-thirdparty", Name: "ghcr.io/thirdparty", URL: "ghcr.io", Enabled: true,
+		Repositories: []string{"thirdparty/agent"},
+	}
 
 	tests := []struct {
 		name         string
@@ -89,6 +99,25 @@ func TestResolveIngestTarget(t *testing.T) {
 			ref:        "quay.io/team/app:v1",
 			registries: []Registry{narrow},
 			wantReason: IngestReasonReady, wantRegistry: "r-narrow",
+		},
+		{
+			name:       "explicit repositories scope the registry",
+			ref:        "ghcr.io/othercorp/api:v1",
+			registries: []Registry{otherCorp},
+			wantReason: IngestReasonReady, wantRegistry: "r-othercorp",
+		},
+		{
+			// The bug: one org's registry claimed every other org on the host.
+			name:       "another org's repository is not claimed",
+			ref:        "ghcr.io/thirdparty/agent:v1",
+			registries: []Registry{otherCorp},
+			wantReason: IngestReasonPatternExcluded, wantRegistry: "r-othercorp",
+		},
+		{
+			name:       "the org's own registry wins on a shared host",
+			ref:        "ghcr.io/thirdparty/agent:v1",
+			registries: []Registry{otherCorp, thirdParty},
+			wantReason: IngestReasonReady, wantRegistry: "r-thirdparty",
 		},
 		{
 			name:       "no registry configured for the host",

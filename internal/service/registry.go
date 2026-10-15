@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"path"
 	"regexp"
+	"slices"
 	"strings"
 	"sync"
 	"time"
@@ -71,6 +72,20 @@ func (r Registry) NeedsPolling() bool { return r.ScanMode == "poll" || r.ScanMod
 // repository patterns. An empty pattern list accepts everything.
 func (r Registry) MatchesRepository(repo string) bool {
 	return matchPatternList(repo, r.RepositoryPatterns)
+}
+
+// ClaimsRepository reports whether this registry is the one a running image in
+// repo should be scanned through. When Repositories is set it is the registry's
+// scope — it is exactly what the poller walks, and on a host that cannot list
+// its catalog (ghcr.io) the only scope there is — so repo must be in it. Without
+// that, a registry for one GitHub org on ghcr.io claimed every other org's
+// images, and would scan them with its credentials into its namespace
+// (ocidex-o0vq). The repository patterns then apply as usual.
+func (r Registry) ClaimsRepository(repo string) bool {
+	if len(r.Repositories) > 0 && !slices.Contains(r.Repositories, repo) {
+		return false
+	}
+	return r.MatchesRepository(repo)
 }
 
 // MatchesTag returns true if tag matches the registry's configured tag patterns.

@@ -22,8 +22,8 @@ const (
 	// IngestReasonRegistryDisabled means the host matches a registry that is
 	// switched off. The remedy is to enable it, not to add another.
 	IngestReasonRegistryDisabled = "registry_disabled"
-	// IngestReasonPatternExcluded means the registry's repository patterns
-	// deliberately exclude this repository. Nothing is broken; the exclusion is
+	// IngestReasonPatternExcluded means the registry's repository patterns, or
+	// its explicit repositories list, deliberately exclude this repository. Nothing is broken; the exclusion is
 	// reported so it does not look like a failure.
 	IngestReasonPatternExcluded = "pattern_excluded"
 	// IngestReasonUnparseableRef means the reported reference has no host, so
@@ -424,7 +424,7 @@ func resolveIngestTarget(img *UnknownImage, registries []Registry) {
 		switch {
 		case !reg.Enabled:
 			img.setRegistry(reg, IngestReasonRegistryDisabled)
-		case !reg.MatchesRepository(img.Repository):
+		case !reg.ClaimsRepository(img.Repository):
 			img.setRegistry(reg, IngestReasonPatternExcluded)
 		default:
 			img.setRegistry(reg, IngestReasonReady)

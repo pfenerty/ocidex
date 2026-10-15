@@ -126,6 +126,15 @@ func TestSubmitForRunningImage_RegistryDeclines(t *testing.T) {
 			},
 			repo: "myrepo",
 		},
+		{
+			// ocidex-o0vq: an explicit repositories list scopes the registry.
+			name: "repository outside the explicit list",
+			reg: service.Registry{
+				URL: "http://127.0.0.1:1", Enabled: true,
+				Repositories: []string{"othercorp/api"},
+			},
+			repo: "thirdparty/agent",
+		},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {

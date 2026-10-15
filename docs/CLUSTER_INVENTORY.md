@@ -92,7 +92,7 @@ are one thing to ingest. Each row says what stands between it and an SBOM:
 | `ready to ingest` | A registry in this namespace serves this host | Press **Ingest** (or let auto-ingest do it) |
 | `no registry` | Nothing in this namespace is configured for that host | Add a registry — the link opens the add dialog with the host filled in |
 | `registry disabled` | The matching registry is switched off | Enable it |
-| `excluded by patterns` | The registry's repository patterns exclude this repo | Widen them, if that is intended |
+| `excluded by patterns` | The registry's repository patterns exclude this repo, or it lists explicit repositories and this is not one of them (a registry for one org on a shared host such as ghcr.io does not claim other orgs) | Widen them, or add the repository, if that is intended |
 | `no host in reference` | The reported reference names no registry at all | Node runtime issue; see below |
 
 Both link into **Sources**, where registries are managed: `no registry` opens the add dialog
