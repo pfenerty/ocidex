@@ -60,6 +60,36 @@ The following are **not** breaking changes:
 - Adding a new query parameter (optional, with a default)
 - Expanding an accepted value set
 
+## Breaking-Change Check in CI
+
+Every PR that touches Go runs the `openapi-breaking` check. It runs `oasdiff breaking`
+(pinned image, `.tektonic/jobs/openapi-breaking/`) on the committed `web/openapi.json`
+against the spec at the latest release tag, and fails on any error-level change, such as:
+
+- a removed endpoint, response field or required property;
+- a new required request field;
+- a new enum value in a response.
+
+Additive changes pass.
+
+To reproduce it locally:
+
+```bash
+git fetch --tags
+TAG=$(git -c versionsort.suffix=- tag -l 'v[0-9]*' --sort=-v:refname | head -n1)
+git show "$TAG:web/openapi.json" > /tmp/base.json
+oasdiff breaking /tmp/base.json web/openapi.json --fail-on ERR \
+  --err-ignore web/openapi-breaking-accepted.txt
+```
+
+**Accepting a break on purpose.** Add a line to `web/openapi-breaking-accepted.txt` in the
+same PR. The line holds the operation and the change text that oasdiff prints, and the file's
+header explains how to produce it. The entry is part of the diff, so a reviewer has to approve
+the break explicitly. A label or a commit flag would be easier to miss. Before 1.0, an
+accepted break means bumping the minor version. From 1.0 on, an accepted break on `/api/v1`
+means the process below. The file is cleared after each release, because that release's spec
+becomes the new base.
+
 ## How Breaking Changes Are Handled
 
 1. A new major prefix (`/api/v2/`) is introduced alongside `/api/v1/`.

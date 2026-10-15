@@ -124,6 +124,11 @@ Then check each of the following:
 
 File a bug for anything that fails, and link it from the release's issue.
 
+## After the release
+
+- Empty `web/openapi-breaking-accepted.txt`, keeping its header. The released spec is now
+  the base for the `openapi-breaking` check, so the old entries match nothing.
+
 ## Rolling back a bad release
 
 Tags, images and charts are immutable once consumers may have pulled them. Do **not** move
