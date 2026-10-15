@@ -14,6 +14,7 @@ import (
 	"github.com/jackc/pgx/v5/pgtype"
 
 	"github.com/pfenerty/ocidex/internal/authz"
+	"github.com/pfenerty/ocidex/internal/netguard"
 	"github.com/pfenerty/ocidex/internal/scanner"
 	"github.com/pfenerty/ocidex/internal/service"
 	"github.com/pfenerty/ocidex/internal/trust"
@@ -497,6 +498,15 @@ func (h *Handler) DeleteRegistry(ctx context.Context, in *DeleteRegistryInput) (
 	return nil, nil
 }
 
+// egress is the policy every dial to a user-supplied registry obeys. A handler
+// built without config (tests) gets the default, which is the strict one.
+func (h *Handler) egress() netguard.Policy {
+	if h.cfg == nil {
+		return netguard.Policy{}
+	}
+	return h.cfg.EgressPolicy
+}
+
 // TestRegistryConnection probes the registry's /v2/ endpoint.
 func (h *Handler) TestRegistryConnection(ctx context.Context, in *TestRegistryConnectionInput) (*TestRegistryConnectionOutput, error) {
 	scheme := schemeHTTPS
@@ -505,7 +515,7 @@ func (h *Handler) TestRegistryConnection(ctx context.Context, in *TestRegistryCo
 	}
 	target := fmt.Sprintf("%s://%s/v2/", scheme, in.Body.URL)
 
-	c := &http.Client{Timeout: 5 * time.Second}
+	c := &http.Client{Timeout: 5 * time.Second, Transport: h.egress().Transport()}
 	req, err := http.NewRequestWithContext(ctx, http.MethodGet, target, nil)
 	if err != nil {
 		out := &TestRegistryConnectionOutput{}
@@ -557,7 +567,7 @@ func (h *Handler) ScanRegistry(ctx context.Context, in *ScanRegistryInput) (*Sca
 		if !force {
 			known = scanner.FetchKnownDigests(walkCtx, h.sbomService, reg.ID)
 		}
-		queued, err := scanner.WalkRegistry(walkCtx, reg, h.scanSubmitter, known, slog.Default())
+		queued, err := scanner.WalkRegistry(walkCtx, reg, h.scanSubmitter, known, h.egress(), slog.Default())
 		if err != nil {
 			slog.Error("ad-hoc registry scan failed", "registry", reg.Name, "err", err)
 			return

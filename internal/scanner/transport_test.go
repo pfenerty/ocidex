@@ -161,7 +161,7 @@ func TestOCITokenTransport_PassThrough(t *testing.T) {
 	}))
 	defer srv.Close()
 
-	transport := newOCITokenTransport("user", "pass")
+	transport := newOCITokenTransport(http.DefaultTransport, "user", "pass")
 	client := &http.Client{Transport: transport}
 	resp, err := client.Get(srv.URL + "/v2/repo/tags/list") //nolint:noctx
 	is.NoErr(err)
@@ -193,7 +193,7 @@ func TestOCITokenTransport_BearerAuth(t *testing.T) {
 	}))
 	defer srv.Close()
 
-	transport := newOCITokenTransport("user", "pass")
+	transport := newOCITokenTransport(http.DefaultTransport, "user", "pass")
 	client := &http.Client{Transport: transport}
 	resp, err := client.Get(srv.URL + "/v2/repo/tags/list") //nolint:noctx
 	is.NoErr(err)
@@ -227,7 +227,7 @@ func TestOCITokenTransport_BearerAuth_AccessToken(t *testing.T) {
 	}))
 	defer srv.Close()
 
-	transport := newOCITokenTransport("user", "pass")
+	transport := newOCITokenTransport(http.DefaultTransport, "user", "pass")
 	client := &http.Client{Transport: transport}
 	resp, err := client.Get(srv.URL + "/v2/repo") //nolint:noctx
 	is.NoErr(err)
@@ -252,7 +252,7 @@ func TestOCITokenTransport_BasicAuth(t *testing.T) {
 	}))
 	defer srv.Close()
 
-	transport := newOCITokenTransport("myuser", "mypass")
+	transport := newOCITokenTransport(http.DefaultTransport, "myuser", "mypass")
 	client := &http.Client{Transport: transport}
 	resp, err := client.Get(srv.URL + "/v2/repo/tags/list") //nolint:noctx
 	is.NoErr(err)
@@ -271,7 +271,7 @@ func TestOCITokenTransport_BasicAuth_Anonymous(t *testing.T) {
 	}))
 	defer srv.Close()
 
-	transport := newOCITokenTransport("", "") // anonymous — no credentials
+	transport := newOCITokenTransport(http.DefaultTransport, "", "") // anonymous — no credentials
 	client := &http.Client{Transport: transport}
 	resp, err := client.Get(srv.URL + "/v2/repo") //nolint:noctx
 	is.NoErr(err)
@@ -288,7 +288,7 @@ func TestOCITokenTransport_UnknownChallenge(t *testing.T) {
 	}))
 	defer srv.Close()
 
-	transport := newOCITokenTransport("user", "pass")
+	transport := newOCITokenTransport(http.DefaultTransport, "user", "pass")
 	client := &http.Client{Transport: transport}
 	resp, err := client.Get(srv.URL + "/test") //nolint:noctx
 	is.NoErr(err)

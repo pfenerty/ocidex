@@ -366,7 +366,7 @@ func setupRegistryWalker(cfg *config.Config, natsClient *natspkg.Client, sub api
 	if natsClient != nil {
 		return scanner.NewNATSCatalogPublisher(natsClient, cfg.NATSStreamName)
 	}
-	return scanner.NewDirectWalker(sub, dl, logger)
+	return scanner.NewDirectWalker(sub, dl, cfg.EgressPolicy, logger)
 }
 
 // setupScannerExt wires the NATS scan submitter when scanning is enabled.

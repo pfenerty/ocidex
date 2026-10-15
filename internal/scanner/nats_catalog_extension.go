@@ -3,6 +3,7 @@ package scanner
 import (
 	"context"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"log/slog"
 	"time"
@@ -12,6 +13,7 @@ import (
 
 	"github.com/pfenerty/ocidex/internal/event"
 	natspkg "github.com/pfenerty/ocidex/internal/nats"
+	"github.com/pfenerty/ocidex/internal/netguard"
 	"github.com/pfenerty/ocidex/internal/service"
 )
 
@@ -68,6 +70,7 @@ type NATSCatalogExtension struct {
 	digestLister DigestLister
 	submitter    Submitter
 	streamName   string
+	egress       netguard.Policy
 	logger       *slog.Logger
 	fetchCancel  context.CancelFunc
 	fetchDone    chan struct{}
@@ -80,6 +83,7 @@ func NewNATSCatalogExtension(
 	digestLister DigestLister,
 	submitter Submitter,
 	streamName string,
+	egress netguard.Policy,
 	logger *slog.Logger,
 ) *NATSCatalogExtension {
 	return &NATSCatalogExtension{
@@ -88,6 +92,7 @@ func NewNATSCatalogExtension(
 		digestLister: digestLister,
 		submitter:    submitter,
 		streamName:   streamName,
+		egress:       egress,
 		logger:       logger,
 	}
 }
@@ -197,7 +202,13 @@ func (e *NATSCatalogExtension) handleMsg(ctx context.Context, msg natsMsg) {
 	}
 
 	known := FetchKnownDigests(walkCtx, e.digestLister, reg.ID)
-	queued, err := WalkRegistry(walkCtx, reg, e.submitter, known, e.logger)
+	queued, err := WalkRegistry(walkCtx, reg, e.submitter, known, e.egress, e.logger)
+	if errors.Is(err, netguard.ErrDenied) {
+		// The egress policy will refuse this registry on redelivery too.
+		e.logger.Error("nats catalog: registry address refused by egress policy", "registry", reg.Name, "err", err)
+		_ = msg.Term()
+		return
+	}
 	if err != nil {
 		e.logger.Error("nats catalog: walk failed", "registry", reg.Name, "err", err)
 		_ = msg.Nak()

@@ -7,6 +7,11 @@ image:
 migrate:
   enabled: true
 
+# The dev registry is the host's bridge address (10.5.0.1:5005), and anything
+# else scanned locally is on a private network too.
+egressGuard:
+  allowPrivate: true
+
 api:
   replicas: 1
   env:

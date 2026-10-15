@@ -108,7 +108,7 @@ func run() error {
 	jobSvc := service.NewJobService(pool)
 	scannerSbomSvc := service.NewSBOMService(pool, bus, nil)
 	sc := engine.NewSyftScanner(logger, cfg.ScannerGoSymbols)
-	dispatcher := engine.NewDispatcher(sc, scannerSbomSvc, cfg.ScannerMaxImageBytes, logger)
+	dispatcher := engine.NewDispatcher(sc, scannerSbomSvc, cfg.ScannerMaxImageBytes, cfg.EgressPolicy, logger)
 
 	// Enrichment is driven off the in-process SBOMIngested event, which fires
 	// here (not in the API) for registry-scanned SBOMs. Register the submitter so
@@ -151,7 +151,7 @@ func run() error {
 	registrySvc := service.NewRegistryService(pool)
 	natsSubmitter := scanner.NewNATSSubmitter(natsClient, cfg.NATSStreamName, jobSvc)
 	registry.Register(scanner.NewNATSCatalogExtension(
-		natsClient, registrySvc, scannerSbomSvc, natsSubmitter, cfg.NATSStreamName, logger,
+		natsClient, registrySvc, scannerSbomSvc, natsSubmitter, cfg.NATSStreamName, cfg.EgressPolicy, logger,
 	))
 
 	if err := registry.InitAll(); err != nil {
@@ -232,7 +232,7 @@ func runOnce(ctx context.Context, pool *pgxpool.Pool, natsClient *natspkg.Client
 	// metadata (architecture/build_date/version) from the manifest before scanning
 	// — required by container-SBOM validation — and publishes SBOMIngested on the
 	// bus, which the submitter wired above turns into enrichment jobs.
-	dispatcher := engine.NewDispatcher(sc, sbomSvc, cfg.ScannerMaxImageBytes, logger)
+	dispatcher := engine.NewDispatcher(sc, sbomSvc, cfg.ScannerMaxImageBytes, cfg.EgressPolicy, logger)
 	if _, err := dispatcher.ProcessOne(ctx, req); err != nil {
 		return fmt.Errorf("processing scan: %w", err)
 	}

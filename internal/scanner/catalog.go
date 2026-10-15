@@ -11,6 +11,7 @@ import (
 	"sync"
 	"time"
 
+	"github.com/pfenerty/ocidex/internal/netguard"
 	"github.com/pfenerty/ocidex/internal/service"
 )
 
@@ -35,18 +36,19 @@ type RegistryWalker interface {
 type DirectWalker struct {
 	submitter    Submitter
 	digestLister DigestLister
+	egress       netguard.Policy
 	logger       *slog.Logger
 }
 
-// NewDirectWalker constructs a DirectWalker.
-func NewDirectWalker(sub Submitter, dl DigestLister, logger *slog.Logger) *DirectWalker {
-	return &DirectWalker{submitter: sub, digestLister: dl, logger: logger}
+// NewDirectWalker constructs a DirectWalker whose registry dials obey egress.
+func NewDirectWalker(sub Submitter, dl DigestLister, egress netguard.Policy, logger *slog.Logger) *DirectWalker {
+	return &DirectWalker{submitter: sub, digestLister: dl, egress: egress, logger: logger}
 }
 
 // Walk fetches known digests then runs WalkRegistry in the calling goroutine.
 func (w *DirectWalker) Walk(ctx context.Context, reg service.Registry) (int, error) {
 	known := FetchKnownDigests(ctx, w.digestLister, reg.ID)
-	return WalkRegistry(ctx, reg, w.submitter, known, w.logger)
+	return WalkRegistry(ctx, reg, w.submitter, known, w.egress, w.logger)
 }
 
 // FetchKnownDigests loads existing SBOM digests for a registry using a DigestLister.
@@ -65,14 +67,12 @@ func FetchKnownDigests(ctx context.Context, dl DigestLister, registryID string) 
 // WalkRegistry enumerates a registry catalog, applies filter patterns, and submits
 // a ScanRequest for each matching image. Returns the count queued.
 // knownDigests contains digests already ingested for this registry; these are
-// skipped to avoid re-scanning. Pass nil when unknown.
-func WalkRegistry(ctx context.Context, reg service.Registry, sub Submitter, knownDigests map[string]bool, logger *slog.Logger) (int, error) {
+// skipped to avoid re-scanning. Pass nil when unknown. Every dial obeys egress;
+// a refused one comes back wrapping netguard.ErrDenied.
+func WalkRegistry(ctx context.Context, reg service.Registry, sub Submitter, knownDigests map[string]bool, egress netguard.Policy, logger *slog.Logger) (int, error) {
 	scheme, host := registrySchemeHost(reg)
 	baseURL := scheme + "://" + host
-	client := &http.Client{
-		Timeout:   15 * time.Second,
-		Transport: newOCITokenTransport(derefStr(reg.AuthUsername), derefStr(reg.AuthToken)),
-	}
+	client := registryClient(egress, 15*time.Second, derefStr(reg.AuthUsername), derefStr(reg.AuthToken))
 
 	var repos []string
 	if len(reg.Repositories) > 0 {
@@ -665,6 +665,27 @@ func isIndexMediaType(mt string) bool {
 		mt == mediaTypeDockerList
 }
 
+// registryClient is the HTTP client for one registry: token auth over a
+// transport guarded by egress. A zero timeout means none.
+func registryClient(egress netguard.Policy, timeout time.Duration, username, password string) *http.Client {
+	return &http.Client{
+		Timeout:   timeout,
+		Transport: newOCITokenTransport(egress.Transport(), username, password),
+	}
+}
+
+// baseTransport is the transport under c's token auth, or c's own transport
+// when it has none.
+func baseTransport(c *http.Client) http.RoundTripper {
+	if c == nil {
+		return nil
+	}
+	if t, ok := c.Transport.(*ociTokenTransport); ok {
+		return t.base
+	}
+	return c.Transport
+}
+
 // ociTokenTransport implements OCI Distribution Spec token authentication.
 // On 401, it parses the Www-Authenticate challenge. For Bearer challenges it
 // exchanges credentials for a scoped token (cached by "host|scope") and retries.
@@ -677,9 +698,12 @@ type ociTokenTransport struct {
 	tokens   map[string]string // "host|scope" -> bearer token
 }
 
-func newOCITokenTransport(username, password string) *ociTokenTransport {
+// newOCITokenTransport wraps base, which is what actually dials — in
+// production a netguard transport, so every request this sends, token exchanges
+// included, is subject to the egress policy.
+func newOCITokenTransport(base http.RoundTripper, username, password string) *ociTokenTransport {
 	return &ociTokenTransport{
-		base:     http.DefaultTransport,
+		base:     base,
 		username: username,
 		password: password,
 		tokens:   make(map[string]string),

@@ -31,7 +31,7 @@ func TestSubmitForRunningImage_SingleArch(t *testing.T) {
 
 	sub := &fakeSubmitter{}
 	reg := service.Registry{URL: srv.URL, Enabled: true, ID: "reg-1"}
-	queued, err := SubmitForRunningImage(t.Context(), reg, "myrepo", "sha256:image-digest", "v1.2", sub, discardLogger())
+	queued, err := SubmitForRunningImage(t.Context(), reg, "myrepo", "sha256:image-digest", "v1.2", sub, testEgress, discardLogger())
 
 	is.NoErr(err)
 	is.Equal(queued, 1)
@@ -89,7 +89,7 @@ func TestSubmitForRunningImage_IndexExpands(t *testing.T) {
 
 	sub := &fakeSubmitter{}
 	reg := service.Registry{URL: srv.URL, Enabled: true}
-	queued, err := SubmitForRunningImage(t.Context(), reg, "myrepo", "sha256:index-digest", "v1.2", sub, discardLogger())
+	queued, err := SubmitForRunningImage(t.Context(), reg, "myrepo", "sha256:index-digest", "v1.2", sub, testEgress, discardLogger())
 
 	is.NoErr(err)
 	is.Equal(queued, 2)
@@ -133,7 +133,7 @@ func TestSubmitForRunningImage_RegistryDeclines(t *testing.T) {
 			sub := &fakeSubmitter{}
 			// The URL points at a closed port: reaching the registry at all
 			// would fail the test with an error rather than a silent zero.
-			queued, err := SubmitForRunningImage(t.Context(), tt.reg, tt.repo, "sha256:whatever", "", sub, discardLogger())
+			queued, err := SubmitForRunningImage(t.Context(), tt.reg, tt.repo, "sha256:whatever", "", sub, testEgress, discardLogger())
 			is.NoErr(err)
 			is.Equal(queued, 0)
 			is.Equal(len(sub.submitted()), 0)

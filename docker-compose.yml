@@ -70,6 +70,8 @@ services:
       PORT: "8080"
       LOG_LEVEL: info
       ENVIRONMENT: development
+      # Registries here are on the compose network or the host (ocidex-avsz.6).
+      EGRESS_ALLOW_PRIVATE: "true"
     env_file:
       - .env
     ports:
@@ -94,6 +96,8 @@ services:
       NATS_URL: nats://nats:4222
       LOG_LEVEL: info
       ENVIRONMENT: development
+      # Registries here are on the compose network or the host (ocidex-avsz.6).
+      EGRESS_ALLOW_PRIVATE: "true"
 
   # Per-enricher microservices (ADR-033). Each worker claims only its own
   # enricher_name partition from enrichment_jobs and runs a single enricher.
@@ -118,6 +122,8 @@ services:
       NATS_URL: nats://nats:4222
       LOG_LEVEL: info
       ENVIRONMENT: development
+      # Registries here are on the compose network or the host (ocidex-avsz.6).
+      EGRESS_ALLOW_PRIVATE: "true"
 
   git-worker:
     build:
@@ -138,6 +144,8 @@ services:
       NATS_URL: nats://nats:4222
       LOG_LEVEL: info
       ENVIRONMENT: development
+      # Registries here are on the compose network or the host (ocidex-avsz.6).
+      EGRESS_ALLOW_PRIVATE: "true"
 
   user-enricher-worker:
     build:
@@ -158,6 +166,8 @@ services:
       NATS_URL: nats://nats:4222
       LOG_LEVEL: info
       ENVIRONMENT: development
+      # Registries here are on the compose network or the host (ocidex-avsz.6).
+      EGRESS_ALLOW_PRIVATE: "true"
 
   provenance-worker:
     build:
@@ -178,6 +188,8 @@ services:
       NATS_URL: nats://nats:4222
       LOG_LEVEL: info
       ENVIRONMENT: development
+      # Registries here are on the compose network or the host (ocidex-avsz.6).
+      EGRESS_ALLOW_PRIVATE: "true"
 
   # Vulnerability worker: refreshes the package-keyed OSV vulnerability store on a
   # schedule (no NATS). Talks to Postgres and api.osv.dev. Singleton via a Postgres
