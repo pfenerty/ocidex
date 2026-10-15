@@ -5,7 +5,16 @@ import (
 	"time"
 
 	"github.com/danielgtaylor/huma/v2"
+
+	"github.com/pfenerty/ocidex/internal/version"
 )
+
+// ContractVersion is the version of the /api/v1 contract, published as the OpenAPI
+// info.version (ADR-052). It is deliberately not the build version, so specgen output
+// is identical for every build. Bump the minor for an additive change; the major moves
+// only together with a new /api/vN prefix. The running build's version is reported by
+// GET /api/v1/ instead.
+const ContractVersion = "1.0.0"
 
 // HealthCheck handles liveness probes.
 func (h *Handler) HealthCheck(_ context.Context, _ *struct{}) (*HealthCheckOutput, error) {
@@ -30,9 +39,10 @@ func (h *Handler) ReadinessCheck(ctx context.Context, _ *struct{}) (*ReadinessCh
 	return out, nil
 }
 
-// APIVersion returns the API version.
+// APIVersion returns the API version and the version of the running server build.
 func (h *Handler) APIVersion(_ context.Context, _ *struct{}) (*VersionOutput, error) {
 	out := &VersionOutput{}
 	out.Body.Version = "v1"
+	out.Body.Build, _, _ = version.Info()
 	return out, nil
 }

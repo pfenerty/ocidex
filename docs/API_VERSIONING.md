@@ -10,6 +10,23 @@ OCIDex uses a URL-prefix versioning scheme. All stable endpoints are under `/api
 
 This prefix is stable. All clients and integrations should use `/api/v1/` as the base path. The interactive docs UI is at `/docs` and the machine-readable spec at `/openapi.json`.
 
+## Contract Version and Build Version
+
+The OpenAPI `info.version` is the **contract version** of `/api/v1`
+(`api.ContractVersion` in `internal/api/health.go`, per
+[ADR-052](adr/0052-v1-compatibility.md)). It is changed on purpose: the minor goes up on an
+additive change, and the major goes up only together with a new `/api/vN` prefix. It is
+never the server's build version, so the generated spec is the same for every build.
+
+The version of the running server is reported by `GET /api/v1/`:
+
+```json
+{ "version": "v1", "build": "v1.2.3" }
+```
+
+`build` is the release tag for release images. Otherwise it is the Go module version, or
+`dev` for a local build. It is the same version that `ocidex --version` prints.
+
 ## What Counts as a Breaking Change
 
 A breaking change is any modification that would cause a correctly-written client targeting the current spec to fail or behave incorrectly:
