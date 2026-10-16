@@ -27,5 +27,6 @@ type ReadinessCheckOutput struct {
 type VersionOutput struct {
 	Body struct {
 		Version string `json:"version" example:"v1" doc:"API version"`
+		Build   string `json:"build" example:"v1.0.0" doc:"Version of the running server build: a release tag, a Go module version, or 'dev'"`
 	}
 }

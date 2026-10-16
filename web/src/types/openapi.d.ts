@@ -4007,6 +4007,11 @@ export interface components {
              */
             readonly $schema?: string;
             /**
+             * @description Version of the running server build: a release tag, a Go module version, or 'dev'
+             * @example v1.0.0
+             */
+            build: string;
+            /**
              * @description API version
              * @example v1
              */

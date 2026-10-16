@@ -6258,6 +6258,13 @@
             "readOnly": true,
             "type": "string"
           },
+          "build": {
+            "description": "Version of the running server build: a release tag, a Go module version, or 'dev'",
+            "examples": [
+              "v1.0.0"
+            ],
+            "type": "string"
+          },
           "version": {
             "description": "API version",
             "examples": [
@@ -6267,7 +6274,8 @@
           }
         },
         "required": [
-          "version"
+          "version",
+          "build"
         ],
         "type": "object"
       },

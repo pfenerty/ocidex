@@ -113,7 +113,8 @@ spec:
         try { ^chmod 0666 /tekton/home/.exit-code }
         def main [] {
         log "Running go test"
-        ^go test -v -short -p 2 ./...
+        # pkg/client is a separate workspace module that ./... does not cover.
+        ^go test -v -short -p 2 ./... ./pkg/client/...
         log "OK: tests passed"
         }
         let __tek_rc = (try { main; 0 } catch { |e| print $"error [go-test/go-test]: ($e.msg)"; 1 })

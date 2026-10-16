@@ -21,6 +21,7 @@ import { goTest } from "./jobs/go-test/spec";
 import { goIntegration } from "./jobs/go-integration/spec";
 import { frontendLint } from "./jobs/frontend-lint/spec";
 import { openapiCheck } from "./jobs/openapi-check/spec";
+import { openapiBreaking } from "./jobs/openapi-breaking/spec";
 import { goVulncheck } from "./jobs/go-vulncheck/spec";
 import { webSecurity } from "./jobs/web-security/spec";
 import { secretsScan } from "./jobs/secrets-scan/spec";
@@ -95,6 +96,7 @@ const prPipeline = new GitPipeline({
     gated(goTest, { when: goChanged }),
     gated(goIntegration, { when: goChanged }),
     gated(openapiCheck, { when: goChanged }),
+    gated(openapiBreaking, { when: goChanged }),
     gated(goVulncheck, { when: goChanged }),
     // web-security is a leaf → gate on the frontend bucket. semgrep is multi-language SAST →
     // run when Go OR frontend code changed (skips docs/CI-only PRs). secrets-scan stays
@@ -113,7 +115,14 @@ const prPipeline = new GitPipeline({
 
 const tagPipeline = new GitPipeline({
   name: "ocidex-tag",
-  trigger: { rules: [{ on: TRIGGER_EVENTS.TAG, branch: "refs/tags/*" }], cancelInProgress: true },
+  // Server releases only. The Go SDK is tagged pkg/client/vX.Y.Z (ADR-052); the Go proxy
+  // serves it straight from the tag, and it must not set off an image and chart release.
+  // Raw CEL because @tektonic-ci/core 2.2.0 drops a TAG rule's `branch` and emits
+  // [refs/tags/*]; once a release carries tektonic 9c42b5a, use `branch: "v*"` instead.
+  trigger: {
+    rules: [{ on: TRIGGER_EVENTS.TAG, cel: "target_branch.startsWith('refs/tags/v')" }],
+    cancelInProgress: true,
+  },
   cloneDepth: "full",
   // Same serial image-build chain as the push pipeline, plus helm-release and
   // gh-release. Deliberately still 4h while push is 2h30m: these builds are multi-arch

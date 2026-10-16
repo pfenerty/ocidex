@@ -3589,6 +3589,9 @@ type VersionOutputBody struct {
 	// Schema A URL to the JSON Schema for this object.
 	Schema *string `json:"$schema,omitempty"`
 
+	// Build Version of the running server build: a release tag, a Go module version, or 'dev'
+	Build string `json:"build"`
+
 	// Version API version
 	Version string `json:"version"`
 }

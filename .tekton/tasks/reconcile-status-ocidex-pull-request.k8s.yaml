@@ -21,6 +21,8 @@ spec:
       type: string
     - name: status-eslint-lint-web
       type: string
+    - name: status-openapi-breaking
+      type: string
     - name: status-govulncheck-scan
       type: string
     - name: status-grype-vuln-web
@@ -91,6 +93,7 @@ spec:
           { status: "$(params.status-go-integration-test)", context: "go-integration-test" }
           { status: "$(params.status-openapi-verify)", context: "openapi-verify" }
           { status: "$(params.status-eslint-lint-web)", context: "eslint-lint-web" }
+          { status: "$(params.status-openapi-breaking)", context: "openapi-breaking" }
           { status: "$(params.status-govulncheck-scan)", context: "govulncheck-scan" }
           { status: "$(params.status-grype-vuln-web)", context: "grype-vuln-web" }
           { status: "$(params.status-semgrep-sast)", context: "semgrep-sast" }

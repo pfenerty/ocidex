@@ -163,7 +163,7 @@ func NewRouter(h *Handler, corsOrigins, frontendURL, apiBaseURL string) chi.Rout
 	r.Use(CrossOriginGuard(allowedOrigins, apiBaseURL))
 	r.Use(middleware.Timeout(30 * time.Second))
 
-	config := huma.DefaultConfig("OCIDex API", "1.0.0")
+	config := huma.DefaultConfig("OCIDex API", ContractVersion)
 	config.Info.Description = "Open Container Initiative Dex — SBOM metadata management service"
 
 	// Security schemes: Bearer API key or session cookie.
