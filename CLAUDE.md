@@ -34,13 +34,12 @@ flox activate -- make fmt
 flox activate -- make help          # every target, self-documented — use this, not a list here
 ```
 
-`golangci-lint`, `sqlc`, and `controller-gen` are installed by `make init` into `~/go/bin`, which
-is **not** on PATH inside Flox. Targets that invoke them (`lint`, `check`, `generate`,
-`generate-operator`) need the export:
-
-```bash
-flox activate -- bash -c 'export PATH="$HOME/go/bin:$PATH"; make check'
-```
+Go dev tools (golangci-lint, sqlc, oapi-codegen, controller-gen, go-licenses, govulncheck) are
+pinned in `tools/go.mod` and run through `go tool`, so nothing needs installing and there is no
+PATH to set: `flox activate -- make check` works in a fresh checkout. The first run builds each
+tool into the Go cache (a minute or two). Always go through the make target, never a binary
+from `~/go/bin` or PATH. To bump a tool: `cd tools && GOWORK=off go get -tool <module>@<version>`
+(Renovate does this in its "Go dev tools" group).
 
 Two gotchas:
 

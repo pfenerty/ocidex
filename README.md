@@ -69,8 +69,7 @@ git clone https://github.com/pfenerty/ocidex.git
 cd ocidex
 flox activate
 
-# Install Go tools (golangci-lint, oapi-codegen, controller-gen)
-make init
+# Go dev tools are pinned in tools/go.mod and build on first use (no install step)
 
 # Start PostgreSQL and NATS (via docker-compose, or provide your own)
 docker compose up -d postgres nats

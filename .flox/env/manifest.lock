@@ -27,9 +27,6 @@
       "go": {
         "pkg-path": "go"
       },
-      "golangci-lint": {
-        "pkg-path": "golangci-lint"
-      },
       "kubectl": {
         "pkg-path": "kubectl"
       },
@@ -730,93 +727,6 @@
       ],
       "outputs": {
         "out": "/nix/store/i77g9dmcd399rmxk8688qfr4g2wzgk37-go-1.26.7"
-      },
-      "system": "x86_64-linux",
-      "group": "toplevel",
-      "priority": 5
-    },
-    {
-      "attr_path": "golangci-lint",
-      "broken": false,
-      "derivation": "/nix/store/j9672bwvahxyimw39qd3kjfg9p84099k-golangci-lint-2.13.1.drv",
-      "description": "Fast linters Runner for Go",
-      "install_id": "golangci-lint",
-      "license": "GPL-3.0-or-later",
-      "locked_url": "https://github.com/flox/nixpkgs?rev=83199d0d373dd3ac2b9a1996b1d0263f76ab7a4c",
-      "name": "golangci-lint-2.13.1",
-      "pname": "golangci-lint",
-      "rev": "83199d0d373dd3ac2b9a1996b1d0263f76ab7a4c",
-      "rev_count": 1063296,
-      "rev_date": "2026-08-28T06:55:34Z",
-      "scrape_date": "2026-08-30T04:57:00.195595Z",
-      "stabilities": [
-        "unstable"
-      ],
-      "unfree": false,
-      "version": "2.13.1",
-      "outputs_to_install": [
-        "out"
-      ],
-      "outputs": {
-        "out": "/nix/store/vyl94dsc8a2vfpx0h9hs3ls3w9hfcyfa-golangci-lint-2.13.1"
-      },
-      "system": "aarch64-darwin",
-      "group": "toplevel",
-      "priority": 5
-    },
-    {
-      "attr_path": "golangci-lint",
-      "broken": false,
-      "derivation": "/nix/store/3c7pfrjz093cqvbjkd3kjg49wf87x0cw-golangci-lint-2.13.1.drv",
-      "description": "Fast linters Runner for Go",
-      "install_id": "golangci-lint",
-      "license": "GPL-3.0-or-later",
-      "locked_url": "https://github.com/flox/nixpkgs?rev=83199d0d373dd3ac2b9a1996b1d0263f76ab7a4c",
-      "name": "golangci-lint-2.13.1",
-      "pname": "golangci-lint",
-      "rev": "83199d0d373dd3ac2b9a1996b1d0263f76ab7a4c",
-      "rev_count": 1063296,
-      "rev_date": "2026-08-28T06:55:34Z",
-      "scrape_date": "2026-08-30T05:28:50.787182Z",
-      "stabilities": [
-        "unstable"
-      ],
-      "unfree": false,
-      "version": "2.13.1",
-      "outputs_to_install": [
-        "out"
-      ],
-      "outputs": {
-        "out": "/nix/store/zg1nnbiiaiq65v0h4b22hqlqpqa8ja0j-golangci-lint-2.13.1"
-      },
-      "system": "aarch64-linux",
-      "group": "toplevel",
-      "priority": 5
-    },
-    {
-      "attr_path": "golangci-lint",
-      "broken": false,
-      "derivation": "/nix/store/rpr5764szqpxq2dbrrg5gavxq23902wy-golangci-lint-2.13.1.drv",
-      "description": "Fast linters Runner for Go",
-      "install_id": "golangci-lint",
-      "license": "GPL-3.0-or-later",
-      "locked_url": "https://github.com/flox/nixpkgs?rev=83199d0d373dd3ac2b9a1996b1d0263f76ab7a4c",
-      "name": "golangci-lint-2.13.1",
-      "pname": "golangci-lint",
-      "rev": "83199d0d373dd3ac2b9a1996b1d0263f76ab7a4c",
-      "rev_count": 1063296,
-      "rev_date": "2026-08-28T06:55:34Z",
-      "scrape_date": "2026-08-30T06:07:15.450056Z",
-      "stabilities": [
-        "unstable"
-      ],
-      "unfree": false,
-      "version": "2.13.1",
-      "outputs_to_install": [
-        "out"
-      ],
-      "outputs": {
-        "out": "/nix/store/sqm80s7p5kx9j4ia19rw3jy41ajx1v73-golangci-lint-2.13.1"
       },
       "system": "x86_64-linux",
       "group": "toplevel",
@@ -2118,9 +2028,6 @@
         },
         "go": {
           "pkg-path": "go"
-        },
-        "golangci-lint": {
-          "pkg-path": "golangci-lint"
         },
         "kubectl": {
           "pkg-path": "kubectl"

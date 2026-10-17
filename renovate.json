@@ -55,6 +55,12 @@
       "groupName": "Go dependencies"
     },
     {
+      "description": "Go dev tools pinned in tools/go.mod (golangci-lint, sqlc, oapi-codegen, controller-gen, go-licenses, govulncheck) get their own PR: a linter or generator bump can turn main red or change generated code, so it shouldn't ride along with app dependency updates.",
+      "matchManagers": ["gomod"],
+      "matchFileNames": ["tools/go.mod"],
+      "groupName": "Go dev tools"
+    },
+    {
       "description": "Group all .tektonic/ npm updates (@tektonic-ci/*, tsx, typescript, @types/node) into one branch, so the re-synth below runs once instead of on two competing branches. Majors land on their own major- branch and are not automerged.",
       "matchManagers": ["npm"],
       "matchFileNames": [".tektonic/package.json"],
