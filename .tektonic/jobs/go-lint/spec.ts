@@ -1,6 +1,6 @@
 import * as path from "path";
 import { Task, scriptFromFile } from "@tektonic-ci/core";
-import { goImage, goCacheLint, golangciLintCache, goEnv, statusReporter } from "../../shared";
+import { goImage, goCacheLint, golangciLintCache, goEnv, goTmpEnv, statusReporter } from "../../shared";
 import { goBuild } from "../go-build/spec";
 
 // golangci-lint over the whole module (ocidex-gyr0.3). needs: [goBuild] for cache warmth and
@@ -15,6 +15,7 @@ export const goLint = new Task({
   stepTemplate: {
     env: [
       ...goEnv,
+      ...goTmpEnv,
       { name: "GOLANGCI_LINT_CACHE", value: "$(workspaces.workspace.path)/.golangci-cache" },
       { name: "GOMAXPROCS", value: "2" },
       { name: "GOMEMLIMIT", value: "3500MiB" },

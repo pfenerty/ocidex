@@ -161,6 +161,14 @@ export const goEnv = [
   },
 ];
 
+// GOTMPDIR on the workspace PVC instead of the container's /tmp. A cold `go build`/`go list
+// -export` keeps every compiled package in its $WORK dir until the command exits, so a cold
+// golangci-lint run (export data for the whole module plus test deps) and a cold build of
+// the pinned tools blow a 2Gi ephemeral-storage limit; the first go-lint TaskRun was evicted
+// for exactly that (ocidex-gyr0.3). Dot dir, so ./... skips it. Go requires it to exist:
+// steps using this env run goTmpSetup (script-lib.ts) first.
+export const goTmpEnv = [{ name: "GOTMPDIR", value: "$(workspaces.workspace.path)/.go-tmp" }];
+
 export const nodeEnv = [{ name: "HOME", value: "/tmp" }];
 
 // ─── Image build volume ──────────────────────────────────────────────────────

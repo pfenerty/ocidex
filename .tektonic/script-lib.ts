@@ -11,6 +11,9 @@ export const gitSafeCwd = `^git config --global --add safe.directory (pwd)`;
 export const goSetup = `log $"go=(go version) uid=(id -u) pwd=(pwd)"
 ${gitSafeCwd}`;
 
+// Create GOTMPDIR (goTmpEnv in shared.ts); go fails rather than creating it.
+export const goTmpSetup = `mkdir $env.GOTMPDIR`;
+
 // `pinned-tool <name>` prints the path of a dev tool pinned in tools/go.mod (ocidex-gyr0.1),
 // building it into GOCACHE on first use. GOWORK=off because -modfile is refused in workspace
 // mode; the tool itself then runs in workspace mode, as the Makefile's `tool` macro does.

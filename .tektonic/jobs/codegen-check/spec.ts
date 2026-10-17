@@ -1,6 +1,6 @@
 import { Task, nu } from "@tektonic-ci/core";
-import { goImage, goCacheIntegration, goEnv, statusReporter } from "../../shared";
-import { goSetup, pinnedTool } from "../../script-lib";
+import { goImage, goCacheIntegration, goEnv, goTmpEnv, statusReporter } from "../../shared";
+import { goSetup, goTmpSetup, pinnedTool } from "../../script-lib";
 import { goBuild } from "../go-build/spec";
 
 // Generated-code drift checks (ocidex-gyr0.5), one step per generator so every drift is
@@ -9,17 +9,32 @@ import { goBuild } from "../go-build/spec";
 // generate-operator-check. Change one, change both. The OpenAPI spec and TS types are
 // openapi-verify's job. needs: [goBuild] for cache warmth; the cache entry never restores
 // over the shared .go-mod/.go-build (see goCacheIntegration in shared.ts).
+// Per step, not in stepTemplate: a pod's request is the SUM over its containers, and a
+// stepTemplate request lands on every step (cache and report steps included). Seven copies
+// of 500m/2Gi-ephemeral never fit the node the workspace PVC pins the pipeline to; the first
+// TaskRun sat at ExceededNodeResources until it timed out. The steps run one at a time, so
+// one step carries the real request and the rest ask for a token amount (explicitly: with
+// limits but no requests, Kubernetes sets requests = limits). Ephemeral stays small because
+// GOTMPDIR and the Go caches are on the workspace PVC.
+const stepLimits = { cpu: "2", memory: "2Gi", "ephemeral-storage": "1Gi" };
+const checkResources = {
+  first: {
+    limits: stepLimits,
+    requests: { cpu: "500m", memory: "1Gi", "ephemeral-storage": "256Mi" },
+  },
+  rest: {
+    limits: stepLimits,
+    requests: { cpu: "10m", memory: "64Mi", "ephemeral-storage": "64Mi" },
+  },
+};
+
 export const codegenCheck = new Task({
   name: "codegen-check",
   needs: [goBuild],
   caches: [goCacheIntegration],
   statusReporter,
   stepTemplate: {
-    env: goEnv,
-    computeResources: {
-      limits: { cpu: "2", memory: "2Gi", "ephemeral-storage": "2Gi" },
-      requests: { cpu: "500m", memory: "512Mi", "ephemeral-storage": "2Gi" },
-    },
+    env: [...goEnv, ...goTmpEnv],
   },
   steps: [
     {
@@ -27,11 +42,13 @@ export const codegenCheck = new Task({
       image: goImage,
       script: nu`
 ${goSetup}
+${goTmpSetup}
 log "Rendering the authorization matrix"
 ^go run ./cmd/authmatrix out> /tmp/auth-matrix-check.md
 ^diff docs/AUTH_MATRIX.md /tmp/auth-matrix-check.md
 log "OK: docs/AUTH_MATRIX.md is up to date (else run 'make auth-matrix')"
 `,
+      computeResources: checkResources.first,
       onError: "continue",
     },
     {
@@ -39,12 +56,14 @@ log "OK: docs/AUTH_MATRIX.md is up to date (else run 'make auth-matrix')"
       image: goImage,
       script: nu`
 ${goSetup}
+${goTmpSetup}
 ${pinnedTool}
 let sqlc = (pinned-tool sqlc)
 log "Diffing sqlc output against internal/repository"
 ^$sqlc diff
 log "OK: internal/repository is up to date (else run 'make generate')"
 `,
+      computeResources: checkResources.rest,
       onError: "continue",
     },
     {
@@ -52,6 +71,7 @@ log "OK: internal/repository is up to date (else run 'make generate')"
       image: goImage,
       script: nu`
 ${goSetup}
+${goTmpSetup}
 ${pinnedTool}
 let oapi = (pinned-tool oapi-codegen)
 log "Generating pkg/client types from the OpenAPI spec"
@@ -63,6 +83,7 @@ open --raw pkg/client/.oapi-codegen.yml
 ^diff pkg/client/types.go /tmp/client-types-check.go
 log "OK: pkg/client/types.go is up to date (else run 'make generate-client')"
 `,
+      computeResources: checkResources.rest,
       onError: "continue",
     },
     {
@@ -70,6 +91,7 @@ log "OK: pkg/client/types.go is up to date (else run 'make generate-client')"
       image: goImage,
       script: nu`
 ${goSetup}
+${goTmpSetup}
 ${pinnedTool}
 let cg = (pinned-tool controller-gen)
 let out = "/tmp/operator-check"
@@ -92,6 +114,7 @@ for f in (ls config/operator/crd/*.yaml | get name) {
 }
 log "OK: operator files are up to date (else run 'make generate-operator')"
 `,
+      computeResources: checkResources.rest,
       onError: "continue",
     },
   ],

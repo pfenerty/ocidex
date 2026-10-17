@@ -12,13 +12,11 @@ spec:
   stepTemplate:
     computeResources:
       limits:
-        cpu: "2"
-        ephemeral-storage: 2Gi
-        memory: 2Gi
-      requests:
-        cpu: 500m
-        ephemeral-storage: 2Gi
+        cpu: "1"
         memory: 512Mi
+      requests:
+        cpu: 100m
+        memory: 128Mi
     env:
       - name: GOPATH
         value: $(workspaces.workspace.path)/.go-path
@@ -28,6 +26,8 @@ spec:
         value: $(workspaces.workspace.path)/.go-build
       - name: GIT_CONFIG_GLOBAL
         value: $(workspaces.workspace.path)/.gitconfig
+      - name: GOTMPDIR
+        value: $(workspaces.workspace.path)/.go-tmp
     imagePullPolicy: Always
     securityContext:
       allowPrivilegeEscalation: false
@@ -92,7 +92,16 @@ spec:
           log $"restore-go-cache-cache: miss ($hash)"
         }
       workingDir: $(workspaces.workspace.path)
-    - image: ghcr.io/pfenerty/apko-cicd/golang:1.27
+    - computeResources:
+        limits:
+          cpu: "2"
+          ephemeral-storage: 1Gi
+          memory: 2Gi
+        requests:
+          cpu: 500m
+          ephemeral-storage: 256Mi
+          memory: 1Gi
+      image: ghcr.io/pfenerty/apko-cicd/golang:1.27
       name: auth-matrix-check
       onError: continue
       script: |-
@@ -103,6 +112,7 @@ spec:
         def main [] {
         log $"go=(go version) uid=(id -u) pwd=(pwd)"
         ^git config --global --add safe.directory (pwd)
+        mkdir $env.GOTMPDIR
         log "Rendering the authorization matrix"
         ^go run ./cmd/authmatrix out> /tmp/auth-matrix-check.md
         ^diff docs/AUTH_MATRIX.md /tmp/auth-matrix-check.md
@@ -113,7 +123,16 @@ spec:
         let __tek_worst = ([$__tek_prev $__tek_rc] | math max)
         $"($__tek_worst)" | save -f /tekton/home/.exit-code
         exit $__tek_rc
-    - image: ghcr.io/pfenerty/apko-cicd/golang:1.27
+    - computeResources:
+        limits:
+          cpu: "2"
+          ephemeral-storage: 1Gi
+          memory: 2Gi
+        requests:
+          cpu: 10m
+          ephemeral-storage: 64Mi
+          memory: 64Mi
+      image: ghcr.io/pfenerty/apko-cicd/golang:1.27
       name: sqlc-check
       onError: continue
       script: |-
@@ -124,6 +143,7 @@ spec:
         def main [] {
         log $"go=(go version) uid=(id -u) pwd=(pwd)"
         ^git config --global --add safe.directory (pwd)
+        mkdir $env.GOTMPDIR
         def pinned-tool [name: string] {
           with-env {GOWORK: "off"} { ^go tool -modfile=tools/go.mod -n $name } | str trim
         }
@@ -137,7 +157,16 @@ spec:
         let __tek_worst = ([$__tek_prev $__tek_rc] | math max)
         $"($__tek_worst)" | save -f /tekton/home/.exit-code
         exit $__tek_rc
-    - image: ghcr.io/pfenerty/apko-cicd/golang:1.27
+    - computeResources:
+        limits:
+          cpu: "2"
+          ephemeral-storage: 1Gi
+          memory: 2Gi
+        requests:
+          cpu: 10m
+          ephemeral-storage: 64Mi
+          memory: 64Mi
+      image: ghcr.io/pfenerty/apko-cicd/golang:1.27
       name: client-types-check
       onError: continue
       script: |-
@@ -148,6 +177,7 @@ spec:
         def main [] {
         log $"go=(go version) uid=(id -u) pwd=(pwd)"
         ^git config --global --add safe.directory (pwd)
+        mkdir $env.GOTMPDIR
         def pinned-tool [name: string] {
           with-env {GOWORK: "off"} { ^go tool -modfile=tools/go.mod -n $name } | str trim
         }
@@ -166,7 +196,16 @@ spec:
         let __tek_worst = ([$__tek_prev $__tek_rc] | math max)
         $"($__tek_worst)" | save -f /tekton/home/.exit-code
         exit $__tek_rc
-    - image: ghcr.io/pfenerty/apko-cicd/golang:1.27
+    - computeResources:
+        limits:
+          cpu: "2"
+          ephemeral-storage: 1Gi
+          memory: 2Gi
+        requests:
+          cpu: 10m
+          ephemeral-storage: 64Mi
+          memory: 64Mi
+      image: ghcr.io/pfenerty/apko-cicd/golang:1.27
       name: operator-check
       onError: continue
       script: |-
@@ -177,6 +216,7 @@ spec:
         def main [] {
         log $"go=(go version) uid=(id -u) pwd=(pwd)"
         ^git config --global --add safe.directory (pwd)
+        mkdir $env.GOTMPDIR
         def pinned-tool [name: string] {
           with-env {GOWORK: "off"} { ^go tool -modfile=tools/go.mod -n $name } | str trim
         }
