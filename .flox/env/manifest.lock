@@ -7,6 +7,12 @@
         "pkg-path": "beads",
         "version": "1.0.3"
       },
+      "cosign": {
+        "pkg-path": "cosign"
+      },
+      "crane": {
+        "pkg-path": "crane"
+      },
       "curl": {
         "pkg-path": "curl",
         "outputs": "all"
@@ -163,6 +169,186 @@
       ],
       "outputs": {
         "out": "/nix/store/kfml4ci9j8s0d0lzg0rjcbwdn7ya25c1-beads-1.0.3"
+      },
+      "system": "x86_64-linux",
+      "group": "toplevel",
+      "priority": 5
+    },
+    {
+      "attr_path": "cosign",
+      "broken": false,
+      "derivation": "/nix/store/r39xx3kcjpmryl2rfnnb18bq8cbbjldm-cosign-3.1.3.drv",
+      "description": "Container Signing CLI with support for ephemeral keys and Sigstore signing",
+      "install_id": "cosign",
+      "license": "Apache-2.0",
+      "locked_url": "https://github.com/flox/nixpkgs?rev=83199d0d373dd3ac2b9a1996b1d0263f76ab7a4c",
+      "name": "cosign-3.1.3",
+      "pname": "cosign",
+      "rev": "83199d0d373dd3ac2b9a1996b1d0263f76ab7a4c",
+      "rev_count": 1063296,
+      "rev_date": "2026-08-28T06:55:34Z",
+      "scrape_date": "2026-08-30T04:56:59.157910Z",
+      "stabilities": [
+        "unstable"
+      ],
+      "unfree": false,
+      "version": "3.1.3",
+      "outputs_to_install": [
+        "out"
+      ],
+      "outputs": {
+        "out": "/nix/store/8yjpxpv5fhqjd1mx95q59z53fmryhxsc-cosign-3.1.3"
+      },
+      "system": "aarch64-darwin",
+      "group": "toplevel",
+      "priority": 5
+    },
+    {
+      "attr_path": "cosign",
+      "broken": false,
+      "derivation": "/nix/store/a5zyxfr33dcljczr3i3yjfjqzv54n8rk-cosign-3.1.3.drv",
+      "description": "Container Signing CLI with support for ephemeral keys and Sigstore signing",
+      "install_id": "cosign",
+      "license": "Apache-2.0",
+      "locked_url": "https://github.com/flox/nixpkgs?rev=83199d0d373dd3ac2b9a1996b1d0263f76ab7a4c",
+      "name": "cosign-3.1.3",
+      "pname": "cosign",
+      "rev": "83199d0d373dd3ac2b9a1996b1d0263f76ab7a4c",
+      "rev_count": 1063296,
+      "rev_date": "2026-08-28T06:55:34Z",
+      "scrape_date": "2026-08-30T05:28:48.362152Z",
+      "stabilities": [
+        "unstable"
+      ],
+      "unfree": false,
+      "version": "3.1.3",
+      "outputs_to_install": [
+        "out"
+      ],
+      "outputs": {
+        "out": "/nix/store/766367x180xwrwbi952m1pjvq9vk27nj-cosign-3.1.3"
+      },
+      "system": "aarch64-linux",
+      "group": "toplevel",
+      "priority": 5
+    },
+    {
+      "attr_path": "cosign",
+      "broken": false,
+      "derivation": "/nix/store/6y9pjdlspc4h6ihkw0lcbs54v1vybdkw-cosign-3.1.3.drv",
+      "description": "Container Signing CLI with support for ephemeral keys and Sigstore signing",
+      "install_id": "cosign",
+      "license": "Apache-2.0",
+      "locked_url": "https://github.com/flox/nixpkgs?rev=83199d0d373dd3ac2b9a1996b1d0263f76ab7a4c",
+      "name": "cosign-3.1.3",
+      "pname": "cosign",
+      "rev": "83199d0d373dd3ac2b9a1996b1d0263f76ab7a4c",
+      "rev_count": 1063296,
+      "rev_date": "2026-08-28T06:55:34Z",
+      "scrape_date": "2026-08-30T06:07:13.122527Z",
+      "stabilities": [
+        "unstable"
+      ],
+      "unfree": false,
+      "version": "3.1.3",
+      "outputs_to_install": [
+        "out"
+      ],
+      "outputs": {
+        "out": "/nix/store/izfvz0l1vwm81cfllvi9hi60r1knykn5-cosign-3.1.3"
+      },
+      "system": "x86_64-linux",
+      "group": "toplevel",
+      "priority": 5
+    },
+    {
+      "attr_path": "crane",
+      "broken": false,
+      "derivation": "/nix/store/d7y7nwvi1d42b5mxkwi5lm488qqgxbkp-go-containerregistry-0.21.9.drv",
+      "description": "Tools for interacting with remote images and registries including crane and gcrane",
+      "install_id": "crane",
+      "license": "Apache-2.0",
+      "locked_url": "https://github.com/flox/nixpkgs?rev=83199d0d373dd3ac2b9a1996b1d0263f76ab7a4c",
+      "name": "go-containerregistry-0.21.9",
+      "pname": "crane",
+      "rev": "83199d0d373dd3ac2b9a1996b1d0263f76ab7a4c",
+      "rev_count": 1063296,
+      "rev_date": "2026-08-28T06:55:34Z",
+      "scrape_date": "2026-08-30T04:56:59.169787Z",
+      "stabilities": [
+        "unstable"
+      ],
+      "unfree": false,
+      "version": "0.21.9",
+      "outputs_to_install": [
+        "out"
+      ],
+      "outputs": {
+        "crane": "/nix/store/s062v264ldzwg9x0diwcxrzvvbvjdmb5-go-containerregistry-0.21.9-crane",
+        "gcrane": "/nix/store/43kvp346zryn98zmr1x3wn5fmsaz31gg-go-containerregistry-0.21.9-gcrane",
+        "out": "/nix/store/3cisn99ibw2nphlf8dl5v0bgd2c2kss3-go-containerregistry-0.21.9"
+      },
+      "system": "aarch64-darwin",
+      "group": "toplevel",
+      "priority": 5
+    },
+    {
+      "attr_path": "crane",
+      "broken": false,
+      "derivation": "/nix/store/ba9ng4fciqbm4ijsm6a3z37ddy9fhbim-go-containerregistry-0.21.9.drv",
+      "description": "Tools for interacting with remote images and registries including crane and gcrane",
+      "install_id": "crane",
+      "license": "Apache-2.0",
+      "locked_url": "https://github.com/flox/nixpkgs?rev=83199d0d373dd3ac2b9a1996b1d0263f76ab7a4c",
+      "name": "go-containerregistry-0.21.9",
+      "pname": "crane",
+      "rev": "83199d0d373dd3ac2b9a1996b1d0263f76ab7a4c",
+      "rev_count": 1063296,
+      "rev_date": "2026-08-28T06:55:34Z",
+      "scrape_date": "2026-08-30T05:28:48.398989Z",
+      "stabilities": [
+        "unstable"
+      ],
+      "unfree": false,
+      "version": "0.21.9",
+      "outputs_to_install": [
+        "out"
+      ],
+      "outputs": {
+        "crane": "/nix/store/hl4p2lxacywfsyrlc4n1ij3lk4nnbcxk-go-containerregistry-0.21.9-crane",
+        "gcrane": "/nix/store/i4xbwc59pql16z9lp8s2nknr1iyy8w4s-go-containerregistry-0.21.9-gcrane",
+        "out": "/nix/store/ja4illyyl0m9d1h6pcv8fm3lkqkk9vd5-go-containerregistry-0.21.9"
+      },
+      "system": "aarch64-linux",
+      "group": "toplevel",
+      "priority": 5
+    },
+    {
+      "attr_path": "crane",
+      "broken": false,
+      "derivation": "/nix/store/0904gmhjcys7ry62yp5dhg7h13s3nzbv-go-containerregistry-0.21.9.drv",
+      "description": "Tools for interacting with remote images and registries including crane and gcrane",
+      "install_id": "crane",
+      "license": "Apache-2.0",
+      "locked_url": "https://github.com/flox/nixpkgs?rev=83199d0d373dd3ac2b9a1996b1d0263f76ab7a4c",
+      "name": "go-containerregistry-0.21.9",
+      "pname": "crane",
+      "rev": "83199d0d373dd3ac2b9a1996b1d0263f76ab7a4c",
+      "rev_count": 1063296,
+      "rev_date": "2026-08-28T06:55:34Z",
+      "scrape_date": "2026-08-30T06:07:13.153160Z",
+      "stabilities": [
+        "unstable"
+      ],
+      "unfree": false,
+      "version": "0.21.9",
+      "outputs_to_install": [
+        "out"
+      ],
+      "outputs": {
+        "crane": "/nix/store/q56y6bvkcyrvg5m9ki5q5w8x8lgwx8ll-go-containerregistry-0.21.9-crane",
+        "gcrane": "/nix/store/wx1ihzs1jys180d1r22axp3gvbihz068-go-containerregistry-0.21.9-gcrane",
+        "out": "/nix/store/7318ps47zwckkqbi10yvwwdwn19zcvjb-go-containerregistry-0.21.9"
       },
       "system": "x86_64-linux",
       "group": "toplevel",
@@ -2009,6 +2195,12 @@
     "composer": {
       "schema-version": "1.10.0",
       "install": {
+        "cosign": {
+          "pkg-path": "cosign"
+        },
+        "crane": {
+          "pkg-path": "crane"
+        },
         "curl": {
           "pkg-path": "curl",
           "outputs": "all"

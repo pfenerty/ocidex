@@ -33,6 +33,8 @@ git.pkg-path = "git"
 postgresql.pkg-path = "postgresql"
 nats-server.pkg-path = "nats-server"
 rtk.pkg-path = "rtk"
+crane.pkg-path = "crane"
+cosign.pkg-path = "cosign"
 # gum.pkg-path = "gum"
 # gum.version = "^0.14.5"
 
