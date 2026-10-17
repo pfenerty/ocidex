@@ -1,6 +1,6 @@
 import * as path from "path";
 import { Task, scriptFromFile } from "@tektonic-ci/core";
-import { statusReporter } from "../../shared";
+import { statusReporter, sourceWs } from "../../shared";
 import { imageBuildsTag } from "../image-build/spec";
 
 export const ghRelease = new Task({
@@ -11,7 +11,7 @@ export const ghRelease = new Task({
     {
       name: "gh-release-create",
       image: "ghcr.io/pfenerty/apko-cicd/base:stable",
-      workingDir: "$(workspaces.workspace.path)",
+      workingDir: sourceWs.path,
       env: [
         {
           name: "GH_TOKEN",

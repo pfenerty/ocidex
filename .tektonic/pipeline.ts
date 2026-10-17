@@ -7,7 +7,7 @@ import {
   DEFAULT_BASE_IMAGE,
 } from "@tektonic-ci/core";
 
-import { goCacheWs, nodeCacheWs, buildkitCacheWs, buildkitReleaseCacheWs } from "./shared";
+import { sourceWs, goCacheWs, nodeCacheWs, buildkitCacheWs, buildkitReleaseCacheWs } from "./shared";
 import {
   goChanged,
   nodeChanged,
@@ -50,6 +50,7 @@ const securityTasks = [goVulncheck, webSecurity, secretsScan, semgrep];
 // ─── Pipelines ────────────────────────────────────────────────────────────────
 const pushPipeline = new GitPipeline({
   name: "ocidex-push",
+  workspace: sourceWs,
   // Publish only from main — feature-branch pushes shouldn't run image builds.
   // Cancel an older in-progress run for the same branch when a newer one starts,
   // so two serial image-build chains never overlap and burst the single node's
@@ -91,6 +92,7 @@ const pushPipeline = new GitPipeline({
 // did not run. Each condition's detect-* task is wired in by tektonic.
 const prPipeline = new GitPipeline({
   name: "ocidex-pull-request",
+  workspace: sourceWs,
   trigger: { rules: [{ on: TRIGGER_EVENTS.PULL_REQUEST }], cancelInProgress: true },
   cloneDepth: "full",
   tasks: [
@@ -121,6 +123,7 @@ const prPipeline = new GitPipeline({
 
 const tagPipeline = new GitPipeline({
   name: "ocidex-tag",
+  workspace: sourceWs,
   // Server releases only. The Go SDK is tagged pkg/client/vX.Y.Z (ADR-052); the Go proxy
   // serves it straight from the tag, and it must not set off an image and chart release.
   // A TAG rule's `branch` filters the tag name (@tektonic-ci/core 2.3.0+), so "v*" emits

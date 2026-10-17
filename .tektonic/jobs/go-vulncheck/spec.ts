@@ -1,10 +1,9 @@
-import { Task, nu } from "@tektonic-ci/core";
+import { Task, nu, PAC_PARAMS } from "@tektonic-ci/core";
 import {
   govulncheckImage,
   goEnv,
   goCacheVulncheck,
   reportOnlyStatusReporter,
-  sourceBranchParam,
   uploadSarifStep,
 } from "../../shared";
 import { goBuild } from "../go-build/spec";
@@ -23,7 +22,7 @@ export const goVulncheck = new Task({
   name: "govulncheck-scan",
   // For uploadSarifStep's code-scanning call; tektonic wires it from the pipeline's
   // `source-branch`, as it already does for grype-vuln-web and semgrep-sast.
-  params: [sourceBranchParam],
+  params: [PAC_PARAMS.sourceBranch],
   // Ordered after goBuild so the shared workspace Go cache is already populated when this
   // task starts, which is the precondition goCacheVulncheck's skip-restore relies on. It
   // also stops the two tasks racing each other's restore at t=0. On PRs both are gated on

@@ -1,5 +1,5 @@
-import { Task, nu } from "@tektonic-ci/core";
-import { semgrepImage, reportOnlyStatusReporter, sourceBranchParam, uploadSarifStep } from "../../shared";
+import { Task, nu, PAC_PARAMS } from "@tektonic-ci/core";
+import { semgrepImage, reportOnlyStatusReporter, uploadSarifStep } from "../../shared";
 import { pacBaseline, memoryWatchdog } from "../../script-lib";
 
 // Multi-language SAST with Semgrep (Go + TypeScript + secrets rulesets). On a PR it scans
@@ -10,7 +10,7 @@ import { pacBaseline, memoryWatchdog } from "../../script-lib";
 // Report-only: `onError: continue` keeps the PipelineRun green.
 export const semgrep = new Task({
   name: "semgrep-sast",
-  params: [sourceBranchParam],
+  params: [PAC_PARAMS.sourceBranch],
   statusReporter: reportOnlyStatusReporter,
   steps: [
     {
@@ -35,18 +35,17 @@ export const semgrep = new Task({
       },
       script: nu`
 ${pacBaseline}
-let baseline = if $scoped {
+$env.SEMGREP_BASELINE = if $scoped {
   ^git -c safe.directory='*' update-ref refs/semgrep-baseline FETCH_HEAD
-  ["--baseline-commit" "refs/semgrep-baseline"]
-} else { [] }
+  "refs/semgrep-baseline"
+} else { "" }
 # Exclude the CI cache dirs goEnv creates in the workspace root (GOMODCACHE=.go-mod etc.):
 # they hold tens of thousands of third-party .go files that semgrep would otherwise SAST-scan
 # as if they were our source (66k+ files). .gitignore covers node_modules but not these.
-# The scan runs under sh via memoryWatchdog, so $baseline crosses over as positional args.
+# The scan runs under sh via memoryWatchdog, so the baseline crosses over as SEMGREP_BASELINE.
 ${memoryWatchdog(
   "semgrep",
-  'semgrep scan --error --disable-version-check --metrics off --jobs 1 --max-memory 2048 --severity ERROR --config p/golang --config p/typescript --config p/secrets --exclude .go-mod --exclude .go-build --exclude .go-path --sarif-output=semgrep.sarif "$@" .',
-  "...$baseline",
+  'semgrep scan --error --disable-version-check --metrics off --jobs 1 --max-memory 2048 --severity ERROR --config p/golang --config p/typescript --config p/secrets --exclude .go-mod --exclude .go-build --exclude .go-path --sarif-output=semgrep.sarif ${SEMGREP_BASELINE:+--baseline-commit "$SEMGREP_BASELINE"} .',
 )}
 `,
       onError: "continue",

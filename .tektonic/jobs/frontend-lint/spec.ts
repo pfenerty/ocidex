@@ -1,5 +1,5 @@
 import { Task, nu } from "@tektonic-ci/core";
-import { nodeImage, nodeModulesCache, nodeEnv, statusReporter } from "../../shared";
+import { nodeImage, nodeModulesCache, nodeEnv, statusReporter, sourceWs } from "../../shared";
 import { nodeSetup } from "../../script-lib";
 
 export const frontendLint = new Task({
@@ -13,7 +13,7 @@ export const frontendLint = new Task({
     {
       name: "eslint-lint",
       image: nodeImage,
-      workingDir: "$(workspaces.workspace.path)/web",
+      workingDir: sourceWs.at("web"),
       computeResources: {
         limits: { cpu: "2", memory: "3Gi" },
         requests: { cpu: "500m", memory: "2Gi" },

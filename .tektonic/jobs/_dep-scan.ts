@@ -1,9 +1,8 @@
-import { Task, nu, TaskStepSpec, TaskCacheSpec } from "@tektonic-ci/core";
+import { Task, nu, TaskStepSpec, TaskCacheSpec, PAC_PARAMS } from "@tektonic-ci/core";
 import {
   syftImage,
   grypeImage,
   reportOnlyStatusReporter,
-  sourceBranchParam,
   uploadSarifStep,
 } from "../shared";
 
@@ -40,7 +39,7 @@ export function depScanTask(o: DepScanOptions): Task {
   const catalogerFlag = o.catalogers ? ` --select-catalogers ${o.catalogers}` : "";
   return new Task({
     name: o.name,
-    params: [sourceBranchParam],
+    params: [PAC_PARAMS.sourceBranch],
     statusReporter: reportOnlyStatusReporter,
     ...(o.caches ? { caches: o.caches } : {}),
     ...(o.env ? { stepTemplate: { env: o.env } } : {}),

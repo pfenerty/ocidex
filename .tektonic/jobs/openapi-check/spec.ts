@@ -1,5 +1,5 @@
 import { Task, nu } from "@tektonic-ci/core";
-import { goImage, nodeImage, goEnv, nodeEnv, nodeModulesCache, statusReporter } from "../../shared";
+import { goImage, nodeImage, goEnv, nodeEnv, nodeModulesCache, statusReporter, sourceWs } from "../../shared";
 import { goSetup, nodeSetup } from "../../script-lib";
 import { goBuild } from "../go-build/spec";
 import { frontendLint } from "../frontend-lint/spec";
@@ -37,7 +37,7 @@ log "OK: spec is up to date"
     {
       name: "openapi-types-check",
       image: nodeImage,
-      workingDir: "$(workspaces.workspace.path)/web",
+      workingDir: sourceWs.at("web"),
       computeResources: {
         limits: { cpu: "2", memory: "3Gi" },
         requests: { cpu: "100m", memory: "2Gi" },

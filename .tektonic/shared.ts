@@ -1,4 +1,4 @@
-import { Param, Workspace, TaskVolumeSpec, TaskStepSpec, rawScript } from "@tektonic-ci/core";
+import { Workspace, TaskVolumeSpec, TaskStepSpec, rawScript, PAC_PARAMS } from "@tektonic-ci/core";
 import { GitHubStatusReporter } from "@tektonic-ci/reporter-github";
 
 // --- Images ─────────────────────────────────────────────────────────────────
@@ -51,6 +51,9 @@ export const reportOnlyStatusReporter = new GitHubStatusReporter({
 // tektonic's save scripts write to a temp path and atomically rename into place
 // (see pvc-backend.ts), so a killed/OOM'd save step or a concurrent save race can
 // never leave a truncated archive at the hash-keyed cache path.
+// The source checkout every task shares (GitPipeline's `workspace`). pipeline.ts hands this
+// instance to each GitPipeline, so specs can build paths with sourceWs.at(...).
+export const sourceWs = new Workspace({ name: "workspace" });
 export const goCacheWs = new Workspace({ name: "go-cache" });
 export const nodeCacheWs = new Workspace({ name: "node-cache" });
 
@@ -74,7 +77,7 @@ export const goCache = {
   paths: [".go-mod", ".go-build"],
   workspace: goCacheWs,
   compress: true,
-  workingDir: "$(workspaces.workspace.path)",
+  workingDir: sourceWs.path,
 };
 
 // go-test runs after go-build on the same workspace PVC. go-build seeds .go-mod/.go-build,
@@ -135,7 +138,7 @@ export const golangciLintCache = {
   paths: [".golangci-cache"],
   workspace: goCacheWs,
   compress: true,
-  workingDir: "$(workspaces.workspace.path)",
+  workingDir: sourceWs.path,
   forceSave: true,
   skipRestoreIfPathsExist: true,
 };
@@ -146,7 +149,7 @@ export const nodeModulesCache = {
   paths: ["node_modules"],
   workspace: nodeCacheWs,
   compress: true,
-  workingDir: "$(workspaces.workspace.path)/web",
+  workingDir: sourceWs.at("web"),
 };
 
 // ─── Env ─────────────────────────────────────────────────────────────────────
@@ -156,12 +159,12 @@ export const goEnv = [
   // module/build caches, but the sumdb tree-head cache is hardcoded to
   // "$GOPATH/pkg/sumdb" regardless of GOMODCACHE, so GOPATH must also point
   // at a writable location.
-  { name: "GOPATH", value: "$(workspaces.workspace.path)/.go-path" },
-  { name: "GOMODCACHE", value: "$(workspaces.workspace.path)/.go-mod" },
-  { name: "GOCACHE", value: "$(workspaces.workspace.path)/.go-build" },
+  { name: "GOPATH", value: sourceWs.at(".go-path") },
+  { name: "GOMODCACHE", value: sourceWs.at(".go-mod") },
+  { name: "GOCACHE", value: sourceWs.at(".go-build") },
   {
     name: "GIT_CONFIG_GLOBAL",
-    value: "$(workspaces.workspace.path)/.gitconfig",
+    value: sourceWs.at(".gitconfig"),
   },
 ];
 
@@ -171,7 +174,7 @@ export const goEnv = [
 // the pinned tools blow a 2Gi ephemeral-storage limit; the first go-lint TaskRun was evicted
 // for exactly that (ocidex-gyr0.3). Dot dir, so ./... skips it. Go requires it to exist:
 // steps using this env run goTmpSetup (script-lib.ts) first.
-export const goTmpEnv = [{ name: "GOTMPDIR", value: "$(workspaces.workspace.path)/.go-tmp" }];
+export const goTmpEnv = [{ name: "GOTMPDIR", value: sourceWs.at(".go-tmp") }];
 
 export const nodeEnv = [{ name: "HOME", value: "/tmp" }];
 
@@ -182,11 +185,9 @@ export const dockerConfigVolume: TaskVolumeSpec = {
 };
 
 // ─── SARIF → GitHub Security tab ──────────────────────────────────────────────
-// Declare this Param on any task that uses `uploadSarifStep` so the git ref is
-// available for the code-scanning upload. tektonic wires it from the pipeline's
-// `source-branch` ({{ source_branch }}); `repo-full-name` + `revision` come for free
-// on any task with a statusReporter.
-export const sourceBranchParam = new Param({ name: "source-branch", type: "string" });
+// Any task that uses `uploadSarifStep` declares PAC_PARAMS.sourceBranch for the git ref the
+// code-scanning upload needs; `repo-full-name` + `revision` come for free on any task with a
+// statusReporter.
 
 // Best-effort SARIF upload to GitHub code-scanning (Security tab). Add as a trailing
 // step on a report-only security task; it ALWAYS exits 0 so a failed/again-throttled
@@ -226,7 +227,7 @@ if not ("${sarifPath}" | path exists) or (ls "${sarifPath}" | get size.0) == 0B 
 }
 
 # code-scanning wants a full ref; PAC's source-branch is the short name on push, a ref on tag.
-let ref_raw = "$(params.source-branch)"
+let ref_raw = "${PAC_PARAMS.sourceBranch}"
 let ref = if ($ref_raw | str starts-with "refs/") { $ref_raw } else { $"refs/heads/($ref_raw)" }
 print $"upload-sarif [${category}]: ref=($ref)"
 
@@ -238,8 +239,8 @@ let sarif_json = (open --raw "${sarifPath}" | from json)
 let ad = { id: "${category}/" }
 let runs2 = ($sarif_json.runs | each { |r| $r | upsert automationDetails $ad })
 let sarif_b64 = ($sarif_json | upsert runs $runs2 | to json -r | ^gzip -c | encode base64)
-let url = "https://api.github.com/repos/$(params.repo-full-name)/code-scanning/sarifs"
-let body = { commit_sha: "$(params.revision)", ref: $ref, sarif: $sarif_b64 }
+let url = "https://api.github.com/repos/${PAC_PARAMS.repoFullName}/code-scanning/sarifs"
+let body = { commit_sha: "${PAC_PARAMS.revision}", ref: $ref, sarif: $sarif_b64 }
 
 # --allow-errors + --full so a non-2xx (e.g. 403 missing security_events scope, 422 ref
 # mismatch) is captured and logged instead of thrown — the status/body tells us exactly why.

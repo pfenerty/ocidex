@@ -1,6 +1,6 @@
 import * as path from "path";
 import { Task, scriptFromFile } from "@tektonic-ci/core";
-import { statusReporter, dockerConfigVolume } from "../../shared";
+import { statusReporter, dockerConfigVolume, sourceWs } from "../../shared";
 import { imageBuilds } from "../image-build/spec";
 import { helmCheck } from "../helm-check/spec";
 
@@ -15,7 +15,7 @@ export const helmPublish = new Task({
     {
       name: "helm-package-push",
       image: "alpine/helm:4",
-      workingDir: "$(workspaces.workspace.path)",
+      workingDir: sourceWs.path,
       onError: "continue",
       env: [{ name: "DOCKER_CONFIG", value: "/tmp/helm-auth" }],
       volumeMounts: [

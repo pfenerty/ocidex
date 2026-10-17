@@ -1,12 +1,11 @@
 import * as path from "path";
-import { Task, nu, scriptFromFile } from "@tektonic-ci/core";
+import { Task, nu, scriptFromFile, PAC_PARAMS } from "@tektonic-ci/core";
 import {
   goImage,
   syftImage,
   goEnv,
   goCacheVulncheck,
   reportOnlyStatusReporter,
-  sourceBranchParam,
 } from "../../shared";
 import { goBuild } from "../go-build/spec";
 import { goSetup } from "../../script-lib";
@@ -80,7 +79,7 @@ const nuList = (xs: string[]) => `[${xs.map((x) => `"${x}"`).join(" ")}]`;
 // 0. An unset API key stays a clean skip: nothing to do is not a failure.
 export const sbomPush = new Task({
   name: "sbom-push",
-  params: [sourceBranchParam],
+  params: [PAC_PARAMS.sourceBranch],
   statusReporter: reportOnlyStatusReporter,
   // Ordered after go-build for the same reason govulncheck-scan is: goEnv points
   // GOMODCACHE/GOCACHE into the shared source workspace, and a cache restore starts by
@@ -125,8 +124,8 @@ for b in ${nuList(shippedBinaries)} {
 # errors on a missing or blank file instead of pushing a versionless SBOM
 # (ocidex-2u7y). Folded into this step rather than given one of its own: see the
 # step-count note above.
-let ref = "$(params.source-branch)"
-let rev = "$(params.revision)"
+let ref = "${PAC_PARAMS.sourceBranch}"
+let rev = "${PAC_PARAMS.revision}"
 let version = if ($ref | str starts-with "refs/tags/") {
   $ref | str replace "refs/tags/" ""
 } else {

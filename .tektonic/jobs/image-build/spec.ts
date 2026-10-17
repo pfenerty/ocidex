@@ -1,11 +1,12 @@
 import * as path from "path";
-import { ChainsImage, Task, Workspace, ScriptInput, scriptFromFile, nu } from "@tektonic-ci/core";
+import { ChainsImage, Task, Workspace, ScriptInput, scriptFromFile, nu, PAC_PARAMS } from "@tektonic-ci/core";
 import {
   statusReporter,
   dockerConfigVolume,
   baseImage,
   buildkitCacheWs,
   buildkitReleaseCacheWs,
+  sourceWs,
 } from "../../shared";
 import { goTest } from "../go-test/spec";
 import { goIntegration } from "../go-integration/spec";
@@ -98,13 +99,13 @@ try { ^du -sh "${buildkitRoot}" } catch { print "du unavailable" }
       {
         name: "prepare-build-context",
         image: baseImage,
-        workingDir: "$(workspaces.workspace.path)",
+        workingDir: sourceWs.path,
         computeResources: {
           requests: { cpu: "25m", memory: "64Mi" },
           limits: { cpu: "500m", memory: "256Mi" },
         },
         script: nu`
-let rev = "$(params.revision)"
+let rev = "${PAC_PARAMS.revision}"
 let stamp = "${ctxDir}/.ctxrev"
 
 if ($stamp | path exists) and (open --raw $stamp | str trim) == $rev {
@@ -147,7 +148,7 @@ with-env {TZ: "UTC"} {
           runAsGroup: 1000,
           capabilities: { drop: [], add: ["SETUID", "SETGID"] },
         },
-        workingDir: "$(workspaces.workspace.path)",
+        workingDir: sourceWs.path,
         // Limit was 2Gi, measured against the old one-binary-per-image Dockerfile: a single
         // linux/amd64 `api` build peaked at ~471Mi real memory (kubectl top, 10s sampling).
         // The build-all stage (ocidex-2j2) links ten main packages in one `go build`, several

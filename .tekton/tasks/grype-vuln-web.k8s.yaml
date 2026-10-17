@@ -5,7 +5,8 @@ metadata:
   namespace: ocidex-ci
 spec:
   params:
-    - name: source-branch
+    - description: Branch or tag ref of the event, bound by PAC from source_branch
+      name: source-branch
       type: string
     - name: repo-full-name
       type: string
