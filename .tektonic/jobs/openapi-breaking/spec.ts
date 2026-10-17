@@ -1,6 +1,6 @@
 import * as path from "path";
 import { Task, scriptFromFile } from "@tektonic-ci/core";
-import { statusReporter } from "../../shared";
+import { statusReporter, sourceWs } from "../../shared";
 
 // Breaking-change gate for /api/v1 (ADR-052, ocidex-tkn9.3): oasdiff compares the PR's
 // committed spec with the spec at the latest release tag. Pinned by digest; the image is
@@ -15,7 +15,7 @@ export const openapiBreaking = new Task({
     {
       name: "oasdiff-breaking",
       image: oasdiffImage,
-      workingDir: "$(workspaces.workspace.path)",
+      workingDir: sourceWs.path,
       onError: "continue",
       computeResources: {
         limits: { cpu: "1", memory: "512Mi" },

@@ -1,6 +1,6 @@
 import * as path from "path";
 import { ChainsImage, Task, scriptFromFile } from "@tektonic-ci/core";
-import { statusReporter, dockerConfigVolume } from "../../shared";
+import { statusReporter, dockerConfigVolume, sourceWs } from "../../shared";
 import { imageBuildsTag } from "../image-build/spec";
 import { helmCheck } from "../helm-check/spec";
 
@@ -29,7 +29,7 @@ export const helmRelease = new Task({
       // chart is published (never ship a partially-pinned chart).
       name: "helm-package-push",
       image: "alpine/helm:4",
-      workingDir: "$(workspaces.workspace.path)",
+      workingDir: sourceWs.path,
       onError: "continue",
       env: [
         { name: "DOCKER_CONFIG", value: "/tmp/helm-auth" },

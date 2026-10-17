@@ -86,7 +86,7 @@ Re-push the current tag to trigger the tag pipeline, or push an empty commit to 
 git push origin :v0.0.1-rc.2 && git push origin v0.0.1-rc.2
 
 # Trigger push pipeline — only from main; the push pipeline's trigger is
-# `{ on: PUSH, branch: "main" }` (.tektonic/pipeline.ts), so a feature-branch
+# `{ on: PUSH, branch: "main" }` (.tektonic/pipelines.ts), so a feature-branch
 # push runs nothing at all.
 git commit --allow-empty -m "chore: retrigger CI" && git push
 ```

@@ -1,4 +1,4 @@
-import { Param, Workspace, TaskVolumeSpec, TaskStepSpec, rawScript } from "@tektonic-ci/core";
+import { Workspace, TaskVolumeSpec, TaskStepSpec, rawScript, taskPreset, warmCache, PAC_PARAMS } from "@tektonic-ci/core";
 import { GitHubStatusReporter } from "@tektonic-ci/reporter-github";
 
 // --- Images ─────────────────────────────────────────────────────────────────
@@ -45,12 +45,23 @@ export const reportOnlyStatusReporter = new GitHubStatusReporter({
   failOnError: false,
 });
 
+// Task factories for the report-only scans, so each states only its own steps. A scan that
+// uploads SARIF (uploadSarifStep, below) takes the event's git ref for the code-scanning call.
+export const reportOnlyTask = taskPreset({ statusReporter: reportOnlyStatusReporter });
+export const sarifScanTask = taskPreset({
+  statusReporter: reportOnlyStatusReporter,
+  params: [PAC_PARAMS.sourceBranch],
+});
+
 // ─── Cache workspaces (PVC-backed, local-path) ───────────────────────────────
 // Persistent PVCs provisioned once; mounted read-write by each pipeline run.
 // ReadWriteOnce is required — local-path does not support ReadWriteMany.
 // tektonic's save scripts write to a temp path and atomically rename into place
 // (see pvc-backend.ts), so a killed/OOM'd save step or a concurrent save race can
 // never leave a truncated archive at the hash-keyed cache path.
+// The source checkout every task shares (GitPipeline's `workspace`). pipelines.ts hands this
+// instance to each GitPipeline, so specs can build paths with sourceWs.at(...).
+export const sourceWs = new Workspace({ name: "workspace" });
 export const goCacheWs = new Workspace({ name: "go-cache" });
 export const nodeCacheWs = new Workspace({ name: "node-cache" });
 
@@ -67,63 +78,34 @@ export const nodeCacheWs = new Workspace({ name: "node-cache" });
 export const buildkitCacheWs = new Workspace({ name: "buildkit-cache" });
 export const buildkitReleaseCacheWs = new Workspace({ name: "buildkit-release-cache" });
 
-export const goCache = {
+// The shared Go module + build cache. go-build is its one producer and restores and saves
+// normally; every other Go task is a consumer (ocidex-xvy2.7).
+//
+// goEnv points GOMODCACHE/GOCACHE at two directories in the *shared* source workspace, so
+// every Go task in the run reads and writes the same .go-mod/.go-build. A cache restore begins
+// by `rm -rf`ing them, which is safe only while nothing else is using them. A consumer skips
+// the restore when the paths are already populated, so it never swaps the tree out from under
+// a concurrent task. That race is real: in ocidex-ocidex-push-hh77k govulncheck-scan's restore
+// landed mid-build in openapi-verify, which died with "package encoding/json is not in std"
+// (ocidex-plh). tektonic fails synthesis unless go-build is ordered before each consumer,
+// which is what guarantees the paths are populated. Concurrent *use* of GOCACHE/GOMODCACHE is
+// fine: the go tool locks them.
+//
+// Consumers don't save by default (the archive for this key already exists). go-test does
+// (goCacheTest): it adds test-only modules, and it is usually where the pinned dev tools get
+// captured too. go-lint must not: re-archiving the ~3.4GB shared tree took 2.5 min on every
+// TaskRun, against ~90s to rebuild the linter cold (ocidex-gyr0.3 TaskRuns).
+export const goCache = warmCache({
   name: "go-cache",
   key: ["go.sum"],
   // Use dotdir paths so `go test ./...` skips them (Go ignores dirs starting with '.')
   paths: [".go-mod", ".go-build"],
   workspace: goCacheWs,
   compress: true,
-  workingDir: "$(workspaces.workspace.path)",
-};
-
-// go-test runs after go-build on the same workspace PVC. go-build seeds .go-mod/.go-build,
-// so restore must skip extraction when paths exist. forceSave ensures test-only deps are
-// always written back (the archive may already exist from go-build's save).
-export const goCacheTest = {
-  ...goCache,
-  forceSave: true,
-  skipRestoreIfPathsExist: true,
-};
-
-// govulncheck-scan needs the same treatment, and for a sharper reason than go-test does
-// (ocidex-plh). goEnv points GOMODCACHE/GOCACHE at two directories in the *shared* source
-// workspace, so every Go task in the run reads and writes the same .go-mod/.go-build. A
-// cache restore begins by `rm -rf`ing them. That is safe only while nothing else is using
-// them — and govulncheck-scan is the one Go task Tekton may schedule at any moment, so its
-// restore can land in the middle of another task's build. In ocidex-ocidex-push-hh77k it
-// did: openapi-verify (which declares no cache of its own and just uses what go-build
-// leaves behind) died with "package encoding/json is not in std" when the module cache
-// vanished under it, and govulncheck's own `rm -rf` failed ENOTEMPTY against openapi-verify
-// still writing. Skipping the restore when the paths are already populated removes the
-// destructive step; go-vulncheck's `needs: [goBuild]` is what guarantees they are.
-export const goCacheVulncheck = {
-  ...goCache,
-  skipRestoreIfPathsExist: true,
-};
-
-// go-integration-test is a leaf on `needs: [goBuild]` (it cannot depend on go-test — see
-// its spec.ts), so it runs CONCURRENTLY with go-test against the same shared
-// .go-mod/.go-build. That is exactly the goCacheVulncheck situation: skipping the restore
-// removes the destructive `rm -rf` that would otherwise land mid-build in another task,
-// and `needs: [goBuild]` is what guarantees the paths are already populated. Concurrent
-// *use* of GOCACHE/GOMODCACHE is fine — the go tool locks them. No forceSave: ./tests/...
-// pulls in no module go-test hasn't already compiled, so there is nothing new to write back.
-export const goCacheIntegration = {
-  ...goCache,
-  skipRestoreIfPathsExist: true,
-};
-
-// go-lint runs concurrently with go-test/go-integration-test on the shared .go-mod/.go-build,
-// so it gets the goCacheVulncheck treatment: never restore over paths go-build populated.
-// No forceSave: re-archiving the ~3.4GB shared tree took 2.5 min on every TaskRun, against
-// ~90s to rebuild the pinned linter on a cold cache (tools/go.sum is not in the key). go-test
-// force-saves the same shared tree, so the built linter is usually captured there anyway.
-// The lint results themselves are in golangciLintCache, below. (ocidex-gyr0.3 TaskRuns)
-export const goCacheLint = {
-  ...goCache,
-  skipRestoreIfPathsExist: true,
-};
+  workingDir: sourceWs.path,
+});
+export const goCacheTest = goCache.consumer({ forceSave: true });
+export const goCacheConsumer = goCache.consumer();
 
 // golangci-lint's own analysis cache (GOLANGCI_LINT_CACHE in go-lint's env). Only go-lint
 // touches it, so the restore guard below never actually skips anything in a fresh workspace;
@@ -135,7 +117,7 @@ export const golangciLintCache = {
   paths: [".golangci-cache"],
   workspace: goCacheWs,
   compress: true,
-  workingDir: "$(workspaces.workspace.path)",
+  workingDir: sourceWs.path,
   forceSave: true,
   skipRestoreIfPathsExist: true,
 };
@@ -146,7 +128,7 @@ export const nodeModulesCache = {
   paths: ["node_modules"],
   workspace: nodeCacheWs,
   compress: true,
-  workingDir: "$(workspaces.workspace.path)/web",
+  workingDir: sourceWs.at("web"),
 };
 
 // ─── Env ─────────────────────────────────────────────────────────────────────
@@ -156,12 +138,12 @@ export const goEnv = [
   // module/build caches, but the sumdb tree-head cache is hardcoded to
   // "$GOPATH/pkg/sumdb" regardless of GOMODCACHE, so GOPATH must also point
   // at a writable location.
-  { name: "GOPATH", value: "$(workspaces.workspace.path)/.go-path" },
-  { name: "GOMODCACHE", value: "$(workspaces.workspace.path)/.go-mod" },
-  { name: "GOCACHE", value: "$(workspaces.workspace.path)/.go-build" },
+  { name: "GOPATH", value: sourceWs.at(".go-path") },
+  { name: "GOMODCACHE", value: sourceWs.at(".go-mod") },
+  { name: "GOCACHE", value: sourceWs.at(".go-build") },
   {
     name: "GIT_CONFIG_GLOBAL",
-    value: "$(workspaces.workspace.path)/.gitconfig",
+    value: sourceWs.at(".gitconfig"),
   },
 ];
 
@@ -171,7 +153,7 @@ export const goEnv = [
 // the pinned tools blow a 2Gi ephemeral-storage limit; the first go-lint TaskRun was evicted
 // for exactly that (ocidex-gyr0.3). Dot dir, so ./... skips it. Go requires it to exist:
 // steps using this env run goTmpSetup (script-lib.ts) first.
-export const goTmpEnv = [{ name: "GOTMPDIR", value: "$(workspaces.workspace.path)/.go-tmp" }];
+export const goTmpEnv = [{ name: "GOTMPDIR", value: sourceWs.at(".go-tmp") }];
 
 export const nodeEnv = [{ name: "HOME", value: "/tmp" }];
 
@@ -182,11 +164,9 @@ export const dockerConfigVolume: TaskVolumeSpec = {
 };
 
 // ─── SARIF → GitHub Security tab ──────────────────────────────────────────────
-// Declare this Param on any task that uses `uploadSarifStep` so the git ref is
-// available for the code-scanning upload. tektonic wires it from the pipeline's
-// `source-branch` ({{ source_branch }}); `repo-full-name` + `revision` come for free
-// on any task with a statusReporter.
-export const sourceBranchParam = new Param({ name: "source-branch", type: "string" });
+// Any task that uses `uploadSarifStep` declares PAC_PARAMS.sourceBranch for the git ref the
+// code-scanning upload needs (sarifScanTask, above, does); `repo-full-name` + `revision` come
+// for free on any task with a statusReporter.
 
 // Best-effort SARIF upload to GitHub code-scanning (Security tab). Add as a trailing
 // step on a report-only security task; it ALWAYS exits 0 so a failed/again-throttled
@@ -226,7 +206,7 @@ if not ("${sarifPath}" | path exists) or (ls "${sarifPath}" | get size.0) == 0B 
 }
 
 # code-scanning wants a full ref; PAC's source-branch is the short name on push, a ref on tag.
-let ref_raw = "$(params.source-branch)"
+let ref_raw = "${PAC_PARAMS.sourceBranch}"
 let ref = if ($ref_raw | str starts-with "refs/") { $ref_raw } else { $"refs/heads/($ref_raw)" }
 print $"upload-sarif [${category}]: ref=($ref)"
 
@@ -238,8 +218,8 @@ let sarif_json = (open --raw "${sarifPath}" | from json)
 let ad = { id: "${category}/" }
 let runs2 = ($sarif_json.runs | each { |r| $r | upsert automationDetails $ad })
 let sarif_b64 = ($sarif_json | upsert runs $runs2 | to json -r | ^gzip -c | encode base64)
-let url = "https://api.github.com/repos/$(params.repo-full-name)/code-scanning/sarifs"
-let body = { commit_sha: "$(params.revision)", ref: $ref, sarif: $sarif_b64 }
+let url = "https://api.github.com/repos/${PAC_PARAMS.repoFullName}/code-scanning/sarifs"
+let body = { commit_sha: "${PAC_PARAMS.revision}", ref: $ref, sarif: $sarif_b64 }
 
 # --allow-errors + --full so a non-2xx (e.g. 403 missing security_events scope, 422 ref
 # mismatch) is captured and logged instead of thrown — the status/body tells us exactly why.

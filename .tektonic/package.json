@@ -7,7 +7,8 @@
   },
   "scripts": {
     "synth": "tektonic synth",
-    "check": "tektonic check"
+    "check": "tektonic check",
+    "test": "node --import tsx --test test/*.test.ts"
   },
   "dependencies": {
     "@tektonic-ci/core": "^2.3.0",

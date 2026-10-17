@@ -1,11 +1,12 @@
 import * as path from "path";
-import { ChainsImage, Task, Workspace, ScriptInput, scriptFromFile, nu } from "@tektonic-ci/core";
+import { ChainsImage, Task, Workspace, ScriptInput, scriptFromFile, nu, PAC_PARAMS } from "@tektonic-ci/core";
 import {
   statusReporter,
   dockerConfigVolume,
   baseImage,
   buildkitCacheWs,
   buildkitReleaseCacheWs,
+  sourceWs,
 } from "../../shared";
 import { goTest } from "../go-test/spec";
 import { goIntegration } from "../go-integration/spec";
@@ -47,14 +48,12 @@ const ctxDateFile = ".buildctx.date";
 
 // Shared Task skeleton. Each image declares a ChainsImage (Tekton Chains build
 // subject); build.sh/release.sh write the pushed ref + digest to its result paths.
-// `extraNeeds` chains the builds serially (see serialChain).
 function buildImageTask(
   taskName: string,
   imageName: string,
   script: ScriptInput,
   imageEnv: EnvVar[],
   cacheWs: Workspace,
-  extraNeeds: Task[] = [],
 ): Task {
   const chains = new ChainsImage({ name: imageName });
   const buildkitRoot = `${cacheWs.path}/root`;
@@ -63,9 +62,9 @@ function buildImageTask(
     name: taskName,
     statusReporter,
     // goIntegration gates publication: a failing integration test must skip the whole
-    // image chain rather than ship. This also applies to imageBuildsTag — serialChain
+    // image chain rather than ship. This also applies to imageBuildsTag — imageTasks
     // backs both — so release builds carry the same gate.
-    needs: [goTest, goIntegration, openapiCheck, ...extraNeeds],
+    needs: [goTest, goIntegration, openapiCheck],
     workspaces: [cacheWs],
     volumes: [dockerConfigVolume],
     results: [...chains.results],
@@ -100,13 +99,13 @@ try { ^du -sh "${buildkitRoot}" } catch { print "du unavailable" }
       {
         name: "prepare-build-context",
         image: baseImage,
-        workingDir: "$(workspaces.workspace.path)",
+        workingDir: sourceWs.path,
         computeResources: {
           requests: { cpu: "25m", memory: "64Mi" },
           limits: { cpu: "500m", memory: "256Mi" },
         },
         script: nu`
-let rev = "$(params.revision)"
+let rev = "${PAC_PARAMS.revision}"
 let stamp = "${ctxDir}/.ctxrev"
 
 if ($stamp | path exists) and (open --raw $stamp | str trim) == $rev {
@@ -149,7 +148,7 @@ with-env {TZ: "UTC"} {
           runAsGroup: 1000,
           capabilities: { drop: [], add: ["SETUID", "SETGID"] },
         },
-        workingDir: "$(workspaces.workspace.path)",
+        workingDir: sourceWs.path,
         // Limit was 2Gi, measured against the old one-binary-per-image Dockerfile: a single
         // linux/amd64 `api` build peaked at ~471Mi real memory (kubectl top, 10s sampling).
         // The build-all stage (ocidex-2j2) links ten main packages in one `go build`, several
@@ -215,7 +214,7 @@ function imageEnv(
 }
 
 // The single CI worker has limited spare CPU (~0.8 core free of 4), so the image builds
-// run SEQUENTIALLY — each chained after the previous via `extraNeeds` — instead of in
+// run SEQUENTIALLY — pipelines.ts chains each list with serial() — instead of in
 // parallel, which overcommits the node and leaves pods Pending ("Insufficient cpu").
 // The shared buildkit root (see buildImageTask) is what makes the serial order cheap:
 // each build inherits the previous one's base image, module cache, builder-base and the
@@ -243,21 +242,18 @@ const imageSpecs: ImageSpec[] = [
   ["cli", "docker/Dockerfile", "OCIDex CLI", "Command-line client for OCIDex", "cli"],
 ];
 
-// Build a serial chain: task[i] runs after task[i-1]. Every task in a chain shares one
-// buildkit root, which is what turns the serial ordering from a pure cost into a benefit:
-// build[0] runs docker/Dockerfile's build-all stage once, and build[1..n] hit it CACHED,
-// doing nothing but copying their binary out of it and pushing the final image.
-// This replaced nine per-binary stages that each cold-compiled the whole dependency graph
-// (~210-300s apiece) because the builder image's GOCACHE never pointed at the cache mount
-// (ocidex-2j2).
-function serialChain(taskPrefix: string, script: ScriptInput, cacheWs: Workspace): Task[] {
-  const chain: Task[] = [];
-  for (const [name, dockerfile, title, description, target] of imageSpecs) {
-    const after = chain.length ? [chain[chain.length - 1]] : [];
-    chain.push(buildImageTask(`${taskPrefix}-${name}`, name, script, imageEnv(name, dockerfile, title, description, target), cacheWs, after));
-  }
-  return chain;
+// One task per image, in imageSpecs order. pipelines.ts runs each list through serial(), so
+// task[i] runs after task[i-1]. Every task in a chain shares one buildkit root, which is what
+// turns the serial ordering from a pure cost into a benefit: build[0] runs
+// docker/Dockerfile's build-all stage once, and build[1..n] hit it CACHED, doing nothing but
+// copying their binary out of it and pushing the final image. This replaced nine per-binary
+// stages that each cold-compiled the whole dependency graph (~210-300s apiece) because the
+// builder image's GOCACHE never pointed at the cache mount (ocidex-2j2).
+function imageTasks(taskPrefix: string, script: ScriptInput, cacheWs: Workspace): Task[] {
+  return imageSpecs.map(([name, dockerfile, title, description, target]) =>
+    buildImageTask(`${taskPrefix}-${name}`, name, script, imageEnv(name, dockerfile, title, description, target), cacheWs),
+  );
 }
 
-export const imageBuilds = serialChain("image-build", buildScript, buildkitCacheWs);
-export const imageBuildsTag = serialChain("image-release", releaseScript, buildkitReleaseCacheWs);
+export const imageBuilds = imageTasks("image-build", buildScript, buildkitCacheWs);
+export const imageBuildsTag = imageTasks("image-release", releaseScript, buildkitReleaseCacheWs);

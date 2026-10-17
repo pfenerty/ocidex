@@ -10,6 +10,9 @@ import { nodeImage, statusReporter } from "../../shared";
 // It exits non-zero on drift, and a failing external raises in nushell, so the exit-code
 // wrapper sees it — the earlier hand-rolled body's `exit 1` did not, and reported green on
 // drift (ocidex-im4o.1).
+//
+// Then the pipeline definitions' own tests (test/): PR gating and report-only behavior,
+// asserted on an in-memory synthesis.
 export const tektonCheck = new Task({
   name: "tekton-check",
   statusReporter,
@@ -25,6 +28,7 @@ export const tektonCheck = new Task({
 cd .tektonic
 ^npm ci
 ^npx tektonic check
+^npm test
 `,
     },
   ],

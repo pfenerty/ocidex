@@ -1,5 +1,5 @@
 import { Task, nu } from "@tektonic-ci/core";
-import { goImage, goCacheIntegration, goEnv, goTmpEnv, statusReporter } from "../../shared";
+import { goImage, goCacheConsumer, goEnv, goTmpEnv, statusReporter } from "../../shared";
 import { goSetup, goTmpSetup, pinnedTool } from "../../script-lib";
 import { goBuild } from "../go-build/spec";
 
@@ -8,7 +8,7 @@ import { goBuild } from "../go-build/spec";
 // mirrors its Makefile target: auth-matrix-check, generate-check, generate-client-check,
 // generate-operator-check. Change one, change both. The OpenAPI spec and TS types are
 // openapi-verify's job. needs: [goBuild] for cache warmth; the cache entry never restores
-// over the shared .go-mod/.go-build (see goCacheIntegration in shared.ts).
+// over the shared .go-mod/.go-build (see goCache in shared.ts).
 // Per step, not in stepTemplate: a pod's request is the SUM over its containers, and a
 // stepTemplate request lands on every step (cache and report steps included). Seven copies
 // of 500m/2Gi-ephemeral never fit the node the workspace PVC pins the pipeline to; the first
@@ -31,7 +31,7 @@ const checkResources = {
 export const codegenCheck = new Task({
   name: "codegen-check",
   needs: [goBuild],
-  caches: [goCacheIntegration],
+  caches: [goCacheConsumer],
   statusReporter,
   stepTemplate: {
     env: [...goEnv, ...goTmpEnv],

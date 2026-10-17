@@ -5,7 +5,8 @@ metadata:
   namespace: ocidex-ci
 spec:
   params:
-    - name: source-branch
+    - description: Branch or tag ref of the event, bound by PAC from source_branch
+      name: source-branch
       type: string
     - name: repo-full-name
       type: string
@@ -116,8 +117,7 @@ spec:
         log $"go=(go version) uid=(id -u) pwd=(pwd)"
         ^git config --global --add safe.directory (pwd)
         log "Running govulncheck -format sarif ./cmd/..."
-        let watchdog = r#'
-        govulncheck -format sarif ./cmd/... > govulncheck.sarif &
+        ^sh -c r#'govulncheck -format sarif ./cmd/... > govulncheck.sarif &
         pid=$!
         max_file=/sys/fs/cgroup/memory.max
         cur_file=/sys/fs/cgroup/memory.current
@@ -139,9 +139,7 @@ spec:
             sleep 1
           done
         fi
-        wait "$pid"
-        '#
-        ^sh -c $watchdog govulncheck
+        wait "$pid"'# sh
 
         let accepted = (if (".govulncheck-accepted.json" | path exists) { open --raw ".govulncheck-accepted.json" | from json } else { [] })
         let accepted_ids = ($accepted | get -o id | default [])

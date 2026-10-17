@@ -1,5 +1,5 @@
 import { Task, nu } from "@tektonic-ci/core";
-import { goImage, nodeImage, goEnv, nodeEnv, statusReporter } from "../../shared";
+import { goImage, nodeImage, goEnv, nodeEnv, nodeModulesCache, statusReporter, sourceWs } from "../../shared";
 import { goSetup, nodeSetup } from "../../script-lib";
 import { goBuild } from "../go-build/spec";
 import { frontendLint } from "../frontend-lint/spec";
@@ -8,9 +8,14 @@ import { frontendLint } from "../frontend-lint/spec";
 // the spec from Go (go run ./cmd/specgen) and diffs it; check-types regenerates the TS types
 // from the spec and diffs those. Cross-language, hence the goBuild + frontendLint needs
 // (cache-warm ordering; neither consumes their artifacts).
+//
+// A Go-only PR skips frontend-lint, so this task restores node_modules itself. It runs
+// after frontend-lint, so the restore never lands under a running npm ci, and it skips
+// when frontend-lint already populated the tree.
 export const openapiCheck = new Task({
   name: "openapi-verify",
   needs: [goBuild, frontendLint],
+  caches: [{ ...nodeModulesCache, skipRestoreIfPathsExist: true }],
   statusReporter,
   stepTemplate: {
     env: [...goEnv, ...nodeEnv],
@@ -32,7 +37,7 @@ log "OK: spec is up to date"
     {
       name: "openapi-types-check",
       image: nodeImage,
-      workingDir: "$(workspaces.workspace.path)/web",
+      workingDir: sourceWs.at("web"),
       computeResources: {
         limits: { cpu: "2", memory: "3Gi" },
         requests: { cpu: "100m", memory: "2Gi" },

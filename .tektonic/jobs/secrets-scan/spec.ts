@@ -1,5 +1,5 @@
-import { Task, nu } from "@tektonic-ci/core";
-import { gitleaksImage, reportOnlyStatusReporter } from "../../shared";
+import { nu } from "@tektonic-ci/core";
+import { gitleaksImage, reportOnlyTask } from "../../shared";
 import { pacBaseline } from "../../script-lib";
 
 // Secrets detection with gitleaks in git mode (scans tracked commits, so build/dep caches on
@@ -8,9 +8,8 @@ import { pacBaseline } from "../../script-lib";
 // the reporter as a failed check (a leaked secret is always high, so no severity gate).
 // Runs on the first-party apko-cicd gitleaks image (nushell + git present). Report-only:
 // `onError: continue` keeps the PipelineRun green.
-export const secretsScan = new Task({
+export const secretsScan = reportOnlyTask({
   name: "gitleaks-secrets",
-  statusReporter: reportOnlyStatusReporter,
   steps: [
     {
       name: "gitleaks-scan",

@@ -1,6 +1,6 @@
 import * as path from "path";
 import { Task, scriptFromFile } from "@tektonic-ci/core";
-import { kyvernoImage, statusReporter } from "../../shared";
+import { kyvernoImage, statusReporter, sourceWs } from "../../shared";
 
 // Nothing rendered the Helm charts before this task, so chart defects reached the live
 // cluster: ocidex-1d9 shipped PodSecurity `restricted` violations (caught only by a manual
@@ -19,7 +19,7 @@ export const helmCheck = new Task({
     {
       name: "lint-and-validate",
       image: kyvernoImage,
-      workingDir: "$(workspaces.workspace.path)",
+      workingDir: sourceWs.path,
       computeResources: {
         limits: { cpu: "1", memory: "1Gi" },
         requests: { cpu: "200m", memory: "256Mi" },
