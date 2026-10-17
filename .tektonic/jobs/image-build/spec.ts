@@ -214,7 +214,7 @@ function imageEnv(
 }
 
 // The single CI worker has limited spare CPU (~0.8 core free of 4), so the image builds
-// run SEQUENTIALLY — pipeline.ts chains each list with serial() — instead of in
+// run SEQUENTIALLY — pipelines.ts chains each list with serial() — instead of in
 // parallel, which overcommits the node and leaves pods Pending ("Insufficient cpu").
 // The shared buildkit root (see buildImageTask) is what makes the serial order cheap:
 // each build inherits the previous one's base image, module cache, builder-base and the
@@ -242,7 +242,7 @@ const imageSpecs: ImageSpec[] = [
   ["cli", "docker/Dockerfile", "OCIDex CLI", "Command-line client for OCIDex", "cli"],
 ];
 
-// One task per image, in imageSpecs order. pipeline.ts runs each list through serial(), so
+// One task per image, in imageSpecs order. pipelines.ts runs each list through serial(), so
 // task[i] runs after task[i-1]. Every task in a chain shares one buildkit root, which is what
 // turns the serial ordering from a pure cost into a benefit: build[0] runs
 // docker/Dockerfile's build-all stage once, and build[1..n] hit it CACHED, doing nothing but

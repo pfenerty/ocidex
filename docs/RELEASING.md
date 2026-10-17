@@ -60,7 +60,7 @@ human action.
 
 ## What the tag pipeline does
 
-`ocidex-tag` (`.tektonic/pipeline.ts`) fires on `refs/tags/v*` only. Its tasks are:
+`ocidex-tag` (`.tektonic/pipelines.ts`) fires on `refs/tags/v*` only. Its tasks are:
 
 - **Image builds.** It builds every image multi-arch (linux/amd64, linux/arm64) and pushes
   it to `ghcr.io/pfenerty/ocidex-<component>` tagged with the version, plus `latest` for a

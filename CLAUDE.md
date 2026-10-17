@@ -13,7 +13,7 @@ These are the mistakes that cost real time. Everything else is convention.
 
 | Rule | Why / how |
 |---|---|
-| **Never hand-edit `.tekton/*.yaml`** | Generated from `.tektonic/` by `make tekton-synth`. The `tekton-check` PR task re-synthesizes and fails the PR if `.tekton` comes out dirty. |
+| **Never hand-edit `.tekton/*.yaml`** | Generated from `.tektonic/` by `make tekton-synth`. The `tekton-check` PR task re-synthesizes and fails the PR if `.tekton` comes out dirty, then runs `.tektonic`'s tests (`npm test`). |
 | **Never hand-edit `internal/repository/*sql.go` or `models.go`** | sqlc output. Edit `db/queries/*.sql`, then `make generate`. |
 | **Never hand-edit `web/openapi.json` or `web/src/types/openapi.d.ts`** | Generated from `internal/api/types.go` + `router.go`. Run `make openapi` after any API type or route change — stale types fail the Docker build. |
 | **Never hand-edit `api/v1alpha1/zz_generated.deepcopy.go` or `config/operator/crd/*.yaml`** | controller-gen output. Edit `api/v1alpha1/*_types.go`, then `make generate-operator`. |
@@ -150,7 +150,7 @@ bd close <epic-id> && git branch -d <epic-id>
 ```
 
 **Pushing the epic branch is free — do it.** The push pipeline's trigger is
-`{ on: PUSH, branch: "main" }` (`.tektonic/pipeline.ts`), so a feature-branch push runs no CI at
+`{ on: PUSH, branch: "main" }` (`.tektonic/pipelines.ts`), so a feature-branch push runs no CI at
 all. It is the cheapest way to keep work off a single machine, and there is no reason to leave a
 session's work unpushed. **Merging to `main` is the CI-triggering event** (~70 min warm, 3 h
 timeout), so merge once per epic, not once per story.

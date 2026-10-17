@@ -198,9 +198,10 @@ tekton-synth: ## Synthesize Tekton pipeline YAML from TypeScript
 	cd .tektonic && npm ci && npx tektonic synth
 
 # Re-synthesizes to a temp dir and diffs recursively, so it is git-state-independent and also
-# catches orphans — files .tektonic no longer emits.
-tekton-check: ## Verify .tekton is in sync with .tektonic/
-	cd .tektonic && npm ci && npx tektonic check
+# catches orphans — files .tektonic no longer emits. Then runs .tektonic's own tests (PR
+# gating, report-only tasks), as the tekton-check CI task does.
+tekton-check: ## Verify .tekton is in sync with .tektonic/ and run its tests
+	cd .tektonic && npm ci && npx tektonic check && npm test
 
 # talosctl reaches Docker through the Go client, which honours DOCKER_HOST but
 # ignores Docker CLI contexts — and Docker Desktop on macOS does not create

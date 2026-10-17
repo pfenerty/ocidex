@@ -51,7 +51,7 @@ export const reportOnlyStatusReporter = new GitHubStatusReporter({
 // tektonic's save scripts write to a temp path and atomically rename into place
 // (see pvc-backend.ts), so a killed/OOM'd save step or a concurrent save race can
 // never leave a truncated archive at the hash-keyed cache path.
-// The source checkout every task shares (GitPipeline's `workspace`). pipeline.ts hands this
+// The source checkout every task shares (GitPipeline's `workspace`). pipelines.ts hands this
 // instance to each GitPipeline, so specs can build paths with sourceWs.at(...).
 export const sourceWs = new Workspace({ name: "workspace" });
 export const goCacheWs = new Workspace({ name: "go-cache" });

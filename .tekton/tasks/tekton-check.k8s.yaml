@@ -44,6 +44,7 @@ spec:
         cd .tektonic
         ^npm ci
         ^npx tektonic check
+        ^npm test
         }
         let __tek_rc = (try { main; 0 } catch { |e| print $"error [tekton-check/synth-drift]: ($e.msg)"; 1 })
         let __tek_prev = (try { open --raw /tekton/home/.exit-code | str trim | into int } catch { 0 })
