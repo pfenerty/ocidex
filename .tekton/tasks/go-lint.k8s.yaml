@@ -199,6 +199,7 @@ spec:
         if ($hash | is-empty) { log "save-go-cache-cache: no hash, skipping"; exit 0 }
 
         let archive = $"$(workspaces.go-cache.path)/($hash).tar.zst"
+        if ($archive | path exists) { log $"save-go-cache-cache: ($hash) exists, skipping"; exit 0 }
 
         let paths = [".go-mod", ".go-build"] | where { |p| ($p | path exists) }
         if ($paths | is-empty) { log "save-go-cache-cache: no paths to cache"; exit 0 }
@@ -222,7 +223,7 @@ spec:
         # reports a non-zero exit (e.g. tar failing to read one of $paths), so cleanup must
         # live in a catch — code placed after the pipe but outside try/catch never runs.
         try {
-          ^tar cf - ...$paths | ^zstd -1 -T1 -f -o $tmp
+          ^tar cf - ...$paths | ^zstd -1 -T1 -o $tmp
         } catch { |e|
           rm -f $tmp
           log $"save-go-cache-cache: compress failed (($e.msg)), discarding partial archive"

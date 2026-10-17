@@ -113,11 +113,12 @@ export const goCacheIntegration = {
 
 // go-lint runs concurrently with go-test/go-integration-test on the shared .go-mod/.go-build,
 // so it gets the goCacheVulncheck treatment: never restore over paths go-build populated.
-// forceSave writes back the pinned tools' modules and compiled golangci-lint (tools/go.sum
-// is not part of go.sum, the key), so later runs skip rebuilding the linter.
+// No forceSave: re-archiving the ~3.4GB shared tree took 2.5 min on every TaskRun, against
+// ~90s to rebuild the pinned linter on a cold cache (tools/go.sum is not in the key). go-test
+// force-saves the same shared tree, so the built linter is usually captured there anyway.
+// The lint results themselves are in golangciLintCache, below. (ocidex-gyr0.3 TaskRuns)
 export const goCacheLint = {
   ...goCache,
-  forceSave: true,
   skipRestoreIfPathsExist: true,
 };
 
