@@ -1,6 +1,6 @@
 import * as path from "path";
 import { Task, scriptFromFile } from "@tektonic-ci/core";
-import { goImage, goCacheIntegration, goEnv, statusReporter } from "../../shared";
+import { goImage, goCacheConsumer, goEnv, statusReporter } from "../../shared";
 import { goTest } from "../go-test/spec";
 
 // tests/ provisions Postgres and NATS through testcontainers locally, which needs a
@@ -14,7 +14,7 @@ export const goIntegration = new Task({
   name: "go-integration-test",
   // After the unit suite: fail fast on the cheap tests before paying for the sidecars.
   needs: [goTest],
-  caches: [goCacheIntegration],
+  caches: [goCacheConsumer],
   statusReporter,
   // Bounds the pathological case: `await-sidecar-readiness` means a sidecar that
   // never reports ready blocks the step indefinitely, which would otherwise burn

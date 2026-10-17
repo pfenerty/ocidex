@@ -2,7 +2,7 @@ import { nu } from "@tektonic-ci/core";
 import {
   govulncheckImage,
   goEnv,
-  goCacheVulncheck,
+  goCacheConsumer,
   sarifScanTask,
   uploadSarifStep,
 } from "../../shared";
@@ -21,11 +21,11 @@ const acceptFile = ".govulncheck-accepted.json";
 export const goVulncheck = sarifScanTask({
   name: "govulncheck-scan",
   // Ordered after goBuild so the shared workspace Go cache is already populated when this
-  // task starts, which is the precondition goCacheVulncheck's skip-restore relies on. It
+  // task starts, which is the precondition the goCache consumer's skipped restore relies on. It
   // also stops the two tasks racing each other's restore at t=0. On PRs both are gated on
   // detect-go, so they always run or skip together.
   needs: [goBuild],
-  caches: [goCacheVulncheck],
+  caches: [goCacheConsumer],
   stepTemplate: {
     env: goEnv,
   },

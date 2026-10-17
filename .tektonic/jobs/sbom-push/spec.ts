@@ -4,7 +4,7 @@ import {
   goImage,
   syftImage,
   goEnv,
-  goCacheVulncheck,
+  goCacheConsumer,
   reportOnlyStatusReporter,
 } from "../../shared";
 import { goBuild } from "../go-build/spec";
@@ -86,7 +86,7 @@ export const sbomPush = new Task({
   // rm -rf'ing them. skipRestoreIfPathsExist removes that destructive step, but only
   // `needs` guarantees the paths are already populated when this task starts.
   needs: [goBuild],
-  caches: [goCacheVulncheck],
+  caches: [goCacheConsumer],
   stepTemplate: {
     env: goEnv,
   },

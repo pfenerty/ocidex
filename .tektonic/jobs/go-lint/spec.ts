@@ -1,17 +1,17 @@
 import * as path from "path";
 import { Task, scriptFromFile } from "@tektonic-ci/core";
-import { goImage, goCacheLint, golangciLintCache, goEnv, goTmpEnv, statusReporter, sourceWs } from "../../shared";
+import { goImage, goCacheConsumer, golangciLintCache, goEnv, goTmpEnv, statusReporter, sourceWs } from "../../shared";
 import { goBuild } from "../go-build/spec";
 
 // golangci-lint over the whole module (ocidex-gyr0.3): ~10s warm, ~9.5 min fully cold (TaskRuns
 // 2026-10-17, peak <1Gi memory, CPU-bound at the 2-core limit). needs: [goBuild] for cache warmth and
-// because goCacheLint's skipRestoreIfPathsExist relies on go-build having populated the
-// shared .go-mod/.go-build (see goCacheVulncheck in shared.ts for why restoring under a
+// because the goCache consumer's skipped restore relies on go-build having populated the
+// shared .go-mod/.go-build (see goCache in shared.ts for why restoring under a
 // running Go task is destructive).
 export const goLint = new Task({
   name: "go-lint",
   needs: [goBuild],
-  caches: [goCacheLint, golangciLintCache],
+  caches: [goCacheConsumer, golangciLintCache],
   statusReporter,
   stepTemplate: {
     env: [

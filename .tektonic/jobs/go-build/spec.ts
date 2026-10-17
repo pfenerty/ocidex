@@ -7,7 +7,7 @@ import { goSetup } from "../../script-lib";
 // tasks. Builds to /dev/null — no artifact needed.
 export const goBuild = new Task({
   name: "go-build",
-  caches: [goCache],
+  caches: [goCache.producer],
   statusReporter,
   stepTemplate: {
     env: goEnv,

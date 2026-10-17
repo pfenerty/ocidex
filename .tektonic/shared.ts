@@ -1,4 +1,4 @@
-import { Workspace, TaskVolumeSpec, TaskStepSpec, rawScript, taskPreset, PAC_PARAMS } from "@tektonic-ci/core";
+import { Workspace, TaskVolumeSpec, TaskStepSpec, rawScript, taskPreset, warmCache, PAC_PARAMS } from "@tektonic-ci/core";
 import { GitHubStatusReporter } from "@tektonic-ci/reporter-github";
 
 // --- Images ─────────────────────────────────────────────────────────────────
@@ -78,7 +78,24 @@ export const nodeCacheWs = new Workspace({ name: "node-cache" });
 export const buildkitCacheWs = new Workspace({ name: "buildkit-cache" });
 export const buildkitReleaseCacheWs = new Workspace({ name: "buildkit-release-cache" });
 
-export const goCache = {
+// The shared Go module + build cache. go-build is its one producer and restores and saves
+// normally; every other Go task is a consumer (ocidex-xvy2.7).
+//
+// goEnv points GOMODCACHE/GOCACHE at two directories in the *shared* source workspace, so
+// every Go task in the run reads and writes the same .go-mod/.go-build. A cache restore begins
+// by `rm -rf`ing them, which is safe only while nothing else is using them. A consumer skips
+// the restore when the paths are already populated, so it never swaps the tree out from under
+// a concurrent task. That race is real: in ocidex-ocidex-push-hh77k govulncheck-scan's restore
+// landed mid-build in openapi-verify, which died with "package encoding/json is not in std"
+// (ocidex-plh). tektonic fails synthesis unless go-build is ordered before each consumer,
+// which is what guarantees the paths are populated. Concurrent *use* of GOCACHE/GOMODCACHE is
+// fine: the go tool locks them.
+//
+// Consumers don't save by default (the archive for this key already exists). go-test does
+// (goCacheTest): it adds test-only modules, and it is usually where the pinned dev tools get
+// captured too. go-lint must not: re-archiving the ~3.4GB shared tree took 2.5 min on every
+// TaskRun, against ~90s to rebuild the linter cold (ocidex-gyr0.3 TaskRuns).
+export const goCache = warmCache({
   name: "go-cache",
   key: ["go.sum"],
   // Use dotdir paths so `go test ./...` skips them (Go ignores dirs starting with '.')
@@ -86,55 +103,9 @@ export const goCache = {
   workspace: goCacheWs,
   compress: true,
   workingDir: sourceWs.path,
-};
-
-// go-test runs after go-build on the same workspace PVC. go-build seeds .go-mod/.go-build,
-// so restore must skip extraction when paths exist. forceSave ensures test-only deps are
-// always written back (the archive may already exist from go-build's save).
-export const goCacheTest = {
-  ...goCache,
-  forceSave: true,
-  skipRestoreIfPathsExist: true,
-};
-
-// govulncheck-scan needs the same treatment, and for a sharper reason than go-test does
-// (ocidex-plh). goEnv points GOMODCACHE/GOCACHE at two directories in the *shared* source
-// workspace, so every Go task in the run reads and writes the same .go-mod/.go-build. A
-// cache restore begins by `rm -rf`ing them. That is safe only while nothing else is using
-// them — and govulncheck-scan is the one Go task Tekton may schedule at any moment, so its
-// restore can land in the middle of another task's build. In ocidex-ocidex-push-hh77k it
-// did: openapi-verify (which declares no cache of its own and just uses what go-build
-// leaves behind) died with "package encoding/json is not in std" when the module cache
-// vanished under it, and govulncheck's own `rm -rf` failed ENOTEMPTY against openapi-verify
-// still writing. Skipping the restore when the paths are already populated removes the
-// destructive step; go-vulncheck's `needs: [goBuild]` is what guarantees they are.
-export const goCacheVulncheck = {
-  ...goCache,
-  skipRestoreIfPathsExist: true,
-};
-
-// go-integration-test runs after go-test but can still overlap go-lint, codegen-check and
-// govulncheck-scan on the same shared .go-mod/.go-build. That is exactly the
-// goCacheVulncheck situation: skipping the restore removes the destructive `rm -rf` that
-// would otherwise land mid-build in another task, and go-test (after go-build) is what
-// guarantees the paths are already populated. Concurrent
-// *use* of GOCACHE/GOMODCACHE is fine — the go tool locks them. No forceSave: ./tests/...
-// pulls in no module go-test hasn't already compiled, so there is nothing new to write back.
-export const goCacheIntegration = {
-  ...goCache,
-  skipRestoreIfPathsExist: true,
-};
-
-// go-lint runs concurrently with go-test/go-integration-test on the shared .go-mod/.go-build,
-// so it gets the goCacheVulncheck treatment: never restore over paths go-build populated.
-// No forceSave: re-archiving the ~3.4GB shared tree took 2.5 min on every TaskRun, against
-// ~90s to rebuild the pinned linter on a cold cache (tools/go.sum is not in the key). go-test
-// force-saves the same shared tree, so the built linter is usually captured there anyway.
-// The lint results themselves are in golangciLintCache, below. (ocidex-gyr0.3 TaskRuns)
-export const goCacheLint = {
-  ...goCache,
-  skipRestoreIfPathsExist: true,
-};
+});
+export const goCacheTest = goCache.consumer({ forceSave: true });
+export const goCacheConsumer = goCache.consumer();
 
 // golangci-lint's own analysis cache (GOLANGCI_LINT_CACHE in go-lint's env). Only go-lint
 // touches it, so the restore guard below never actually skips anything in a fresh workspace;
