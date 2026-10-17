@@ -1,7 +1,7 @@
 import * as path from "path";
 import { Task, scriptFromFile } from "@tektonic-ci/core";
 import { goImage, goCacheIntegration, goEnv, statusReporter } from "../../shared";
-import { goBuild } from "../go-build/spec";
+import { goTest } from "../go-test/spec";
 
 // tests/ provisions Postgres and NATS through testcontainers locally, which needs a
 // Docker daemon the build container doesn't have. Rather than a privileged DinD
@@ -12,12 +12,8 @@ import { goBuild } from "../go-build/spec";
 // scan_to_enrich talks to a real registry over HTTPS.
 export const goIntegration = new Task({
   name: "go-integration-test",
-  // goBuild, not goTest, even though running after the cheap suite would be the
-  // nicer fail-fast order: `gated()` returns a Proxy, so a dependent's raw `needs`
-  // reference reaches past the wrapper and the PR pipeline ends up with both the
-  // gated and the ungated go-test ("duplicate task name"). Only leaf tasks can be
-  // gated. go-vulncheck has the same shape for the same reason.
-  needs: [goBuild],
+  // After the unit suite: fail fast on the cheap tests before paying for the sidecars.
+  needs: [goTest],
   caches: [goCacheIntegration],
   statusReporter,
   // Bounds the pathological case: `await-sidecar-readiness` means a sidecar that
@@ -110,10 +106,10 @@ export const goIntegration = new Task({
         // Compiled test binaries land in $TMPDIR; same reasoning as go-test, with
         // more headroom since this suite links every package under test.
         limits: { cpu: "2", memory: "3Gi", "ephemeral-storage": "4Gi" },
-        // Requests deliberately low. This pod is scheduled alongside go-test's (they
-        // share `needs: [goBuild]` and so start together) on a node already at ~77% of
-        // allocatable CPU requests; step + sidecars total 250m, which fits beside
-        // go-test's 500m. The limits above are what the work actually gets to burst to.
+        // Requests deliberately low. This pod is scheduled alongside go-lint and
+        // codegen-check (all three follow go-build) on a node already at ~77% of
+        // allocatable CPU requests; step + sidecars total 250m. The limits above are
+        // what the work actually gets to burst to.
         requests: {
           cpu: "100m",
           memory: "512Mi",

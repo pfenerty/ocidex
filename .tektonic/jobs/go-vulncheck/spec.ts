@@ -26,8 +26,8 @@ export const goVulncheck = new Task({
   params: [sourceBranchParam],
   // Ordered after goBuild so the shared workspace Go cache is already populated when this
   // task starts, which is the precondition goCacheVulncheck's skip-restore relies on. It
-  // also stops the two tasks racing each other's restore at t=0. goBuild runs ungated on
-  // every pipeline (it is pulled in via `needs`), so this never leaves the task orphaned.
+  // also stops the two tasks racing each other's restore at t=0. On PRs both are gated on
+  // detect-go, so they always run or skip together.
   needs: [goBuild],
   statusReporter: reportOnlyStatusReporter,
   caches: [goCacheVulncheck],

@@ -36,6 +36,62 @@ spec:
           - ALL
     workingDir: $(workspaces.workspace.path)
   steps:
+    - image: ghcr.io/pfenerty/apko-cicd/base:stable
+      name: restore-node-modules-cache
+      script: |-
+        #!/usr/bin/env nu
+        def log [msg: string] { print $"[(date now | format date '%H:%M:%S')] ($msg)" }
+        let hash = (
+          ["package-lock.json"]
+          | each { |f| if ($f | path exists) { open --raw $f } else { "" } }
+          | str join | hash sha256 | str substring 0..15
+        )
+        $hash | save -f /tekton/home/.cache-node-modules-hash
+        if (["node_modules"] | any { |p| $p | path exists }) {
+          log $"restore-node-modules-cache: paths already exist, skipping restore ($hash)"
+          exit 0
+        }
+        let archive = $"$(workspaces.node-cache.path)/($hash).tar.zst"
+
+        if ($archive | path exists) {
+          let archive_size = (ls $archive | get size.0)
+          log $"restore-node-modules-cache: hit ($hash) size=($archive_size)"
+          let t0 = (date now)
+          let stage = $".cache-restore-(random uuid)"
+          mkdir $stage
+          try {
+            ^zstd -d -T1 -c $archive | ^tar xf - -C $stage -o --no-same-permissions
+          } catch { |e|
+            rm -rf $stage
+            log $"restore-node-modules-cache: extract failed \(($e.msg)\)"
+            exit 1
+          }
+          for p in ["node_modules"] {
+            let staged = ($stage | path join $p)
+            if not ($staged | path exists) { continue }
+            if ($p | path exists) {
+              # Rename the live tree aside and move the new one in — never delete in place. The
+              # displaced tree is removed afterwards and best-effort: a concurrent writer still inside
+              # it can legitimately make that fail, and by then nothing resolves to it by path.
+              let displaced = $"($p).displaced-(random uuid)"
+              mv $p $displaced
+              mv $staged $p
+              try { ^chmod -R u+w $displaced; rm -rf $displaced } catch { |e|
+                log $"restore-node-modules-cache: displaced tree ($displaced) not removed: ($e.msg)"
+              }
+            } else {
+              let parent = ($p | path dirname)
+              if (($parent | str length) > 0) and ($parent != ".") { mkdir $parent }
+              mv $staged $p
+            }
+          }
+          rm -rf $stage
+          let elapsed = (((date now) - $t0) | into int) / 1_000_000_000
+          log $"restore-node-modules-cache: restored in ($elapsed)s"
+        } else {
+          log $"restore-node-modules-cache: miss ($hash)"
+        }
+      workingDir: $(workspaces.workspace.path)/web
     - image: ghcr.io/pfenerty/apko-cicd/golang:1.27
       name: openapi-spec-check
       onError: continue
@@ -89,6 +145,52 @@ spec:
         $"($__tek_worst)" | save -f /tekton/home/.exit-code
         exit $__tek_rc
       workingDir: $(workspaces.workspace.path)/web
+    - image: ghcr.io/pfenerty/apko-cicd/base:stable
+      name: save-node-modules-cache
+      onError: continue
+      script: |-
+        #!/usr/bin/env nu
+        def log [msg: string] { print $"[(date now | format date '%H:%M:%S')] ($msg)" }
+        let hash = (try { open --raw /tekton/home/.cache-node-modules-hash | str trim } catch { "" })
+        if ($hash | is-empty) { log "save-node-modules-cache: no hash, skipping"; exit 0 }
+
+        let archive = $"$(workspaces.node-cache.path)/($hash).tar.zst"
+        if ($archive | path exists) { log $"save-node-modules-cache: ($hash) exists, skipping"; exit 0 }
+
+        let paths = ["node_modules"] | where { |p| ($p | path exists) }
+        if ($paths | is-empty) { log "save-node-modules-cache: no paths to cache"; exit 0 }
+
+        for p in $paths { ^chmod -R u+w $p }
+
+        let max = 3
+        if $max > 0 {
+          let entries = (try { ls $(workspaces.node-cache.path)/*.tar.zst | sort-by modified | reverse | skip $max } catch { [] })
+          for e in $entries { log $"save-node-modules-cache: evicting ($e.name | path basename)"; rm $e.name }
+        }
+
+        let uncompressed = ($paths | each { |p| try { du $p | get apparent.0 | into int } catch { 0 } } | math sum)
+        log $"save-node-modules-cache: compressing (($uncompressed / 1_000_000) | math round --precision 1)MB uncompressed ..."
+        let t0 = (date now)
+        # Write to a temp path and rename into place: a step killed mid-write (OOM, eviction,
+        # timeout) must never leave a truncated archive at the real hash-keyed path, since the
+        # skip-if-exists guard above means a corrupt archive there would never self-heal.
+        let tmp = $"($archive).tmp.(random uuid)"
+        # nushell aborts the enclosing block as soon as any external command in the pipe
+        # reports a non-zero exit (e.g. tar failing to read one of $paths), so cleanup must
+        # live in a catch — code placed after the pipe but outside try/catch never runs.
+        try {
+          ^tar cf - ...$paths | ^zstd -1 -T1 -o $tmp
+        } catch { |e|
+          rm -f $tmp
+          log $"save-node-modules-cache: compress failed (($e.msg)), discarding partial archive"
+          exit 1
+        }
+        mv -f $tmp $archive
+        let elapsed = (((date now) - $t0) | into int) / 1_000_000_000
+        let compressed = (ls $archive | get size.0)
+        let ratio = ($uncompressed / ($compressed | into int) | math round --precision 1)
+        log $"save-node-modules-cache: saved ($compressed) ratio=($ratio)x in ($elapsed)s"
+      workingDir: $(workspaces.workspace.path)/web
     - env:
         - name: GITHUB_TOKEN
           valueFrom:
@@ -135,4 +237,5 @@ spec:
         }
         exit $exit_code
   workspaces:
+    - name: node-cache
     - name: workspace

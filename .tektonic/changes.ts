@@ -15,11 +15,12 @@ import { onChanges } from "@tektonic-ci/core";
 // `cloneDepth: 'full'`. On a shallow clone `onChanges` fails **open** (the gated
 // job runs) rather than wrongly skipping.
 //
+// A gated task's detection task is wired into the pipeline by tektonic, so nothing here
+// needs listing in pipeline.ts.
+//
 // Coarse-but-safe bucket: every Go binary imports shared `internal/` packages, so
 // per-`cmd/` granularity is unsafe — any Go/Docker/db change gates the whole Go set
-// on. Frontend-lint is a dependency of openapi-check (node_modules warmup), so it
-// can't be gated independently and runs on every PR; a dedicated `web` bucket would
-// only pay off once that coupling is broken, so it's omitted for now.
+// on, go-build included.
 export const goChanged = onChanges({
   name: "detect-go",
   // tools/ pins the linter and generators; .golangci.yml configures go-lint.
@@ -27,8 +28,7 @@ export const goChanged = onChanges({
 });
 
 // Frontend bucket: everything under web/ (SolidJS/TS source + package-lock.json). Gates
-// the leaf web-security scan; frontend-lint stays ungated because it's a hard `needs`
-// dependency of openapi-check (same coupling that keeps go-build ungated — see below).
+// frontend-lint and the web-security scan.
 export const nodeChanged = onChanges({
   name: "detect-node",
   paths: ["web/**"],
@@ -76,17 +76,3 @@ export const codegenChanged = onChanges({
     "charts/ocidex-operator/crds/**",
   ],
 });
-
-// The detection task backing the condition above. `gated()` overrides only the
-// emitted pipeline-task `when` and does not auto-wire the producing task into the
-// pipeline, so it must be listed explicitly on the PR pipeline. Tekton orders
-// consumers after it automatically via the `$(tasks.detect-go.results.changed)`
-// result reference in the `when` clauses.
-export const detectTasks = [
-  ...goChanged.sources(),
-  ...nodeChanged.sources(),
-  ...sourceChanged.sources(),
-  ...pipelineChanged.sources(),
-  ...chartsChanged.sources(),
-  ...codegenChanged.sources(),
-];

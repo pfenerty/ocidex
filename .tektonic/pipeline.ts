@@ -14,7 +14,6 @@ import {
   pipelineChanged,
   chartsChanged,
   codegenChanged,
-  detectTasks,
 } from "./changes";
 import { goFmt } from "./jobs/go-fmt/spec";
 import { goBuild } from "./jobs/go-build/spec";
@@ -84,17 +83,18 @@ const pushPipeline = new GitPipeline({
 // is skipped. Secrets + Semgrep run unconditionally (cheap / multi-language). No image
 // builds run on PRs, so nothing to gate there.
 //
-// Only leaf tasks are gated: `goBuild` and `frontendLint` are dependencies (of
-// go-test / openapi-check), so they are pulled into the graph ungated via `needs`
-// and run on every PR. Gating a depended-upon task collides with the raw reference
-// its dependents hold. Net effect: a frontend-only PR skips go-fmt/lint/test/openapi-check
-// /go-vulncheck (the heavy Go work); go-build + frontend-lint still run.
+// Depended-upon tasks are gated too: a frontend-only PR skips every Go task, go-build
+// included, and a Go-only PR skips frontend-lint. Tekton still runs a skipped task's
+// dependents, so the remaining `needs` are only ordering (cache warmth), never artifacts:
+// openapi-check and codegen-check restore their own caches when go-build or frontend-lint
+// did not run. Each condition's detect-* task is wired in by tektonic.
 const prPipeline = new GitPipeline({
   name: "ocidex-pull-request",
   trigger: { rules: [{ on: TRIGGER_EVENTS.PULL_REQUEST }], cancelInProgress: true },
   cloneDepth: "full",
   tasks: [
-    ...detectTasks,
+    gated(goBuild, { when: goChanged }),
+    gated(frontendLint, { when: nodeChanged }),
     gated(goFmt, { when: goChanged }),
     gated(goLint, { when: goChanged }),
     gated(goTest, { when: goChanged }),

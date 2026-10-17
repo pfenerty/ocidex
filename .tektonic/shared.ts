@@ -102,11 +102,11 @@ export const goCacheVulncheck = {
   skipRestoreIfPathsExist: true,
 };
 
-// go-integration-test is a leaf on `needs: [goBuild]` (it cannot depend on go-test — see
-// its spec.ts), so it runs CONCURRENTLY with go-test against the same shared
-// .go-mod/.go-build. That is exactly the goCacheVulncheck situation: skipping the restore
-// removes the destructive `rm -rf` that would otherwise land mid-build in another task,
-// and `needs: [goBuild]` is what guarantees the paths are already populated. Concurrent
+// go-integration-test runs after go-test but can still overlap go-lint, codegen-check and
+// govulncheck-scan on the same shared .go-mod/.go-build. That is exactly the
+// goCacheVulncheck situation: skipping the restore removes the destructive `rm -rf` that
+// would otherwise land mid-build in another task, and go-test (after go-build) is what
+// guarantees the paths are already populated. Concurrent
 // *use* of GOCACHE/GOMODCACHE is fine — the go tool locks them. No forceSave: ./tests/...
 // pulls in no module go-test hasn't already compiled, so there is nothing new to write back.
 export const goCacheIntegration = {
