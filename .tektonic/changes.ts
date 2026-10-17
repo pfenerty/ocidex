@@ -22,7 +22,8 @@ import { onChanges } from "@tektonic-ci/core";
 // only pay off once that coupling is broken, so it's omitted for now.
 export const goChanged = onChanges({
   name: "detect-go",
-  paths: ["**/*.go", "go.mod", "go.sum", "docker/**", "db/**"],
+  // tools/ pins the linter and generators; .golangci.yml configures go-lint.
+  paths: ["**/*.go", "go.mod", "go.sum", "tools/**", ".golangci.yml", "docker/**", "db/**"],
 });
 
 // Frontend bucket: everything under web/ (SolidJS/TS source + package-lock.json). Gates
@@ -56,6 +57,26 @@ export const chartsChanged = onChanges({
   paths: ["charts/**", "policy/**", "scripts/helm-policy-check.sh"],
 });
 
+// Codegen bucket: every generator input and output codegen-check compares (Go sources and
+// the pinned generators, sqlc's queries/migrations, the OpenAPI spec, and the committed
+// outputs), so hand-editing a generated file also re-runs the check that catches it.
+export const codegenChanged = onChanges({
+  name: "detect-codegen",
+  paths: [
+    "**/*.go",
+    "go.mod",
+    "go.sum",
+    "tools/**",
+    "db/**",
+    "sqlc.yaml",
+    "web/openapi.json",
+    "pkg/client/.oapi-codegen.yml",
+    "docs/AUTH_MATRIX.md",
+    "config/operator/**",
+    "charts/ocidex-operator/crds/**",
+  ],
+});
+
 // The detection task backing the condition above. `gated()` overrides only the
 // emitted pipeline-task `when` and does not auto-wire the producing task into the
 // pipeline, so it must be listed explicitly on the PR pipeline. Tekton orders
@@ -67,4 +88,5 @@ export const detectTasks = [
   ...sourceChanged.sources(),
   ...pipelineChanged.sources(),
   ...chartsChanged.sources(),
+  ...codegenChanged.sources(),
 ];

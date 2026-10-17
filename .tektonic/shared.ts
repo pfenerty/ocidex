@@ -3,6 +3,9 @@ import { GitHubStatusReporter } from "@tektonic-ci/reporter-github";
 
 // --- Images ─────────────────────────────────────────────────────────────────
 export const goImage = "ghcr.io/pfenerty/apko-cicd/golang:1.27";
+// goImage plus gcc/glibc headers: `go test -race` needs cgo, and goImage has no C toolchain.
+// About 3x goImage's size, so only go-test uses it. Bump in lockstep with goImage.
+export const goCgoImage = "ghcr.io/pfenerty/apko-cicd/golang:1.27-cgo";
 export const nodeImage = "ghcr.io/pfenerty/apko-cicd/nodejs:24";
 export const baseImage = "ghcr.io/pfenerty/apko-cicd/base:stable";
 // Go-version-matched govulncheck image; bump the -goX.Y suffix in lockstep with goImage.
@@ -111,6 +114,32 @@ export const goCacheIntegration = {
   skipRestoreIfPathsExist: true,
 };
 
+// go-lint runs concurrently with go-test/go-integration-test on the shared .go-mod/.go-build,
+// so it gets the goCacheVulncheck treatment: never restore over paths go-build populated.
+// No forceSave: re-archiving the ~3.4GB shared tree took 2.5 min on every TaskRun, against
+// ~90s to rebuild the pinned linter on a cold cache (tools/go.sum is not in the key). go-test
+// force-saves the same shared tree, so the built linter is usually captured there anyway.
+// The lint results themselves are in golangciLintCache, below. (ocidex-gyr0.3 TaskRuns)
+export const goCacheLint = {
+  ...goCache,
+  skipRestoreIfPathsExist: true,
+};
+
+// golangci-lint's own analysis cache (GOLANGCI_LINT_CACHE in go-lint's env). Only go-lint
+// touches it, so the restore guard below never actually skips anything in a fresh workspace;
+// it is set to silence tektonic's shared-workspace default warning. forceSave keeps it
+// current: entries are content-hashed per package, so an old archive only costs misses.
+export const golangciLintCache = {
+  name: "golangci-lint-cache",
+  key: ["go.sum", "tools/go.sum", ".golangci.yml"],
+  paths: [".golangci-cache"],
+  workspace: goCacheWs,
+  compress: true,
+  workingDir: "$(workspaces.workspace.path)",
+  forceSave: true,
+  skipRestoreIfPathsExist: true,
+};
+
 export const nodeModulesCache = {
   name: "node-modules",
   key: ["package-lock.json"],
@@ -135,6 +164,14 @@ export const goEnv = [
     value: "$(workspaces.workspace.path)/.gitconfig",
   },
 ];
+
+// GOTMPDIR on the workspace PVC instead of the container's /tmp. A cold `go build`/`go list
+// -export` keeps every compiled package in its $WORK dir until the command exits, so a cold
+// golangci-lint run (export data for the whole module plus test deps) and a cold build of
+// the pinned tools blow a 2Gi ephemeral-storage limit; the first go-lint TaskRun was evicted
+// for exactly that (ocidex-gyr0.3). Dot dir, so ./... skips it. Go requires it to exist:
+// steps using this env run goTmpSetup (script-lib.ts) first.
+export const goTmpEnv = [{ name: "GOTMPDIR", value: "$(workspaces.workspace.path)/.go-tmp" }];
 
 export const nodeEnv = [{ name: "HOME", value: "/tmp" }];
 

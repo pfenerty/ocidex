@@ -6,7 +6,7 @@
     "scripts": {
         "dev": "vite --host",
         "build": "tsc && vite build && node scripts/check-inline-styles.mjs",
-        "lint": "eslint src/",
+        "lint": "eslint src/ --max-warnings 0",
         "lint:fix": "eslint src/ --fix",
         "test": "vitest run",
         "preview": "vite preview",

@@ -1,0 +1,342 @@
+apiVersion: tekton.dev/v1
+kind: Task
+metadata:
+  name: ocidex-codegen-check
+  namespace: ocidex-ci
+spec:
+  params:
+    - name: repo-full-name
+      type: string
+    - name: revision
+      type: string
+  stepTemplate:
+    computeResources:
+      limits:
+        cpu: "1"
+        memory: 512Mi
+      requests:
+        cpu: 100m
+        memory: 128Mi
+    env:
+      - name: GOPATH
+        value: $(workspaces.workspace.path)/.go-path
+      - name: GOMODCACHE
+        value: $(workspaces.workspace.path)/.go-mod
+      - name: GOCACHE
+        value: $(workspaces.workspace.path)/.go-build
+      - name: GIT_CONFIG_GLOBAL
+        value: $(workspaces.workspace.path)/.gitconfig
+      - name: GOTMPDIR
+        value: $(workspaces.workspace.path)/.go-tmp
+    imagePullPolicy: Always
+    securityContext:
+      allowPrivilegeEscalation: false
+      capabilities:
+        drop:
+          - ALL
+    workingDir: $(workspaces.workspace.path)
+  steps:
+    - image: ghcr.io/pfenerty/apko-cicd/base:stable
+      name: restore-go-cache-cache
+      script: |-
+        #!/usr/bin/env nu
+        def log [msg: string] { print $"[(date now | format date '%H:%M:%S')] ($msg)" }
+        let hash = (
+          ["go.sum"]
+          | each { |f| if ($f | path exists) { open --raw $f } else { "" } }
+          | str join | hash sha256 | str substring 0..15
+        )
+        $hash | save -f /tekton/home/.cache-go-cache-hash
+        if ([".go-mod", ".go-build"] | any { |p| $p | path exists }) {
+          log $"restore-go-cache-cache: paths already exist, skipping restore ($hash)"
+          exit 0
+        }
+        let archive = $"$(workspaces.go-cache.path)/($hash).tar.zst"
+
+        if ($archive | path exists) {
+          let archive_size = (ls $archive | get size.0)
+          log $"restore-go-cache-cache: hit ($hash) size=($archive_size)"
+          let t0 = (date now)
+          let stage = $".cache-restore-(random uuid)"
+          mkdir $stage
+          try {
+            ^zstd -d -T1 -c $archive | ^tar xf - -C $stage -o --no-same-permissions
+          } catch { |e|
+            rm -rf $stage
+            log $"restore-go-cache-cache: extract failed \(($e.msg)\)"
+            exit 1
+          }
+          for p in [".go-mod", ".go-build"] {
+            let staged = ($stage | path join $p)
+            if not ($staged | path exists) { continue }
+            if ($p | path exists) {
+              # Rename the live tree aside and move the new one in — never delete in place. The
+              # displaced tree is removed afterwards and best-effort: a concurrent writer still inside
+              # it can legitimately make that fail, and by then nothing resolves to it by path.
+              let displaced = $"($p).displaced-(random uuid)"
+              mv $p $displaced
+              mv $staged $p
+              try { ^chmod -R u+w $displaced; rm -rf $displaced } catch { |e|
+                log $"restore-go-cache-cache: displaced tree ($displaced) not removed: ($e.msg)"
+              }
+            } else {
+              let parent = ($p | path dirname)
+              if (($parent | str length) > 0) and ($parent != ".") { mkdir $parent }
+              mv $staged $p
+            }
+          }
+          rm -rf $stage
+          let elapsed = (((date now) - $t0) | into int) / 1_000_000_000
+          log $"restore-go-cache-cache: restored in ($elapsed)s"
+        } else {
+          log $"restore-go-cache-cache: miss ($hash)"
+        }
+      workingDir: $(workspaces.workspace.path)
+    - computeResources:
+        limits:
+          cpu: "2"
+          ephemeral-storage: 1Gi
+          memory: 2Gi
+        requests:
+          cpu: 500m
+          ephemeral-storage: 256Mi
+          memory: 1Gi
+      image: ghcr.io/pfenerty/apko-cicd/golang:1.27
+      name: auth-matrix-check
+      onError: continue
+      script: |-
+        #!/usr/bin/env nu
+        def log [msg: string] { print $"[(date now | format date '%H:%M:%S')] ($msg)" }
+        if not ("/tekton/home/.exit-code" | path exists) { try { "0" | save -f /tekton/home/.exit-code } }
+        try { ^chmod 0666 /tekton/home/.exit-code }
+        def main [] {
+        log $"go=(go version) uid=(id -u) pwd=(pwd)"
+        ^git config --global --add safe.directory (pwd)
+        mkdir $env.GOTMPDIR
+        log "Rendering the authorization matrix"
+        ^go run ./cmd/authmatrix out> /tmp/auth-matrix-check.md
+        ^diff docs/AUTH_MATRIX.md /tmp/auth-matrix-check.md
+        log "OK: docs/AUTH_MATRIX.md is up to date (else run 'make auth-matrix')"
+        }
+        let __tek_rc = (try { main; 0 } catch { |e| print $"error [codegen-check/auth-matrix-check]: ($e.msg)"; 1 })
+        let __tek_prev = (try { open --raw /tekton/home/.exit-code | str trim | into int } catch { 0 })
+        let __tek_worst = ([$__tek_prev $__tek_rc] | math max)
+        $"($__tek_worst)" | save -f /tekton/home/.exit-code
+        exit $__tek_rc
+    - computeResources:
+        limits:
+          cpu: "2"
+          ephemeral-storage: 1Gi
+          memory: 2Gi
+        requests:
+          cpu: 10m
+          ephemeral-storage: 64Mi
+          memory: 64Mi
+      image: ghcr.io/pfenerty/apko-cicd/golang:1.27
+      name: sqlc-check
+      onError: continue
+      script: |-
+        #!/usr/bin/env nu
+        def log [msg: string] { print $"[(date now | format date '%H:%M:%S')] ($msg)" }
+        if not ("/tekton/home/.exit-code" | path exists) { try { "0" | save -f /tekton/home/.exit-code } }
+        try { ^chmod 0666 /tekton/home/.exit-code }
+        def main [] {
+        log $"go=(go version) uid=(id -u) pwd=(pwd)"
+        ^git config --global --add safe.directory (pwd)
+        mkdir $env.GOTMPDIR
+        def pinned-tool [name: string] {
+          with-env {GOWORK: "off"} { ^go tool -modfile=tools/go.mod -n $name } | str trim
+        }
+        let sqlc = (pinned-tool sqlc)
+        log "Diffing sqlc output against internal/repository"
+        ^$sqlc diff
+        log "OK: internal/repository is up to date (else run 'make generate')"
+        }
+        let __tek_rc = (try { main; 0 } catch { |e| print $"error [codegen-check/sqlc-check]: ($e.msg)"; 1 })
+        let __tek_prev = (try { open --raw /tekton/home/.exit-code | str trim | into int } catch { 0 })
+        let __tek_worst = ([$__tek_prev $__tek_rc] | math max)
+        $"($__tek_worst)" | save -f /tekton/home/.exit-code
+        exit $__tek_rc
+    - computeResources:
+        limits:
+          cpu: "2"
+          ephemeral-storage: 1Gi
+          memory: 2Gi
+        requests:
+          cpu: 10m
+          ephemeral-storage: 64Mi
+          memory: 64Mi
+      image: ghcr.io/pfenerty/apko-cicd/golang:1.27
+      name: client-types-check
+      onError: continue
+      script: |-
+        #!/usr/bin/env nu
+        def log [msg: string] { print $"[(date now | format date '%H:%M:%S')] ($msg)" }
+        if not ("/tekton/home/.exit-code" | path exists) { try { "0" | save -f /tekton/home/.exit-code } }
+        try { ^chmod 0666 /tekton/home/.exit-code }
+        def main [] {
+        log $"go=(go version) uid=(id -u) pwd=(pwd)"
+        ^git config --global --add safe.directory (pwd)
+        mkdir $env.GOTMPDIR
+        def pinned-tool [name: string] {
+          with-env {GOWORK: "off"} { ^go tool -modfile=tools/go.mod -n $name } | str trim
+        }
+        let oapi = (pinned-tool oapi-codegen)
+        log "Generating pkg/client types from the OpenAPI spec"
+        ^go run ./cmd/specto30 web/openapi.json out> /tmp/openapi-3.0.json
+        open --raw pkg/client/.oapi-codegen.yml
+          | str replace "output: pkg/client/types.go" "output: /tmp/client-types-check.go"
+          | save -f /tmp/oapi-codegen-check.yml
+        ^$oapi --config /tmp/oapi-codegen-check.yml /tmp/openapi-3.0.json
+        ^diff pkg/client/types.go /tmp/client-types-check.go
+        log "OK: pkg/client/types.go is up to date (else run 'make generate-client')"
+        }
+        let __tek_rc = (try { main; 0 } catch { |e| print $"error [codegen-check/client-types-check]: ($e.msg)"; 1 })
+        let __tek_prev = (try { open --raw /tekton/home/.exit-code | str trim | into int } catch { 0 })
+        let __tek_worst = ([$__tek_prev $__tek_rc] | math max)
+        $"($__tek_worst)" | save -f /tekton/home/.exit-code
+        exit $__tek_rc
+    - computeResources:
+        limits:
+          cpu: "2"
+          ephemeral-storage: 1Gi
+          memory: 2Gi
+        requests:
+          cpu: 10m
+          ephemeral-storage: 64Mi
+          memory: 64Mi
+      image: ghcr.io/pfenerty/apko-cicd/golang:1.27
+      name: operator-check
+      onError: continue
+      script: |-
+        #!/usr/bin/env nu
+        def log [msg: string] { print $"[(date now | format date '%H:%M:%S')] ($msg)" }
+        if not ("/tekton/home/.exit-code" | path exists) { try { "0" | save -f /tekton/home/.exit-code } }
+        try { ^chmod 0666 /tekton/home/.exit-code }
+        def main [] {
+        log $"go=(go version) uid=(id -u) pwd=(pwd)"
+        ^git config --global --add safe.directory (pwd)
+        mkdir $env.GOTMPDIR
+        def pinned-tool [name: string] {
+          with-env {GOWORK: "off"} { ^go tool -modfile=tools/go.mod -n $name } | str trim
+        }
+        let cg = (pinned-tool controller-gen)
+        let out = "/tmp/operator-check"
+        mkdir $"($out)/crd" $"($out)/rbac"
+        log "Regenerating deepcopy, CRDs and RBAC"
+        # Quote whole arguments: nushell expands a bare "..." path segment to "../.."
+        ^$cg "object:headerFile=" "paths=./api/..." $"output:dir=($out)"
+        ^$cg crd "paths=./api/..." $"output:crd:dir=($out)/crd"
+        ^$cg rbac:roleName=ocidex-operator "paths=./internal/controller/...;./cmd/operator/..." $"output:rbac:dir=($out)/rbac"
+        ^diff api/v1alpha1/zz_generated.deepcopy.go $"($out)/zz_generated.deepcopy.go"
+        ^diff -r config/operator/crd $"($out)/crd"
+        ^diff -r config/operator/rbac $"($out)/rbac"
+        log "Checking the chart's CRD copies"
+        for f in (ls config/operator/crd/*.yaml | get name) {
+          let name = ($f | path basename)
+          let want = $"# Generated by make generate-operator — do not edit directly.\n(open --raw $f)"
+          if (open --raw $"charts/ocidex-operator/crds/($name)") != $want {
+            error make {msg: $"charts/ocidex-operator/crds/($name) is stale"}
+          }
+        }
+        log "OK: operator files are up to date (else run 'make generate-operator')"
+        }
+        let __tek_rc = (try { main; 0 } catch { |e| print $"error [codegen-check/operator-check]: ($e.msg)"; 1 })
+        let __tek_prev = (try { open --raw /tekton/home/.exit-code | str trim | into int } catch { 0 })
+        let __tek_worst = ([$__tek_prev $__tek_rc] | math max)
+        $"($__tek_worst)" | save -f /tekton/home/.exit-code
+        exit $__tek_rc
+    - image: ghcr.io/pfenerty/apko-cicd/base:stable
+      name: save-go-cache-cache
+      onError: continue
+      script: |-
+        #!/usr/bin/env nu
+        def log [msg: string] { print $"[(date now | format date '%H:%M:%S')] ($msg)" }
+        let hash = (try { open --raw /tekton/home/.cache-go-cache-hash | str trim } catch { "" })
+        if ($hash | is-empty) { log "save-go-cache-cache: no hash, skipping"; exit 0 }
+
+        let archive = $"$(workspaces.go-cache.path)/($hash).tar.zst"
+        if ($archive | path exists) { log $"save-go-cache-cache: ($hash) exists, skipping"; exit 0 }
+
+        let paths = [".go-mod", ".go-build"] | where { |p| ($p | path exists) }
+        if ($paths | is-empty) { log "save-go-cache-cache: no paths to cache"; exit 0 }
+
+        for p in $paths { ^chmod -R u+w $p }
+
+        let max = 3
+        if $max > 0 {
+          let entries = (try { ls $(workspaces.go-cache.path)/*.tar.zst | sort-by modified | reverse | skip $max } catch { [] })
+          for e in $entries { log $"save-go-cache-cache: evicting ($e.name | path basename)"; rm $e.name }
+        }
+
+        let uncompressed = ($paths | each { |p| try { du $p | get apparent.0 | into int } catch { 0 } } | math sum)
+        log $"save-go-cache-cache: compressing (($uncompressed / 1_000_000) | math round --precision 1)MB uncompressed ..."
+        let t0 = (date now)
+        # Write to a temp path and rename into place: a step killed mid-write (OOM, eviction,
+        # timeout) must never leave a truncated archive at the real hash-keyed path, since the
+        # skip-if-exists guard above means a corrupt archive there would never self-heal.
+        let tmp = $"($archive).tmp.(random uuid)"
+        # nushell aborts the enclosing block as soon as any external command in the pipe
+        # reports a non-zero exit (e.g. tar failing to read one of $paths), so cleanup must
+        # live in a catch — code placed after the pipe but outside try/catch never runs.
+        try {
+          ^tar cf - ...$paths | ^zstd -1 -T1 -o $tmp
+        } catch { |e|
+          rm -f $tmp
+          log $"save-go-cache-cache: compress failed (($e.msg)), discarding partial archive"
+          exit 1
+        }
+        mv -f $tmp $archive
+        let elapsed = (((date now) - $t0) | into int) / 1_000_000_000
+        let compressed = (ls $archive | get size.0)
+        let ratio = ($uncompressed / ($compressed | into int) | math round --precision 1)
+        log $"save-go-cache-cache: saved ($compressed) ratio=($ratio)x in ($elapsed)s"
+      workingDir: $(workspaces.workspace.path)
+    - env:
+        - name: GITHUB_TOKEN
+          valueFrom:
+            secretKeyRef:
+              key: token
+              name: github-pipeline-token
+      image: ghcr.io/pfenerty/apko-cicd/base:stable
+      name: report-status
+      script: |-
+        #!/usr/bin/env nu
+        def log [msg: string] { print $"[(date now | format date '%H:%M:%S')] ($msg)" }
+        let contract_code = (try { open --raw /tekton/home/.exit-code | str trim | into int } catch { 1 })
+        # A step that never ran has no file; 0 keeps it out of the max.
+        let step_codes = ([{ name: "auth-matrix-check", path: "/tekton/steps/step-auth-matrix-check/exitCode" } { name: "sqlc-check", path: "/tekton/steps/step-sqlc-check/exitCode" } { name: "client-types-check", path: "/tekton/steps/step-client-types-check/exitCode" } { name: "operator-check", path: "/tekton/steps/step-operator-check/exitCode" }] | each { |s| { name: $s.name, code: (try { open --raw $s.path | str trim | into int } catch { 0 }) } })
+        let exit_code = ([$contract_code ...($step_codes | each { |s| $s.code })] | math max)
+        let state = if $exit_code == 0 { "success" } else { "failure" }
+        # Name the first step that failed, so the check says where without opening the logs.
+        let failed_steps = ($step_codes | where code != 0)
+        let desc = if $exit_code == 0 {
+          "Passed"
+        } else if ($failed_steps | is-empty) {
+          $"Failed: exit ($exit_code)"
+        } else {
+          let first = ($failed_steps | first)
+          $"Failed: step ($first.name) exited ($first.code)"
+        }
+
+        log $"report-status [codegen-check]: exit-code=($exit_code) state=($state)"
+
+        let url = $"https://api.github.com/repos/$(params.repo-full-name)/statuses/$(params.revision)"
+        let body = { state: $state, context: "codegen-check", description: $desc }
+
+        log $"report-status [codegen-check]: POST ($url)"
+        log $"report-status [codegen-check]: body: ($body | to json -r)"
+
+        try {
+          http post $url $body -t application/json -H [
+            Authorization $"token ($env.GITHUB_TOKEN)"
+            Accept "application/vnd.github+json"
+          ]
+          log "report-status [codegen-check]: done"
+        } catch { |e|
+          log $"report-status [codegen-check]: error: ($e.msg)"
+        }
+        exit $exit_code
+  workspaces:
+    - name: go-cache
+    - name: workspace

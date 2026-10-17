@@ -16,7 +16,6 @@ curl.outputs = "all"
 gnumake.pkg-path = "gnumake"
 gnumake.outputs = "all"
 nushell.pkg-path = "nushell"
-golangci-lint.pkg-path = "golangci-lint"
 # Local K8s dev loop (make dev-cluster-up / make dev-up)
 tilt.pkg-path = "tilt"
 talosctl.pkg-path = "talosctl"

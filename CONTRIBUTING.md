@@ -16,8 +16,8 @@ git clone https://github.com/pfenerty/ocidex.git
 cd ocidex
 flox activate
 
-# Install Go tools (sqlc, golangci-lint)
-make init
+# Go dev tools (golangci-lint, sqlc, ...) are pinned in tools/go.mod and build
+# on first use; there is nothing to install.
 
 # Start PostgreSQL
 docker compose up -d postgres

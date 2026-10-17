@@ -448,8 +448,8 @@ An entry is only justified when there is genuinely nothing to bump to (upstream 
 To reproduce a scan locally:
 
 ```bash
-flox activate -- bash -c 'export PATH="$HOME/go/bin:$PATH"; govulncheck ./cmd/...'          # human-readable
-flox activate -- bash -c 'export PATH="$HOME/go/bin:$PATH"; govulncheck -format sarif ./cmd/... > govulncheck.sarif'
+flox activate -- make vulncheck                                                # human-readable
+flox activate -- make -s vulncheck VULNCHECK_ARGS="-format sarif" > govulncheck.sarif
 ```
 
 **Check `go version` before believing a local stdlib finding.** govulncheck reports stdlib vulns

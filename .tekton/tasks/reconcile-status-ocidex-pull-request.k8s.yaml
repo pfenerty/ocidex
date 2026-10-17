@@ -11,15 +11,19 @@ spec:
       type: string
     - name: status-gofmt-check
       type: string
-    - name: status-go-test
+    - name: status-go-lint
       type: string
     - name: status-go-build
+      type: string
+    - name: status-go-test
       type: string
     - name: status-go-integration-test
       type: string
     - name: status-openapi-verify
       type: string
     - name: status-eslint-lint-web
+      type: string
+    - name: status-codegen-check
       type: string
     - name: status-openapi-breaking
       type: string
@@ -88,11 +92,13 @@ spec:
 
         let entries = [
           { status: "$(params.status-gofmt-check)", context: "gofmt-check" }
-          { status: "$(params.status-go-test)", context: "go-test" }
+          { status: "$(params.status-go-lint)", context: "go-lint" }
           { status: "$(params.status-go-build)", context: "go-build" }
+          { status: "$(params.status-go-test)", context: "go-test" }
           { status: "$(params.status-go-integration-test)", context: "go-integration-test" }
           { status: "$(params.status-openapi-verify)", context: "openapi-verify" }
           { status: "$(params.status-eslint-lint-web)", context: "eslint-lint-web" }
+          { status: "$(params.status-codegen-check)", context: "codegen-check" }
           { status: "$(params.status-openapi-breaking)", context: "openapi-breaking" }
           { status: "$(params.status-govulncheck-scan)", context: "govulncheck-scan" }
           { status: "$(params.status-grype-vuln-web)", context: "grype-vuln-web" }

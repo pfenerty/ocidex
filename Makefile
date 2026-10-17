@@ -7,7 +7,7 @@ ifneq (,$(wildcard .env))
   export
 endif
 
-.PHONY: all build run fmt lint license-check test test-coverage test-integration check init clean generate generate-client generate-client-check generate-operator generate-operator-check migrate-up migrate-down seed frontend frontend-dev frontend-dev-live frontend-dev-auth dev-auth-up dev-auth-down dev-auth-fixtures dev-auth-status dev-auth-reset dev-mock-idp frontend-init frontend-lint frontend-lint-fix frontend-typecheck frontend-test openapi openapi-check auth-matrix auth-matrix-check helm-check tekton-synth tekton-check dev-docker-check dev-registry dev-cluster-up dev-cluster-down dev-up dev-down release version help
+.PHONY: all build run fmt lint license-check vulncheck test test-coverage test-integration check init clean generate generate-check generate-client generate-client-check generate-operator generate-operator-check migrate-up migrate-down seed frontend frontend-dev frontend-dev-live frontend-dev-auth dev-auth-up dev-auth-down dev-auth-fixtures dev-auth-status dev-auth-reset dev-mock-idp frontend-init frontend-lint frontend-lint-fix frontend-typecheck frontend-test openapi openapi-check auth-matrix auth-matrix-check helm-check tekton-synth tekton-check dev-docker-check dev-registry dev-cluster-up dev-cluster-down dev-up dev-down release version help
 
 all: check build ## Run all checks and build
 
@@ -34,8 +34,14 @@ fmt: ## Format code with gofmt
 # reach into another workspace module, so it is named explicitly.
 GO_PKGS := ./... ./pkg/client/...
 
+# Dev tools are pinned in their own module, tools/go.mod, so their dependencies never enter
+# the app's build list or go.work. `go tool -n` builds a tool into the Go cache (first use
+# only) and prints its path; that needs GOWORK=off, since -modfile is refused in workspace
+# mode. The binary itself then runs in workspace mode, so it sees ./pkg/client as checked out.
+tool = $$(GOWORK=off go tool -modfile=$(CURDIR)/tools/go.mod -n $(1))
+
 lint: ## Run golangci-lint
-	golangci-lint run $(GO_PKGS)
+	$(call tool,golangci-lint) run $(GO_PKGS)
 
 test: ## Run unit tests
 	go test -v -race -short $(GO_PKGS)
@@ -47,47 +53,52 @@ test-coverage: ## Run tests with HTML coverage report
 test-integration: ## Run integration tests
 	go test -v -race ./tests/...
 
-check: fmt lint test license-check openapi-check auth-matrix-check generate-client-check frontend-lint frontend-typecheck frontend-test helm-check ## Run fmt, lint, test, openapi staleness and Helm policy checks
+check: fmt lint test license-check openapi-check auth-matrix-check generate-check generate-client-check generate-operator-check frontend-lint frontend-typecheck frontend-test helm-check ## Run fmt, lint, test, openapi staleness and Helm policy checks
 
-init: ## Download dependencies and install tools
+init: ## Download dependencies (optional: tools build on first use)
 	go mod download
-	go install github.com/golangci/golangci-lint/v2/cmd/golangci-lint@latest
-	go install github.com/google/go-licenses/v2@v2.0.1
-	go install github.com/oapi-codegen/oapi-codegen/v2/cmd/oapi-codegen@latest
-	go install sigs.k8s.io/controller-tools/cmd/controller-gen@latest
+	GOWORK=off go mod download -modfile=tools/go.mod
 
 clean: ## Clean build artifacts
 	rm -rf $(BUILD_DIR) coverage.out coverage.html
 
 generate: ## Run code generation (sqlc)
-	sqlc generate
+	$(call tool,sqlc) generate
+
+generate-check: ## Verify sqlc output in internal/repository is up-to-date
+	@$(call tool,sqlc) diff || (echo "ERROR: internal/repository is stale. Run 'make generate'." && exit 1)
 
 generate-client: ## Generate Go types from OpenAPI spec (oapi-codegen)
-	python3 scripts/spec-to-3.0.py web/openapi.json > /tmp/openapi-3.0.json
-	oapi-codegen --config pkg/client/.oapi-codegen.yml /tmp/openapi-3.0.json
+	go run ./cmd/specto30 web/openapi.json > /tmp/openapi-3.0.json
+	$(call tool,oapi-codegen) --config pkg/client/.oapi-codegen.yml /tmp/openapi-3.0.json
 
 generate-client-check: ## Verify generated client types are up-to-date
-	python3 scripts/spec-to-3.0.py web/openapi.json > /tmp/openapi-3.0.json
+	go run ./cmd/specto30 web/openapi.json > /tmp/openapi-3.0.json
 	sed 's|output: pkg/client/types.go|output: /tmp/client-types-check.go|' pkg/client/.oapi-codegen.yml > /tmp/oapi-codegen-check.yml
-	oapi-codegen --config /tmp/oapi-codegen-check.yml /tmp/openapi-3.0.json
+	$(call tool,oapi-codegen) --config /tmp/oapi-codegen-check.yml /tmp/openapi-3.0.json
 	diff pkg/client/types.go /tmp/client-types-check.go || (echo "ERROR: pkg/client/types.go is stale. Run 'make generate-client'." && exit 1)
 
-generate-operator: ## Generate CRD manifests, deepcopy, and RBAC (controller-gen; requires ~/go/bin in PATH)
-	~/go/bin/controller-gen object:headerFile="" paths="./api/..." output:dir=./api/v1alpha1
-	~/go/bin/controller-gen crd paths="./api/..." output:crd:dir=./config/operator/crd
-	~/go/bin/controller-gen rbac:roleName=ocidex-operator paths="./internal/controller/...;./cmd/operator/..." output:rbac:dir=./config/operator/rbac
+generate-operator: ## Generate CRD manifests, deepcopy, and RBAC (controller-gen)
+	$(call tool,controller-gen) object:headerFile="" paths="./api/..." output:dir=./api/v1alpha1
+	$(call tool,controller-gen) crd paths="./api/..." output:crd:dir=./config/operator/crd
+	$(call tool,controller-gen) rbac:roleName=ocidex-operator paths="./internal/controller/...;./cmd/operator/..." output:rbac:dir=./config/operator/rbac
 	@for f in config/operator/crd/*.yaml; do \
 		name=$$(basename $$f); \
 		{ echo "# Generated by make generate-operator — do not edit directly."; cat $$f; } > charts/ocidex-operator/crds/$$name; \
 	done
 
-generate-operator-check: ## Verify generated operator files are up-to-date
-	~/go/bin/controller-gen object:headerFile="" paths="./api/..." output:dir=/tmp/operator-check
+generate-operator-check: ## Verify generated operator files (deepcopy, CRDs, RBAC, chart CRDs) are up-to-date
+	rm -rf /tmp/operator-check && mkdir -p /tmp/operator-check/crd /tmp/operator-check/rbac
+	$(call tool,controller-gen) object:headerFile="" paths="./api/..." output:dir=/tmp/operator-check
+	$(call tool,controller-gen) crd paths="./api/..." output:crd:dir=/tmp/operator-check/crd
+	$(call tool,controller-gen) rbac:roleName=ocidex-operator paths="./internal/controller/...;./cmd/operator/..." output:rbac:dir=/tmp/operator-check/rbac
 	diff api/v1alpha1/zz_generated.deepcopy.go /tmp/operator-check/zz_generated.deepcopy.go || (echo "ERROR: zz_generated.deepcopy.go is stale. Run 'make generate-operator'." && exit 1)
+	diff -r config/operator/crd /tmp/operator-check/crd || (echo "ERROR: config/operator/crd is stale. Run 'make generate-operator'." && exit 1)
+	diff -r config/operator/rbac /tmp/operator-check/rbac || (echo "ERROR: config/operator/rbac is stale. Run 'make generate-operator'." && exit 1)
 	@for f in config/operator/crd/*.yaml; do \
 		name=$$(basename $$f); \
 		{ echo "# Generated by make generate-operator — do not edit directly."; cat $$f; } > /tmp/operator-check/chart-$$name; \
-		diff charts/ocidex-operator/crds/$$name /tmp/operator-check/chart-$$name || (echo "ERROR: charts/ocidex-operator/crds/$$name is stale. Run 'make generate-operator'." && exit 1); \
+		diff charts/ocidex-operator/crds/$$name /tmp/operator-check/chart-$$name || { echo "ERROR: charts/ocidex-operator/crds/$$name is stale. Run 'make generate-operator'."; exit 1; }; \
 	done
 
 # Both run through the ocidex binary's own migrate subcommand rather than a
@@ -112,7 +123,10 @@ openapi-check: ## Verify OpenAPI spec and TypeScript types are up-to-date
 # github.com/spdx/tools-golang is dual Apache-2.0 / GPL-2.0-or-later (LICENSE.code); go-licenses
 # reports only the GPL half. Modules it reports as Unknown are license-file naming misses (ADR-049).
 license-check: ## Fail on copyleft licenses stronger than MPL-2.0 in Go dependencies
-	@go-licenses report ./cmd/... 2>/dev/null | awk -F, '$$3 ~ /GPL|SSPL|EUPL|CC-BY-SA|OSL/ && $$1 !~ /^github.com\/spdx\/tools-golang/ { print "disallowed license: " $$0; bad = 1 } END { exit bad }'
+	@set -o pipefail; $(call tool,go-licenses) report ./cmd/... 2>/dev/null | awk -F, '$$3 ~ /GPL|SSPL|EUPL|CC-BY-SA|OSL/ && $$1 !~ /^github.com\/spdx\/tools-golang/ { print "disallowed license: " $$0; bad = 1 } END { exit bad }'
+
+vulncheck: ## Scan the shipped binaries for reachable vulnerabilities (govulncheck; VULNCHECK_ARGS="-format sarif")
+	@$(call tool,govulncheck) $(VULNCHECK_ARGS) ./cmd/...
 
 auth-matrix: ## Regenerate docs/AUTH_MATRIX.md from the authRules declarations
 	go run ./cmd/authmatrix > docs/AUTH_MATRIX.md
