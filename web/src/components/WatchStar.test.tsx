@@ -60,14 +60,12 @@ describe("WatchStar", () => {
     });
 
     it("sends the intended next state, not the current one", () => {
-        const { container } = star({ watched: false });
-        fireEvent.click(container.querySelector("button")!);
+        fireEvent.click(star({ watched: false }).getByRole("button"));
         expect(mutate).toHaveBeenCalledWith({ artifactId: "a1", watched: true });
 
         mutate.mockClear();
 
-        const { container: on } = star({ watched: true });
-        fireEvent.click(on.querySelector("button")!);
+        fireEvent.click(star({ watched: true }).getByRole("button"));
         expect(mutate).toHaveBeenCalledWith({ artifactId: "a1", watched: false });
     });
 
@@ -77,8 +75,7 @@ describe("WatchStar", () => {
             isPending: true,
         } as unknown as ReturnType<typeof useToggleWatch>);
 
-        const { container } = star({ watched: false });
-        expect((container.querySelector("button")!).disabled).toBe(true);
+        expect(star({ watched: false }).getByRole<HTMLButtonElement>("button").disabled).toBe(true);
     });
 
     // The star reads `watched` from props on every render rather than seeding

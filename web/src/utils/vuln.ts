@@ -90,7 +90,7 @@ export function parseCvssVector(vector: string): { version: string; metrics: Cvs
         const table = lookup[key];
         if (table === undefined) continue;
         const decoded = table[val];
-        if (!decoded?.label) continue; // skip omitted metrics (empty label = hide chip)
+        if (decoded === undefined || decoded.label === "") continue; // skip omitted metrics (empty label = hide chip)
         const suffix = suffixes[key] ?? "";
         metrics.push({ label: decoded.label + suffix, variant: decoded.variant });
     }

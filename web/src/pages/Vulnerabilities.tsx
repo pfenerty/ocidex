@@ -69,7 +69,7 @@ export default function Vulnerabilities() {
     };
 
     const formatDate = (iso: string | undefined) =>
-        iso ? new Date(iso).toLocaleDateString() : "—";
+        iso !== undefined && iso !== "" ? new Date(iso).toLocaleDateString() : "—";
 
     const columns: Column<TopVulnEntry>[] = [
         {

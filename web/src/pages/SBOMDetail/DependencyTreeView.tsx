@@ -47,6 +47,85 @@ function vulnTotal(node: Pick<TreeNode, "criticalCount" | "highCount" | "mediumC
     );
 }
 
+// The tree walks below are plain functions of the graph rather than closures inside the
+// component's memos: a nested walker that closes over a memo's locals reads to
+// eslint-plugin-solid's reactivity rule as a stale capture (ocidex-35uu), and pure
+// functions are easier to follow anyway.
+
+/**
+ * Refs that are vulnerable or have a vulnerable descendant — i.e. every ref
+ * worth drawing under the filter. Cycle-safe: a ref already on the current
+ * descent path is skipped rather than followed, so a circular dependency
+ * cannot recurse forever.
+ */
+function vulnerablePathRefs(roots: string[], nodes: Map<string, TreeNode>): Set<string> {
+    const keep = new Set<string>();
+    const onPath = new Set<string>();
+    const visit = (ref: string): boolean => {
+        if (onPath.has(ref)) return false;
+        const node = nodes.get(ref);
+        if (!node) return false;
+        onPath.add(ref);
+        let reaches = vulnTotal(node) > 0;
+        for (const childRef of node.children) {
+            // Not short-circuited: a sibling deeper in the branch still has
+            // to be marked, or the path to it would be cut above.
+            if (visit(childRef)) reaches = true;
+        }
+        onPath.delete(ref);
+        if (reaches) keep.add(ref);
+        return reaches;
+    };
+    for (const rootRef of roots) visit(rootRef);
+    return keep;
+}
+
+/** Every ref with children, reachable from the roots without following a cycle. */
+function expandableRefs(roots: string[], nodes: Map<string, TreeNode>): Set<string> {
+    const toExpand = new Set<string>();
+    const pathSet = new Set<string>();
+    const collect = (ref: string) => {
+        if (pathSet.has(ref)) return;
+        const node = nodes.get(ref);
+        if (!node) return;
+        if (node.children.length > 0) toExpand.add(ref);
+        pathSet.add(ref);
+        for (const childRef of node.children) collect(childRef);
+        pathSet.delete(ref);
+    };
+    for (const rootRef of roots) collect(rootRef);
+    return toExpand;
+}
+
+/**
+ * DFS over roots → flat array of visible rows. pathSet tracks the current ancestry
+ * path for cycle detection — a node is cyclic only if it appears among its own
+ * ancestors. With `keep`, refs outside it are not drawn.
+ */
+function flattenVisible(
+    roots: string[],
+    nodes: Map<string, TreeNode>,
+    expanded: Set<string>,
+    keep: Set<string> | undefined,
+): DepRow[] {
+    const result: DepRow[] = [];
+    const pathSet = new Set<string>();
+    const visit = (ref: string, depth: number) => {
+        if (keep !== undefined && !keep.has(ref)) return;
+        const node = nodes.get(ref);
+        if (!node) return;
+        const isCyclic = pathSet.has(ref);
+        result.push({ node, depth, isCyclic });
+        if (expanded.has(ref) && !isCyclic) {
+            pathSet.add(ref);
+            for (const childRef of node.children) visit(childRef, depth + 1);
+            pathSet.delete(ref);
+        }
+    };
+    for (const rootRef of roots) visit(rootRef, 0);
+    return result;
+}
+
 export function DependencyTreeView(props: {
     graph: { edges: DependencyEdge[]; nodes: ComponentSummary[]; roots?: string[] | null };
     /**
@@ -150,33 +229,10 @@ export function DependencyTreeView(props: {
         return { roots: rootRefs, nodes };
     });
 
-    /**
-     * Refs that are vulnerable or have a vulnerable descendant — i.e. every ref
-     * worth drawing under the filter. Computed once per graph rather than per
-     * row, and cycle-safe: a ref already on the current descent path is skipped
-     * rather than followed, so a circular dependency cannot recurse forever.
-     */
+    // Computed once per graph rather than per row (see vulnerablePathRefs).
     const pathRefs = createMemo(() => {
         const { roots, nodes } = treeData();
-        const keep = new Set<string>();
-        const onPath = new Set<string>();
-        function visit(ref: string): boolean {
-            if (onPath.has(ref)) return false;
-            const node = nodes.get(ref);
-            if (!node) return false;
-            onPath.add(ref);
-            let reaches = vulnTotal(node) > 0;
-            for (const childRef of node.children) {
-                // Not short-circuited: a sibling deeper in the branch still has
-                // to be marked, or the path to it would be cut above.
-                if (visit(childRef)) reaches = true;
-            }
-            onPath.delete(ref);
-            if (reaches) keep.add(ref);
-            return reaches;
-        }
-        for (const rootRef of roots) visit(rootRef);
-        return keep;
+        return vulnerablePathRefs(roots, nodes);
     });
 
     const [expandedRefs, setExpandedRefs] = createSignal(new Set<string>(), { equals: false });
@@ -205,47 +261,15 @@ export function DependencyTreeView(props: {
 
     const expandAll = () => {
         const { roots, nodes } = treeData();
-        const toExpand = new Set<string>();
-        const pathSet = new Set<string>();
-        function collect(ref: string) {
-            if (pathSet.has(ref)) return;
-            const node = nodes.get(ref);
-            if (!node) return;
-            if (node.children.length > 0) toExpand.add(ref);
-            pathSet.add(ref);
-            for (const childRef of node.children) collect(childRef);
-            pathSet.delete(ref);
-        }
-        for (const rootRef of roots) collect(rootRef);
-        setExpandedRefs(() => toExpand);
+        setExpandedRefs(() => expandableRefs(roots, nodes));
     };
 
     const collapseAll = () => setExpandedRefs(() => new Set<string>());
 
-    // DFS over roots → flat array of visible rows. pathSet tracks the current ancestry
-    // path for cycle detection — a node is cyclic only if it appears among its own ancestors.
     const visibleRows = createMemo((): DepRow[] => {
         const { roots, nodes } = treeData();
-        const expanded = expandedRefs();
         const keep = props.vulnerableOnly === true ? pathRefs() : undefined;
-        const result: DepRow[] = [];
-        const pathSet = new Set<string>();
-
-        function visit(ref: string, depth: number) {
-            if (keep !== undefined && !keep.has(ref)) return;
-            const node = nodes.get(ref);
-            if (!node) return;
-            const isCyclic = pathSet.has(ref);
-            result.push({ node, depth, isCyclic });
-            if (expanded.has(ref) && !isCyclic) {
-                pathSet.add(ref);
-                for (const childRef of node.children) visit(childRef, depth + 1);
-                pathSet.delete(ref);
-            }
-        }
-
-        for (const rootRef of roots) visit(rootRef, 0);
-        return result;
+        return flattenVisible(roots, nodes, expandedRefs(), keep);
     });
 
     // Children that will actually be drawn. Under the filter this is a subset,
