@@ -16,8 +16,8 @@ export const goTest = new Task({
       { name: "CGO_ENABLED", value: "1" },
       { name: "GOMAXPROCS", value: "2" },
       // Caps the Go heap only. The race detector's shadow memory is allocated outside it,
-      // which is what the headroom between this and the 6Gi limit is for.
-      { name: "GOMEMLIMIT", value: "3GiB" },
+      // which is what the headroom between this and the 4Gi limit is for.
+      { name: "GOMEMLIMIT", value: "2GiB" },
     ],
   },
   steps: [
@@ -25,10 +25,11 @@ export const goTest = new Task({
       name: "go-test",
       image: goCgoImage,
       computeResources: {
-        // -race multiplies test memory (5-10x is typical), hence 6Gi; sized from the
-        // ocidex-gyr0.4 TaskRun. Compiled test binaries go to GOTMPDIR on the workspace
+        // -race multiplies test memory. The cold ocidex-gyr0.4 TaskRun (38 packages, 12 min)
+        // peaked at ~1.2Gi sampled every 20s; 4Gi leaves room for spikes between samples
+        // and for the suite growing. Compiled test binaries go to GOTMPDIR on the workspace
         // PVC (goTmpEnv), so ephemeral storage only covers logs and small temp files.
-        limits: { cpu: "2", memory: "6Gi", "ephemeral-storage": "1Gi" },
+        limits: { cpu: "2", memory: "4Gi", "ephemeral-storage": "1Gi" },
         requests: {
           cpu: "500m",
           memory: "1Gi",

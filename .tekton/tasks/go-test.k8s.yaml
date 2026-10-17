@@ -33,7 +33,7 @@ spec:
       - name: GOMAXPROCS
         value: "2"
       - name: GOMEMLIMIT
-        value: 3GiB
+        value: 2GiB
     imagePullPolicy: Always
     securityContext:
       allowPrivilegeEscalation: false
@@ -102,7 +102,7 @@ spec:
         limits:
           cpu: "2"
           ephemeral-storage: 1Gi
-          memory: 6Gi
+          memory: 4Gi
         requests:
           cpu: 500m
           ephemeral-storage: 256Mi
