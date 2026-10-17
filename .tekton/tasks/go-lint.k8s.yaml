@@ -1,0 +1,326 @@
+apiVersion: tekton.dev/v1
+kind: Task
+metadata:
+  name: ocidex-go-lint
+  namespace: ocidex-ci
+spec:
+  params:
+    - name: repo-full-name
+      type: string
+    - name: revision
+      type: string
+  stepTemplate:
+    computeResources:
+      limits:
+        cpu: "1"
+        memory: 512Mi
+      requests:
+        cpu: 100m
+        memory: 128Mi
+    env:
+      - name: GOPATH
+        value: $(workspaces.workspace.path)/.go-path
+      - name: GOMODCACHE
+        value: $(workspaces.workspace.path)/.go-mod
+      - name: GOCACHE
+        value: $(workspaces.workspace.path)/.go-build
+      - name: GIT_CONFIG_GLOBAL
+        value: $(workspaces.workspace.path)/.gitconfig
+      - name: GOLANGCI_LINT_CACHE
+        value: $(workspaces.workspace.path)/.golangci-cache
+      - name: GOMAXPROCS
+        value: "2"
+      - name: GOMEMLIMIT
+        value: 3500MiB
+    imagePullPolicy: Always
+    securityContext:
+      allowPrivilegeEscalation: false
+      capabilities:
+        drop:
+          - ALL
+    workingDir: $(workspaces.workspace.path)
+  steps:
+    - image: ghcr.io/pfenerty/apko-cicd/base:stable
+      name: restore-go-cache-cache
+      script: |-
+        #!/usr/bin/env nu
+        def log [msg: string] { print $"[(date now | format date '%H:%M:%S')] ($msg)" }
+        let hash = (
+          ["go.sum"]
+          | each { |f| if ($f | path exists) { open --raw $f } else { "" } }
+          | str join | hash sha256 | str substring 0..15
+        )
+        $hash | save -f /tekton/home/.cache-go-cache-hash
+        if ([".go-mod", ".go-build"] | any { |p| $p | path exists }) {
+          log $"restore-go-cache-cache: paths already exist, skipping restore ($hash)"
+          exit 0
+        }
+        let archive = $"$(workspaces.go-cache.path)/($hash).tar.zst"
+
+        if ($archive | path exists) {
+          let archive_size = (ls $archive | get size.0)
+          log $"restore-go-cache-cache: hit ($hash) size=($archive_size)"
+          let t0 = (date now)
+          let stage = $".cache-restore-(random uuid)"
+          mkdir $stage
+          try {
+            ^zstd -d -T1 -c $archive | ^tar xf - -C $stage -o --no-same-permissions
+          } catch { |e|
+            rm -rf $stage
+            log $"restore-go-cache-cache: extract failed \(($e.msg)\)"
+            exit 1
+          }
+          for p in [".go-mod", ".go-build"] {
+            let staged = ($stage | path join $p)
+            if not ($staged | path exists) { continue }
+            if ($p | path exists) {
+              # Rename the live tree aside and move the new one in — never delete in place. The
+              # displaced tree is removed afterwards and best-effort: a concurrent writer still inside
+              # it can legitimately make that fail, and by then nothing resolves to it by path.
+              let displaced = $"($p).displaced-(random uuid)"
+              mv $p $displaced
+              mv $staged $p
+              try { ^chmod -R u+w $displaced; rm -rf $displaced } catch { |e|
+                log $"restore-go-cache-cache: displaced tree ($displaced) not removed: ($e.msg)"
+              }
+            } else {
+              let parent = ($p | path dirname)
+              if (($parent | str length) > 0) and ($parent != ".") { mkdir $parent }
+              mv $staged $p
+            }
+          }
+          rm -rf $stage
+          let elapsed = (((date now) - $t0) | into int) / 1_000_000_000
+          log $"restore-go-cache-cache: restored in ($elapsed)s"
+        } else {
+          log $"restore-go-cache-cache: miss ($hash)"
+        }
+      workingDir: $(workspaces.workspace.path)
+    - image: ghcr.io/pfenerty/apko-cicd/base:stable
+      name: restore-golangci-lint-cache-cache
+      script: |-
+        #!/usr/bin/env nu
+        def log [msg: string] { print $"[(date now | format date '%H:%M:%S')] ($msg)" }
+        let hash = (
+          ["go.sum", "tools/go.sum", ".golangci.yml"]
+          | each { |f| if ($f | path exists) { open --raw $f } else { "" } }
+          | str join | hash sha256 | str substring 0..15
+        )
+        $hash | save -f /tekton/home/.cache-golangci-lint-cache-hash
+        if ([".golangci-cache"] | any { |p| $p | path exists }) {
+          log $"restore-golangci-lint-cache-cache: paths already exist, skipping restore ($hash)"
+          exit 0
+        }
+        let archive = $"$(workspaces.go-cache.path)/($hash).tar.zst"
+
+        if ($archive | path exists) {
+          let archive_size = (ls $archive | get size.0)
+          log $"restore-golangci-lint-cache-cache: hit ($hash) size=($archive_size)"
+          let t0 = (date now)
+          let stage = $".cache-restore-(random uuid)"
+          mkdir $stage
+          try {
+            ^zstd -d -T1 -c $archive | ^tar xf - -C $stage -o --no-same-permissions
+          } catch { |e|
+            rm -rf $stage
+            log $"restore-golangci-lint-cache-cache: extract failed \(($e.msg)\)"
+            exit 1
+          }
+          for p in [".golangci-cache"] {
+            let staged = ($stage | path join $p)
+            if not ($staged | path exists) { continue }
+            if ($p | path exists) {
+              # Rename the live tree aside and move the new one in — never delete in place. The
+              # displaced tree is removed afterwards and best-effort: a concurrent writer still inside
+              # it can legitimately make that fail, and by then nothing resolves to it by path.
+              let displaced = $"($p).displaced-(random uuid)"
+              mv $p $displaced
+              mv $staged $p
+              try { ^chmod -R u+w $displaced; rm -rf $displaced } catch { |e|
+                log $"restore-golangci-lint-cache-cache: displaced tree ($displaced) not removed: ($e.msg)"
+              }
+            } else {
+              let parent = ($p | path dirname)
+              if (($parent | str length) > 0) and ($parent != ".") { mkdir $parent }
+              mv $staged $p
+            }
+          }
+          rm -rf $stage
+          let elapsed = (((date now) - $t0) | into int) / 1_000_000_000
+          log $"restore-golangci-lint-cache-cache: restored in ($elapsed)s"
+        } else {
+          log $"restore-golangci-lint-cache-cache: miss ($hash)"
+        }
+      workingDir: $(workspaces.workspace.path)
+    - computeResources:
+        limits:
+          cpu: "2"
+          ephemeral-storage: 2Gi
+          memory: 4Gi
+        requests:
+          cpu: 500m
+          ephemeral-storage: 2Gi
+          memory: 2Gi
+      image: ghcr.io/pfenerty/apko-cicd/golang:1.27
+      name: go-lint
+      onError: continue
+      script: |-
+        #!/usr/bin/env nu
+        def log [msg: string] { print $"[(date now | format date '%H:%M:%S')] ($msg)" }
+        if not ("/tekton/home/.exit-code" | path exists) { try { "0" | save -f /tekton/home/.exit-code } }
+        try { ^chmod 0666 /tekton/home/.exit-code }
+        def main [] {
+        # golangci-lint is pinned in tools/go.mod (ocidex-gyr0.1). `go tool -n` builds it into
+        # GOCACHE on first use and prints its path; it needs GOWORK=off because -modfile is refused
+        # in workspace mode. The linter itself then runs in workspace mode, the same as `make lint`.
+        log "Resolving pinned golangci-lint"
+        let lint = (with-env {GOWORK: "off"} { ^go tool -modfile=tools/go.mod -n golangci-lint } | str trim)
+        ^$lint version
+        log "Running golangci-lint"
+        # pkg/client is a separate workspace module that ./... does not cover.
+        ^$lint run ./... ./pkg/client/...
+        log "OK: lint clean"
+        }
+        let __tek_rc = (try { main; 0 } catch { |e| print $"error [go-lint/go-lint]: ($e.msg)"; 1 })
+        let __tek_prev = (try { open --raw /tekton/home/.exit-code | str trim | into int } catch { 0 })
+        let __tek_worst = ([$__tek_prev $__tek_rc] | math max)
+        $"($__tek_worst)" | save -f /tekton/home/.exit-code
+        exit $__tek_rc
+    - image: ghcr.io/pfenerty/apko-cicd/base:stable
+      name: save-go-cache-cache
+      onError: continue
+      script: |-
+        #!/usr/bin/env nu
+        def log [msg: string] { print $"[(date now | format date '%H:%M:%S')] ($msg)" }
+        let hash = (try { open --raw /tekton/home/.cache-go-cache-hash | str trim } catch { "" })
+        if ($hash | is-empty) { log "save-go-cache-cache: no hash, skipping"; exit 0 }
+
+        let archive = $"$(workspaces.go-cache.path)/($hash).tar.zst"
+
+        let paths = [".go-mod", ".go-build"] | where { |p| ($p | path exists) }
+        if ($paths | is-empty) { log "save-go-cache-cache: no paths to cache"; exit 0 }
+
+        for p in $paths { ^chmod -R u+w $p }
+
+        let max = 3
+        if $max > 0 {
+          let entries = (try { ls $(workspaces.go-cache.path)/*.tar.zst | sort-by modified | reverse | skip $max } catch { [] })
+          for e in $entries { log $"save-go-cache-cache: evicting ($e.name | path basename)"; rm $e.name }
+        }
+
+        let uncompressed = ($paths | each { |p| try { du $p | get apparent.0 | into int } catch { 0 } } | math sum)
+        log $"save-go-cache-cache: compressing (($uncompressed / 1_000_000) | math round --precision 1)MB uncompressed ..."
+        let t0 = (date now)
+        # Write to a temp path and rename into place: a step killed mid-write (OOM, eviction,
+        # timeout) must never leave a truncated archive at the real hash-keyed path, since the
+        # skip-if-exists guard above means a corrupt archive there would never self-heal.
+        let tmp = $"($archive).tmp.(random uuid)"
+        # nushell aborts the enclosing block as soon as any external command in the pipe
+        # reports a non-zero exit (e.g. tar failing to read one of $paths), so cleanup must
+        # live in a catch — code placed after the pipe but outside try/catch never runs.
+        try {
+          ^tar cf - ...$paths | ^zstd -1 -T1 -f -o $tmp
+        } catch { |e|
+          rm -f $tmp
+          log $"save-go-cache-cache: compress failed (($e.msg)), discarding partial archive"
+          exit 1
+        }
+        mv -f $tmp $archive
+        let elapsed = (((date now) - $t0) | into int) / 1_000_000_000
+        let compressed = (ls $archive | get size.0)
+        let ratio = ($uncompressed / ($compressed | into int) | math round --precision 1)
+        log $"save-go-cache-cache: saved ($compressed) ratio=($ratio)x in ($elapsed)s"
+      workingDir: $(workspaces.workspace.path)
+    - image: ghcr.io/pfenerty/apko-cicd/base:stable
+      name: save-golangci-lint-cache-cache
+      onError: continue
+      script: |-
+        #!/usr/bin/env nu
+        def log [msg: string] { print $"[(date now | format date '%H:%M:%S')] ($msg)" }
+        let hash = (try { open --raw /tekton/home/.cache-golangci-lint-cache-hash | str trim } catch { "" })
+        if ($hash | is-empty) { log "save-golangci-lint-cache-cache: no hash, skipping"; exit 0 }
+
+        let archive = $"$(workspaces.go-cache.path)/($hash).tar.zst"
+
+        let paths = [".golangci-cache"] | where { |p| ($p | path exists) }
+        if ($paths | is-empty) { log "save-golangci-lint-cache-cache: no paths to cache"; exit 0 }
+
+        for p in $paths { ^chmod -R u+w $p }
+
+        let max = 3
+        if $max > 0 {
+          let entries = (try { ls $(workspaces.go-cache.path)/*.tar.zst | sort-by modified | reverse | skip $max } catch { [] })
+          for e in $entries { log $"save-golangci-lint-cache-cache: evicting ($e.name | path basename)"; rm $e.name }
+        }
+
+        let uncompressed = ($paths | each { |p| try { du $p | get apparent.0 | into int } catch { 0 } } | math sum)
+        log $"save-golangci-lint-cache-cache: compressing (($uncompressed / 1_000_000) | math round --precision 1)MB uncompressed ..."
+        let t0 = (date now)
+        # Write to a temp path and rename into place: a step killed mid-write (OOM, eviction,
+        # timeout) must never leave a truncated archive at the real hash-keyed path, since the
+        # skip-if-exists guard above means a corrupt archive there would never self-heal.
+        let tmp = $"($archive).tmp.(random uuid)"
+        # nushell aborts the enclosing block as soon as any external command in the pipe
+        # reports a non-zero exit (e.g. tar failing to read one of $paths), so cleanup must
+        # live in a catch — code placed after the pipe but outside try/catch never runs.
+        try {
+          ^tar cf - ...$paths | ^zstd -1 -T1 -f -o $tmp
+        } catch { |e|
+          rm -f $tmp
+          log $"save-golangci-lint-cache-cache: compress failed (($e.msg)), discarding partial archive"
+          exit 1
+        }
+        mv -f $tmp $archive
+        let elapsed = (((date now) - $t0) | into int) / 1_000_000_000
+        let compressed = (ls $archive | get size.0)
+        let ratio = ($uncompressed / ($compressed | into int) | math round --precision 1)
+        log $"save-golangci-lint-cache-cache: saved ($compressed) ratio=($ratio)x in ($elapsed)s"
+      workingDir: $(workspaces.workspace.path)
+    - env:
+        - name: GITHUB_TOKEN
+          valueFrom:
+            secretKeyRef:
+              key: token
+              name: github-pipeline-token
+      image: ghcr.io/pfenerty/apko-cicd/base:stable
+      name: report-status
+      script: |-
+        #!/usr/bin/env nu
+        def log [msg: string] { print $"[(date now | format date '%H:%M:%S')] ($msg)" }
+        let contract_code = (try { open --raw /tekton/home/.exit-code | str trim | into int } catch { 1 })
+        # A step that never ran has no file; 0 keeps it out of the max.
+        let step_codes = ([{ name: "go-lint", path: "/tekton/steps/step-go-lint/exitCode" }] | each { |s| { name: $s.name, code: (try { open --raw $s.path | str trim | into int } catch { 0 }) } })
+        let exit_code = ([$contract_code ...($step_codes | each { |s| $s.code })] | math max)
+        let state = if $exit_code == 0 { "success" } else { "failure" }
+        # Name the first step that failed, so the check says where without opening the logs.
+        let failed_steps = ($step_codes | where code != 0)
+        let desc = if $exit_code == 0 {
+          "Passed"
+        } else if ($failed_steps | is-empty) {
+          $"Failed: exit ($exit_code)"
+        } else {
+          let first = ($failed_steps | first)
+          $"Failed: step ($first.name) exited ($first.code)"
+        }
+
+        log $"report-status [go-lint]: exit-code=($exit_code) state=($state)"
+
+        let url = $"https://api.github.com/repos/$(params.repo-full-name)/statuses/$(params.revision)"
+        let body = { state: $state, context: "go-lint", description: $desc }
+
+        log $"report-status [go-lint]: POST ($url)"
+        log $"report-status [go-lint]: body: ($body | to json -r)"
+
+        try {
+          http post $url $body -t application/json -H [
+            Authorization $"token ($env.GITHUB_TOKEN)"
+            Accept "application/vnd.github+json"
+          ]
+          log "report-status [go-lint]: done"
+        } catch { |e|
+          log $"report-status [go-lint]: error: ($e.msg)"
+        }
+        exit $exit_code
+  workspaces:
+    - name: go-cache
+    - name: workspace

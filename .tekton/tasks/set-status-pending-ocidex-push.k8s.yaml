@@ -60,7 +60,7 @@ spec:
           }
         }
 
-        let contexts = ["gofmt-check" "go-test" "go-build" "openapi-verify" "eslint-lint-web" "go-integration-test" "govulncheck-scan" "grype-vuln-web" "gitleaks-secrets" "semgrep-sast" "image-build-api" "image-build-scanner-worker" "image-build-oci-metadata-worker" "image-build-git-worker" "image-build-user-enricher-worker" "image-build-provenance-worker" "image-build-vuln-worker" "image-build-web" "image-build-k8s-agent" "image-build-operator" "image-build-cli" "helm-check" "helm-publish" "sbom-push"]
+        let contexts = ["gofmt-check" "go-lint" "go-build" "go-test" "openapi-verify" "eslint-lint-web" "go-integration-test" "govulncheck-scan" "grype-vuln-web" "gitleaks-secrets" "semgrep-sast" "image-build-api" "image-build-scanner-worker" "image-build-oci-metadata-worker" "image-build-git-worker" "image-build-user-enricher-worker" "image-build-provenance-worker" "image-build-vuln-worker" "image-build-web" "image-build-k8s-agent" "image-build-operator" "image-build-cli" "helm-check" "helm-publish" "sbom-push"]
 
         let failed = $contexts | each { |context|
           let body = { state: "pending", context: $context, description: "Running" }

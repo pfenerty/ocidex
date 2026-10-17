@@ -22,7 +22,8 @@ import { onChanges } from "@tektonic-ci/core";
 // only pay off once that coupling is broken, so it's omitted for now.
 export const goChanged = onChanges({
   name: "detect-go",
-  paths: ["**/*.go", "go.mod", "go.sum", "docker/**", "db/**"],
+  // tools/ pins the linter and generators; .golangci.yml configures go-lint.
+  paths: ["**/*.go", "go.mod", "go.sum", "tools/**", ".golangci.yml", "docker/**", "db/**"],
 });
 
 // Frontend bucket: everything under web/ (SolidJS/TS source + package-lock.json). Gates

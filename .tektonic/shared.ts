@@ -111,6 +111,31 @@ export const goCacheIntegration = {
   skipRestoreIfPathsExist: true,
 };
 
+// go-lint runs concurrently with go-test/go-integration-test on the shared .go-mod/.go-build,
+// so it gets the goCacheVulncheck treatment: never restore over paths go-build populated.
+// forceSave writes back the pinned tools' modules and compiled golangci-lint (tools/go.sum
+// is not part of go.sum, the key), so later runs skip rebuilding the linter.
+export const goCacheLint = {
+  ...goCache,
+  forceSave: true,
+  skipRestoreIfPathsExist: true,
+};
+
+// golangci-lint's own analysis cache (GOLANGCI_LINT_CACHE in go-lint's env). Only go-lint
+// touches it, so the restore guard below never actually skips anything in a fresh workspace;
+// it is set to silence tektonic's shared-workspace default warning. forceSave keeps it
+// current: entries are content-hashed per package, so an old archive only costs misses.
+export const golangciLintCache = {
+  name: "golangci-lint-cache",
+  key: ["go.sum", "tools/go.sum", ".golangci.yml"],
+  paths: [".golangci-cache"],
+  workspace: goCacheWs,
+  compress: true,
+  workingDir: "$(workspaces.workspace.path)",
+  forceSave: true,
+  skipRestoreIfPathsExist: true,
+};
+
 export const nodeModulesCache = {
   name: "node-modules",
   key: ["package-lock.json"],
