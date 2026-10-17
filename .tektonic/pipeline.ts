@@ -13,6 +13,7 @@ import {
   sourceChanged,
   pipelineChanged,
   chartsChanged,
+  codegenChanged,
   detectTasks,
 } from "./changes";
 import { goFmt } from "./jobs/go-fmt/spec";
@@ -21,6 +22,7 @@ import { goTest } from "./jobs/go-test/spec";
 import { goIntegration } from "./jobs/go-integration/spec";
 import { frontendLint } from "./jobs/frontend-lint/spec";
 import { goLint } from "./jobs/go-lint/spec";
+import { codegenCheck } from "./jobs/codegen-check/spec";
 import { openapiCheck } from "./jobs/openapi-check/spec";
 import { openapiBreaking } from "./jobs/openapi-breaking/spec";
 import { goVulncheck } from "./jobs/go-vulncheck/spec";
@@ -38,7 +40,7 @@ import { sbomPush } from "./jobs/sbom-push/spec";
 // ─── Task groups ──────────────────────────────────────────────────────────────
 // Core build/verify tasks + the always-on security scans. Run ungated on push so
 // the publish path (main) always rebuilds and re-scans.
-const coreTasks = [goFmt, goLint, goTest, goBuild, openapiCheck, frontendLint, goIntegration];
+const coreTasks = [goFmt, goLint, goTest, goBuild, openapiCheck, codegenCheck, frontendLint, goIntegration];
 // go-vulncheck = reachability-aware Go gate (replaced grype-on-Go, which only added
 // noise for Go — e.g. flagging the unreachable, unfixable x/crypto/openpgp advisory);
 // web-security = frontend npm deps (grype — govulncheck can't scan npm); semgrep = SAST;
@@ -98,6 +100,7 @@ const prPipeline = new GitPipeline({
     gated(goTest, { when: goChanged }),
     gated(goIntegration, { when: goChanged }),
     gated(openapiCheck, { when: goChanged }),
+    gated(codegenCheck, { when: codegenChanged }),
     gated(openapiBreaking, { when: goChanged }),
     gated(goVulncheck, { when: goChanged }),
     // web-security is a leaf → gate on the frontend bucket. semgrep is multi-language SAST →

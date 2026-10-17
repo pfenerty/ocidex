@@ -11,6 +11,13 @@ export const gitSafeCwd = `^git config --global --add safe.directory (pwd)`;
 export const goSetup = `log $"go=(go version) uid=(id -u) pwd=(pwd)"
 ${gitSafeCwd}`;
 
+// `pinned-tool <name>` prints the path of a dev tool pinned in tools/go.mod (ocidex-gyr0.1),
+// building it into GOCACHE on first use. GOWORK=off because -modfile is refused in workspace
+// mode; the tool itself then runs in workspace mode, as the Makefile's `tool` macro does.
+export const pinnedTool = `def pinned-tool [name: string] {
+  with-env {GOWORK: "off"} { ^go tool -modfile=tools/go.mod -n $name } | str trim
+}`;
+
 // Node step preamble: log toolchain, then install deps. npm ci is idempotent and restores
 // from the node_modules cache, so re-running it across steps/tasks is cheap.
 export const nodeSetup = `log $"node=(node --version) npm=(npm --version) uid=(id -u)"

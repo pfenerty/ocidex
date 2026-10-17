@@ -67,6 +67,6 @@ pkg/client/
 internal/api/types.go → make openapi → web/openapi.json → make generate-client → pkg/client/types.go
 ```
 
-`make generate-client-check` verifies the committed file matches the spec; it runs in CI as part of `make check`.
+`make generate-client-check` verifies the committed file matches the spec. (Amended 2026-10, ocidex-gyr0.5: CI never ran `make check`; the check now runs in CI as the `client-types-check` step of the `codegen-check` task.)
 
-`scripts/spec-to-3.0.py` is a narrow conversion script — it handles only the nullable-array pattern that Huma v2 currently emits. If the spec gains other 3.1-only constructs, the script must be extended, or the project should migrate to a tool with native 3.1 support.
+`scripts/spec-to-3.0.py` (ported to Go as `cmd/specto30` in ocidex-gyr0.5, so codegen checks need only Go) is a narrow conversion script — it handles only the nullable-array pattern that Huma v2 currently emits. If the spec gains other 3.1-only constructs, the script must be extended, or the project should migrate to a tool with native 3.1 support.
