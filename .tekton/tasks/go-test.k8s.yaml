@@ -26,10 +26,14 @@ spec:
         value: $(workspaces.workspace.path)/.go-build
       - name: GIT_CONFIG_GLOBAL
         value: $(workspaces.workspace.path)/.gitconfig
+      - name: GOTMPDIR
+        value: $(workspaces.workspace.path)/.go-tmp
+      - name: CGO_ENABLED
+        value: "1"
       - name: GOMAXPROCS
         value: "2"
       - name: GOMEMLIMIT
-        value: 1800MiB
+        value: 3GiB
     imagePullPolicy: Always
     securityContext:
       allowPrivilegeEscalation: false
@@ -97,13 +101,13 @@ spec:
     - computeResources:
         limits:
           cpu: "2"
-          ephemeral-storage: 2Gi
-          memory: 2Gi
+          ephemeral-storage: 1Gi
+          memory: 6Gi
         requests:
           cpu: 500m
-          ephemeral-storage: 2Gi
-          memory: 256Mi
-      image: ghcr.io/pfenerty/apko-cicd/golang:1.27
+          ephemeral-storage: 256Mi
+          memory: 1Gi
+      image: ghcr.io/pfenerty/apko-cicd/golang:1.27-cgo
       name: go-test
       onError: continue
       script: |-
@@ -112,9 +116,10 @@ spec:
         if not ("/tekton/home/.exit-code" | path exists) { try { "0" | save -f /tekton/home/.exit-code } }
         try { ^chmod 0666 /tekton/home/.exit-code }
         def main [] {
-        log "Running go test"
+        mkdir $env.GOTMPDIR  # see goTmpEnv in shared.ts
+        log "Running go test (race detector on)"
         # pkg/client is a separate workspace module that ./... does not cover.
-        ^go test -v -short -p 2 ./... ./pkg/client/...
+        ^go test -v -race -short -p 2 ./... ./pkg/client/...
         log "OK: tests passed"
         }
         let __tek_rc = (try { main; 0 } catch { |e| print $"error [go-test/go-test]: ($e.msg)"; 1 })

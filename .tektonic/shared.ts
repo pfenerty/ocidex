@@ -3,6 +3,9 @@ import { GitHubStatusReporter } from "@tektonic-ci/reporter-github";
 
 // --- Images ─────────────────────────────────────────────────────────────────
 export const goImage = "ghcr.io/pfenerty/apko-cicd/golang:1.27";
+// goImage plus gcc/glibc headers: `go test -race` needs cgo, and goImage has no C toolchain.
+// About 3x goImage's size, so only go-test uses it. Bump in lockstep with goImage.
+export const goCgoImage = "ghcr.io/pfenerty/apko-cicd/golang:1.27-cgo";
 export const nodeImage = "ghcr.io/pfenerty/apko-cicd/nodejs:24";
 export const baseImage = "ghcr.io/pfenerty/apko-cicd/base:stable";
 // Go-version-matched govulncheck image; bump the -goX.Y suffix in lockstep with goImage.

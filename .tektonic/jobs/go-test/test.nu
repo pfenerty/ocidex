@@ -1,5 +1,6 @@
 #!/usr/bin/env nu
-log "Running go test"
+mkdir $env.GOTMPDIR  # see goTmpEnv in shared.ts
+log "Running go test (race detector on)"
 # pkg/client is a separate workspace module that ./... does not cover.
-^go test -v -short -p 2 ./... ./pkg/client/...
+^go test -v -race -short -p 2 ./... ./pkg/client/...
 log "OK: tests passed"
