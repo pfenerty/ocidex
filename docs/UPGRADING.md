@@ -114,6 +114,10 @@ Newest first. Each entry names the issue that made the change, so its full conte
 
 ### Next release (unreleased)
 
+Nothing yet.
+
+### 0.1.0
+
 **Before upgrading:**
 
 - **Add the credential encryption keys (ocidex-d90k, ADR-051).** Add
@@ -137,6 +141,20 @@ Newest first. Each entry names the issue that made the change, so its full conte
   **different** registrable domain, set `SESSION_COOKIE_SAMESITE=none` (chart:
   `api.env.sessionCookieSameSite`), or every API call from the SPA arrives without its
   session.
+- **Scanning a registry on a private network: set the egress policy (ocidex-avsz.5,
+  .6, .7).** The API, `scanner-worker` and the enricher workers now refuse to dial private
+  addresses (`10/8`, `172.16/12`, `192.168/16`, `100.64/10`, `fc00::/7`), loopback,
+  link-local (including cloud metadata) and multicast. That covers an in-cluster or LAN
+  registry such as zot or Harbor. Its scans fail as permanent errors, and the API rejects an
+  ingested SBOM naming an image there with 400. Before upgrading, allow just that registry's
+  address with `EGRESS_ALLOW_CIDRS` (chart: `egressGuard.allowCidrs`), or all private ranges
+  with `EGRESS_ALLOW_PRIVATE=true` (chart: `egressGuard.allowPrivate`). Set the same values
+  on every component; the chart does. See
+  [CONFIGURATION.md](CONFIGURATION.md#egress-policy).
+- **`CORS_ALLOWED_ORIGINS` must be exact origins in production (ocidex-mqav.3).** With
+  `ENVIRONMENT=production`, the API refuses to start if `CORS_ALLOWED_ORIGINS` contains
+  `*`, or any entry that isn't `scheme://host[:port]` (http or https, with no path,
+  trailing `/`, credentials, query or fragment). Check the value before upgrading.
 - **Behind an ingress: set `TRUSTED_PROXY_CIDRS` (ocidex-mqav.5).** Sign-in endpoints are
   rate-limited per client IP: 30 requests per minute by default (`AUTH_RATE_LIMIT`, chart
   `api.env.authRateLimit`; `0` disables). Set `TRUSTED_PROXY_CIDRS` (chart
@@ -157,6 +175,25 @@ Newest first. Each entry names the issue that made the change, so its full conte
   The default is 120 requests per minute each (`API_RATE_LIMIT_INGEST`,
   `API_RATE_LIMIT_HEAVY`; `0` disables). No role is exempt, so raise the ingest limit if a
   CI or operator key pushes faster.
+- **Registry URLs are validated on create and update (ocidex-avsz.8).** A registry `url`
+  must be `host[:port]` (or `http(s)://host[:port]`). Credentials, a path, a query or a
+  fragment are rejected with 422, and so is an IP address the egress policy refuses.
+  Registries created before the upgrade keep working, but editing one with such a URL fails
+  until the URL is fixed. Put repositories in `repositories`, not in the path, and
+  credentials in `auth_username` / `auth_token`.
+- **Attaching a new registry to an existing namespace needs `manage_source` there
+  (ocidex-avsz.2).** `POST /api/v1/registries` with a `namespace` that already exists now
+  returns 404 to non-members and 403 to members without `manage_source`, instead of
+  attaching the registry. Naming a new namespace still creates it.
+- **The web UI sends a strict Content-Security-Policy (ocidex-mqav.7, .9).** The bundled
+  nginx sets `frame-ancestors 'none'`, so the UI can no longer be embedded in an iframe.
+  Scripts and styles load only from the UI's origin, plus Google Fonts. A proxy that injects
+  scripts or inline styles into the UI's pages will have them blocked.
+- **New, optional: who may sign in and create namespaces (ocidex-avsz.4).** `SIGNUP_MODE`
+  (default `open`, the previous behavior) and `SELF_SERVICE_NAMESPACES` (default `true`) let
+  you limit sign-in to existing accounts and keep global viewers from creating namespaces.
+  Nothing changes unless you set them. See
+  [CONFIGURATION.md](CONFIGURATION.md#installation-policy).
 
 **Chart rollback without a restore:** not safe for this release. Migration 00079 demotes the
 seeded admin, and the previous version does not read `BOOTSTRAP_ADMINS`.
