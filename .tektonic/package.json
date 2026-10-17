@@ -8,7 +8,7 @@
   "scripts": {
     "synth": "tektonic synth",
     "check": "tektonic check",
-    "test": "vitest run"
+    "test": "node --import tsx --test test/*.test.ts"
   },
   "dependencies": {
     "@tektonic-ci/core": "^2.3.0",
@@ -17,7 +17,6 @@
   "devDependencies": {
     "@types/node": "^25.0.0",
     "tsx": "^4.19.0",
-    "typescript": "^7.0.0",
-    "vitest": "^3.2.4"
+    "typescript": "^7.0.0"
   }
 }

@@ -1,4 +1,5 @@
-import { describe, expect, it } from "vitest";
+import assert from "node:assert/strict";
+import { describe, it } from "node:test";
 import { synthPipeline, synthTasks } from "@tektonic-ci/core/testing";
 import type { PipelineView } from "@tektonic-ci/core/testing";
 
@@ -79,43 +80,43 @@ const alwaysRun = ["git-clone", "gitleaks-secrets"];
 describe("PR pipeline gating", () => {
   it("records paths for every detect task it emits", () => {
     const detects = pr.taskNames.filter((n) => n.startsWith("detect-"));
-    expect(detects.length).toBeGreaterThan(0);
-    for (const d of detects) expect(changePaths[d], d).toBeDefined();
+    assert.ok(detects.length > 0);
+    for (const d of detects) assert.ok(changePaths[d], d);
   });
 
   it("gates every task except the always-run set", () => {
     const ungated = pr.taskNames.filter(
       (n) => !pr.isGated(n) && !n.startsWith("detect-") && !n.startsWith("set-status-"),
     );
-    expect(ungated.sort()).toEqual([...alwaysRun].sort());
+    assert.deepEqual(ungated.sort(), [...alwaysRun].sort());
   });
 
   it("skips every Go task on a frontend-only change", () => {
     const runs = runsFor(pr, ["web/src/App.tsx", "web/package-lock.json"]);
-    for (const t of goTasks) expect(runs.has(t), t).toBe(false);
-    for (const t of [...frontendTasks, "semgrep-sast"]) expect(runs.has(t), t).toBe(true);
+    for (const t of goTasks) assert.equal(runs.has(t), false, t);
+    for (const t of [...frontendTasks, "semgrep-sast"]) assert.equal(runs.has(t), true, t);
   });
 
   it("skips the frontend tasks on a Go-only change", () => {
     const runs = runsFor(pr, ["internal/api/server.go"]);
-    for (const t of frontendTasks) expect(runs.has(t), t).toBe(false);
-    for (const t of [...goTasks, "semgrep-sast"]) expect(runs.has(t), t).toBe(true);
+    for (const t of frontendTasks) assert.equal(runs.has(t), false, t);
+    for (const t of [...goTasks, "semgrep-sast"]) assert.equal(runs.has(t), true, t);
   });
 
   it("runs only the always-run set on a docs-only change", () => {
     const runs = runsFor(pr, ["docs/ARCHITECTURE.md"]);
     const work = [...runs].filter((n) => !n.startsWith("detect-") && !n.startsWith("set-status-"));
-    expect(work.sort()).toEqual([...alwaysRun].sort());
+    assert.deepEqual(work.sort(), [...alwaysRun].sort());
   });
 
   it("runs codegen-check alone when only a generated file changes", () => {
     const runs = runsFor(pr, ["docs/AUTH_MATRIX.md"]);
-    expect(runs.has("codegen-check")).toBe(true);
-    expect(runs.has("go-build")).toBe(false);
+    assert.equal(runs.has("codegen-check"), true);
+    assert.equal(runs.has("go-build"), false);
   });
 
   it("orders go-integration-test after go-test", () => {
-    expect(pr.runAfter("go-integration-test")).toContain("go-test");
+    assert.ok(pr.runAfter("go-integration-test").includes("go-test"));
   });
 });
 
@@ -126,23 +127,28 @@ describe("PR pipeline gating", () => {
 const reportOnly = ["govulncheck-scan", "semgrep-sast", "gitleaks-secrets", "grype-vuln-web"];
 // Injected by tektonic around the user steps; not part of the scan's own verdict.
 const injected = /^(restore|save)-.*-cache$|^report-status$/;
+const reraise = /^exit \$exit_code$/m;
 
-describe.each([
+for (const [label, pipeline] of [
   ["push", pushPipeline],
   ["pull-request", prPipeline],
-])("report-only tasks on %s", (_label, pipeline) => {
-  const tasks = synthTasks(pipeline, synthDefaults);
+] as const) {
+  describe(`report-only tasks on ${label}`, () => {
+    const tasks = synthTasks(pipeline, synthDefaults);
 
-  it.each(reportOnly)("%s never fails the run", (name) => {
-    const task = tasks[name];
-    expect(task, `${name} is not in this pipeline`).toBeDefined();
-    for (const step of task.stepNames.filter((s) => !injected.test(s))) {
-      expect(task.step(step).onError, `${name}/${step}`).toBe("continue");
+    for (const name of reportOnly) {
+      it(`${name} never fails the run`, () => {
+        const task = tasks[name];
+        assert.ok(task, `${name} is not in this pipeline`);
+        for (const step of task.stepNames.filter((s) => !injected.test(s))) {
+          assert.equal(task.step(step).onError, "continue", `${name}/${step}`);
+        }
+        assert.doesNotMatch(task.script("report-status"), reraise);
+      });
     }
-    expect(task.script("report-status")).not.toMatch(/^exit \$exit_code$/m);
-  });
 
-  it("a gating task does re-raise", () => {
-    expect(tasks["go-test"].script("report-status")).toMatch(/^exit \$exit_code$/m);
+    it("a gating task does re-raise", () => {
+      assert.match(tasks["go-test"].script("report-status"), reraise);
+    });
   });
-});
+}
