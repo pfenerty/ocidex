@@ -24,8 +24,8 @@ export const semgrep = sarifScanTask({
       //
       // 4Gi is a ceiling, not a guarantee, and an OOMKill here would bypass this step's
       // `onError: continue` — Tekton treats it as an infrastructure failure, so the whole
-      // PipelineRun hard-fails despite the report-only design and report-status never runs,
-      // leaving the GitHub check pending forever. memoryWatchdog converts that into exit 99
+      // PipelineRun hard-fails despite the report-only design. memoryWatchdog converts that
+      // into exit 99, so a scan that runs out of memory reports red and the run stays green
       // (ocidex-im4o.3).
       computeResources: {
         limits: { cpu: "2", memory: "4Gi" },

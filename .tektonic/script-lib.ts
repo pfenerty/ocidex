@@ -39,9 +39,10 @@ export const nodeSetup = fragment`
 //
 // A container that exceeds its memory limit is OOMKilled by the kernel, and Tekton treats that
 // as an infrastructure failure rather than a script exit code — so it bypasses `onError:
-// continue` entirely, hard-failing the TaskRun and PipelineRun despite a report-only design,
-// and the report-status step never runs, leaving the GitHub check pending forever. The
-// watchdog runs the tool as a child process while polling this cgroup's own memory.current
+// continue` entirely and hard-fails the TaskRun and PipelineRun despite a report-only design.
+// (Since tektonic-k2n.2 the reconciler at least marks such a task's check red instead of
+// leaving it pending, but the run still fails, which is what report-only exists to prevent.)
+// The watchdog runs the tool as a child process while polling this cgroup's own memory.current
 // against memory.max, and self-terminates the child at 92% — converting a would-be OOMKill
 // into an ordinary exit 99 that `onError: continue` and `failOnError: false` already handle.
 //
