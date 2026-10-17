@@ -122,10 +122,10 @@ const tagPipeline = new GitPipeline({
   name: "ocidex-tag",
   // Server releases only. The Go SDK is tagged pkg/client/vX.Y.Z (ADR-052); the Go proxy
   // serves it straight from the tag, and it must not set off an image and chart release.
-  // Raw CEL because @tektonic-ci/core 2.2.0 drops a TAG rule's `branch` and emits
-  // [refs/tags/*]; once a release carries tektonic 9c42b5a, use `branch: "v*"` instead.
+  // A TAG rule's `branch` filters the tag name (@tektonic-ci/core 2.3.0+), so "v*" emits
+  // on-target-branch [refs/tags/v*] and pkg/client/v* tags never match.
   trigger: {
-    rules: [{ on: TRIGGER_EVENTS.TAG, cel: "target_branch.startsWith('refs/tags/v')" }],
+    rules: [{ on: TRIGGER_EVENTS.TAG, branch: "v*" }],
     cancelInProgress: true,
   },
   cloneDepth: "full",
