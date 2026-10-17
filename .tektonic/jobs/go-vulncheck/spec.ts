@@ -1,9 +1,9 @@
-import { Task, nu, PAC_PARAMS } from "@tektonic-ci/core";
+import { nu } from "@tektonic-ci/core";
 import {
   govulncheckImage,
   goEnv,
   goCacheVulncheck,
-  reportOnlyStatusReporter,
+  sarifScanTask,
   uploadSarifStep,
 } from "../../shared";
 import { goBuild } from "../go-build/spec";
@@ -18,17 +18,13 @@ const acceptFile = ".govulncheck-accepted.json";
 // reachable from ocidex's code — no phantom-version noise. Go-only + needs the toolchain, so
 // it's its own task. Report-only: an unaccepted finding becomes this task's GitHub check
 // while the PipelineRun stays green.
-export const goVulncheck = new Task({
+export const goVulncheck = sarifScanTask({
   name: "govulncheck-scan",
-  // For uploadSarifStep's code-scanning call; tektonic wires it from the pipeline's
-  // `source-branch`, as it already does for grype-vuln-web and semgrep-sast.
-  params: [PAC_PARAMS.sourceBranch],
   // Ordered after goBuild so the shared workspace Go cache is already populated when this
   // task starts, which is the precondition goCacheVulncheck's skip-restore relies on. It
   // also stops the two tasks racing each other's restore at t=0. On PRs both are gated on
   // detect-go, so they always run or skip together.
   needs: [goBuild],
-  statusReporter: reportOnlyStatusReporter,
   caches: [goCacheVulncheck],
   stepTemplate: {
     env: goEnv,

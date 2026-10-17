@@ -1,5 +1,5 @@
-import { Task, nu, PAC_PARAMS } from "@tektonic-ci/core";
-import { semgrepImage, reportOnlyStatusReporter, uploadSarifStep } from "../../shared";
+import { nu } from "@tektonic-ci/core";
+import { semgrepImage, sarifScanTask, uploadSarifStep } from "../../shared";
 import { pacBaseline, memoryWatchdog } from "../../script-lib";
 
 // Multi-language SAST with Semgrep (Go + TypeScript + secrets rulesets). On a PR it scans
@@ -8,10 +8,8 @@ import { pacBaseline, memoryWatchdog } from "../../script-lib";
 // only on high findings; --error drives the report-only GitHub check; --sarif-output feeds
 // the Security tab. Runs on the first-party apko-cicd semgrep image (nushell + git present).
 // Report-only: `onError: continue` keeps the PipelineRun green.
-export const semgrep = new Task({
+export const semgrep = sarifScanTask({
   name: "semgrep-sast",
-  params: [PAC_PARAMS.sourceBranch],
-  statusReporter: reportOnlyStatusReporter,
   steps: [
     {
       name: "semgrep-scan",

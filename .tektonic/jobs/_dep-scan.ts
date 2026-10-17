@@ -1,50 +1,34 @@
-import { Task, nu, TaskStepSpec, TaskCacheSpec, PAC_PARAMS } from "@tektonic-ci/core";
-import {
-  syftImage,
-  grypeImage,
-  reportOnlyStatusReporter,
-  uploadSarifStep,
-} from "../shared";
+import { nu } from "@tektonic-ci/core";
+import { syftImage, grypeImage, sarifScanTask, uploadSarifStep } from "../shared";
 
-// syft/grype steps are lightweight; the heavy lifting (if any) is in a preceding build step.
+// syft/grype steps are lightweight: they read a lockfile or SBOM, nothing is compiled here.
 const scanResources = {
   limits: { cpu: "1", memory: "512Mi" },
   requests: { cpu: "200m", memory: "256Mi" },
 };
 
 export interface DepScanOptions {
-  /** Task name, e.g. "go-security" / "web-security". */
+  /** Task name, e.g. "grype-vuln-web". */
   name: string;
-  /** syft source argument, e.g. "dir:.sbom-bins" or "file:web/package-lock.json". */
+  /** syft source argument, e.g. "file:web/package-lock.json". */
   source: string;
-  /** Optional syft --select-catalogers value, e.g. "go". */
+  /** Optional syft --select-catalogers value, e.g. "javascript". */
   catalogers?: string;
   /** SBOM filename syft writes and grype reads. */
   sbom: string;
   /** SARIF category — also the "<category>.sarif" filename and Security-tab grouping id. */
   category: string;
-  /** Steps to run before cataloging (e.g. compile Go binaries so syft reads real versions). */
-  buildSteps?: TaskStepSpec[];
-  /** Caches for the build step (e.g. goCache). */
-  caches?: TaskCacheSpec[];
-  /** stepTemplate env for the build step (e.g. goEnv). */
-  env?: { name: string; value: string }[];
 }
 
-// Reusable syft → grype → SARIF dependency-vulnerability scan. The Go and frontend security
-// tasks are the same shape; only the source, SBOM path, and SARIF category differ (Go also
-// prepends a binary build). Report-only: grype's exit code becomes the GitHub check, the
-// SARIF goes to the Security tab, and the PipelineRun stays green.
-export function depScanTask(o: DepScanOptions): Task {
+// Reusable syft → grype → SARIF dependency-vulnerability scan, on the report-only
+// sarifScanTask preset: grype's exit code becomes the GitHub check, the SARIF goes to the
+// Security tab, and the PipelineRun stays green. Only the frontend uses it; Go deps go
+// through govulncheck instead (see pipelines.ts).
+export function depScanTask(o: DepScanOptions) {
   const catalogerFlag = o.catalogers ? ` --select-catalogers ${o.catalogers}` : "";
-  return new Task({
+  return sarifScanTask({
     name: o.name,
-    params: [PAC_PARAMS.sourceBranch],
-    statusReporter: reportOnlyStatusReporter,
-    ...(o.caches ? { caches: o.caches } : {}),
-    ...(o.env ? { stepTemplate: { env: o.env } } : {}),
     steps: [
-      ...(o.buildSteps ?? []),
       {
         name: "syft-sbom",
         image: syftImage,

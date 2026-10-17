@@ -1,4 +1,4 @@
-import { Workspace, TaskVolumeSpec, TaskStepSpec, rawScript, PAC_PARAMS } from "@tektonic-ci/core";
+import { Workspace, TaskVolumeSpec, TaskStepSpec, rawScript, taskPreset, PAC_PARAMS } from "@tektonic-ci/core";
 import { GitHubStatusReporter } from "@tektonic-ci/reporter-github";
 
 // --- Images ─────────────────────────────────────────────────────────────────
@@ -43,6 +43,14 @@ export const reportOnlyStatusReporter = new GitHubStatusReporter({
     limits: { cpu: "200m", memory: "128Mi" },
   },
   failOnError: false,
+});
+
+// Task factories for the report-only scans, so each states only its own steps. A scan that
+// uploads SARIF (uploadSarifStep, below) takes the event's git ref for the code-scanning call.
+export const reportOnlyTask = taskPreset({ statusReporter: reportOnlyStatusReporter });
+export const sarifScanTask = taskPreset({
+  statusReporter: reportOnlyStatusReporter,
+  params: [PAC_PARAMS.sourceBranch],
 });
 
 // ─── Cache workspaces (PVC-backed, local-path) ───────────────────────────────
@@ -186,8 +194,8 @@ export const dockerConfigVolume: TaskVolumeSpec = {
 
 // ─── SARIF → GitHub Security tab ──────────────────────────────────────────────
 // Any task that uses `uploadSarifStep` declares PAC_PARAMS.sourceBranch for the git ref the
-// code-scanning upload needs; `repo-full-name` + `revision` come for free on any task with a
-// statusReporter.
+// code-scanning upload needs (sarifScanTask, above, does); `repo-full-name` + `revision` come
+// for free on any task with a statusReporter.
 
 // Best-effort SARIF upload to GitHub code-scanning (Security tab). Add as a trailing
 // step on a report-only security task; it ALWAYS exits 0 so a failed/again-throttled
