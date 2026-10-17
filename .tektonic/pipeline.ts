@@ -3,6 +3,7 @@ import {
   TektonicProject,
   TRIGGER_EVENTS,
   gated,
+  serial,
   DEFAULT_BASE_IMAGE,
 } from "@tektonic-ci/core";
 
@@ -74,7 +75,7 @@ const pushPipeline = new GitPipeline({
   // the image chain, and its sidecar-backed suite is not something the cold-run estimate
   // above accounted for.
   timeout: "3h",
-  tasks: [...coreTasks, ...securityTasks, ...imageBuilds, helmCheck, helmPublish, sbomPush],
+  tasks: [...coreTasks, ...securityTasks, ...serial(imageBuilds), helmCheck, helmPublish, sbomPush],
 });
 
 // PR pipeline: gate the expensive Go jobs on whether the branch touched Go/Docker/db
@@ -137,7 +138,7 @@ const tagPipeline = new GitPipeline({
   timeout: "4h",
   // sbomPush pulls goBuild in via `needs` (it must not race another Go task's cache
   // restore). That extra compile is the price of cataloguing the tagged binaries.
-  tasks: [...imageBuildsTag, helmCheck, helmRelease, ghRelease, sbomPush],
+  tasks: [...serial(imageBuildsTag), helmCheck, helmRelease, ghRelease, sbomPush],
 });
 
 // ─── Synthesize ─────────────────────────────────────────────────────────────
@@ -164,28 +165,23 @@ new TektonicProject({
   // The kubelet defaults to IfNotPresent for any tag but :latest, so a node that pulled
   // once serves those layers forever with no signal — that is what produced ocidex-qzz2.
   // Lands in each task's stepTemplate, so it covers the injected cache and reporter steps
-  // too; sidecars are excluded from stepTemplate by Tekton and set their own (see
-  // jobs/go-integration/spec.ts).
+  // too, and tektonic stamps it onto sidecars, which Tekton's stepTemplate never reaches.
   //
   // Digest-pinning the refs instead is the alternative ADR-038 rejected: Renovate cannot
   // run `make tekton-synth`, so every bump would land a PR that tekton-check fails until
   // a human re-synths.
   defaultImagePullPolicy: "Always",
-  // Expose PAC event context to steps so the secrets scan can scope itself: a PR
-  // scans only its new commits vs the base branch, a push to main scans full history.
-  // PAC substitutes these {{ }} vars before submitting the PipelineRun.
-  //
+  // PAC_EVENT_TYPE / PAC_TARGET_BRANCH (and the rest of PAC_EVENT_ENV) in every step, so the
+  // secrets scan and semgrep can scope themselves: a PR scans only its new commits vs the
+  // base branch, a push to main scans full history (pacBaseline in script-lib.ts).
+  pacEventContext: true,
   // HOME is set pod-wide here (not via stepTemplate.env like goEnv/nodeEnv) because
   // defaultPodSecurityContext's runAsUser: 1024 also applies to Tekton's own injected
   // containers (e.g. creds-init, which materializes the ghcr-docker-config secret into
   // $HOME/.docker/config.json). uid 1024 has no /etc/passwd entry, so without this,
   // $HOME defaults to "/" and creds-init fails with "mkdir /.docker: permission denied".
   // /tekton/home is writable by any uid regardless of HOME/passwd state.
-  podTemplateEnv: [
-    { name: "PAC_EVENT_TYPE", value: "{{ event_type }}" },
-    { name: "PAC_TARGET_BRANCH", value: "{{ target_branch }}" },
-    { name: "HOME", value: "/tekton/home" },
-  ],
+  podTemplateEnv: [{ name: "HOME", value: "/tekton/home" }],
   caches: [
     {
       workspace: goCacheWs,

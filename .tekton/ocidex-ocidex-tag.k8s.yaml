@@ -506,12 +506,22 @@ spec:
   taskRunTemplate:
     podTemplate:
       env:
+        - name: HOME
+          value: /tekton/home
         - name: PAC_EVENT_TYPE
           value: "{{ event_type }}"
         - name: PAC_TARGET_BRANCH
           value: "{{ target_branch }}"
-        - name: HOME
-          value: /tekton/home
+        - name: PAC_SOURCE_BRANCH
+          value: "{{ source_branch }}"
+        - name: PAC_REVISION
+          value: "{{ revision }}"
+        - name: PAC_REPO_URL
+          value: "{{ repo_url }}"
+        - name: PAC_REPO_OWNER
+          value: "{{ repo_owner }}"
+        - name: PAC_REPO_NAME
+          value: "{{ repo_name }}"
       securityContext:
         fsGroup: 1024
         runAsGroup: 1024

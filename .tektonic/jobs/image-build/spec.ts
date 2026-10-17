@@ -47,14 +47,12 @@ const ctxDateFile = ".buildctx.date";
 
 // Shared Task skeleton. Each image declares a ChainsImage (Tekton Chains build
 // subject); build.sh/release.sh write the pushed ref + digest to its result paths.
-// `extraNeeds` chains the builds serially (see serialChain).
 function buildImageTask(
   taskName: string,
   imageName: string,
   script: ScriptInput,
   imageEnv: EnvVar[],
   cacheWs: Workspace,
-  extraNeeds: Task[] = [],
 ): Task {
   const chains = new ChainsImage({ name: imageName });
   const buildkitRoot = `${cacheWs.path}/root`;
@@ -63,9 +61,9 @@ function buildImageTask(
     name: taskName,
     statusReporter,
     // goIntegration gates publication: a failing integration test must skip the whole
-    // image chain rather than ship. This also applies to imageBuildsTag — serialChain
+    // image chain rather than ship. This also applies to imageBuildsTag — imageTasks
     // backs both — so release builds carry the same gate.
-    needs: [goTest, goIntegration, openapiCheck, ...extraNeeds],
+    needs: [goTest, goIntegration, openapiCheck],
     workspaces: [cacheWs],
     volumes: [dockerConfigVolume],
     results: [...chains.results],
@@ -215,7 +213,7 @@ function imageEnv(
 }
 
 // The single CI worker has limited spare CPU (~0.8 core free of 4), so the image builds
-// run SEQUENTIALLY — each chained after the previous via `extraNeeds` — instead of in
+// run SEQUENTIALLY — pipeline.ts chains each list with serial() — instead of in
 // parallel, which overcommits the node and leaves pods Pending ("Insufficient cpu").
 // The shared buildkit root (see buildImageTask) is what makes the serial order cheap:
 // each build inherits the previous one's base image, module cache, builder-base and the
@@ -243,21 +241,18 @@ const imageSpecs: ImageSpec[] = [
   ["cli", "docker/Dockerfile", "OCIDex CLI", "Command-line client for OCIDex", "cli"],
 ];
 
-// Build a serial chain: task[i] runs after task[i-1]. Every task in a chain shares one
-// buildkit root, which is what turns the serial ordering from a pure cost into a benefit:
-// build[0] runs docker/Dockerfile's build-all stage once, and build[1..n] hit it CACHED,
-// doing nothing but copying their binary out of it and pushing the final image.
-// This replaced nine per-binary stages that each cold-compiled the whole dependency graph
-// (~210-300s apiece) because the builder image's GOCACHE never pointed at the cache mount
-// (ocidex-2j2).
-function serialChain(taskPrefix: string, script: ScriptInput, cacheWs: Workspace): Task[] {
-  const chain: Task[] = [];
-  for (const [name, dockerfile, title, description, target] of imageSpecs) {
-    const after = chain.length ? [chain[chain.length - 1]] : [];
-    chain.push(buildImageTask(`${taskPrefix}-${name}`, name, script, imageEnv(name, dockerfile, title, description, target), cacheWs, after));
-  }
-  return chain;
+// One task per image, in imageSpecs order. pipeline.ts runs each list through serial(), so
+// task[i] runs after task[i-1]. Every task in a chain shares one buildkit root, which is what
+// turns the serial ordering from a pure cost into a benefit: build[0] runs
+// docker/Dockerfile's build-all stage once, and build[1..n] hit it CACHED, doing nothing but
+// copying their binary out of it and pushing the final image. This replaced nine per-binary
+// stages that each cold-compiled the whole dependency graph (~210-300s apiece) because the
+// builder image's GOCACHE never pointed at the cache mount (ocidex-2j2).
+function imageTasks(taskPrefix: string, script: ScriptInput, cacheWs: Workspace): Task[] {
+  return imageSpecs.map(([name, dockerfile, title, description, target]) =>
+    buildImageTask(`${taskPrefix}-${name}`, name, script, imageEnv(name, dockerfile, title, description, target), cacheWs),
+  );
 }
 
-export const imageBuilds = serialChain("image-build", buildScript, buildkitCacheWs);
-export const imageBuildsTag = serialChain("image-release", releaseScript, buildkitReleaseCacheWs);
+export const imageBuilds = imageTasks("image-build", buildScript, buildkitCacheWs);
+export const imageBuildsTag = imageTasks("image-release", releaseScript, buildkitReleaseCacheWs);
