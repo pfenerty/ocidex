@@ -79,6 +79,29 @@ grep -A 12 '^image:' charts/ocidex/values.yaml
 helm package charts/ocidex --version "${VERSION}" --app-version "${TAG}"
 helm package charts/ocidex-operator --version "${VERSION}" --app-version "${TAG}"
 helm package charts/ocidex-k8s-agent --version "${VERSION}" --app-version "${TAG}"
-helm push "ocidex-${VERSION}.tgz" oci://ghcr.io/pfenerty/charts
-helm push "ocidex-operator-${VERSION}.tgz" oci://ghcr.io/pfenerty/charts
-helm push "ocidex-k8s-agent-${VERSION}.tgz" oci://ghcr.io/pfenerty/charts
+# Each push reports the chart's OCI ref + digest as a Tekton Chains build subject
+# (<name>-IMAGE_URL/-IMAGE_DIGEST results, paths in $CHAINS_<NAME>_URL_PATH etc. from
+# spec.ts), so Chains signs the chart and attaches SLSA provenance exactly as it does
+# for the images; verify with `cosign verify --key cosign.pub` (ocidex-tkn9.10).
+# Under `set -e` a failed push stops before its results are written, and an unparsed
+# digest fails the step rather than leaving a chart silently unsigned.
+push_chart() {
+  chart="$1"; url_path="$2"; digest_path="$3"
+  # Not `| tee`: a pipeline's status is tee's, so set -e would miss a failed push.
+  if ! helm push "${chart}-${VERSION}.tgz" oci://ghcr.io/pfenerty/charts > /tmp/helm-push.log 2>&1; then
+    cat /tmp/helm-push.log
+    exit 1
+  fi
+  cat /tmp/helm-push.log
+  digest=$(sed -n 's/^Digest: *\(sha256:[0-9a-f]\{64\}\).*/\1/p' /tmp/helm-push.log | head -1)
+  if [ -z "$digest" ]; then
+    echo "ERROR: no digest in helm push output for ${chart}" >&2
+    exit 1
+  fi
+  printf '%s' "ghcr.io/pfenerty/charts/${chart}" > "$url_path"
+  printf '%s' "$digest" > "$digest_path"
+  echo "chains subject: ghcr.io/pfenerty/charts/${chart}@${digest}"
+}
+push_chart ocidex "$CHAINS_OCIDEX_URL_PATH" "$CHAINS_OCIDEX_DIGEST_PATH"
+push_chart ocidex-operator "$CHAINS_OPERATOR_URL_PATH" "$CHAINS_OPERATOR_DIGEST_PATH"
+push_chart ocidex-k8s-agent "$CHAINS_AGENT_URL_PATH" "$CHAINS_AGENT_DIGEST_PATH"

@@ -37,6 +37,24 @@ cosign verify-attestation --key cosign.pub --type slsaprovenance1 "$REF" \
   | jq -r '.payload | @base64d | fromjson | .predicate'
 ```
 
+## Helm charts
+
+The released charts (`ocidex`, `ocidex-operator`, `ocidex-k8s-agent` under
+`oci://ghcr.io/pfenerty/charts`) carry the same Tekton Chains signature and signed SLSA
+provenance as the images, from charts released after ocidex-tkn9.10. They have no buildkit
+provenance or SBOM (they are not container images). Verify by digest, the same way:
+
+```bash
+V=0.1.0
+CHART=ghcr.io/pfenerty/charts/ocidex
+REF="$CHART@$(crane digest "$CHART:$V")"
+cosign verify --key cosign.pub "$REF"
+cosign verify-attestation --key cosign.pub --type slsaprovenance1 "$REF" >/dev/null && echo "provenance ok"
+```
+
+`helm pull oci://ghcr.io/pfenerty/charts/ocidex@<digest>` installs exactly the artifact you
+verified.
+
 ## 2. Inspect buildkit provenance + SBOM (no key needed)
 
 ```bash

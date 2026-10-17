@@ -110,8 +110,21 @@ Then check each of the following:
 - **Charts.** `helm pull oci://ghcr.io/pfenerty/charts/ocidex --version ${V#v}` (and the
   same for `ocidex-operator` and `ocidex-k8s-agent`). Check that `Chart.yaml` has
   `appVersion: $V` and that `values.yaml` pins every image under `image.digests`
-  (or `image.digest`) to the digests above. The charts are **not signed** (ocidex-tkn9.10),
-  so there is no cosign step for them yet.
+  (or `image.digest`) to the digests above. Then check each chart's Chains signature and
+  provenance (ocidex-tkn9.10):
+
+  ```bash
+  for c in ocidex ocidex-operator ocidex-k8s-agent; do
+    ref="ghcr.io/pfenerty/charts/$c@$(crane digest ghcr.io/pfenerty/charts/$c:${V#v})"
+    echo "== $ref"
+    cosign verify --key cosign.pub "$ref" >/dev/null && echo "signature ok"
+    cosign verify-attestation --key cosign.pub --type slsaprovenance1 "$ref" >/dev/null \
+      && echo "provenance ok"
+  done
+  ```
+
+  The helm-release TaskRun's log prints each `chains subject: …@sha256:…`, which should
+  match these digests.
 - **GitHub Release.** It exists, has the right prerelease flag, and its body is the
   CHANGELOG section.
 - **Version reporting.** `docker run --rm ghcr.io/pfenerty/ocidex-api:$V --version` prints

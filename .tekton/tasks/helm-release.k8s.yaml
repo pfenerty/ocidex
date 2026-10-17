@@ -9,6 +9,25 @@ spec:
       type: string
     - name: revision
       type: string
+  results:
+    - description: Fully-qualified reference of the chart-ocidex image (Tekton Chains subject)
+      name: chart-ocidex-IMAGE_URL
+      type: string
+    - description: Digest (alg:hex) of the chart-ocidex image (Tekton Chains subject)
+      name: chart-ocidex-IMAGE_DIGEST
+      type: string
+    - description: Fully-qualified reference of the chart-ocidex-operator image (Tekton Chains subject)
+      name: chart-ocidex-operator-IMAGE_URL
+      type: string
+    - description: Digest (alg:hex) of the chart-ocidex-operator image (Tekton Chains subject)
+      name: chart-ocidex-operator-IMAGE_DIGEST
+      type: string
+    - description: Fully-qualified reference of the chart-ocidex-k8s-agent image (Tekton Chains subject)
+      name: chart-ocidex-k8s-agent-IMAGE_URL
+      type: string
+    - description: Digest (alg:hex) of the chart-ocidex-k8s-agent image (Tekton Chains subject)
+      name: chart-ocidex-k8s-agent-IMAGE_DIGEST
+      type: string
   stepTemplate:
     computeResources:
       limits:
@@ -28,6 +47,18 @@ spec:
     - env:
         - name: DOCKER_CONFIG
           value: /tmp/helm-auth
+        - name: CHAINS_OCIDEX_URL_PATH
+          value: $(results.chart-ocidex-IMAGE_URL.path)
+        - name: CHAINS_OCIDEX_DIGEST_PATH
+          value: $(results.chart-ocidex-IMAGE_DIGEST.path)
+        - name: CHAINS_OPERATOR_URL_PATH
+          value: $(results.chart-ocidex-operator-IMAGE_URL.path)
+        - name: CHAINS_OPERATOR_DIGEST_PATH
+          value: $(results.chart-ocidex-operator-IMAGE_DIGEST.path)
+        - name: CHAINS_AGENT_URL_PATH
+          value: $(results.chart-ocidex-k8s-agent-IMAGE_URL.path)
+        - name: CHAINS_AGENT_DIGEST_PATH
+          value: $(results.chart-ocidex-k8s-agent-IMAGE_DIGEST.path)
       image: alpine/helm:4
       name: helm-package-push
       onError: continue
@@ -117,9 +148,32 @@ spec:
         helm package charts/ocidex --version "${VERSION}" --app-version "${TAG}"
         helm package charts/ocidex-operator --version "${VERSION}" --app-version "${TAG}"
         helm package charts/ocidex-k8s-agent --version "${VERSION}" --app-version "${TAG}"
-        helm push "ocidex-${VERSION}.tgz" oci://ghcr.io/pfenerty/charts
-        helm push "ocidex-operator-${VERSION}.tgz" oci://ghcr.io/pfenerty/charts
-        helm push "ocidex-k8s-agent-${VERSION}.tgz" oci://ghcr.io/pfenerty/charts
+        # Each push reports the chart's OCI ref + digest as a Tekton Chains build subject
+        # (<name>-IMAGE_URL/-IMAGE_DIGEST results, paths in $CHAINS_<NAME>_URL_PATH etc. from
+        # spec.ts), so Chains signs the chart and attaches SLSA provenance exactly as it does
+        # for the images; verify with `cosign verify --key cosign.pub` (ocidex-tkn9.10).
+        # Under `set -e` a failed push stops before its results are written, and an unparsed
+        # digest fails the step rather than leaving a chart silently unsigned.
+        push_chart() {
+          chart="$1"; url_path="$2"; digest_path="$3"
+          # Not `| tee`: a pipeline's status is tee's, so set -e would miss a failed push.
+          if ! helm push "${chart}-${VERSION}.tgz" oci://ghcr.io/pfenerty/charts > /tmp/helm-push.log 2>&1; then
+            cat /tmp/helm-push.log
+            exit 1
+          fi
+          cat /tmp/helm-push.log
+          digest=$(sed -n 's/^Digest: *\(sha256:[0-9a-f]\{64\}\).*/\1/p' /tmp/helm-push.log | head -1)
+          if [ -z "$digest" ]; then
+            echo "ERROR: no digest in helm push output for ${chart}" >&2
+            exit 1
+          fi
+          printf '%s' "ghcr.io/pfenerty/charts/${chart}" > "$url_path"
+          printf '%s' "$digest" > "$digest_path"
+          echo "chains subject: ghcr.io/pfenerty/charts/${chart}@${digest}"
+        }
+        push_chart ocidex "$CHAINS_OCIDEX_URL_PATH" "$CHAINS_OCIDEX_DIGEST_PATH"
+        push_chart ocidex-operator "$CHAINS_OPERATOR_URL_PATH" "$CHAINS_OPERATOR_DIGEST_PATH"
+        push_chart ocidex-k8s-agent "$CHAINS_AGENT_URL_PATH" "$CHAINS_AGENT_DIGEST_PATH"
         )
         __tek_rc=$?
         if [ "$__tek_rc" -ne 0 ]; then log "error [helm-release/helm-package-push]: exited with status $__tek_rc"; fi
