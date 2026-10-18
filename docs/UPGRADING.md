@@ -123,6 +123,12 @@ Newest first. Each entry names the issue that made the change, so its full conte
   (`GET /api/v1/namespaces/{id}`, `owner_id` / `owner_username`). `/api/v1/users/me/registries`
   still lists registries in namespaces you own.
 
+- **The account migration 00008 seeded is removed if it was never used (ocidex-7tss).**
+  Migration 00080 deletes the GitHub `16961380` account (a viewer since 0.1.0) unless it
+  has ever signed in or has a session, API key, namespace membership, watch, email or
+  second identity. A fresh install now starts with no accounts. If the account was used
+  on your install, nothing changes.
+
 **After upgrading:**
 
 - **Run `ocidex migrate backfill` once if your database predates 0.1.0's data (ocidex-bt62.1).**
