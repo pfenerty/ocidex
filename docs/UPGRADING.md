@@ -114,7 +114,17 @@ Newest first. Each entry names the issue that made the change, so its full conte
 
 ### Next release (unreleased)
 
-Nothing yet.
+**After upgrading:**
+
+- **Run `ocidex migrate backfill` once if your database predates 0.1.0's data (ocidex-bt62.1).**
+  The one-shot `backfill-flavor`, `backfill-component-purl` and `backfill-provenance` binaries
+  are gone, and `ocidex migrate backfill` replaces them. It fills the columns ingest now writes for
+  rows stored before it did: an SBOM's flavor, a component's purl version (until then the
+  component is never vulnerability-scanned), and component provenance plus `file_path` (until
+  then ADR-048 command relationships miss those SBOMs). It is idempotent and a no-op on a
+  fresh install. It reads every affected SBOM's `raw_bom`, so it is not part of the chart's
+  migrate hook. See [OPERATIONS.md](OPERATIONS.md) "Backfilling rows stored before ingest
+  derived them".
 
 ### 0.1.0
 

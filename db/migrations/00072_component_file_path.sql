@@ -7,7 +7,7 @@
 -- pkg:golang/github.com/pfenerty/ocidex, and only the binary's filename says
 -- which one an image actually ships.
 --
--- Nullable and left empty here. cmd/backfill-provenance fills existing rows
+-- Nullable and left empty here. `ocidex migrate backfill` fills existing rows
 -- from raw_bom; until it runs those components match nothing under R6, which
 -- is the status quo rather than a wrong answer (ADR-048 R7).
 ALTER TABLE component ADD COLUMN file_path TEXT;

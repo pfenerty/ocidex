@@ -20,7 +20,7 @@ type ExistingComponentRef struct {
 
 // ProvenanceUpdate carries the provenance columns to write back for a single
 // existing component row. Fields are exported (unlike componentProvenance)
-// so callers outside this package, such as cmd/backfill-provenance, can read
+// so callers outside this package, such as `ocidex migrate backfill`, can read
 // them without exposing ingest-path internals.
 type ProvenanceUpdate struct {
 	ComponentID   pgtype.UUID
@@ -86,18 +86,18 @@ func ComputeProvenanceUpdates(rawBom []byte, flavor string, existing []ExistingC
 		byRef, dupRefs = bomComponentByRef(*bom.Components)
 	}
 	for _, ref := range dupRefs {
-		slog.Warn("backfill-provenance: skipping duplicate bom-ref", "bomRef", ref)
+		slog.Warn("backfill provenance: skipping duplicate bom-ref", "bomRef", ref)
 	}
 
 	var updates []ProvenanceUpdate
 	for _, ex := range existing {
 		if ex.BOMRef == "" {
-			slog.Warn("backfill-provenance: skipping component with empty bom-ref", "componentID", ex.ID)
+			slog.Warn("backfill provenance: skipping component with empty bom-ref", "componentID", ex.ID)
 			continue
 		}
 		comp, ok := byRef[ex.BOMRef]
 		if !ok {
-			slog.Warn("backfill-provenance: bom-ref not found in raw_bom", "componentID", ex.ID, "bomRef", ex.BOMRef)
+			slog.Warn("backfill provenance: bom-ref not found in raw_bom", "componentID", ex.ID, "bomRef", ex.BOMRef)
 			continue
 		}
 

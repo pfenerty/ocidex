@@ -109,7 +109,8 @@ from "no match" to "matched", and until it runs the behaviour is the status quo.
 `component.file_path TEXT`, nullable, from `syft:location:0:path`, populated in
 `extractComponentProvenance` alongside the layer and cataloger fields it already reads.
 
-Existing rows are backfilled by `cmd/backfill-provenance`, which already decodes `raw_bom` and
+Existing rows are backfilled by `cmd/backfill-provenance` (since ocidex-bt62.1, the provenance
+step of `ocidex migrate backfill`), which already decodes `raw_bom` and
 matches components back by bom-ref. No new backfill mechanism, and no new migration-time data
 rewrite: the column ships empty and fills in when the command is run.
 
