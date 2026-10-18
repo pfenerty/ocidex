@@ -114,7 +114,32 @@ Newest first. Each entry names the issue that made the change, so its full conte
 
 ### Next release (unreleased)
 
-Nothing yet.
+**Behavior changes to check after upgrading:**
+
+- **Registry responses no longer carry `owner_id` or `owner_username` (ocidex-bt62.2).** A
+  registry has no owner of its own; it belongs to a namespace (ADR-039, ADR-046). The two
+  fields only repeated the namespace's owner member, and only the list endpoint filled in
+  `owner_username`. Read the owner from the registry's namespace
+  (`GET /api/v1/namespaces/{id}`, `owner_id` / `owner_username`). `/api/v1/users/me/registries`
+  still lists registries in namespaces you own.
+
+- **The account migration 00008 seeded is removed if it was never used (ocidex-7tss).**
+  Migration 00080 deletes the GitHub `16961380` account (a viewer since 0.1.0) unless it
+  has ever signed in or has a session, API key, namespace membership, watch, email or
+  second identity. A fresh install now starts with no accounts. If the account was used
+  on your install, nothing changes.
+
+**After upgrading:**
+
+- **Run `ocidex migrate backfill` once if your database predates 0.1.0's data (ocidex-bt62.1).**
+  The one-shot `backfill-flavor`, `backfill-component-purl` and `backfill-provenance` binaries
+  are gone, and `ocidex migrate backfill` replaces them. It fills the columns ingest now writes for
+  rows stored before it did: an SBOM's flavor, a component's purl version (until then the
+  component is never vulnerability-scanned), and component provenance plus `file_path` (until
+  then ADR-048 command relationships miss those SBOMs). It is idempotent and a no-op on a
+  fresh install. It reads every affected SBOM's `raw_bom`, so it is not part of the chart's
+  migrate hook. See [OPERATIONS.md](OPERATIONS.md) "Backfilling rows stored before ingest
+  derived them".
 
 ### 0.1.0
 

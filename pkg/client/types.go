@@ -1972,14 +1972,8 @@ type CreateRegistryResponseBody struct {
 	ManagedBy *string `json:"managed_by,omitempty"`
 
 	// ManagedRef Identifier within the managing system, e.g. '<namespace>/<name>' of the OCIRegistry resource
-	ManagedRef *string `json:"managed_ref,omitempty"`
-	Name       string  `json:"name"`
-
-	// OwnerId UUID of the registry owner
-	OwnerId *string `json:"owner_id,omitempty"`
-
-	// OwnerUsername GitHub username of the registry owner
-	OwnerUsername       *string `json:"owner_username,omitempty"`
+	ManagedRef          *string `json:"managed_ref,omitempty"`
+	Name                string  `json:"name"`
 	PollIntervalMinutes int64   `json:"poll_interval_minutes"`
 
 	// Repositories Explicit repositories to walk; overrides catalog discovery when non-empty
@@ -3017,14 +3011,8 @@ type RegistryResponse struct {
 	ManagedBy *string `json:"managed_by,omitempty"`
 
 	// ManagedRef Identifier within the managing system, e.g. '<namespace>/<name>' of the OCIRegistry resource
-	ManagedRef *string `json:"managed_ref,omitempty"`
-	Name       string  `json:"name"`
-
-	// OwnerId UUID of the registry owner
-	OwnerId *string `json:"owner_id,omitempty"`
-
-	// OwnerUsername GitHub username of the registry owner
-	OwnerUsername       *string `json:"owner_username,omitempty"`
+	ManagedRef          *string `json:"managed_ref,omitempty"`
+	Name                string  `json:"name"`
 	PollIntervalMinutes int64   `json:"poll_interval_minutes"`
 
 	// Repositories Explicit repositories to walk; overrides catalog discovery when non-empty

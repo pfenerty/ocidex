@@ -98,7 +98,7 @@ func (q *Queries) GetSourceByName(ctx context.Context, arg GetSourceByNameParams
 }
 
 const listSources = `-- name: ListSources :many
-SELECT s.id, s.namespace_id, s.kind, s.name, s.created_at, s.updated_at, n.name AS namespace_name, namespace_owner(n.id) AS owner_id, n.visibility
+SELECT s.id, s.namespace_id, s.kind, s.name, s.created_at, s.updated_at, n.name AS namespace_name, n.visibility
 FROM source s
 JOIN namespace n ON n.id = s.namespace_id
 WHERE (
@@ -117,10 +117,9 @@ type ListSourcesParams struct {
 }
 
 type ListSourcesRow struct {
-	Source        Source      `json:"source"`
-	NamespaceName string      `json:"namespace_name"`
-	OwnerID       pgtype.UUID `json:"owner_id"`
-	Visibility    string      `json:"visibility"`
+	Source        Source `json:"source"`
+	NamespaceName string `json:"namespace_name"`
+	Visibility    string `json:"visibility"`
 }
 
 // Visibility is resolved through the owning namespace, so a source is never
@@ -144,7 +143,6 @@ func (q *Queries) ListSources(ctx context.Context, arg ListSourcesParams) ([]Lis
 			&i.Source.CreatedAt,
 			&i.Source.UpdatedAt,
 			&i.NamespaceName,
-			&i.OwnerID,
 			&i.Visibility,
 		); err != nil {
 			return nil, err

@@ -24,7 +24,7 @@ COPY . .
 # ten mains replaces ten cold compiles of the same graph. The serial image chain shares one
 # buildkit root, so only the first image build runs this stage; the rest hit it CACHED.
 #
-# Do not switch to ./cmd/... — that would also build specgen, dbcheck and the backfill tools,
+# Do not switch to ./cmd/... — that would also build specgen, authmatrix and the other dev tools,
 # none of which ship as images.
 FROM builder-base AS build-all
 ARG TARGETARCH

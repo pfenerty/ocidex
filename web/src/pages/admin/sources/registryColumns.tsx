@@ -56,14 +56,6 @@ export function registryColumns(opts: {
         { header: "URL", render: (reg) => <code>{reg.url}</code> },
         { header: "Visibility", render: (reg) => <span class="badge">{reg.visibility}</span> },
         {
-            header: "Owner",
-            render: (reg) => (
-                <span class="text-muted text-sm">
-                    {reg.owner_username ?? "—"}
-                </span>
-            ),
-        },
-        {
             header: "Status",
             render: (reg) => (
                 <span class={reg.enabled ? "text-[var(--color-success)]" : "text-[var(--color-text-muted)]"}>

@@ -302,7 +302,7 @@ func modulePurlBases(purlBase pgtype.Text) []string {
 // binaries".
 func commandMatch(artifactPurl pgtype.Text, artifactName string, componentPurl, componentFilePath pgtype.Text) bool {
 	// R7: no recorded path, no match — never a wildcard. SBOMs ingested before
-	// 00072 have NULL here until cmd/backfill-provenance runs over them, and
+	// 00072 have NULL here until `ocidex migrate backfill` runs over them, and
 	// treating that as "matches any command of the module" would turn exactly
 	// the corpus this rule exists for into a wall of false relationships.
 	if !componentFilePath.Valid || componentFilePath.String == "" {

@@ -191,24 +191,10 @@ func (h *Handler) listRegistries(ctx context.Context, vis service.VisibilityFilt
 	if err != nil {
 		return nil, huma.Error500InternalServerError(fmt.Sprintf("listing registries: %v", err))
 	}
-	users, err := h.authService.ListUsers(ctx)
-	if err != nil {
-		return nil, huma.Error500InternalServerError(fmt.Sprintf("listing users: %v", err))
-	}
-	ownerNames := make(map[string]string, len(users))
-	for _, u := range users {
-		ownerNames[uuidToStr(u.ID)] = u.DisplayName
-	}
 	out := &ListRegistriesOutput{}
 	out.Body.Data = make([]RegistryResponse, len(result.Data))
 	for i, r := range result.Data {
-		var ownerUsername *string
-		if r.OwnerID != nil {
-			if name, ok := ownerNames[*r.OwnerID]; ok {
-				ownerUsername = &name
-			}
-		}
-		out.Body.Data[i] = toRegistryResponse(r, h.cfg.APIBaseURL, ownerUsername)
+		out.Body.Data[i] = toRegistryResponse(r, h.cfg.APIBaseURL)
 	}
 	out.Body.Pagination = paginationMeta(result)
 	return out, nil
@@ -280,7 +266,7 @@ func (h *Handler) GetRegistry(ctx context.Context, in *GetRegistryInput) (*GetRe
 		!canFromContext(ctx, reg.NamespaceID, authz.CapReadPrivate) {
 		return nil, huma.Error404NotFound("registry not found")
 	}
-	return &GetRegistryOutput{Body: toRegistryResponse(reg, h.cfg.APIBaseURL, nil)}, nil
+	return &GetRegistryOutput{Body: toRegistryResponse(reg, h.cfg.APIBaseURL)}, nil
 }
 
 // GetRegistryByName returns a single registry by name.
@@ -297,7 +283,7 @@ func (h *Handler) GetRegistryByName(ctx context.Context, in *GetRegistryByNameIn
 		!canFromContext(ctx, reg.NamespaceID, authz.CapReadPrivate) {
 		return nil, huma.Error404NotFound("registry not found")
 	}
-	return &GetRegistryByNameOutput{Body: toRegistryResponse(reg, h.cfg.APIBaseURL, nil)}, nil
+	return &GetRegistryByNameOutput{Body: toRegistryResponse(reg, h.cfg.APIBaseURL)}, nil
 }
 
 // CreateRegistry creates a new registry. Any authenticated user can create.
@@ -359,7 +345,7 @@ func (h *Handler) CreateRegistry(ctx context.Context, in *CreateRegistryInput) (
 		PollIntervalMinutes: pollInterval,
 		AuthUsername:        in.Body.AuthUsername,
 		AuthToken:           in.Body.AuthToken,
-		OwnerID:             user.ID,
+		CreatorID:           user.ID,
 		Visibility:          visibility,
 		IncludeUntagged:     in.Body.IncludeUntagged,
 		VerificationMode:    verificationMode,
@@ -373,7 +359,7 @@ func (h *Handler) CreateRegistry(ctx context.Context, in *CreateRegistryInput) (
 		return nil, err
 	}
 	return &CreateRegistryOutput{Body: CreateRegistryResponseBody{
-		RegistryResponse: toRegistryResponse(reg, h.cfg.APIBaseURL, nil),
+		RegistryResponse: toRegistryResponse(reg, h.cfg.APIBaseURL),
 		WebhookSecret:    generatedSecret,
 	}}, nil
 }
@@ -440,7 +426,8 @@ func (h *Handler) authorizeExistingNamespace(
 	return ns.ID, nil
 }
 
-// RegenerateWebhookSecret generates a new webhook secret for a registry (owner or admin).
+// RegenerateWebhookSecret generates a new webhook secret for a registry. The
+// route requires read_secret on the registry's namespace (ADR-046).
 // The previous secret is immediately invalidated.
 func (h *Handler) RegenerateWebhookSecret(ctx context.Context, in *RegenerateWebhookSecretInput) (*RegenerateWebhookSecretOutput, error) {
 	existing, err := h.registryService.Get(ctx, in.ID)
@@ -483,7 +470,8 @@ func (h *Handler) RegenerateWebhookSecret(ctx context.Context, in *RegenerateWeb
 	return out, nil
 }
 
-// UpdateRegistry updates a registry (owner or admin).
+// UpdateRegistry updates a registry. The route requires manage_source on the
+// registry's namespace (ADR-046).
 func (h *Handler) UpdateRegistry(ctx context.Context, in *UpdateRegistryInput) (*UpdateRegistryOutput, error) {
 	existing, err := h.registryService.Get(ctx, in.ID)
 	if err != nil {
@@ -562,10 +550,11 @@ func (h *Handler) UpdateRegistry(ctx context.Context, in *UpdateRegistryInput) (
 	if err != nil {
 		return nil, huma.Error404NotFound("registry not found")
 	}
-	return &UpdateRegistryOutput{Body: toRegistryResponse(reg, h.cfg.APIBaseURL, nil)}, nil
+	return &UpdateRegistryOutput{Body: toRegistryResponse(reg, h.cfg.APIBaseURL)}, nil
 }
 
-// DeleteRegistry deletes a registry (owner or admin).
+// DeleteRegistry deletes a registry. The route requires manage_source on the
+// registry's namespace (ADR-046).
 func (h *Handler) DeleteRegistry(ctx context.Context, in *DeleteRegistryInput) (*struct{}, error) {
 	if err := h.registryService.Delete(ctx, in.ID); err != nil {
 		return nil, huma.Error404NotFound("registry not found")
@@ -621,7 +610,8 @@ func (h *Handler) TestRegistryConnection(ctx context.Context, in *TestRegistryCo
 	return out, nil
 }
 
-// ScanRegistry triggers an ad-hoc catalog walk of a registry (owner or admin).
+// ScanRegistry triggers an ad-hoc catalog walk of a registry. The route
+// requires trigger_scan on the registry's namespace (ADR-046).
 func (h *Handler) ScanRegistry(ctx context.Context, in *ScanRegistryInput) (*ScanRegistryOutput, error) {
 	reg, err := h.registryService.Get(ctx, in.ID)
 	if err != nil {
@@ -663,7 +653,7 @@ func uuidToStr(u pgtype.UUID) string {
 		b[0:4], b[4:6], b[6:8], b[8:10], b[10:16])
 }
 
-func toRegistryResponse(r service.Registry, apiBaseURL string, ownerUsername *string) RegistryResponse {
+func toRegistryResponse(r service.Registry, apiBaseURL string) RegistryResponse {
 	rr := RegistryResponse{
 		ID:                  r.ID,
 		Name:                r.Name,
@@ -682,8 +672,6 @@ func toRegistryResponse(r service.Registry, apiBaseURL string, ownerUsername *st
 		CreatedAt:           r.CreatedAt.UTC().Format("2006-01-02T15:04:05Z"),
 		UpdatedAt:           r.UpdatedAt.UTC().Format("2006-01-02T15:04:05Z"),
 		Visibility:          r.Visibility,
-		OwnerID:             r.OwnerID,
-		OwnerUsername:       ownerUsername,
 		IncludeUntagged:     r.IncludeUntagged,
 		VerificationMode:    r.VerificationMode,
 		TrustPublicKey:      r.TrustPublicKey,

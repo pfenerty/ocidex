@@ -51,12 +51,21 @@ VALUES ($1, $2, $3);
 INSERT INTO external_reference (component_id, type, url, comment)
 VALUES ($1, $2, $3, $4);
 
--- name: ListSBOMsWithoutFlavor :many
+-- name: ListSBOMsWithoutFlavorPage :many
+-- Keyset page of SBOMs ingested before flavor detection (pre-F2), for
+-- `ocidex migrate backfill`. Pass the nil UUID to start. raw_bom rides along,
+-- so keep the page small.
 SELECT id, subject_version, raw_bom
 FROM sbom
-WHERE flavor IS NULL OR flavor = '';
+WHERE id > @after::uuid
+  AND (flavor IS NULL OR flavor = '')
+ORDER BY id
+LIMIT @row_limit;
 
--- name: ListSBOMsWithMissingProvenance :many
+-- name: ListSBOMIDsWithMissingProvenancePage :many
+-- Keyset page of SBOMs with a component whose provenance was never derived,
+-- for `ocidex migrate backfill`. Pass the nil UUID to start.
+--
 -- file_path alone selects the work, rather than the conjunction of every
 -- provenance column that stood here before 00072. A row backfilled by an
 -- earlier run has layer_id set and file_path NULL, so the old predicate would
@@ -64,11 +73,20 @@ WHERE flavor IS NULL OR flavor = '';
 -- exists for. A component whose SBOM records no location is re-selected on
 -- every run and written unchanged — the same waste the old conjunction already
 -- carried for components with no source package.
-SELECT DISTINCT s.id, s.flavor, s.raw_bom
+SELECT s.id
 FROM sbom s
-JOIN component c ON c.sbom_id = s.id
-WHERE c.bom_ref IS NOT NULL AND c.bom_ref != ''
-  AND c.file_path IS NULL;
+WHERE s.id > @after::uuid
+  AND EXISTS (
+    SELECT 1 FROM component c
+    WHERE c.sbom_id = s.id
+      AND c.bom_ref IS NOT NULL AND c.bom_ref != ''
+      AND c.file_path IS NULL
+  )
+ORDER BY s.id
+LIMIT @row_limit;
+
+-- name: GetSBOMRawBomForBackfill :one
+SELECT flavor, raw_bom FROM sbom WHERE id = $1;
 
 -- name: ListSBOMComponentsMissingProvenance :many
 SELECT id, bom_ref, purl FROM component
@@ -82,12 +100,13 @@ SET layer_id = $2, found_by = $3, source_package = $4, source_version = $5, sour
     file_path = $7
 WHERE id = $1;
 
--- name: ListComponentsWithUnversionedPurl :many
--- Components whose purl carries no version although the row has one. The vuln
--- store is keyed by purl and OSV matches versions server-side, so these rows
--- are unscannable until the version is spliced in. Ingestion does that now
--- (service.effectiveComponentPurl); cmd/backfill-component-purl carries it to
--- rows ingested before that existed.
+-- name: ListComponentsWithUnversionedPurlPage :many
+-- Keyset page of components whose purl carries no version although the row
+-- has one. The vuln store is keyed by purl and OSV matches versions
+-- server-side, so these rows are unscannable until the version is spliced in.
+-- Ingestion does that now (mainmodule.EffectivePurl); `ocidex migrate
+-- backfill` carries it to rows ingested before that existed. Pass the nil UUID
+-- to start.
 --
 -- The "@" is looked for only after the qualifier and subpath suffixes are
 -- stripped, since the purl spec puts the version ahead of both and an "@"
@@ -95,10 +114,13 @@ WHERE id = $1;
 -- re-derives the purl and writes only the rows that actually change, so a loose
 -- match here costs a no-op, never a wrong write.
 SELECT id, purl, version FROM component
-WHERE purl IS NOT NULL AND purl != ''
+WHERE id > @after::uuid
+  AND purl IS NOT NULL AND purl != ''
   AND version IS NOT NULL AND version != ''
   AND version != 'UNKNOWN'
-  AND position('@' in split_part(split_part(purl::text, '?', 1), '#', 1)) = 0;
+  AND position('@' in split_part(split_part(purl::text, '?', 1), '#', 1)) = 0
+ORDER BY id
+LIMIT @row_limit;
 
 -- name: UpdateComponentPurl :exec
 UPDATE component SET purl = $2 WHERE id = $1;

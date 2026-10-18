@@ -83,3 +83,64 @@ func TestSeededAdminKeptWhenUsed(t *testing.T) {
 	is.NoErr(goose.Up(sqlDB, "migrations"))
 	is.Equal(seededAdminRole(t, sqlDB), "admin")
 }
+
+func countSeedAccounts(t *testing.T, sqlDB *sql.DB) int {
+	t.Helper()
+	var n int
+	if err := sqlDB.QueryRowContext(t.Context(), `
+		SELECT count(*) FROM user_identity
+		WHERE provider = 'github' AND subject = '16961380'`).Scan(&n); err != nil {
+		t.Fatalf("counting seeded account: %v", err)
+	}
+	return n
+}
+
+// TestFreshInstallHasNoSeedAccount covers ocidex-7tss: a database migrated
+// from empty holds no account at all, and 00080's Down restores the viewer
+// 00079 left.
+func TestFreshInstallHasNoSeedAccount(t *testing.T) {
+	requireTestInfra(t)
+	is := is.New(t)
+	sqlDB := openMigrationDB(t)
+
+	is.NoErr(goose.Up(sqlDB, "migrations"))
+	var users int
+	is.NoErr(sqlDB.QueryRowContext(t.Context(), `SELECT count(*) FROM ocidex_user`).Scan(&users))
+	is.Equal(users, 0)
+
+	is.NoErr(goose.DownTo(sqlDB, "migrations", 79))
+	is.Equal(seededAdminRole(t, sqlDB), "viewer")
+
+	is.NoErr(goose.Up(sqlDB, "migrations"))
+	is.Equal(countSeedAccounts(t, sqlDB), 0)
+}
+
+// TestSeedAccountKeptWhenUsed: each sign of use keeps the seeded account
+// through 00080, including a sign-in whose session has since expired and been
+// purged, which only the identity's updated_at still records.
+func TestSeedAccountKeptWhenUsed(t *testing.T) {
+	for name, use := range map[string]string{
+		"signed in, session purged": `UPDATE user_identity SET updated_at = updated_at + interval '1 second'
+			WHERE provider = 'github' AND subject = '16961380'`,
+		"api key": `INSERT INTO api_key (user_id, name, key_hash, prefix)
+			SELECT user_id, 'k', 'h', 'ocx_abcd' FROM user_identity
+			WHERE provider = 'github' AND subject = '16961380'`,
+		"namespace member": `WITH ns AS (INSERT INTO namespace (name, visibility) VALUES ('kept', 'private') RETURNING id)
+			INSERT INTO namespace_member (namespace_id, user_id, role)
+			SELECT ns.id, i.user_id, 'owner' FROM ns, user_identity i
+			WHERE i.provider = 'github' AND i.subject = '16961380'`,
+	} {
+		t.Run(name, func(t *testing.T) {
+			requireTestInfra(t)
+			is := is.New(t)
+			sqlDB := openMigrationDB(t)
+
+			is.NoErr(goose.UpTo(sqlDB, "migrations", 79))
+			_, err := sqlDB.ExecContext(t.Context(), use)
+			is.NoErr(err)
+
+			is.NoErr(goose.Up(sqlDB, "migrations"))
+			is.Equal(countSeedAccounts(t, sqlDB), 1)
+		})
+	}
+}

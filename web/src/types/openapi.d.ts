@@ -2275,10 +2275,6 @@ export interface components {
             /** @description Identifier within the managing system, e.g. '<namespace>/<name>' of the OCIRegistry resource */
             managed_ref?: string;
             name: string;
-            /** @description UUID of the registry owner */
-            owner_id?: string;
-            /** @description GitHub username of the registry owner */
-            owner_username?: string;
             /** Format: int64 */
             poll_interval_minutes: number;
             /** @description Explicit repositories to walk; overrides catalog discovery when non-empty */
@@ -3418,10 +3414,6 @@ export interface components {
             /** @description Identifier within the managing system, e.g. '<namespace>/<name>' of the OCIRegistry resource */
             managed_ref?: string;
             name: string;
-            /** @description UUID of the registry owner */
-            owner_id?: string;
-            /** @description GitHub username of the registry owner */
-            owner_username?: string;
             /** Format: int64 */
             poll_interval_minutes: number;
             /** @description Explicit repositories to walk; overrides catalog discovery when non-empty */

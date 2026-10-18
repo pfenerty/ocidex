@@ -174,6 +174,34 @@ key separately from the database: a backup holding both defeats the encryption.
 - **Tuning concurrency** — `SCANNER_MAX_CONCURRENCY` directly maps to active worker goroutines. Watch pod memory: Syft is the cost. There is no longer a `SCANNER_MAX_ACK_PENDING` to tune in lockstep.
 - **DLQ table cleanup** — `scan_job_failures` is the legacy DLQ-via-NATS audit table. It is no longer written to. `SCAN_DLQ_RETENTION_DAYS` (default 30) controls how long old rows linger before the purge sweep deletes them. The table itself is scheduled for removal in a follow-up migration (`ocidex-ujj.74.6`).
 
+### Backfilling rows stored before ingest derived them
+
+`ocidex migrate backfill` re-derives, from data already in the database, the columns that
+ingest writes today but did not always write:
+
+| Step | Column | Rows it selects |
+|---|---|---|
+| flavor | `sbom.flavor` | SBOMs ingested before flavor detection |
+| purl | `component.purl` | components with a version whose purl has none |
+| provenance | `component.layer_id`, `found_by`, `source_*`, `file_path` | components with a bom-ref and no `file_path` (pre-00072) |
+
+It is idempotent. A row whose SBOM records no location keeps a NULL `file_path`, so the
+provenance step re-reads those SBOMs on every run without changing them. An SBOM whose
+`raw_bom` does not decode is logged, counted as `errored` and skipped. A database error stops
+the run, and re-running resumes safely.
+
+It reads `raw_bom` one SBOM at a time, but over a large corpus it takes a while, so run it
+by hand, once, outside the chart's migrate hook, using the API image with the chart's
+`existingSecret`:
+
+```bash
+kubectl -n <ns> run ocidex-backfill --rm -i --restart=Never \
+  --image=ghcr.io/pfenerty/ocidex-api:<version> \
+  --overrides='{"spec":{"containers":[{"name":"ocidex-backfill","image":"ghcr.io/pfenerty/ocidex-api:<version>","command":["/ocidex","migrate","backfill"],"envFrom":[{"secretRef":{"name":"<existingSecret>"}}]}]}}'
+```
+
+It prints one line per step: `backfill <step>: N updated, N unchanged, N errored`.
+
 ## Postgres on CloudNativePG — migration playbook
 
 The production Postgres deployment is being moved from a hand-managed `StatefulSet` (`postgres:15.4-alpine`, formerly in `ocidex/k8s/base/` — that tree has since been removed, see step 7) to a CloudNativePG (CNPG) `Cluster` (declared in `homelab/talos-cluster/flux/apps/ocidex/postgres.yaml`). Tracked under `ocidex-ujj.78`. ADR: see commit history + the homelab `talos-cluster/flux/apps/cnpg/`.

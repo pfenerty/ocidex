@@ -428,12 +428,12 @@ func serveAndWait(srv *http.Server) error {
 	return nil
 }
 
-// runMigrate dispatches `ocidex migrate up|down|status|audit|encrypt-secrets`.
+// runMigrate dispatches `ocidex migrate up|down|status|audit|encrypt-secrets|backfill`.
 // It deliberately avoids config.Load() because the migration tool has no
 // business depending on NATS connectivity — only DATABASE_URL is required.
 func runMigrate(args []string) error {
 	if len(args) == 0 {
-		return errors.New("usage: ocidex migrate up|down|status|audit|encrypt-secrets")
+		return errors.New("usage: ocidex migrate up|down|status|audit|encrypt-secrets|backfill")
 	}
 	dbURL := os.Getenv("DATABASE_URL")
 	if dbURL == "" {
@@ -441,6 +441,9 @@ func runMigrate(args []string) error {
 	}
 	if args[0] == "encrypt-secrets" {
 		return runEncryptSecrets(context.Background(), dbURL, args[1:])
+	}
+	if args[0] == "backfill" {
+		return runBackfill(context.Background(), dbURL)
 	}
 	conn, err := sql.Open("pgx", dbURL)
 	if err != nil {
@@ -466,7 +469,7 @@ func runMigrate(args []string) error {
 	case "audit":
 		return ownershipPreflight(context.Background(), conn)
 	default:
-		return fmt.Errorf("unknown migrate subcommand %q (want up|down|status|audit|encrypt-secrets)", args[0])
+		return fmt.Errorf("unknown migrate subcommand %q (want up|down|status|audit|encrypt-secrets|backfill)", args[0])
 	}
 }
 
@@ -515,6 +518,31 @@ func runEncryptSecrets(ctx context.Context, dbURL string, args []string) error {
 		fmt.Printf("encrypt-secrets: cannot decrypt registry %s; re-enter that credential\n", u)
 	}
 	return nil
+}
+
+// backfillBatch is how many rows (or SBOMs, with their raw_bom) a backfill
+// step reads at once.
+const backfillBatch = 50
+
+// runBackfill is `ocidex migrate backfill`: it derives the columns ingest now
+// writes for rows stored before it did (service.Backfill). It reads every
+// affected SBOM's raw_bom, so it runs by hand, once, rather than in the
+// chart's migrate hook (docs/UPGRADING.md).
+func runBackfill(ctx context.Context, dbURL string) error {
+	pool, err := pgxpool.New(ctx, dbURL)
+	if err != nil {
+		return fmt.Errorf("opening db: %w", err)
+	}
+	defer pool.Close()
+
+	res, err := service.Backfill(ctx, repository.New(pool), backfillBatch)
+	for _, step := range []struct {
+		name string
+		c    service.BackfillCounts
+	}{{"flavor", res.Flavor}, {"purl", res.Purl}, {"provenance", res.Provenance}} {
+		fmt.Printf("backfill %s: %d updated, %d unchanged, %d errored\n", step.name, step.c.Updated, step.c.Skipped, step.c.Errored)
+	}
+	return err
 }
 
 // ownershipPreflight fails the migration before goose touches the schema if any

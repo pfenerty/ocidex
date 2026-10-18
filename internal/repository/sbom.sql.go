@@ -23,6 +23,22 @@ func (q *Queries) DeleteSBOM(ctx context.Context, id pgtype.UUID) (int64, error)
 	return result.RowsAffected(), nil
 }
 
+const getSBOMRawBomForBackfill = `-- name: GetSBOMRawBomForBackfill :one
+SELECT flavor, raw_bom FROM sbom WHERE id = $1
+`
+
+type GetSBOMRawBomForBackfillRow struct {
+	Flavor pgtype.Text `json:"flavor"`
+	RawBom []byte      `json:"raw_bom"`
+}
+
+func (q *Queries) GetSBOMRawBomForBackfill(ctx context.Context, id pgtype.UUID) (GetSBOMRawBomForBackfillRow, error) {
+	row := q.db.QueryRow(ctx, getSBOMRawBomForBackfill, id)
+	var i GetSBOMRawBomForBackfillRow
+	err := row.Scan(&i.Flavor, &i.RawBom)
+	return i, err
+}
+
 const insertComponent = `-- name: InsertComponent :one
 INSERT INTO component (
     sbom_id, parent_id, bom_ref, type, name, group_name,
@@ -214,40 +230,49 @@ func (q *Queries) InsertSBOM(ctx context.Context, arg InsertSBOMParams) (InsertS
 	return i, err
 }
 
-const listComponentsWithUnversionedPurl = `-- name: ListComponentsWithUnversionedPurl :many
+const listComponentsWithUnversionedPurlPage = `-- name: ListComponentsWithUnversionedPurlPage :many
 SELECT id, purl, version FROM component
-WHERE purl IS NOT NULL AND purl != ''
+WHERE id > $1::uuid
+  AND purl IS NOT NULL AND purl != ''
   AND version IS NOT NULL AND version != ''
   AND version != 'UNKNOWN'
   AND position('@' in split_part(split_part(purl::text, '?', 1), '#', 1)) = 0
+ORDER BY id
+LIMIT $2
 `
 
-type ListComponentsWithUnversionedPurlRow struct {
+type ListComponentsWithUnversionedPurlPageParams struct {
+	After    pgtype.UUID `json:"after"`
+	RowLimit int32       `json:"row_limit"`
+}
+
+type ListComponentsWithUnversionedPurlPageRow struct {
 	ID      pgtype.UUID `json:"id"`
 	Purl    pgtype.Text `json:"purl"`
 	Version pgtype.Text `json:"version"`
 }
 
-// Components whose purl carries no version although the row has one. The vuln
-// store is keyed by purl and OSV matches versions server-side, so these rows
-// are unscannable until the version is spliced in. Ingestion does that now
-// (service.effectiveComponentPurl); cmd/backfill-component-purl carries it to
-// rows ingested before that existed.
+// Keyset page of components whose purl carries no version although the row
+// has one. The vuln store is keyed by purl and OSV matches versions
+// server-side, so these rows are unscannable until the version is spliced in.
+// Ingestion does that now (mainmodule.EffectivePurl); `ocidex migrate
+// backfill` carries it to rows ingested before that existed. Pass the nil UUID
+// to start.
 //
 // The "@" is looked for only after the qualifier and subpath suffixes are
 // stripped, since the purl spec puts the version ahead of both and an "@"
 // inside a qualifier value (an SSH-form vcs_url) is not a version. The Go side
 // re-derives the purl and writes only the rows that actually change, so a loose
 // match here costs a no-op, never a wrong write.
-func (q *Queries) ListComponentsWithUnversionedPurl(ctx context.Context) ([]ListComponentsWithUnversionedPurlRow, error) {
-	rows, err := q.db.Query(ctx, listComponentsWithUnversionedPurl)
+func (q *Queries) ListComponentsWithUnversionedPurlPage(ctx context.Context, arg ListComponentsWithUnversionedPurlPageParams) ([]ListComponentsWithUnversionedPurlPageRow, error) {
+	rows, err := q.db.Query(ctx, listComponentsWithUnversionedPurlPage, arg.After, arg.RowLimit)
 	if err != nil {
 		return nil, err
 	}
 	defer rows.Close()
-	items := []ListComponentsWithUnversionedPurlRow{}
+	items := []ListComponentsWithUnversionedPurlPageRow{}
 	for rows.Next() {
-		var i ListComponentsWithUnversionedPurlRow
+		var i ListComponentsWithUnversionedPurlPageRow
 		if err := rows.Scan(&i.ID, &i.Purl, &i.Version); err != nil {
 			return nil, err
 		}
@@ -320,20 +345,28 @@ func (q *Queries) ListSBOMComponentsMissingProvenance(ctx context.Context, sbomI
 	return items, nil
 }
 
-const listSBOMsWithMissingProvenance = `-- name: ListSBOMsWithMissingProvenance :many
-SELECT DISTINCT s.id, s.flavor, s.raw_bom
+const listSBOMIDsWithMissingProvenancePage = `-- name: ListSBOMIDsWithMissingProvenancePage :many
+SELECT s.id
 FROM sbom s
-JOIN component c ON c.sbom_id = s.id
-WHERE c.bom_ref IS NOT NULL AND c.bom_ref != ''
-  AND c.file_path IS NULL
+WHERE s.id > $1::uuid
+  AND EXISTS (
+    SELECT 1 FROM component c
+    WHERE c.sbom_id = s.id
+      AND c.bom_ref IS NOT NULL AND c.bom_ref != ''
+      AND c.file_path IS NULL
+  )
+ORDER BY s.id
+LIMIT $2
 `
 
-type ListSBOMsWithMissingProvenanceRow struct {
-	ID     pgtype.UUID `json:"id"`
-	Flavor pgtype.Text `json:"flavor"`
-	RawBom []byte      `json:"raw_bom"`
+type ListSBOMIDsWithMissingProvenancePageParams struct {
+	After    pgtype.UUID `json:"after"`
+	RowLimit int32       `json:"row_limit"`
 }
 
+// Keyset page of SBOMs with a component whose provenance was never derived,
+// for `ocidex migrate backfill`. Pass the nil UUID to start.
+//
 // file_path alone selects the work, rather than the conjunction of every
 // provenance column that stood here before 00072. A row backfilled by an
 // earlier run has layer_id set and file_path NULL, so the old predicate would
@@ -341,19 +374,19 @@ type ListSBOMsWithMissingProvenanceRow struct {
 // exists for. A component whose SBOM records no location is re-selected on
 // every run and written unchanged — the same waste the old conjunction already
 // carried for components with no source package.
-func (q *Queries) ListSBOMsWithMissingProvenance(ctx context.Context) ([]ListSBOMsWithMissingProvenanceRow, error) {
-	rows, err := q.db.Query(ctx, listSBOMsWithMissingProvenance)
+func (q *Queries) ListSBOMIDsWithMissingProvenancePage(ctx context.Context, arg ListSBOMIDsWithMissingProvenancePageParams) ([]pgtype.UUID, error) {
+	rows, err := q.db.Query(ctx, listSBOMIDsWithMissingProvenancePage, arg.After, arg.RowLimit)
 	if err != nil {
 		return nil, err
 	}
 	defer rows.Close()
-	items := []ListSBOMsWithMissingProvenanceRow{}
+	items := []pgtype.UUID{}
 	for rows.Next() {
-		var i ListSBOMsWithMissingProvenanceRow
-		if err := rows.Scan(&i.ID, &i.Flavor, &i.RawBom); err != nil {
+		var id pgtype.UUID
+		if err := rows.Scan(&id); err != nil {
 			return nil, err
 		}
-		items = append(items, i)
+		items = append(items, id)
 	}
 	if err := rows.Err(); err != nil {
 		return nil, err
@@ -361,27 +394,38 @@ func (q *Queries) ListSBOMsWithMissingProvenance(ctx context.Context) ([]ListSBO
 	return items, nil
 }
 
-const listSBOMsWithoutFlavor = `-- name: ListSBOMsWithoutFlavor :many
+const listSBOMsWithoutFlavorPage = `-- name: ListSBOMsWithoutFlavorPage :many
 SELECT id, subject_version, raw_bom
 FROM sbom
-WHERE flavor IS NULL OR flavor = ''
+WHERE id > $1::uuid
+  AND (flavor IS NULL OR flavor = '')
+ORDER BY id
+LIMIT $2
 `
 
-type ListSBOMsWithoutFlavorRow struct {
+type ListSBOMsWithoutFlavorPageParams struct {
+	After    pgtype.UUID `json:"after"`
+	RowLimit int32       `json:"row_limit"`
+}
+
+type ListSBOMsWithoutFlavorPageRow struct {
 	ID             pgtype.UUID `json:"id"`
 	SubjectVersion pgtype.Text `json:"subject_version"`
 	RawBom         []byte      `json:"raw_bom"`
 }
 
-func (q *Queries) ListSBOMsWithoutFlavor(ctx context.Context) ([]ListSBOMsWithoutFlavorRow, error) {
-	rows, err := q.db.Query(ctx, listSBOMsWithoutFlavor)
+// Keyset page of SBOMs ingested before flavor detection (pre-F2), for
+// `ocidex migrate backfill`. Pass the nil UUID to start. raw_bom rides along,
+// so keep the page small.
+func (q *Queries) ListSBOMsWithoutFlavorPage(ctx context.Context, arg ListSBOMsWithoutFlavorPageParams) ([]ListSBOMsWithoutFlavorPageRow, error) {
+	rows, err := q.db.Query(ctx, listSBOMsWithoutFlavorPage, arg.After, arg.RowLimit)
 	if err != nil {
 		return nil, err
 	}
 	defer rows.Close()
-	items := []ListSBOMsWithoutFlavorRow{}
+	items := []ListSBOMsWithoutFlavorPageRow{}
 	for rows.Next() {
-		var i ListSBOMsWithoutFlavorRow
+		var i ListSBOMsWithoutFlavorPageRow
 		if err := rows.Scan(&i.ID, &i.SubjectVersion, &i.RawBom); err != nil {
 			return nil, err
 		}

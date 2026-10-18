@@ -23,7 +23,7 @@ SELECT * FROM cluster WHERE namespace_id = $1 ORDER BY created_at ASC;
 -- Visibility resolved through the owning namespace; owned_only switches to the
 -- ownership path. Same two-paths-one-query shape as ListSources and
 -- ListNamespaces — see ListNamespaces for why they are not split.
-SELECT sqlc.embed(c), n.name AS namespace_name, namespace_owner(n.id) AS owner_id, n.visibility
+SELECT sqlc.embed(c), n.name AS namespace_name, n.visibility
 FROM cluster c
 JOIN namespace n ON n.id = c.namespace_id
 WHERE (

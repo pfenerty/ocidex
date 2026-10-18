@@ -46,7 +46,6 @@ type Registry struct {
 	LastPolledAt        *time.Time // nil if never polled
 	AuthUsername        *string    // nil = no auth
 	AuthToken           *string    // nil = no auth
-	OwnerID             *string    // nil = no owner (legacy)
 	Visibility          string     // "public" | "private"
 	IncludeUntagged     bool       // scan untagged manifests via registry-specific APIs
 	VerificationMode    string     // "none" | "public_key" | "keyless"
@@ -316,15 +315,19 @@ type CreateRegistryParams struct {
 	PollIntervalMinutes int
 	AuthUsername        *string
 	AuthToken           *string
-	OwnerID             pgtype.UUID
-	Visibility          string
-	IncludeUntagged     bool
-	VerificationMode    string
-	TrustPublicKey      *string
-	TrustIdentity       *string
-	TrustIssuer         *string
-	ManagedBy           *string
-	ManagedRef          *string
+	// CreatorID becomes the owner member of a namespace minted for this
+	// registry. It has no effect when the registry joins an existing
+	// namespace. Invalid (the operator's unattributed imports) leaves a minted
+	// namespace without an owner.
+	CreatorID        pgtype.UUID
+	Visibility       string
+	IncludeUntagged  bool
+	VerificationMode string
+	TrustPublicKey   *string
+	TrustIdentity    *string
+	TrustIssuer      *string
+	ManagedBy        *string
+	ManagedRef       *string
 
 	// Namespace is the name of the namespace to create the registry in. Empty
 	// means "give it a namespace of its own named after it", the pre-ADR-039
@@ -472,7 +475,7 @@ func (s *registryService) Create(ctx context.Context, params CreateRegistryParam
 		PollIntervalMinutes: int32(params.PollIntervalMinutes), //nolint:gosec // G115: poll interval is validated to fit int32
 		AuthUsername:        toNullText(params.AuthUsername),
 		AuthToken:           authToken,
-		OwnerUserID:         params.OwnerID,
+		OwnerUserID:         params.CreatorID,
 		Visibility:          visibility,
 		IncludeUntagged:     params.IncludeUntagged,
 		VerificationMode:    verificationMode,
@@ -492,7 +495,6 @@ func (s *registryService) Create(ctx context.Context, params CreateRegistryParam
 		reg:         r,
 		name:        params.Name,
 		namespaceID: namespaceID,
-		ownerID:     params.OwnerID,
 		visibility:  visibility,
 	})
 }
@@ -524,7 +526,7 @@ func (s *registryService) resolveNamespace(ctx context.Context, params CreateReg
 	}
 	created, err := s.repo.CreateNamespace(ctx, repository.CreateNamespaceParams{
 		Name:        params.Namespace,
-		OwnerUserID: params.OwnerID,
+		OwnerUserID: params.CreatorID,
 		Visibility:  visibility,
 	})
 	if err != nil {
@@ -542,7 +544,7 @@ func (s *registryService) GetByName(ctx context.Context, name string) (Registry,
 		return Registry{}, ErrNotFound
 	}
 	return s.toDomain(registryComposite{
-		reg: r.Registry, name: r.Name, namespaceID: r.NamespaceID, ownerID: r.OwnerID, visibility: r.Visibility,
+		reg: r.Registry, name: r.Name, namespaceID: r.NamespaceID, visibility: r.Visibility,
 	})
 }
 
@@ -556,7 +558,7 @@ func (s *registryService) Get(ctx context.Context, id string) (Registry, error) 
 		return Registry{}, ErrNotFound
 	}
 	return s.toDomain(registryComposite{
-		reg: r.Registry, name: r.Name, namespaceID: r.NamespaceID, ownerID: r.OwnerID, visibility: r.Visibility,
+		reg: r.Registry, name: r.Name, namespaceID: r.NamespaceID, visibility: r.Visibility,
 	})
 }
 
@@ -569,7 +571,7 @@ func (s *registryService) List(ctx context.Context, filter VisibilityFilter) ([]
 		return nil, fmt.Errorf("listing registries: %w", err)
 	}
 	out, err := toDomainAll(s, rows, func(r repository.ListRegistriesRow) registryComposite {
-		return registryComposite{reg: r.Registry, name: r.Name, namespaceID: r.NamespaceID, ownerID: r.OwnerID, visibility: r.Visibility}
+		return registryComposite{reg: r.Registry, name: r.Name, namespaceID: r.NamespaceID, visibility: r.Visibility}
 	})
 	if err != nil {
 		return nil, err
@@ -593,7 +595,7 @@ func (s *registryService) ListPaged(ctx context.Context, filter VisibilityFilter
 		total = rows[0].TotalCount
 	}
 	out, err := toDomainAll(s, rows, func(r repository.ListRegistriesPagedRow) registryComposite {
-		return registryComposite{reg: r.Registry, name: r.Name, namespaceID: r.NamespaceID, ownerID: r.OwnerID, visibility: r.Visibility}
+		return registryComposite{reg: r.Registry, name: r.Name, namespaceID: r.NamespaceID, visibility: r.Visibility}
 	})
 	if err != nil {
 		return PagedResult[Registry]{}, err
@@ -614,7 +616,6 @@ func (s *registryService) Update(ctx context.Context, params UpdateRegistryParam
 		reg:         existingRow.Registry,
 		name:        existingRow.Name,
 		namespaceID: existingRow.NamespaceID,
-		ownerID:     existingRow.OwnerID,
 		visibility:  existingRow.Visibility,
 	})
 	if err != nil {
@@ -694,7 +695,6 @@ func (s *registryService) Update(ctx context.Context, params UpdateRegistryParam
 		reg:         r,
 		name:        params.Name,
 		namespaceID: existingRow.NamespaceID,
-		ownerID:     existingRow.OwnerID,
 		visibility:  visibility,
 	})
 }
@@ -705,7 +705,7 @@ func (s *registryService) ListPollable(ctx context.Context) ([]Registry, error) 
 		return nil, fmt.Errorf("listing pollable registries: %w", err)
 	}
 	out, err := toDomainAll(s, rows, func(r repository.ListPollableRegistriesRow) registryComposite {
-		return registryComposite{reg: r.Registry, name: r.Name, namespaceID: r.NamespaceID, ownerID: r.OwnerID, visibility: r.Visibility}
+		return registryComposite{reg: r.Registry, name: r.Name, namespaceID: r.NamespaceID, visibility: r.Visibility}
 	})
 	if err != nil {
 		return nil, err
@@ -780,7 +780,6 @@ type registryComposite struct {
 	reg         repository.Registry
 	name        string
 	namespaceID pgtype.UUID
-	ownerID     pgtype.UUID
 	visibility  string
 }
 
@@ -819,10 +818,6 @@ func fromRepo(c registryComposite) Registry {
 	if r.AuthToken.Valid {
 		s := r.AuthToken.String
 		out.AuthToken = &s
-	}
-	if c.ownerID.Valid {
-		s := uuidToStr(c.ownerID)
-		out.OwnerID = &s
 	}
 	out.VerificationMode = r.VerificationMode
 	if r.TrustPublicKey.Valid {

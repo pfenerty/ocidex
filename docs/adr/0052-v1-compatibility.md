@@ -76,7 +76,7 @@ anything deprecated stays for at least **one minor release** and is announced in
 
 | Supported (released, documented, covered where listed above) | Internal (not released as a supported interface) |
 |---|---|
-| `ocidex`, `scanner-worker`, `oci-metadata-worker`, `git-worker`, `user-enricher-worker`, `provenance-worker`, `vuln-worker`, `ocidex-cli`, `ocidex-mcp`, `operator` (alpha), `k8s-agent` (alpha) | `authmatrix`, `specgen` (build tooling), `dbcheck`, `mock-idp` (test rig), `vuln-parity` (ADR-049 migration aid), `backfill-*` (one-shot maintenance; retired before 1.0 by ocidex-bt62.1) |
+| `ocidex`, `scanner-worker`, `oci-metadata-worker`, `git-worker`, `user-enricher-worker`, `provenance-worker`, `vuln-worker`, `ocidex-cli`, `ocidex-mcp`, `operator` (alpha), `k8s-agent` (alpha) | `authmatrix`, `specgen` (build tooling), `mock-idp` (test rig), `vuln-parity` (ADR-049 migration aid). `dbcheck` and `backfill-*` were removed before 1.0 (ocidex-bt62.1); the backfills became `ocidex migrate backfill`. |
 
 Server and worker binaries are only supported at the **same version**. Mixed-version
 deployments are not a supported state outside a rolling upgrade.

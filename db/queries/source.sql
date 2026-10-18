@@ -21,7 +21,7 @@ SELECT * FROM source WHERE namespace_id = $1 ORDER BY created_at ASC;
 -- listed to a viewer who cannot see the namespace holding it. owned_only
 -- switches to the ownership path — see ListNamespaces for why the two live in
 -- one query.
-SELECT sqlc.embed(s), n.name AS namespace_name, namespace_owner(n.id) AS owner_id, n.visibility
+SELECT sqlc.embed(s), n.name AS namespace_name, n.visibility
 FROM source s
 JOIN namespace n ON n.id = s.namespace_id
 WHERE (
