@@ -175,7 +175,7 @@ func (q *Queries) DeleteRegistry(ctx context.Context, id pgtype.UUID) (int64, er
 }
 
 const getRegistry = `-- name: GetRegistry :one
-SELECT r.id, r.type, r.url, r.insecure, r.webhook_secret, r.enabled, r.created_at, r.updated_at, r.repository_patterns, r.tag_patterns, r.scan_mode, r.poll_interval_minutes, r.last_polled_at, r.repositories, r.auth_username, r.auth_token, r.include_untagged, r.verification_mode, r.trust_public_key, r.trust_identity, r.trust_issuer, r.managed_by, r.managed_ref, src.name, n.id AS namespace_id, namespace_owner(n.id) AS owner_id, n.visibility
+SELECT r.id, r.type, r.url, r.insecure, r.webhook_secret, r.enabled, r.created_at, r.updated_at, r.repository_patterns, r.tag_patterns, r.scan_mode, r.poll_interval_minutes, r.last_polled_at, r.repositories, r.auth_username, r.auth_token, r.include_untagged, r.verification_mode, r.trust_public_key, r.trust_identity, r.trust_issuer, r.managed_by, r.managed_ref, src.name, n.id AS namespace_id, n.visibility
 FROM registry r
 JOIN source src ON src.id = r.id
 JOIN namespace n ON n.id = src.namespace_id
@@ -186,7 +186,6 @@ type GetRegistryRow struct {
 	Registry    Registry    `json:"registry"`
 	Name        string      `json:"name"`
 	NamespaceID pgtype.UUID `json:"namespace_id"`
-	OwnerID     pgtype.UUID `json:"owner_id"`
 	Visibility  string      `json:"visibility"`
 }
 
@@ -219,14 +218,13 @@ func (q *Queries) GetRegistry(ctx context.Context, id pgtype.UUID) (GetRegistryR
 		&i.Registry.ManagedRef,
 		&i.Name,
 		&i.NamespaceID,
-		&i.OwnerID,
 		&i.Visibility,
 	)
 	return i, err
 }
 
 const getRegistryByName = `-- name: GetRegistryByName :one
-SELECT r.id, r.type, r.url, r.insecure, r.webhook_secret, r.enabled, r.created_at, r.updated_at, r.repository_patterns, r.tag_patterns, r.scan_mode, r.poll_interval_minutes, r.last_polled_at, r.repositories, r.auth_username, r.auth_token, r.include_untagged, r.verification_mode, r.trust_public_key, r.trust_identity, r.trust_issuer, r.managed_by, r.managed_ref, src.name, n.id AS namespace_id, namespace_owner(n.id) AS owner_id, n.visibility
+SELECT r.id, r.type, r.url, r.insecure, r.webhook_secret, r.enabled, r.created_at, r.updated_at, r.repository_patterns, r.tag_patterns, r.scan_mode, r.poll_interval_minutes, r.last_polled_at, r.repositories, r.auth_username, r.auth_token, r.include_untagged, r.verification_mode, r.trust_public_key, r.trust_identity, r.trust_issuer, r.managed_by, r.managed_ref, src.name, n.id AS namespace_id, n.visibility
 FROM registry r
 JOIN source src ON src.id = r.id
 JOIN namespace n ON n.id = src.namespace_id
@@ -239,7 +237,6 @@ type GetRegistryByNameRow struct {
 	Registry    Registry    `json:"registry"`
 	Name        string      `json:"name"`
 	NamespaceID pgtype.UUID `json:"namespace_id"`
-	OwnerID     pgtype.UUID `json:"owner_id"`
 	Visibility  string      `json:"visibility"`
 }
 
@@ -276,14 +273,13 @@ func (q *Queries) GetRegistryByName(ctx context.Context, name string) (GetRegist
 		&i.Registry.ManagedRef,
 		&i.Name,
 		&i.NamespaceID,
-		&i.OwnerID,
 		&i.Visibility,
 	)
 	return i, err
 }
 
 const listPollableRegistries = `-- name: ListPollableRegistries :many
-SELECT r.id, r.type, r.url, r.insecure, r.webhook_secret, r.enabled, r.created_at, r.updated_at, r.repository_patterns, r.tag_patterns, r.scan_mode, r.poll_interval_minutes, r.last_polled_at, r.repositories, r.auth_username, r.auth_token, r.include_untagged, r.verification_mode, r.trust_public_key, r.trust_identity, r.trust_issuer, r.managed_by, r.managed_ref, src.name, n.id AS namespace_id, namespace_owner(n.id) AS owner_id, n.visibility
+SELECT r.id, r.type, r.url, r.insecure, r.webhook_secret, r.enabled, r.created_at, r.updated_at, r.repository_patterns, r.tag_patterns, r.scan_mode, r.poll_interval_minutes, r.last_polled_at, r.repositories, r.auth_username, r.auth_token, r.include_untagged, r.verification_mode, r.trust_public_key, r.trust_identity, r.trust_issuer, r.managed_by, r.managed_ref, src.name, n.id AS namespace_id, n.visibility
 FROM registry r
 JOIN source src ON src.id = r.id
 JOIN namespace n ON n.id = src.namespace_id
@@ -295,7 +291,6 @@ type ListPollableRegistriesRow struct {
 	Registry    Registry    `json:"registry"`
 	Name        string      `json:"name"`
 	NamespaceID pgtype.UUID `json:"namespace_id"`
-	OwnerID     pgtype.UUID `json:"owner_id"`
 	Visibility  string      `json:"visibility"`
 }
 
@@ -334,7 +329,6 @@ func (q *Queries) ListPollableRegistries(ctx context.Context) ([]ListPollableReg
 			&i.Registry.ManagedRef,
 			&i.Name,
 			&i.NamespaceID,
-			&i.OwnerID,
 			&i.Visibility,
 		); err != nil {
 			return nil, err
@@ -348,7 +342,7 @@ func (q *Queries) ListPollableRegistries(ctx context.Context) ([]ListPollableReg
 }
 
 const listRegistries = `-- name: ListRegistries :many
-SELECT r.id, r.type, r.url, r.insecure, r.webhook_secret, r.enabled, r.created_at, r.updated_at, r.repository_patterns, r.tag_patterns, r.scan_mode, r.poll_interval_minutes, r.last_polled_at, r.repositories, r.auth_username, r.auth_token, r.include_untagged, r.verification_mode, r.trust_public_key, r.trust_identity, r.trust_issuer, r.managed_by, r.managed_ref, src.name, n.id AS namespace_id, namespace_owner(n.id) AS owner_id, n.visibility
+SELECT r.id, r.type, r.url, r.insecure, r.webhook_secret, r.enabled, r.created_at, r.updated_at, r.repository_patterns, r.tag_patterns, r.scan_mode, r.poll_interval_minutes, r.last_polled_at, r.repositories, r.auth_username, r.auth_token, r.include_untagged, r.verification_mode, r.trust_public_key, r.trust_identity, r.trust_issuer, r.managed_by, r.managed_ref, src.name, n.id AS namespace_id, n.visibility
 FROM registry r
 JOIN source src ON src.id = r.id
 JOIN namespace n ON n.id = src.namespace_id
@@ -365,7 +359,6 @@ type ListRegistriesRow struct {
 	Registry    Registry    `json:"registry"`
 	Name        string      `json:"name"`
 	NamespaceID pgtype.UUID `json:"namespace_id"`
-	OwnerID     pgtype.UUID `json:"owner_id"`
 	Visibility  string      `json:"visibility"`
 }
 
@@ -404,7 +397,6 @@ func (q *Queries) ListRegistries(ctx context.Context, arg ListRegistriesParams) 
 			&i.Registry.ManagedRef,
 			&i.Name,
 			&i.NamespaceID,
-			&i.OwnerID,
 			&i.Visibility,
 		); err != nil {
 			return nil, err
@@ -418,7 +410,7 @@ func (q *Queries) ListRegistries(ctx context.Context, arg ListRegistriesParams) 
 }
 
 const listRegistriesByNamespace = `-- name: ListRegistriesByNamespace :many
-SELECT r.id, r.type, r.url, r.insecure, r.webhook_secret, r.enabled, r.created_at, r.updated_at, r.repository_patterns, r.tag_patterns, r.scan_mode, r.poll_interval_minutes, r.last_polled_at, r.repositories, r.auth_username, r.auth_token, r.include_untagged, r.verification_mode, r.trust_public_key, r.trust_identity, r.trust_issuer, r.managed_by, r.managed_ref, src.name, n.id AS namespace_id, namespace_owner(n.id) AS owner_id, n.visibility
+SELECT r.id, r.type, r.url, r.insecure, r.webhook_secret, r.enabled, r.created_at, r.updated_at, r.repository_patterns, r.tag_patterns, r.scan_mode, r.poll_interval_minutes, r.last_polled_at, r.repositories, r.auth_username, r.auth_token, r.include_untagged, r.verification_mode, r.trust_public_key, r.trust_identity, r.trust_issuer, r.managed_by, r.managed_ref, src.name, n.id AS namespace_id, n.visibility
 FROM registry r
 JOIN source src ON src.id = r.id
 JOIN namespace n ON n.id = src.namespace_id
@@ -430,7 +422,6 @@ type ListRegistriesByNamespaceRow struct {
 	Registry    Registry    `json:"registry"`
 	Name        string      `json:"name"`
 	NamespaceID pgtype.UUID `json:"namespace_id"`
-	OwnerID     pgtype.UUID `json:"owner_id"`
 	Visibility  string      `json:"visibility"`
 }
 
@@ -473,7 +464,6 @@ func (q *Queries) ListRegistriesByNamespace(ctx context.Context, namespaceID pgt
 			&i.Registry.ManagedRef,
 			&i.Name,
 			&i.NamespaceID,
-			&i.OwnerID,
 			&i.Visibility,
 		); err != nil {
 			return nil, err
@@ -487,7 +477,7 @@ func (q *Queries) ListRegistriesByNamespace(ctx context.Context, namespaceID pgt
 }
 
 const listRegistriesPaged = `-- name: ListRegistriesPaged :many
-SELECT r.id, r.type, r.url, r.insecure, r.webhook_secret, r.enabled, r.created_at, r.updated_at, r.repository_patterns, r.tag_patterns, r.scan_mode, r.poll_interval_minutes, r.last_polled_at, r.repositories, r.auth_username, r.auth_token, r.include_untagged, r.verification_mode, r.trust_public_key, r.trust_identity, r.trust_issuer, r.managed_by, r.managed_ref, src.name, n.id AS namespace_id, namespace_owner(n.id) AS owner_id, n.visibility, COUNT(*) OVER() AS total_count
+SELECT r.id, r.type, r.url, r.insecure, r.webhook_secret, r.enabled, r.created_at, r.updated_at, r.repository_patterns, r.tag_patterns, r.scan_mode, r.poll_interval_minutes, r.last_polled_at, r.repositories, r.auth_username, r.auth_token, r.include_untagged, r.verification_mode, r.trust_public_key, r.trust_identity, r.trust_issuer, r.managed_by, r.managed_ref, src.name, n.id AS namespace_id, n.visibility, COUNT(*) OVER() AS total_count
 FROM registry r
 JOIN source src ON src.id = r.id
 JOIN namespace n ON n.id = src.namespace_id
@@ -513,7 +503,6 @@ type ListRegistriesPagedRow struct {
 	Registry    Registry    `json:"registry"`
 	Name        string      `json:"name"`
 	NamespaceID pgtype.UUID `json:"namespace_id"`
-	OwnerID     pgtype.UUID `json:"owner_id"`
 	Visibility  string      `json:"visibility"`
 	TotalCount  int64       `json:"total_count"`
 }
@@ -561,7 +550,6 @@ func (q *Queries) ListRegistriesPaged(ctx context.Context, arg ListRegistriesPag
 			&i.Registry.ManagedRef,
 			&i.Name,
 			&i.NamespaceID,
-			&i.OwnerID,
 			&i.Visibility,
 			&i.TotalCount,
 		); err != nil {

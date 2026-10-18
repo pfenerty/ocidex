@@ -26,8 +26,6 @@ type RegistryResponse struct {
 	CreatedAt           string   `json:"created_at"`
 	UpdatedAt           string   `json:"updated_at"`
 	Visibility          string   `json:"visibility" doc:"Registry visibility: public or private"`
-	OwnerID             *string  `json:"owner_id,omitempty" doc:"UUID of the registry owner"`
-	OwnerUsername       *string  `json:"owner_username,omitempty" doc:"GitHub username of the registry owner"`
 	IncludeUntagged     bool     `json:"include_untagged" doc:"Scan untagged manifests via registry-specific APIs (supported: zot, harbor, ghcr)"`
 	VerificationMode    string   `json:"verification_mode" enum:"none,public_key,keyless" doc:"Signature verification mode"`
 	TrustPublicKey      *string  `json:"trust_public_key,omitempty" doc:"PEM-encoded EC public key for public_key verification mode"`

@@ -20,7 +20,8 @@ import (
 // ---------------------------------------------------------------------------
 
 var (
-	// ownerUUID is the pgtype.UUID used as the registry owner in tests.
+	// ownerUUID is the pgtype.UUID of the test user granted the owner role on
+	// the test namespaces.
 	ownerUUID = pgtype.UUID{
 		Bytes: [16]byte{1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16},
 		Valid: true,
@@ -50,7 +51,6 @@ var (
 		URL:         "registry.example.com",
 		ScanMode:    "webhook",
 		NamespaceID: mwNamespaceID,
-		OwnerID:     &ownerIDStr,
 	}
 )
 

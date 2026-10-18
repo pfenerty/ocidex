@@ -1038,7 +1038,7 @@ func (q *Queries) ListClusterWorkloads(ctx context.Context, arg ListClusterWorkl
 }
 
 const listClusters = `-- name: ListClusters :many
-SELECT c.id, c.namespace_id, c.name, c.description, c.last_seen_at, c.created_at, c.updated_at, c.auto_ingest, n.name AS namespace_name, namespace_owner(n.id) AS owner_id, n.visibility
+SELECT c.id, c.namespace_id, c.name, c.description, c.last_seen_at, c.created_at, c.updated_at, c.auto_ingest, n.name AS namespace_name, n.visibility
 FROM cluster c
 JOIN namespace n ON n.id = c.namespace_id
 WHERE (
@@ -1057,10 +1057,9 @@ type ListClustersParams struct {
 }
 
 type ListClustersRow struct {
-	Cluster       Cluster     `json:"cluster"`
-	NamespaceName string      `json:"namespace_name"`
-	OwnerID       pgtype.UUID `json:"owner_id"`
-	Visibility    string      `json:"visibility"`
+	Cluster       Cluster `json:"cluster"`
+	NamespaceName string  `json:"namespace_name"`
+	Visibility    string  `json:"visibility"`
 }
 
 // Visibility resolved through the owning namespace; owned_only switches to the
@@ -1085,7 +1084,6 @@ func (q *Queries) ListClusters(ctx context.Context, arg ListClustersParams) ([]L
 			&i.Cluster.UpdatedAt,
 			&i.Cluster.AutoIngest,
 			&i.NamespaceName,
-			&i.OwnerID,
 			&i.Visibility,
 		); err != nil {
 			return nil, err

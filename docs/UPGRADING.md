@@ -114,6 +114,15 @@ Newest first. Each entry names the issue that made the change, so its full conte
 
 ### Next release (unreleased)
 
+**Behavior changes to check after upgrading:**
+
+- **Registry responses no longer carry `owner_id` or `owner_username` (ocidex-bt62.2).** A
+  registry has no owner of its own; it belongs to a namespace (ADR-039, ADR-046). The two
+  fields only repeated the namespace's owner member, and only the list endpoint filled in
+  `owner_username`. Read the owner from the registry's namespace
+  (`GET /api/v1/namespaces/{id}`, `owner_id` / `owner_username`). `/api/v1/users/me/registries`
+  still lists registries in namespaces you own.
+
 **After upgrading:**
 
 - **Run `ocidex migrate backfill` once if your database predates 0.1.0's data (ocidex-bt62.1).**
