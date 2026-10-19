@@ -1,0 +1,13 @@
+Third-party licenses for the OCIDex binaries in this image.
+
+LICENSE         OCIDex's own license (MIT).
+go/             The Go standard library and runtime, linked into every binary. This
+                also covers the golang.org/x packages the standard library vendors.
+Apache-2.0.txt  The full Apache License 2.0. Some modules below ship only the short
+                Apache notice in their LICENSE file; this is the license it refers to.
+<module path>/  One directory per linked third-party module, holding its license
+                files. Modules under the Mozilla Public License 2.0 also carry their
+                source, as the MPL requires.
+
+The source of every Go module is available from the Go module proxy at
+https://proxy.golang.org/<module>/@v/<version>.zip.

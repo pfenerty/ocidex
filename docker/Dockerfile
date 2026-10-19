@@ -49,11 +49,22 @@ RUN --mount=type=cache,target=/go/pkg/mod \
       ./cmd/operator \
       ./cmd/ocidex-cli
 # Third-party license texts for the binaries above, shipped at /licenses in every image
-# (ocidex-9rqq). One bundle covers all ten binaries: each image gets the superset, which costs
-# ~3.5MB and keeps this a single go list. Same GOOS/GOARCH as the build so go list sees the
-# dependency graph that is actually linked.
+# (ocidex-9rqq). go-licenses (pinned in tools/go.mod, the same classifier `make license-check`
+# uses) copies each linked module's license, plus the source of MPL-2.0 modules. It runs with
+# the build's GOOS/GOARCH so it sees the dependency graph that is actually linked. One bundle
+# covers all ten binaries; each image gets the superset.
+#
+# pkg/client is our own SDK module (covered by LICENSE). The modules in
+# docker/go-licenses-unclassified.txt carry licenses go-licenses can't classify: they are
+# ignored there and their license files copied by hand. docker/licenses/ adds what go-licenses
+# never covers: our LICENSE, the Go standard library's, and the full Apache-2.0 text.
 RUN --mount=type=cache,target=/go/pkg/mod \
-    CGO_ENABLED=0 GOOS=linux GOARCH=${TARGETARCH} scripts/third-party-licenses.sh /app/licenses \
+    --mount=type=cache,target=/root/.cache/go-build \
+    GOWORK=off go build -modfile=tools/go.mod -o /usr/local/bin/go-licenses github.com/google/go-licenses/v2 && \
+    unclassified=$(grep -v -e '^#' -e '^$' docker/go-licenses-unclassified.txt) && \
+    CGO_ENABLED=0 GOOS=linux GOARCH=${TARGETARCH} go-licenses save --save_path=/app/licenses \
+      --ignore github.com/pfenerty/ocidex/pkg/client \
+      $(printf -- '--ignore %s ' $unclassified) \
       ./cmd/ocidex \
       ./cmd/scanner-worker \
       ./cmd/oci-metadata-worker \
@@ -63,7 +74,14 @@ RUN --mount=type=cache,target=/go/pkg/mod \
       ./cmd/vuln-worker \
       ./cmd/k8s-agent \
       ./cmd/operator \
-      ./cmd/ocidex-cli
+      ./cmd/ocidex-cli && \
+    for mod in $unclassified; do \
+      dir=$(go list -m -f '{{.Dir}}' "$mod") && \
+      mkdir -p "/app/licenses/$mod" && \
+      cp "$dir"/LICENSE* "/app/licenses/$mod/" || exit 1; \
+    done && \
+    cp -R docker/licenses/. /app/licenses/ && \
+    cp LICENSE /app/licenses/LICENSE
 # Deliberately absent: ./cmd/mock-idp, ./cmd/specgen, ./cmd/authmatrix. The
 # first is a mock OIDC issuer that hands a session to whoever asks; the others
 # are build-time generators. None belongs in a shipped image, and

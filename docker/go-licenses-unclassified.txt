@@ -1,0 +1,11 @@
+# Modules go-licenses cannot classify, so `go-licenses save` would fail on them. Each is
+# --ignore'd there and its root license files are copied in by hand instead (docker/Dockerfile).
+# Remove an entry once it drops out of the dependency graph: the build fails until you do.
+#
+# Short Apache-2.0 notice instead of the full text (full text: docker/licenses/Apache-2.0.txt)
+github.com/cyberphone/json-canonicalization
+github.com/deitch/magic
+github.com/in-toto/attestation
+github.com/in-toto/in-toto-golang
+# Public domain (XZ Embedded port)
+github.com/xi2/xz
