@@ -248,7 +248,7 @@ nats:
   # helm-values manager can see and bump it.
   image:
     repository: docker.io/nats
-    tag: "2-alpine"
+    tag: "2-alpine@sha256:2ae57dfba3063d5e25fecb75256118c0882a1a2d2cf7d0fba17a7c701df956f6"
   storage:
     emptyDir: false
     size: 1Gi
