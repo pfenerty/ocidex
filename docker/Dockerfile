@@ -48,6 +48,22 @@ RUN --mount=type=cache,target=/go/pkg/mod \
       ./cmd/k8s-agent \
       ./cmd/operator \
       ./cmd/ocidex-cli
+# Third-party license texts for the binaries above, shipped at /licenses in every image
+# (ocidex-9rqq). One bundle covers all ten binaries: each image gets the superset, which costs
+# ~3.5MB and keeps this a single go list. Same GOOS/GOARCH as the build so go list sees the
+# dependency graph that is actually linked.
+RUN --mount=type=cache,target=/go/pkg/mod \
+    CGO_ENABLED=0 GOOS=linux GOARCH=${TARGETARCH} scripts/third-party-licenses.sh /app/licenses \
+      ./cmd/ocidex \
+      ./cmd/scanner-worker \
+      ./cmd/oci-metadata-worker \
+      ./cmd/git-worker \
+      ./cmd/user-enricher-worker \
+      ./cmd/provenance-worker \
+      ./cmd/vuln-worker \
+      ./cmd/k8s-agent \
+      ./cmd/operator \
+      ./cmd/ocidex-cli
 # Deliberately absent: ./cmd/mock-idp, ./cmd/specgen, ./cmd/authmatrix. The
 # first is a mock OIDC issuer that hands a session to whoever asks; the others
 # are build-time generators. None belongs in a shipped image, and
@@ -57,31 +73,38 @@ RUN --mount=type=cache,target=/go/pkg/mod \
 
 FROM gcr.io/distroless/static-debian13:nonroot@sha256:1c2c046bc09ed40fad370b599a0b1ae7987f55b01e247cf27a7c27cd97e5bbc7 AS api
 COPY --from=build-all /app/bin/ocidex /ocidex
+COPY --from=build-all /app/licenses /licenses
 EXPOSE 8080
 ENTRYPOINT ["/ocidex"]
 
 FROM gcr.io/distroless/static-debian13:nonroot@sha256:1c2c046bc09ed40fad370b599a0b1ae7987f55b01e247cf27a7c27cd97e5bbc7 AS scanner-worker
 COPY --from=build-all /app/bin/scanner-worker /scanner-worker
+COPY --from=build-all /app/licenses /licenses
 ENTRYPOINT ["/scanner-worker"]
 
 FROM gcr.io/distroless/static-debian13:nonroot@sha256:1c2c046bc09ed40fad370b599a0b1ae7987f55b01e247cf27a7c27cd97e5bbc7 AS oci-metadata-worker
 COPY --from=build-all /app/bin/oci-metadata-worker /oci-metadata-worker
+COPY --from=build-all /app/licenses /licenses
 ENTRYPOINT ["/oci-metadata-worker"]
 
 FROM gcr.io/distroless/static-debian13:nonroot@sha256:1c2c046bc09ed40fad370b599a0b1ae7987f55b01e247cf27a7c27cd97e5bbc7 AS git-worker
 COPY --from=build-all /app/bin/git-worker /git-worker
+COPY --from=build-all /app/licenses /licenses
 ENTRYPOINT ["/git-worker"]
 
 FROM gcr.io/distroless/static-debian13:nonroot@sha256:1c2c046bc09ed40fad370b599a0b1ae7987f55b01e247cf27a7c27cd97e5bbc7 AS user-enricher-worker
 COPY --from=build-all /app/bin/user-enricher-worker /user-enricher-worker
+COPY --from=build-all /app/licenses /licenses
 ENTRYPOINT ["/user-enricher-worker"]
 
 FROM gcr.io/distroless/static-debian13:nonroot@sha256:1c2c046bc09ed40fad370b599a0b1ae7987f55b01e247cf27a7c27cd97e5bbc7 AS provenance-worker
 COPY --from=build-all /app/bin/provenance-worker /provenance-worker
+COPY --from=build-all /app/licenses /licenses
 ENTRYPOINT ["/provenance-worker"]
 
 FROM gcr.io/distroless/static-debian13:nonroot@sha256:1c2c046bc09ed40fad370b599a0b1ae7987f55b01e247cf27a7c27cd97e5bbc7 AS vuln-worker
 COPY --from=build-all /app/bin/vuln-worker /vuln-worker
+COPY --from=build-all /app/licenses /licenses
 ENTRYPOINT ["/vuln-worker"]
 
 # The inventory agent runs in the cluster it reports on, which is not necessarily a cluster
@@ -89,10 +112,12 @@ ENTRYPOINT ["/vuln-worker"]
 # (charts/ocidex-k8s-agent) rather than as another Deployment in charts/ocidex.
 FROM gcr.io/distroless/static-debian13:nonroot@sha256:1c2c046bc09ed40fad370b599a0b1ae7987f55b01e247cf27a7c27cd97e5bbc7 AS k8s-agent
 COPY --from=build-all /app/bin/k8s-agent /k8s-agent
+COPY --from=build-all /app/licenses /licenses
 ENTRYPOINT ["/k8s-agent"]
 
 FROM gcr.io/distroless/static-debian13:nonroot@sha256:1c2c046bc09ed40fad370b599a0b1ae7987f55b01e247cf27a7c27cd97e5bbc7 AS operator
 COPY --from=build-all /app/bin/operator /operator
+COPY --from=build-all /app/licenses /licenses
 ENTRYPOINT ["/operator"]
 
 # The CLI ships as an image so a Tekton task or a K8s Job can run it without a Go toolchain
@@ -100,4 +125,5 @@ ENTRYPOINT ["/operator"]
 # HOME=/home/nonroot, which is all `ocidex-cli` needs to resolve its config path.
 FROM gcr.io/distroless/static-debian13:nonroot@sha256:1c2c046bc09ed40fad370b599a0b1ae7987f55b01e247cf27a7c27cd97e5bbc7 AS cli
 COPY --from=build-all /app/bin/ocidex-cli /ocidex-cli
+COPY --from=build-all /app/licenses /licenses
 ENTRYPOINT ["/ocidex-cli"]

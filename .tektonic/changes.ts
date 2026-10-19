@@ -31,6 +31,7 @@ function bucket(name: string, paths: string[]) {
 // per-`cmd/` granularity is unsafe — any Go/Docker/db change gates the whole Go set
 // on, go-build included.
 // tools/ pins the linter and generators; .golangci.yml configures go-lint.
+// scripts/third-party-licenses.sh runs in the Go image build (docker/Dockerfile).
 export const goChanged = bucket("detect-go", [
   "**/*.go",
   "go.mod",
@@ -39,6 +40,7 @@ export const goChanged = bucket("detect-go", [
   ".golangci.yml",
   "docker/**",
   "db/**",
+  "scripts/third-party-licenses.sh",
 ]);
 
 // Frontend bucket: everything under web/ (SolidJS/TS source + package-lock.json). Gates

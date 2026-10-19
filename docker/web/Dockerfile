@@ -21,6 +21,8 @@ RUN --mount=type=cache,target=/root/.npm npm ci
 
 COPY web/ .
 RUN npm run build
+# Third-party license texts for the bundled npm packages (ocidex-9rqq).
+RUN node scripts/third-party-licenses.mjs /app/licenses
 
 # Serve stage (labels injected via buildctl CLI flags, not Dockerfile)
 #
@@ -31,5 +33,7 @@ FROM cgr.dev/chainguard/nginx@sha256:d74ba9e5cf9f6b049807e27a5a14a8cd2550ac42814
 
 COPY web/nginx.conf /etc/nginx/nginx.conf
 COPY --from=build /app/dist /srv
+COPY --from=build /app/licenses /licenses
+COPY LICENSE /licenses/LICENSE
 
 EXPOSE 8080

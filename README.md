@@ -286,3 +286,6 @@ This project was built with significant AI assistance (Claude). Architecture dec
 ## License
 
 [MIT](LICENSE)
+
+Every container image also carries the license texts of the third-party code it ships, at
+`/licenses` (see its `README` for where to get each Go module's source).
