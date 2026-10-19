@@ -48,6 +48,54 @@ RUN --mount=type=cache,target=/go/pkg/mod \
       ./cmd/k8s-agent \
       ./cmd/operator \
       ./cmd/ocidex-cli
+# Third-party notices for the binaries above, shipped as /licenses/THIRD_PARTY_NOTICES in
+# every image (ocidex-9rqq): ~3MB, ~100KB compressed. `go-licenses report` (pinned in
+# tools/go.mod, the classifier `make license-check` uses) renders every linked package's
+# license text through docker/licenses/notices.tpl, with the build's GOOS/GOARCH so it sees
+# the graph that is actually linked. It also looks up license URLs over the network; a failed
+# lookup only warns, and the template doesn't use them.
+#
+# pkg/client is our own SDK module (covered by LICENSE). The modules in
+# docker/go-licenses-unclassified.txt carry licenses go-licenses can't classify: they are
+# ignored there and their license files appended by hand (go list -m fails on an entry that
+# is no longer a dependency). Any other package with no license file go-licenses can find
+# fails the template, so a new dependency can't ship without its notice. The Go standard library's notices and the full Apache-2.0 text
+# (which those short-notice modules refer to) come from docker/licenses/.
+RUN --mount=type=cache,target=/go/pkg/mod \
+    --mount=type=cache,target=/root/.cache/go-build <<'NOTICES'
+set -eu
+GOWORK=off go build -modfile=tools/go.mod -o /usr/local/bin/go-licenses github.com/google/go-licenses/v2
+export CGO_ENABLED=0 GOOS=linux GOARCH=${TARGETARCH}
+unclassified=$(grep -v -e '^#' -e '^$' docker/go-licenses-unclassified.txt)
+ignore="--ignore github.com/pfenerty/ocidex/pkg/client"
+for mod in $unclassified; do ignore="$ignore --ignore $mod"; done
+section() { printf '\n%s\n%s\n\n' "================================================================================" "$1"; }
+
+mkdir -p /app/licenses
+cp LICENSE /app/licenses/LICENSE
+{
+  cat docker/licenses/preamble
+  section "Go standard library and runtime (BSD-3-Clause)"
+  cat docker/licenses/go/LICENSE docker/licenses/go/PATENTS
+  go-licenses report --template docker/licenses/notices.tpl $ignore \
+    ./cmd/ocidex \
+    ./cmd/scanner-worker \
+    ./cmd/oci-metadata-worker \
+    ./cmd/git-worker \
+    ./cmd/user-enricher-worker \
+    ./cmd/provenance-worker \
+    ./cmd/vuln-worker \
+    ./cmd/k8s-agent \
+    ./cmd/operator \
+    ./cmd/ocidex-cli
+  for mod in $unclassified; do
+    section "$(go list -m -f '{{.Path}} {{.Version}}' "$mod")"
+    cat "$(go list -m -f '{{.Dir}}' "$mod")"/LICENSE*
+  done
+  section "Apache License 2.0 (full text)"
+  cat docker/licenses/Apache-2.0.txt
+} > /app/licenses/THIRD_PARTY_NOTICES
+NOTICES
 # Deliberately absent: ./cmd/mock-idp, ./cmd/specgen, ./cmd/authmatrix. The
 # first is a mock OIDC issuer that hands a session to whoever asks; the others
 # are build-time generators. None belongs in a shipped image, and
@@ -57,31 +105,38 @@ RUN --mount=type=cache,target=/go/pkg/mod \
 
 FROM gcr.io/distroless/static-debian13:nonroot@sha256:1c2c046bc09ed40fad370b599a0b1ae7987f55b01e247cf27a7c27cd97e5bbc7 AS api
 COPY --from=build-all /app/bin/ocidex /ocidex
+COPY --from=build-all /app/licenses /licenses
 EXPOSE 8080
 ENTRYPOINT ["/ocidex"]
 
 FROM gcr.io/distroless/static-debian13:nonroot@sha256:1c2c046bc09ed40fad370b599a0b1ae7987f55b01e247cf27a7c27cd97e5bbc7 AS scanner-worker
 COPY --from=build-all /app/bin/scanner-worker /scanner-worker
+COPY --from=build-all /app/licenses /licenses
 ENTRYPOINT ["/scanner-worker"]
 
 FROM gcr.io/distroless/static-debian13:nonroot@sha256:1c2c046bc09ed40fad370b599a0b1ae7987f55b01e247cf27a7c27cd97e5bbc7 AS oci-metadata-worker
 COPY --from=build-all /app/bin/oci-metadata-worker /oci-metadata-worker
+COPY --from=build-all /app/licenses /licenses
 ENTRYPOINT ["/oci-metadata-worker"]
 
 FROM gcr.io/distroless/static-debian13:nonroot@sha256:1c2c046bc09ed40fad370b599a0b1ae7987f55b01e247cf27a7c27cd97e5bbc7 AS git-worker
 COPY --from=build-all /app/bin/git-worker /git-worker
+COPY --from=build-all /app/licenses /licenses
 ENTRYPOINT ["/git-worker"]
 
 FROM gcr.io/distroless/static-debian13:nonroot@sha256:1c2c046bc09ed40fad370b599a0b1ae7987f55b01e247cf27a7c27cd97e5bbc7 AS user-enricher-worker
 COPY --from=build-all /app/bin/user-enricher-worker /user-enricher-worker
+COPY --from=build-all /app/licenses /licenses
 ENTRYPOINT ["/user-enricher-worker"]
 
 FROM gcr.io/distroless/static-debian13:nonroot@sha256:1c2c046bc09ed40fad370b599a0b1ae7987f55b01e247cf27a7c27cd97e5bbc7 AS provenance-worker
 COPY --from=build-all /app/bin/provenance-worker /provenance-worker
+COPY --from=build-all /app/licenses /licenses
 ENTRYPOINT ["/provenance-worker"]
 
 FROM gcr.io/distroless/static-debian13:nonroot@sha256:1c2c046bc09ed40fad370b599a0b1ae7987f55b01e247cf27a7c27cd97e5bbc7 AS vuln-worker
 COPY --from=build-all /app/bin/vuln-worker /vuln-worker
+COPY --from=build-all /app/licenses /licenses
 ENTRYPOINT ["/vuln-worker"]
 
 # The inventory agent runs in the cluster it reports on, which is not necessarily a cluster
@@ -89,10 +144,12 @@ ENTRYPOINT ["/vuln-worker"]
 # (charts/ocidex-k8s-agent) rather than as another Deployment in charts/ocidex.
 FROM gcr.io/distroless/static-debian13:nonroot@sha256:1c2c046bc09ed40fad370b599a0b1ae7987f55b01e247cf27a7c27cd97e5bbc7 AS k8s-agent
 COPY --from=build-all /app/bin/k8s-agent /k8s-agent
+COPY --from=build-all /app/licenses /licenses
 ENTRYPOINT ["/k8s-agent"]
 
 FROM gcr.io/distroless/static-debian13:nonroot@sha256:1c2c046bc09ed40fad370b599a0b1ae7987f55b01e247cf27a7c27cd97e5bbc7 AS operator
 COPY --from=build-all /app/bin/operator /operator
+COPY --from=build-all /app/licenses /licenses
 ENTRYPOINT ["/operator"]
 
 # The CLI ships as an image so a Tekton task or a K8s Job can run it without a Go toolchain
@@ -100,4 +157,5 @@ ENTRYPOINT ["/operator"]
 # HOME=/home/nonroot, which is all `ocidex-cli` needs to resolve its config path.
 FROM gcr.io/distroless/static-debian13:nonroot@sha256:1c2c046bc09ed40fad370b599a0b1ae7987f55b01e247cf27a7c27cd97e5bbc7 AS cli
 COPY --from=build-all /app/bin/ocidex-cli /ocidex-cli
+COPY --from=build-all /app/licenses /licenses
 ENTRYPOINT ["/ocidex-cli"]

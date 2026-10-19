@@ -2,9 +2,22 @@ import { defineConfig } from "vite";
 import solidPlugin from "vite-plugin-solid";
 import tailwindcss from "@tailwindcss/vite";
 import path from "path";
+import license from "rollup-plugin-license";
 
 export default defineConfig({
-  plugins: [tailwindcss(), solidPlugin()],
+  plugins: [
+    tailwindcss(),
+    solidPlugin(),
+    // License texts of every third-party package in the bundle, served at
+    // /third-party-licenses.txt and copied to /licenses in the web image (ocidex-9rqq).
+    // A bundled package with no license fails the build.
+    license({
+      thirdParty: {
+        output: path.resolve(import.meta.dirname, "dist/third-party-licenses.txt"),
+        allow: { test: () => true, failOnUnlicensed: true },
+      },
+    }),
+  ],
   resolve: {
     alias: {
       "~": path.resolve(import.meta.dirname, "./src"),

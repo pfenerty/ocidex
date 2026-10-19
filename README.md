@@ -286,3 +286,6 @@ This project was built with significant AI assistance (Claude). Architecture dec
 ## License
 
 [MIT](LICENSE)
+
+Every container image also carries the license texts of the third-party code it ships, at
+`/licenses/THIRD_PARTY_NOTICES`. The web UI serves its own at `/third-party-licenses.txt`.
