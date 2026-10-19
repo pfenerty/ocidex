@@ -55,10 +55,23 @@
       "groupName": "Go dependencies"
     },
     {
-      "description": "Go dev tools pinned in tools/go.mod (golangci-lint, sqlc, oapi-codegen, controller-gen, go-licenses, govulncheck) get their own PR: a linter or generator bump can turn main red or change generated code, so it shouldn't ride along with app dependency updates.",
+      "description": "Go dev tools pinned in tools/go.mod (golangci-lint, sqlc, oapi-codegen, controller-gen, go-licenses, govulncheck) get their own PR: a linter or generator bump can turn main red or change generated code, so it shouldn't ride along with app dependency updates. postUpgradeTasks regenerates every codegen-check output, so a generator bump carries its own output instead of failing codegen-check (oapi-codegen v2.8.0 renamed enum constants; controller-gen stamps its version into the CRDs). Needs RENOVATE_ALLOWED_COMMANDS to allow these commands and `make` in the Renovate image.",
       "matchManagers": ["gomod"],
       "matchFileNames": ["tools/go.mod"],
-      "groupName": "Go dev tools"
+      "groupName": "Go dev tools",
+      "postUpgradeTasks": {
+        "installTools": { "golang": {} },
+        "commands": ["make generate generate-client generate-operator auth-matrix"],
+        "fileFilters": [
+          "internal/repository/**",
+          "pkg/client/types.go",
+          "api/v1alpha1/zz_generated.deepcopy.go",
+          "config/operator/**",
+          "charts/ocidex-operator/crds/**",
+          "docs/AUTH_MATRIX.md"
+        ],
+        "executionMode": "branch"
+      }
     },
     {
       "description": "Group all .tektonic/ npm updates (@tektonic-ci/*, tsx, typescript, @types/node) into one branch, so the re-synth below runs once instead of on two competing branches. Majors land on their own major- branch and are not automerged.",
