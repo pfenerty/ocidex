@@ -1,6 +1,6 @@
 # Always build on the runner's native platform; cross-compile via GOARCH.
 # This avoids QEMU emulation for arm64, which is the main CI slowdown.
-FROM --platform=$BUILDPLATFORM ghcr.io/pfenerty/apko-cicd/golang:1.27 AS builder-base
+FROM --platform=$BUILDPLATFORM ghcr.io/pfenerty/apko-cicd/golang:1.27@sha256:954807ca8051a8c3f4236691e1e8652e35322980a75fd71430515f9d51000044 AS builder-base
 
 # The apko builder image runs as uid 1001 (base/apko.yaml `run-as: nonroot`) with no
 # GOPATH/GOCACHE/GOMODCACHE in its env, so Go resolved them under $HOME=/home/nonroot and the
@@ -103,38 +103,38 @@ NOTICES
 
 # ---- Final stages (labels injected via buildctl CLI flags, not Dockerfile) ---
 
-FROM gcr.io/distroless/static-debian13:nonroot@sha256:1c2c046bc09ed40fad370b599a0b1ae7987f55b01e247cf27a7c27cd97e5bbc7 AS api
+FROM gcr.io/distroless/static-debian13:nonroot@sha256:e2e927ec666bae08560abb3c55d0659eceabb657f56b6782ab500a9fc7f555e3 AS api
 COPY --from=build-all /app/bin/ocidex /ocidex
 COPY --from=build-all /app/licenses /licenses
 EXPOSE 8080
 ENTRYPOINT ["/ocidex"]
 
-FROM gcr.io/distroless/static-debian13:nonroot@sha256:1c2c046bc09ed40fad370b599a0b1ae7987f55b01e247cf27a7c27cd97e5bbc7 AS scanner-worker
+FROM gcr.io/distroless/static-debian13:nonroot@sha256:e2e927ec666bae08560abb3c55d0659eceabb657f56b6782ab500a9fc7f555e3 AS scanner-worker
 COPY --from=build-all /app/bin/scanner-worker /scanner-worker
 COPY --from=build-all /app/licenses /licenses
 ENTRYPOINT ["/scanner-worker"]
 
-FROM gcr.io/distroless/static-debian13:nonroot@sha256:1c2c046bc09ed40fad370b599a0b1ae7987f55b01e247cf27a7c27cd97e5bbc7 AS oci-metadata-worker
+FROM gcr.io/distroless/static-debian13:nonroot@sha256:e2e927ec666bae08560abb3c55d0659eceabb657f56b6782ab500a9fc7f555e3 AS oci-metadata-worker
 COPY --from=build-all /app/bin/oci-metadata-worker /oci-metadata-worker
 COPY --from=build-all /app/licenses /licenses
 ENTRYPOINT ["/oci-metadata-worker"]
 
-FROM gcr.io/distroless/static-debian13:nonroot@sha256:1c2c046bc09ed40fad370b599a0b1ae7987f55b01e247cf27a7c27cd97e5bbc7 AS git-worker
+FROM gcr.io/distroless/static-debian13:nonroot@sha256:e2e927ec666bae08560abb3c55d0659eceabb657f56b6782ab500a9fc7f555e3 AS git-worker
 COPY --from=build-all /app/bin/git-worker /git-worker
 COPY --from=build-all /app/licenses /licenses
 ENTRYPOINT ["/git-worker"]
 
-FROM gcr.io/distroless/static-debian13:nonroot@sha256:1c2c046bc09ed40fad370b599a0b1ae7987f55b01e247cf27a7c27cd97e5bbc7 AS user-enricher-worker
+FROM gcr.io/distroless/static-debian13:nonroot@sha256:e2e927ec666bae08560abb3c55d0659eceabb657f56b6782ab500a9fc7f555e3 AS user-enricher-worker
 COPY --from=build-all /app/bin/user-enricher-worker /user-enricher-worker
 COPY --from=build-all /app/licenses /licenses
 ENTRYPOINT ["/user-enricher-worker"]
 
-FROM gcr.io/distroless/static-debian13:nonroot@sha256:1c2c046bc09ed40fad370b599a0b1ae7987f55b01e247cf27a7c27cd97e5bbc7 AS provenance-worker
+FROM gcr.io/distroless/static-debian13:nonroot@sha256:e2e927ec666bae08560abb3c55d0659eceabb657f56b6782ab500a9fc7f555e3 AS provenance-worker
 COPY --from=build-all /app/bin/provenance-worker /provenance-worker
 COPY --from=build-all /app/licenses /licenses
 ENTRYPOINT ["/provenance-worker"]
 
-FROM gcr.io/distroless/static-debian13:nonroot@sha256:1c2c046bc09ed40fad370b599a0b1ae7987f55b01e247cf27a7c27cd97e5bbc7 AS vuln-worker
+FROM gcr.io/distroless/static-debian13:nonroot@sha256:e2e927ec666bae08560abb3c55d0659eceabb657f56b6782ab500a9fc7f555e3 AS vuln-worker
 COPY --from=build-all /app/bin/vuln-worker /vuln-worker
 COPY --from=build-all /app/licenses /licenses
 ENTRYPOINT ["/vuln-worker"]
@@ -142,12 +142,12 @@ ENTRYPOINT ["/vuln-worker"]
 # The inventory agent runs in the cluster it reports on, which is not necessarily a cluster
 # OCIDex is deployed in (ADR-044 K1) — so it ships as its own image and its own chart
 # (charts/ocidex-k8s-agent) rather than as another Deployment in charts/ocidex.
-FROM gcr.io/distroless/static-debian13:nonroot@sha256:1c2c046bc09ed40fad370b599a0b1ae7987f55b01e247cf27a7c27cd97e5bbc7 AS k8s-agent
+FROM gcr.io/distroless/static-debian13:nonroot@sha256:e2e927ec666bae08560abb3c55d0659eceabb657f56b6782ab500a9fc7f555e3 AS k8s-agent
 COPY --from=build-all /app/bin/k8s-agent /k8s-agent
 COPY --from=build-all /app/licenses /licenses
 ENTRYPOINT ["/k8s-agent"]
 
-FROM gcr.io/distroless/static-debian13:nonroot@sha256:1c2c046bc09ed40fad370b599a0b1ae7987f55b01e247cf27a7c27cd97e5bbc7 AS operator
+FROM gcr.io/distroless/static-debian13:nonroot@sha256:e2e927ec666bae08560abb3c55d0659eceabb657f56b6782ab500a9fc7f555e3 AS operator
 COPY --from=build-all /app/bin/operator /operator
 COPY --from=build-all /app/licenses /licenses
 ENTRYPOINT ["/operator"]
@@ -155,7 +155,7 @@ ENTRYPOINT ["/operator"]
 # The CLI ships as an image so a Tekton task or a K8s Job can run it without a Go toolchain
 # (ADR-029, Distribution). distroless static carries ca-certificates for HTTPS and sets
 # HOME=/home/nonroot, which is all `ocidex-cli` needs to resolve its config path.
-FROM gcr.io/distroless/static-debian13:nonroot@sha256:1c2c046bc09ed40fad370b599a0b1ae7987f55b01e247cf27a7c27cd97e5bbc7 AS cli
+FROM gcr.io/distroless/static-debian13:nonroot@sha256:e2e927ec666bae08560abb3c55d0659eceabb657f56b6782ab500a9fc7f555e3 AS cli
 COPY --from=build-all /app/bin/ocidex-cli /ocidex-cli
 COPY --from=build-all /app/licenses /licenses
 ENTRYPOINT ["/ocidex-cli"]
