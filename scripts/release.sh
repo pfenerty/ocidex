@@ -100,19 +100,28 @@ SECTION="$section" awk '
 ' CHANGELOG.md > CHANGELOG.md.new
 mv CHANGELOG.md.new CHANGELOG.md
 
+# Main-build charts are versioned from the patch after this (.tektonic/jobs/helm-publish/
+# publish.sh), so it must track the latest release or main builds sort below it.
+CHARTS=(charts/ocidex/Chart.yaml charts/ocidex-operator/Chart.yaml charts/ocidex-k8s-agent/Chart.yaml)
+echo "release: setting chart version to ${VERSION#v}"
+for chart in "${CHARTS[@]}"; do
+  sed "s/^version: .*/version: ${VERSION#v}/" "$chart" > "$chart.new"
+  mv "$chart.new" "$chart"
+done
+
 if [[ "$DRY_RUN" == "1" ]]; then
   echo "release: DRY_RUN=1, showing planned changes:"
-  git --no-pager diff CHANGELOG.md
-  git checkout -- CHANGELOG.md
+  git --no-pager diff CHANGELOG.md "${CHARTS[@]}"
+  git checkout -- CHANGELOG.md "${CHARTS[@]}"
   echo "release: would run:"
-  echo "  git add CHANGELOG.md"
+  echo "  git add CHANGELOG.md charts/*/Chart.yaml"
   echo "  git commit -m 'chore(release): $VERSION'"
   echo "  git tag -a '$VERSION' -m 'Release $VERSION'"
   echo "  git push origin main '$VERSION'"
   exit 0
 fi
 
-git add CHANGELOG.md
+git add CHANGELOG.md "${CHARTS[@]}"
 git commit -m "chore(release): $VERSION"
 git tag -a "$VERSION" -m "Release $VERSION"
 
