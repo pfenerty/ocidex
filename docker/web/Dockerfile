@@ -33,7 +33,7 @@ COPY web/nginx.conf /etc/nginx/nginx.conf
 COPY --from=build /app/dist /srv
 # Third-party license texts for the bundled npm packages, written by rollup-plugin-license
 # (web/vite.config.ts) and also served at /third-party-licenses.txt (ocidex-9rqq).
-COPY --from=build /app/dist/third-party-licenses.txt /licenses/third-party-licenses.txt
+COPY --from=build /app/dist/third-party-licenses.txt /licenses/THIRD_PARTY_NOTICES
 COPY LICENSE /licenses/LICENSE
 
 EXPOSE 8080

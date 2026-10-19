@@ -47,14 +47,14 @@ describe("image license texts", () => {
   it("docker/Dockerfile collects licenses for exactly the binaries it builds", () => {
     const all = instructions(goDockerfile);
     const build = all.find((i) => i.includes("go build -ldflags"));
-    const licenses = all.find((i) => i.includes("go-licenses save"));
-    assert.ok(build && licenses, "go build or go-licenses save step not found");
+    const licenses = all.find((i) => i.includes("go-licenses report"));
+    assert.ok(build && licenses, "go build or go-licenses report step not found");
     assert.deepEqual(cmdPackages(licenses), cmdPackages(build));
   });
 
   it("docker/web/Dockerfile ships /licenses", () => {
     const final = [...shippedStages(read("docker/web/Dockerfile")).values()].at(-1) ?? [];
-    assert.ok(final.includes("COPY --from=build /app/dist/third-party-licenses.txt /licenses/third-party-licenses.txt"));
+    assert.ok(final.includes("COPY --from=build /app/dist/third-party-licenses.txt /licenses/THIRD_PARTY_NOTICES"));
     assert.ok(final.includes("COPY LICENSE /licenses/LICENSE"));
     assert.match(read("web/vite.config.ts"), /dist\/third-party-licenses\.txt/);
   });

@@ -48,40 +48,54 @@ RUN --mount=type=cache,target=/go/pkg/mod \
       ./cmd/k8s-agent \
       ./cmd/operator \
       ./cmd/ocidex-cli
-# Third-party license texts for the binaries above, shipped at /licenses in every image
-# (ocidex-9rqq). go-licenses (pinned in tools/go.mod, the same classifier `make license-check`
-# uses) copies each linked module's license, plus the source of MPL-2.0 modules. It runs with
-# the build's GOOS/GOARCH so it sees the dependency graph that is actually linked. One bundle
-# covers all ten binaries; each image gets the superset.
+# Third-party notices for the binaries above, shipped as /licenses/THIRD_PARTY_NOTICES in
+# every image (ocidex-9rqq): ~3MB, ~100KB compressed. `go-licenses report` (pinned in
+# tools/go.mod, the classifier `make license-check` uses) renders every linked package's
+# license text through docker/licenses/notices.tpl, with the build's GOOS/GOARCH so it sees
+# the graph that is actually linked. It also looks up license URLs over the network; a failed
+# lookup only warns, and the template doesn't use them.
 #
 # pkg/client is our own SDK module (covered by LICENSE). The modules in
 # docker/go-licenses-unclassified.txt carry licenses go-licenses can't classify: they are
-# ignored there and their license files copied by hand. docker/licenses/ adds what go-licenses
-# never covers: our LICENSE, the Go standard library's, and the full Apache-2.0 text.
+# ignored there and their license files appended by hand (go list -m fails on an entry that
+# is no longer a dependency). Any other package with no license file go-licenses can find
+# fails the template, so a new dependency can't ship without its notice. The Go standard library's notices and the full Apache-2.0 text
+# (which those short-notice modules refer to) come from docker/licenses/.
 RUN --mount=type=cache,target=/go/pkg/mod \
-    --mount=type=cache,target=/root/.cache/go-build \
-    GOWORK=off go build -modfile=tools/go.mod -o /usr/local/bin/go-licenses github.com/google/go-licenses/v2 && \
-    unclassified=$(grep -v -e '^#' -e '^$' docker/go-licenses-unclassified.txt) && \
-    CGO_ENABLED=0 GOOS=linux GOARCH=${TARGETARCH} go-licenses save --save_path=/app/licenses \
-      --ignore github.com/pfenerty/ocidex/pkg/client \
-      $(printf -- '--ignore %s ' $unclassified) \
-      ./cmd/ocidex \
-      ./cmd/scanner-worker \
-      ./cmd/oci-metadata-worker \
-      ./cmd/git-worker \
-      ./cmd/user-enricher-worker \
-      ./cmd/provenance-worker \
-      ./cmd/vuln-worker \
-      ./cmd/k8s-agent \
-      ./cmd/operator \
-      ./cmd/ocidex-cli && \
-    for mod in $unclassified; do \
-      dir=$(go list -m -f '{{.Dir}}' "$mod") && \
-      mkdir -p "/app/licenses/$mod" && \
-      cp "$dir"/LICENSE* "/app/licenses/$mod/" || exit 1; \
-    done && \
-    cp -R docker/licenses/. /app/licenses/ && \
-    cp LICENSE /app/licenses/LICENSE
+    --mount=type=cache,target=/root/.cache/go-build <<'NOTICES'
+set -eu
+GOWORK=off go build -modfile=tools/go.mod -o /usr/local/bin/go-licenses github.com/google/go-licenses/v2
+export CGO_ENABLED=0 GOOS=linux GOARCH=${TARGETARCH}
+unclassified=$(grep -v -e '^#' -e '^$' docker/go-licenses-unclassified.txt)
+ignore="--ignore github.com/pfenerty/ocidex/pkg/client"
+for mod in $unclassified; do ignore="$ignore --ignore $mod"; done
+section() { printf '\n%s\n%s\n\n' "================================================================================" "$1"; }
+
+mkdir -p /app/licenses
+cp LICENSE /app/licenses/LICENSE
+{
+  cat docker/licenses/preamble
+  section "Go standard library and runtime (BSD-3-Clause)"
+  cat docker/licenses/go/LICENSE docker/licenses/go/PATENTS
+  go-licenses report --template docker/licenses/notices.tpl $ignore \
+    ./cmd/ocidex \
+    ./cmd/scanner-worker \
+    ./cmd/oci-metadata-worker \
+    ./cmd/git-worker \
+    ./cmd/user-enricher-worker \
+    ./cmd/provenance-worker \
+    ./cmd/vuln-worker \
+    ./cmd/k8s-agent \
+    ./cmd/operator \
+    ./cmd/ocidex-cli
+  for mod in $unclassified; do
+    section "$(go list -m -f '{{.Path}} {{.Version}}' "$mod")"
+    cat "$(go list -m -f '{{.Dir}}' "$mod")"/LICENSE*
+  done
+  section "Apache License 2.0 (full text)"
+  cat docker/licenses/Apache-2.0.txt
+} > /app/licenses/THIRD_PARTY_NOTICES
+NOTICES
 # Deliberately absent: ./cmd/mock-idp, ./cmd/specgen, ./cmd/authmatrix. The
 # first is a mock OIDC issuer that hands a session to whoever asks; the others
 # are build-time generators. None belongs in a shipped image, and

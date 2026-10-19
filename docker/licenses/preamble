@@ -1,0 +1,7 @@
+Third-party notices for the OCIDex binaries in this image.
+
+OCIDex itself is MIT licensed (/licenses/LICENSE). The binaries also contain the Go
+standard library and the third-party Go packages listed below, each with the license
+text and copyright notices from its source. Packages under the Mozilla Public License 2.0
+name where their source code form is available; the source of any listed module is also
+available with `go mod download <module>@<version>` or from https://proxy.golang.org.
