@@ -63,7 +63,7 @@ spec:
         let contexts = ["go-build" "eslint-lint-web" "gofmt-check" "go-lint" "go-test" "go-integration-test" "openapi-verify" "codegen-check" "openapi-breaking" "govulncheck-scan" "grype-vuln-web" "semgrep-sast" "gitleaks-secrets" "tekton-check" "helm-check"]
 
         let failed = $contexts | each { |context|
-          let body = { state: "pending", context: $context, description: "Running" }
+          let body = { state: "pending", context: $context, description: "Queued" }
           if (post-status $"status-pending [($context)]" $body) { null } else { $context }
         } | compact
 
