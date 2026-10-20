@@ -79,6 +79,7 @@ helm template ocidex-k8s-agent "$AGENT_CHART" \
     --set server.url=https://ocidex.example.com \
     --set cluster.id=00000000-0000-0000-0000-000000000000 \
     --set 'namespaces={default,kube-system}' \
+    --set monitoring.enabled=true \
     --set networkPolicy.enabled=true \
     --set-json 'networkPolicy.egress.server=[{"ipBlock":{"cidr":"203.0.113.10/32"}}]' \
     --set-json 'networkPolicy.egress.apiServer=[{"ipBlock":{"cidr":"192.0.2.1/32"}}]' \

@@ -1,25 +1,27 @@
 {{- if .Values.monitoring.enabled }}
-{{- $components := list "api" "scanner-worker" }}
-{{- range .Values.enricherWorkers }}{{ $components = append $components .name }}{{- end }}
-{{- range $components }}
+{{- /* component -> the named container port serving /metrics (ADR-0054 M2) */ -}}
+{{- $components := dict "api" "metrics" "scanner-worker" "health" }}
+{{- range .Values.enricherWorkers }}{{ $_ := set $components .name "health" }}{{- end }}
+{{- if .Values.vulnWorker.enabled }}{{ $_ := set $components "vuln-worker" "health" }}{{- end }}
+{{- range $component, $port := $components }}
 ---
 apiVersion: monitoring.coreos.com/v1
 kind: PodMonitor
 metadata:
-  name: {{ include "ocidex.fullname" $ }}-{{ . }}
+  name: {{ include "ocidex.fullname" $ }}-{{ $component }}
   namespace: {{ $.Release.Namespace }}
   labels:
     {{- include "ocidex.labels" $ | nindent 4 }}
-    app.kubernetes.io/component: {{ . }}
+    app.kubernetes.io/component: {{ $component }}
     {{- with $.Values.monitoring.additionalLabels }}
     {{- toYaml . | nindent 4 }}
     {{- end }}
 spec:
   selector:
     matchLabels:
-      {{- include "ocidex.selectorLabels" (dict "root" $ "component" .) | nindent 6 }}
+      {{- include "ocidex.selectorLabels" (dict "root" $ "component" $component) | nindent 6 }}
   podMetricsEndpoints:
-    - port: health
+    - port: {{ $port }}
       path: /metrics
 {{- end }}
 {{- end }}

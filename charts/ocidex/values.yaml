@@ -342,12 +342,18 @@ keda:
     activationLagThreshold: "1"
 
 # --- Monitoring (optional) ---------------------------------------------------
-# Requires the Prometheus Operator to be installed.
+# Every component serves Prometheus /metrics on :9090 (ADR-0054): the api on its own
+# "metrics" port, the workers on their "health" port. No Service port or route exposes
+# it. enabled renders a PodMonitor per component, which requires the Prometheus
+# Operator; scrapers also need networkPolicy.ingress.metricsFrom when policies are on.
 monitoring:
   enabled: false
   # Additional labels to add to PodMonitor resources (e.g. for label-based
   # Prometheus scrape selection).
   additionalLabels: {}
+  # OTEL_RESOURCE_ATTRIBUTES for every component; they appear on target_info.
+  # e.g. "deployment.environment.name=prod"
+  resourceAttributes: ""
 
 # --- Gateway API (optional) --------------------------------------------------
 # Requires Gateway API CRDs (v1) and a conformant Gateway controller (e.g. Cilium).

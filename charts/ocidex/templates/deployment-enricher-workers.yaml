@@ -53,6 +53,7 @@ spec:
                 name: {{ $.Values.existingSecret }}
           env:
             {{- include "ocidex.egressGuardEnv" $ | nindent 12 }}
+            {{- include "ocidex.metricsEnv" $ | nindent 12 }}
             - name: NATS_URL
               value: "nats://{{ include "ocidex.fullname" $ }}-nats:4222"
             - name: NATS_STREAM_REPLICAS

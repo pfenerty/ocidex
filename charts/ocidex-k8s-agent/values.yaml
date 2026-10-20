@@ -87,6 +87,14 @@ securityContext:
     drop: ["ALL"]
   readOnlyRootFilesystem: true
 
+# --- Monitoring (optional) ---------------------------------------------------
+# The agent serves Prometheus /metrics on its health port (9090, ADR-0054). enabled
+# renders a PodMonitor, which requires the Prometheus Operator.
+monitoring:
+  enabled: false
+  # Additional labels to add to the PodMonitor (e.g. for label-based scrape selection).
+  additionalLabels: {}
+
 # --- Network policy (optional) -----------------------------------------------
 # Plain networking.k8s.io/v1 NetworkPolicy. When enabled the pod is default-deny in both
 # directions and gets only DNS, the OCIDex API (egress.server), the Kubernetes API server

@@ -158,7 +158,8 @@ spec:
 {{- end }}
 {{- with $np.ingress.metricsFrom }}
 ---
-# Workers' health/metrics port and NATS monitoring (PodMonitors, KEDA).
+# /metrics on :9090 (the api's metrics port, the workers' health port) and NATS
+# monitoring (PodMonitors, KEDA).
 apiVersion: networking.k8s.io/v1
 kind: NetworkPolicy
 metadata:
