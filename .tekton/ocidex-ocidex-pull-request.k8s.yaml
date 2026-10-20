@@ -28,6 +28,8 @@ spec:
             value: $(params.repo-full-name)
           - name: revision
             value: $(params.revision)
+          - name: pipeline-run-name
+            value: $(context.pipelineRun.name)
           - name: status-go-build
             value: $(tasks.go-build.status)
           - name: status-eslint-lint-web
@@ -83,6 +85,8 @@ spec:
             value: $(params.repo-full-name)
           - name: revision
             value: $(params.revision)
+          - name: pipeline-run-name
+            value: $(context.pipelineRun.name)
         runAfter:
           - git-clone
         taskRef:
@@ -115,6 +119,8 @@ spec:
             value: $(params.repo-full-name)
           - name: revision
             value: $(params.revision)
+          - name: pipeline-run-name
+            value: $(context.pipelineRun.name)
         runAfter:
           - detect-go
           - set-status-pending-ocidex-pull-request
@@ -146,6 +152,8 @@ spec:
             value: $(params.repo-full-name)
           - name: revision
             value: $(params.revision)
+          - name: pipeline-run-name
+            value: $(context.pipelineRun.name)
         runAfter:
           - detect-node
           - set-status-pending-ocidex-pull-request
@@ -168,6 +176,8 @@ spec:
             value: $(params.repo-full-name)
           - name: revision
             value: $(params.revision)
+          - name: pipeline-run-name
+            value: $(context.pipelineRun.name)
         runAfter:
           - detect-go
           - set-status-pending-ocidex-pull-request
@@ -188,6 +198,8 @@ spec:
             value: $(params.repo-full-name)
           - name: revision
             value: $(params.revision)
+          - name: pipeline-run-name
+            value: $(context.pipelineRun.name)
         runAfter:
           - go-build
           - detect-go
@@ -211,6 +223,8 @@ spec:
             value: $(params.repo-full-name)
           - name: revision
             value: $(params.revision)
+          - name: pipeline-run-name
+            value: $(context.pipelineRun.name)
         runAfter:
           - go-build
           - detect-go
@@ -234,6 +248,8 @@ spec:
             value: $(params.repo-full-name)
           - name: revision
             value: $(params.revision)
+          - name: pipeline-run-name
+            value: $(context.pipelineRun.name)
         runAfter:
           - go-test
           - detect-go
@@ -258,6 +274,8 @@ spec:
             value: $(params.repo-full-name)
           - name: revision
             value: $(params.revision)
+          - name: pipeline-run-name
+            value: $(context.pipelineRun.name)
         runAfter:
           - go-build
           - eslint-lint-web
@@ -291,6 +309,8 @@ spec:
             value: $(params.repo-full-name)
           - name: revision
             value: $(params.revision)
+          - name: pipeline-run-name
+            value: $(context.pipelineRun.name)
         runAfter:
           - go-build
           - detect-codegen
@@ -314,6 +334,8 @@ spec:
             value: $(params.repo-full-name)
           - name: revision
             value: $(params.revision)
+          - name: pipeline-run-name
+            value: $(context.pipelineRun.name)
         runAfter:
           - detect-go
           - set-status-pending-ocidex-pull-request
@@ -336,6 +358,8 @@ spec:
             value: $(params.repo-full-name)
           - name: revision
             value: $(params.revision)
+          - name: pipeline-run-name
+            value: $(context.pipelineRun.name)
         runAfter:
           - go-build
           - detect-go
@@ -361,6 +385,8 @@ spec:
             value: $(params.repo-full-name)
           - name: revision
             value: $(params.revision)
+          - name: pipeline-run-name
+            value: $(context.pipelineRun.name)
         runAfter:
           - detect-node
           - set-status-pending-ocidex-pull-request
@@ -392,6 +418,8 @@ spec:
             value: $(params.repo-full-name)
           - name: revision
             value: $(params.revision)
+          - name: pipeline-run-name
+            value: $(context.pipelineRun.name)
         runAfter:
           - detect-source
           - set-status-pending-ocidex-pull-request
@@ -412,6 +440,8 @@ spec:
             value: $(params.repo-full-name)
           - name: revision
             value: $(params.revision)
+          - name: pipeline-run-name
+            value: $(context.pipelineRun.name)
         runAfter:
           - set-status-pending-ocidex-pull-request
         taskRef:
@@ -435,6 +465,8 @@ spec:
             value: $(params.repo-full-name)
           - name: revision
             value: $(params.revision)
+          - name: pipeline-run-name
+            value: $(context.pipelineRun.name)
         runAfter:
           - detect-pipeline
           - set-status-pending-ocidex-pull-request
@@ -464,6 +496,8 @@ spec:
             value: $(params.repo-full-name)
           - name: revision
             value: $(params.revision)
+          - name: pipeline-run-name
+            value: $(context.pipelineRun.name)
         runAfter:
           - detect-charts
           - set-status-pending-ocidex-pull-request
