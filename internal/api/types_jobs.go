@@ -11,7 +11,7 @@ type ScanJobResponse struct {
 	Repository    string  `json:"repository"`
 	Digest        string  `json:"digest"`
 	Tag           *string `json:"tag,omitempty"`
-	State         string  `json:"state" enum:"queued,running,succeeded,failed"`
+	State         string  `json:"state" enum:"queued,running,succeeded,failed,pruned"`
 	Attempts      int32   `json:"attempts"`
 	LastError     *string `json:"last_error,omitempty"`
 	NATSMsgID     *string `json:"nats_msg_id,omitempty" doc:"NATS deduplication message ID"`
@@ -26,7 +26,7 @@ type ScanJobResponse struct {
 // ListScanJobsInput is the request for GET /api/v1/jobs.
 type ListScanJobsInput struct {
 	PaginationParams
-	State string `query:"state" enum:"queued,running,succeeded,failed" doc:"Filter by job state"`
+	State string `query:"state" enum:"queued,running,succeeded,failed,pruned" doc:"Filter by job state"`
 }
 
 // ListScanJobsOutput is the response for GET /api/v1/jobs.

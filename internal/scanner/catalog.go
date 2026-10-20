@@ -20,6 +20,16 @@ type Submitter interface {
 	Submit(ctx context.Context, req ScanRequest) error
 }
 
+// ForceSubmitter marks every request it passes on as forced, so a forced walk
+// re-queues digests whose SBOM was deleted on purpose (ADR-0053 S6).
+type ForceSubmitter struct{ Submitter }
+
+// Submit forwards req with Force set.
+func (f ForceSubmitter) Submit(ctx context.Context, req ScanRequest) error {
+	req.Force = true
+	return f.Submitter.Submit(ctx, req)
+}
+
 // DigestLister returns known SBOM digests for a registry, used to skip re-scanning.
 type DigestLister interface {
 	ListDigestsBySource(ctx context.Context, sourceID string) (map[string]bool, error)

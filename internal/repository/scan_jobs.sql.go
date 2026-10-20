@@ -209,7 +209,7 @@ SET state       = CASE
         ELSE NULL
     END
 WHERE id = $3::uuid
-  AND state NOT IN ('succeeded', 'failed')
+  AND state NOT IN ('succeeded', 'failed', 'pruned')
 RETURNING state
 `
 
@@ -327,12 +327,12 @@ const insertScanJob = `-- name: InsertScanJob :one
 INSERT INTO scan_jobs (registry_id, repository, digest, index_digest, tag, nats_msg_id)
 VALUES ($1::uuid, $2, $3, $4, $5, $6)
 ON CONFLICT (nats_msg_id) DO UPDATE
-    SET state           = CASE WHEN scan_jobs.state = 'succeeded' THEN 'queued'::text ELSE scan_jobs.state           END,
-        attempts        = CASE WHEN scan_jobs.state = 'succeeded' THEN 0              ELSE scan_jobs.attempts        END,
+    SET state           = CASE WHEN scan_jobs.state = 'succeeded' OR (scan_jobs.state = 'pruned' AND $7::boolean) THEN 'queued'::text ELSE scan_jobs.state END,
+        attempts        = CASE WHEN scan_jobs.state = 'succeeded' OR (scan_jobs.state = 'pruned' AND $7::boolean) THEN 0 ELSE scan_jobs.attempts END,
         last_error      = CASE WHEN scan_jobs.state = 'succeeded' THEN NULL           ELSE scan_jobs.last_error      END,
         finished_at     = CASE WHEN scan_jobs.state = 'succeeded' THEN NULL           ELSE scan_jobs.finished_at     END,
         started_at      = CASE WHEN scan_jobs.state = 'succeeded' THEN NULL           ELSE scan_jobs.started_at      END,
-        last_attempt_at = CASE WHEN scan_jobs.state = 'succeeded' THEN NULL           ELSE scan_jobs.last_attempt_at END,
+        last_attempt_at = CASE WHEN scan_jobs.state = 'succeeded' OR (scan_jobs.state = 'pruned' AND $7::boolean) THEN NULL ELSE scan_jobs.last_attempt_at END,
         sbom_id         = CASE WHEN scan_jobs.state = 'succeeded' THEN NULL           ELSE scan_jobs.sbom_id         END,
         index_digest    = EXCLUDED.index_digest,
         tag             = EXCLUDED.tag
@@ -346,6 +346,7 @@ type InsertScanJobParams struct {
 	IndexDigest pgtype.Text `json:"index_digest"`
 	Tag         pgtype.Text `json:"tag"`
 	NatsMsgID   pgtype.Text `json:"nats_msg_id"`
+	Force       bool        `json:"force"`
 }
 
 // On conflict with a 'succeeded' row, reset it to queued so a re-scan of an
@@ -363,6 +364,10 @@ type InsertScanJobParams struct {
 // requeued only by an explicit operator action — RetryScanJob (the Retry
 // button) or RetryAllFailedScanJobs.
 //
+// 'pruned' (ADR-0053 S6) is left alone the same way: its SBOM was deleted on
+// purpose, and re-queuing it here would undo the delete on the next poll. Only
+// a forced walk (force = true) brings a pruned row back.
+//
 // A transient failure therefore needs that one click. It already had a retry
 // budget of SCANNER_MAX_ATTEMPTS to ride out a blip, so what this gives up is
 // automatic recovery from an outage longer than the budget — in exchange for a
@@ -375,6 +380,7 @@ func (q *Queries) InsertScanJob(ctx context.Context, arg InsertScanJobParams) (S
 		arg.IndexDigest,
 		arg.Tag,
 		arg.NatsMsgID,
+		arg.Force,
 	)
 	var i ScanJob
 	err := row.Scan(
@@ -417,7 +423,8 @@ ORDER BY
         WHEN 'queued'    THEN 2
         WHEN 'failed'    THEN 3
         WHEN 'succeeded' THEN 4
-        ELSE 5
+        WHEN 'pruned'    THEN 5
+        ELSE 6
     END,
     j.created_at DESC,
     j.id
@@ -478,6 +485,47 @@ func (q *Queries) ListScanJobs(ctx context.Context, arg ListScanJobsParams) ([]S
 		return nil, err
 	}
 	return items, nil
+}
+
+const pruneScanJobsForArtifact = `-- name: PruneScanJobsForArtifact :execrows
+UPDATE scan_jobs j
+SET state = 'pruned', finished_at = now()
+FROM sbom s
+WHERE s.artifact_id = $1
+  AND j.registry_id = s.source_id
+  AND j.digest = s.digest
+  AND j.state = 'succeeded'
+`
+
+// PruneScanJobsForSBOM for every SBOM of an artifact being deleted.
+func (q *Queries) PruneScanJobsForArtifact(ctx context.Context, artifactID pgtype.UUID) (int64, error) {
+	result, err := q.db.Exec(ctx, pruneScanJobsForArtifact, artifactID)
+	if err != nil {
+		return 0, err
+	}
+	return result.RowsAffected(), nil
+}
+
+const pruneScanJobsForSBOM = `-- name: PruneScanJobsForSBOM :execrows
+UPDATE scan_jobs j
+SET state = 'pruned', finished_at = now()
+FROM sbom s
+WHERE s.id = $1
+  AND j.registry_id = s.source_id
+  AND j.digest = s.digest
+  AND j.state = 'succeeded'
+`
+
+// ADR-0053 S6: tombstones the scan job behind a registry-sourced SBOM that is
+// about to be deleted, so the next walk does not scan its digest again. Run in
+// the delete's transaction, before the delete: scan_jobs.sbom_id is ON DELETE
+// SET NULL, so the join key is the registry and digest, which survive it.
+func (q *Queries) PruneScanJobsForSBOM(ctx context.Context, sbomID pgtype.UUID) (int64, error) {
+	result, err := q.db.Exec(ctx, pruneScanJobsForSBOM, sbomID)
+	if err != nil {
+		return 0, err
+	}
+	return result.RowsAffected(), nil
 }
 
 const requeueStuckRunning = `-- name: RequeueStuckRunning :exec
@@ -569,7 +617,7 @@ SET state           = 'running',
     worker_id       = $1,
     attempts        = attempts + 1
 WHERE nats_msg_id = $2
-  AND state NOT IN ('succeeded', 'failed')
+  AND state NOT IN ('succeeded', 'failed', 'pruned')
 `
 
 type StartScanJobParams struct {

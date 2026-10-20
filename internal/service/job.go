@@ -22,6 +22,9 @@ const (
 	ScanJobRunning   ScanJobState = "running"
 	ScanJobSucceeded ScanJobState = "succeeded"
 	ScanJobFailed    ScanJobState = "failed"
+	// ScanJobPruned is the tombstone an explicit delete of the job's SBOM
+	// leaves, so a catalog walk does not scan the digest again (ADR-0053 S6).
+	ScanJobPruned ScanJobState = "pruned"
 )
 
 // ScanJob is the domain model for a pipeline scan job.
@@ -65,7 +68,9 @@ func (c ScanJobClaim) JobAttempts() int32 { return c.Attempts }
 
 // JobService manages the lifecycle of scan pipeline jobs.
 type JobService interface {
-	Enqueue(ctx context.Context, registryID, repo, digest, indexDigest, tag, msgID string) (ScanJob, error)
+	// Enqueue upserts the job for msgID. force re-queues a pruned job, whose
+	// SBOM was deleted on purpose and which a plain walk leaves alone.
+	Enqueue(ctx context.Context, registryID, repo, digest, indexDigest, tag, msgID string, force bool) (ScanJob, error)
 	Start(ctx context.Context, msgID, workerID string) error
 	Finish(ctx context.Context, msgID string, sbomID pgtype.UUID) error
 	Fail(ctx context.Context, msgID, lastError string) error
@@ -117,7 +122,7 @@ func NewJobService(pool *pgxpool.Pool, box *secretbox.Box) JobService {
 	return &jobService{repo: repository.New(pool), box: box}
 }
 
-func (s *jobService) Enqueue(ctx context.Context, registryID, repo, digest, indexDigest, tag, msgID string) (ScanJob, error) {
+func (s *jobService) Enqueue(ctx context.Context, registryID, repo, digest, indexDigest, tag, msgID string, force bool) (ScanJob, error) {
 	var regID pgtype.UUID
 	if registryID != "" {
 		_ = regID.Scan(registryID)
@@ -129,6 +134,7 @@ func (s *jobService) Enqueue(ctx context.Context, registryID, repo, digest, inde
 		IndexDigest: toNullText(nullStr(indexDigest)),
 		Tag:         toNullText(nullStr(tag)),
 		NatsMsgID:   toNullText(nullStr(msgID)),
+		Force:       force,
 	})
 	if err != nil {
 		return ScanJob{}, fmt.Errorf("inserting scan job: %w", err)

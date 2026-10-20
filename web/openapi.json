@@ -5641,7 +5641,8 @@
               "queued",
               "running",
               "succeeded",
-              "failed"
+              "failed",
+              "pruned"
             ],
             "type": "string"
           },
@@ -9767,7 +9768,8 @@
                 "queued",
                 "running",
                 "succeeded",
-                "failed"
+                "failed",
+                "pruned"
               ],
               "type": "string"
             }

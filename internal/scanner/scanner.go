@@ -40,4 +40,7 @@ type ScanRequest struct {
 	AuthUsername string // registry auth username; empty = anonymous
 	AuthToken    string // registry auth token/PAT; empty = no auth
 	RegistryID   string // UUID of the source registry; empty = unknown
+	// Force re-queues a job whose SBOM was deleted on purpose (scan_jobs state
+	// 'pruned', ADR-0053 S6). Only a forced ad-hoc walk sets it.
+	Force bool
 }

@@ -3,7 +3,7 @@ import { createMutation, createQuery, useQueryClient } from "@tanstack/solid-que
 import { client, unwrap } from "~/api/client";
 
 export function useListScanJobs(params?: Accessor<{
-    state?: "queued" | "running" | "succeeded" | "failed";
+    state?: "queued" | "running" | "succeeded" | "failed" | "pruned";
     limit?: number;
     offset?: number;
 }>) {

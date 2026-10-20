@@ -21,7 +21,7 @@ import {
     workerColumn,
 } from "./jobCells";
 
-type StateFilter = "active" | "running" | "queued" | "succeeded" | "failed" | "";
+type StateFilter = "active" | "running" | "queued" | "succeeded" | "failed" | "pruned" | "";
 
 export function ScanJobsView() {
     const [offset, setOffset] = createSignal(0);
@@ -102,6 +102,7 @@ export function ScanJobsView() {
                     <option value="queued">Queued</option>
                     <option value="succeeded">Succeeded</option>
                     <option value="failed">Failed</option>
+                    <option value="pruned">Pruned</option>
                     <option value="">All</option>
                 </select>
                 <input

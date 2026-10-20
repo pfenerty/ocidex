@@ -558,6 +558,7 @@ func (e RunningWorkloadResponseMatchState) Valid() bool {
 // Defines values for ScanJobResponseState.
 const (
 	ScanJobResponseStateFailed    ScanJobResponseState = "failed"
+	ScanJobResponseStatePruned    ScanJobResponseState = "pruned"
 	ScanJobResponseStateQueued    ScanJobResponseState = "queued"
 	ScanJobResponseStateRunning   ScanJobResponseState = "running"
 	ScanJobResponseStateSucceeded ScanJobResponseState = "succeeded"
@@ -567,6 +568,8 @@ const (
 func (e ScanJobResponseState) Valid() bool {
 	switch e {
 	case ScanJobResponseStateFailed:
+		return true
+	case ScanJobResponseStatePruned:
 		return true
 	case ScanJobResponseStateQueued:
 		return true
@@ -1302,6 +1305,7 @@ func (e ListEnrichmentJobsParamsEnricherName) Valid() bool {
 // Defines values for ListScanJobsParamsState.
 const (
 	ListScanJobsParamsStateFailed    ListScanJobsParamsState = "failed"
+	ListScanJobsParamsStatePruned    ListScanJobsParamsState = "pruned"
 	ListScanJobsParamsStateQueued    ListScanJobsParamsState = "queued"
 	ListScanJobsParamsStateRunning   ListScanJobsParamsState = "running"
 	ListScanJobsParamsStateSucceeded ListScanJobsParamsState = "succeeded"
@@ -1311,6 +1315,8 @@ const (
 func (e ListScanJobsParamsState) Valid() bool {
 	switch e {
 	case ListScanJobsParamsStateFailed:
+		return true
+	case ListScanJobsParamsStatePruned:
 		return true
 	case ListScanJobsParamsStateQueued:
 		return true

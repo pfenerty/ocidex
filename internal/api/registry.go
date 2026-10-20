@@ -697,11 +697,16 @@ func (h *Handler) ScanRegistry(ctx context.Context, in *ScanRegistryInput) (*Sca
 		// scanner) so a re-scan only re-pulls new/changed images. force=true passes
 		// nil so every digest is re-walked and re-queued via the InsertScanJob upsert
 		// — used to repopulate enrichment for already-ingested images.
+		// force also re-queues digests whose SBOM was deleted on purpose
+		// (pruned, ADR-0053 S6); a plain walk leaves those alone.
 		var known map[string]bool
-		if !force {
+		sub := h.scanSubmitter
+		if force {
+			sub = scanner.ForceSubmitter{Submitter: sub}
+		} else {
 			known = scanner.FetchKnownDigests(walkCtx, h.sbomService, reg.ID)
 		}
-		queued, err := scanner.WalkRegistry(walkCtx, reg, h.scanSubmitter, known, h.egress(), slog.Default())
+		queued, err := scanner.WalkRegistry(walkCtx, reg, sub, known, h.egress(), slog.Default())
 		if err != nil {
 			slog.Error("ad-hoc registry scan failed", "registry", reg.Name, "err", err)
 			return

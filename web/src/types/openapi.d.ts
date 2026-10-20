@@ -3826,7 +3826,7 @@ export interface components {
             sbom_id?: string;
             started_at?: string;
             /** @enum {string} */
-            state: "queued" | "running" | "succeeded" | "failed";
+            state: "queued" | "running" | "succeeded" | "failed" | "pruned";
             tag?: string;
             /** @description Pod hostname that is processing this job */
             worker_id?: string;
@@ -5934,7 +5934,7 @@ export interface operations {
                 /** @description Number of results to skip */
                 offset?: number;
                 /** @description Filter by job state */
-                state?: "queued" | "running" | "succeeded" | "failed";
+                state?: "queued" | "running" | "succeeded" | "failed" | "pruned";
             };
             header?: never;
             path?: never;
