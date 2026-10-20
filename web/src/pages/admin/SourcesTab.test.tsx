@@ -1,7 +1,7 @@
 // @vitest-environment happy-dom
 import { describe, it, expect, vi, beforeEach } from "vitest";
 import { render, fireEvent } from "@solidjs/testing-library";
-import { useListRegistries, useListSources, useListNamespaces } from "~/api/queries";
+import { useListRegistries, useListSources, useListNamespaces, usePreviewRegistryConfig } from "~/api/queries";
 import { SourcesTab } from "~/pages/admin/SourcesTab";
 import type { JSX } from "solid-js";
 
@@ -22,6 +22,8 @@ vi.mock("~/api/queries", () => ({
     useListScanJobs: () => idleQuery(),
     useRegistryTrustSummary: () => idleQuery(),
     useRecentDrift: () => idleQuery(),
+    usePreviewRegistryConfig: vi.fn(() => idleQuery()),
+    useRegistryPreview: () => idleQuery(),
 }));
 
 vi.mock("~/context/toast", () => ({
@@ -417,5 +419,47 @@ describe("SourcesTab deep links", () => {
         );
         expect(values).toContain(managedRegistry.name);
         expect(setSearchParams).toHaveBeenCalledWith({ registry: undefined }, { replace: true });
+    });
+});
+
+describe("SourcesTab scan scope (ADR-0053)", () => {
+    beforeEach(() => vi.clearAllMocks());
+
+    const scopeSelect = (container: HTMLElement) =>
+        must(container.querySelector<HTMLSelectElement>("[data-testid=scope-preset]"), "scope preset select");
+
+    it("hides the window fields behind a preset and shows them for custom", () => {
+        const { container } = renderTab([{ ...baseRegistry, tag_patterns: ["semver"], tag_limit: 50, tag_order: "auto", max_tag_age_days: 0 }]);
+        clickEditFor(container, "unmanaged");
+        expect(scopeSelect(container).value).toBe("releases");
+        expect(container.textContent).not.toContain("Tags per repository");
+
+        fireEvent.change(scopeSelect(container), { target: { value: "custom" } });
+        expect(container.textContent).toContain("Tags per repository");
+    });
+
+    it("opens an edited registry whose window matches no preset on custom", () => {
+        const { container } = renderTab([{ ...baseRegistry, tag_patterns: ["semver"], tag_limit: 7, tag_order: "auto", max_tag_age_days: 0 }]);
+        clickEditFor(container, "unmanaged");
+        expect(scopeSelect(container).value).toBe("custom");
+    });
+
+    it("shows the preview estimate and warns on a large scope", () => {
+        vi.mocked(usePreviewRegistryConfig).mockImplementation((() => ({
+            data: { selected: 900, skipped_by_limit: 4000, estimated_sboms: 3600, repositories: [{}, {}] },
+            isFetching: false, isError: false, error: null,
+        })) as unknown as typeof usePreviewRegistryConfig);
+        const { container } = renderTab([{ ...baseRegistry, tag_patterns: ["semver"], tag_limit: 50, tag_order: "auto", max_tag_age_days: 0 }]);
+        clickEditFor(container, "unmanaged");
+        const preview = must(container.querySelector("[data-testid=scope-preview]"), "preview line");
+        expect(preview.textContent).toContain("~3,600");
+        expect(preview.textContent).toContain("4,000 older tags left out");
+        expect(container.querySelector("[data-testid=scope-warning]")?.textContent).toMatch(/3,600 SBOMs/);
+    });
+
+    it("warns for an unlimited window before any preview arrives", () => {
+        const { container } = renderTab([{ ...baseRegistry, tag_patterns: [], tag_limit: 0, tag_order: "auto", max_tag_age_days: 0 }]);
+        clickEditFor(container, "unmanaged");
+        expect(container.querySelector("[data-testid=scope-warning]")?.textContent).toMatch(/No tag limit/);
     });
 });

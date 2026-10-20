@@ -1,4 +1,4 @@
-import { For, Show, createSignal } from "solid-js";
+import { For, Show, createEffect, createSignal, onCleanup } from "solid-js";
 import { Button, Card, CheckboxField, FormField, Modal } from "~/components/ui";
 import { useToast } from "~/context/toast";
 import type { Registry } from "~/api/client";
@@ -7,14 +7,22 @@ import {
     useUpdateRegistry,
     useTestRegistryConnection,
     useGetSystemStatus,
+    usePreviewRegistryConfig,
+    useRegistryPreview,
+    type RegistryPreviewBody,
 } from "~/api/queries";
 import {
+    SCOPE_PRESETS,
     TYPE_CAPS,
     emptyForm,
+    presetFor,
+    scopeWarning,
     toPatternArray,
     type RegType,
     type RegistryFormState,
     type ScanMode,
+    type ScopePreset,
+    type TagOrder,
     type VerificationMode,
     type Visibility,
 } from "./registryTypes";
@@ -32,6 +40,22 @@ export interface RegistryDialogHandle {
 
 const monoInput = "w-full text-[0.85rem] [font-family:monospace]";
 
+/** How long the form waits after the last keystroke before asking for a preview. */
+const PREVIEW_DEBOUNCE_MS = 600;
+
+/** previewBodyOf is the part of a form the scan window depends on. */
+function previewBodyOf(f: RegistryFormState): RegistryPreviewBody {
+    return {
+        type: f.type, url: f.url.trim(), insecure: f.insecure,
+        auth_username: f.authUsername.trim() || undefined, auth_token: f.authToken.trim() || undefined,
+        repositories: toPatternArray(f.repositories),
+        repository_patterns: toPatternArray(f.repositoryPatterns),
+        tag_patterns: toPatternArray(f.tagPatterns),
+        include_untagged: f.includeUntagged,
+        tag_limit: f.tagLimit, tag_order: f.tagOrder, max_tag_age_days: f.maxTagAgeDays,
+    };
+}
+
 export function RegistryFormDialog(props: {
     ref: (handle: RegistryDialogHandle) => void;
     /** Called with a freshly minted webhook secret, which is only shown once. */
@@ -48,6 +72,31 @@ export function RegistryFormDialog(props: {
     const [editingID, setEditingID] = createSignal<string | null>(null);
     const [editEnabled, setEditEnabled] = createSignal(true);
     const [editManagedRef, setEditManagedRef] = createSignal<string | null>(null);
+    const [editHasAuth, setEditHasAuth] = createSignal(false);
+    const [scopePreset, setScopePreset] = createSignal<ScopePreset>("releases");
+    const [open, setOpen] = createSignal(false);
+
+    // The preview dials the registry, so it waits for typing to stop. An edit
+    // of a registry with stored credentials previews the saved config instead
+    // (the API never returns the token, so the form cannot send it) until a
+    // new token is typed.
+    const [previewBody, setPreviewBody] = createSignal<RegistryPreviewBody | undefined>(undefined);
+    const usesSavedPreview = () => editingID() !== null && editHasAuth() && form().authToken.trim() === "";
+    createEffect(() => {
+        const f = form();
+        const ready = open() && !editingManaged() && !usesSavedPreview() && f.url.trim() !== "";
+        const t = setTimeout(() => setPreviewBody(ready ? previewBodyOf(f) : undefined), PREVIEW_DEBOUNCE_MS);
+        onCleanup(() => clearTimeout(t));
+    });
+    const unsavedPreview = usePreviewRegistryConfig(previewBody);
+    const savedPreview = useRegistryPreview(() => (open() && usesSavedPreview() ? (editingID() ?? undefined) : undefined));
+    const preview = () => (usesSavedPreview() ? savedPreview : unsavedPreview);
+    const warning = () => scopeWarning(form().tagLimit, preview().data?.estimated_sboms);
+
+    function applyPreset(p: ScopePreset) {
+        setScopePreset(p);
+        if (p !== "custom") setForm(f => ({ ...f, ...SCOPE_PRESETS[p].fields }));
+    }
 
     // An external controller reconciles its own spec over whatever is stored, so
     // a save here would be reverted within seconds. Locking the form is more
@@ -65,7 +114,10 @@ export function RegistryFormDialog(props: {
         setEditingID(null);
         setEditEnabled(true);
         setEditManagedRef(null);
+        setEditHasAuth(false);
+        setScopePreset("releases");
         setTestResult(null);
+        setOpen(false);
     }
 
     // A one-shot imperative handle, like a native `ref` callback: the parent
@@ -76,6 +128,8 @@ export function RegistryFormDialog(props: {
         openAdd: (prefill) => {
             reset();
             if (prefill !== undefined) setForm((f) => ({ ...f, ...prefill }));
+            setScopePreset(presetFor(form()));
+            setOpen(true);
             dialogRef?.showModal();
         },
         openEdit: (reg) => {
@@ -85,6 +139,7 @@ export function RegistryFormDialog(props: {
             // always say *something* about who owns a marked registry.
             const owner = reg.managed_by ?? "";
             setEditManagedRef(owner === "" ? null : (reg.managed_ref ?? owner));
+            setEditHasAuth(reg.has_auth);
             setForm({
                 name: reg.name,
                 // Not shown when editing: the update endpoint cannot move a
@@ -113,6 +168,8 @@ export function RegistryFormDialog(props: {
                 tagOrder: reg.tag_order,
                 maxTagAgeDays: reg.max_tag_age_days,
             });
+            setScopePreset(presetFor(form()));
+            setOpen(true);
             dialogRef?.showModal();
         },
     });
@@ -311,15 +368,64 @@ export function RegistryFormDialog(props: {
                                 class={monoInput}
                             />
                         </FormField>
-                        <FormField label="Tag Patterns" hint={'(one per line; "semver" for semantic versions; empty = all)'}>
-                            <textarea
-                                value={form().tagPatterns}
-                                onInput={(e) => setForm(f => ({ ...f, tagPatterns: e.currentTarget.value }))}
-                                placeholder={"semver\nlatest"}
-                                rows={3}
-                                class={monoInput}
-                            />
+                        <FormField label="Scan scope" hint={scopePreset() === "custom" ? "(tags and window below)" : `(${SCOPE_PRESETS[scopePreset() as Exclude<ScopePreset, "custom">].hint})`}>
+                            <select
+                                data-testid="scope-preset"
+                                value={scopePreset()}
+                                onChange={(e) => applyPreset(e.currentTarget.value as ScopePreset)}
+                                class="w-full"
+                            >
+                                <For each={Object.entries(SCOPE_PRESETS)}>{([name, p]) => (
+                                    <option value={name}>{p.label}</option>
+                                )}</For>
+                                <option value="custom">Custom</option>
+                            </select>
                         </FormField>
+                        <Show when={scopePreset() === "custom"}>
+                            <FormField label="Tag Patterns" hint={'(one per line; "semver" for semantic versions; empty = all)'}>
+                                <textarea
+                                    value={form().tagPatterns}
+                                    onInput={(e) => setForm(f => ({ ...f, tagPatterns: e.currentTarget.value }))}
+                                    placeholder={"semver\nlatest"}
+                                    rows={3}
+                                    class={monoInput}
+                                />
+                            </FormField>
+                            <FormField label="Tag order" hint="(which tags count as newest)">
+                                <select
+                                    value={form().tagOrder}
+                                    onChange={(e) => {
+                                        const tagOrder = e.currentTarget.value as TagOrder;
+                                        setForm(f => ({ ...f, tagOrder, maxTagAgeDays: tagOrder === "created" || tagOrder === "auto" ? f.maxTagAgeDays : 0 }));
+                                    }}
+                                    class="w-full"
+                                >
+                                    <option value="auto">Auto (semver if the patterns say so, else build date)</option>
+                                    <option value="semver">Semantic version</option>
+                                    <option value="created">Build date</option>
+                                    <option value="lexical">Tag name (A→Z)</option>
+                                </select>
+                            </FormField>
+                            <FormField label="Tags per repository" hint="(newest kept; 0 = unlimited)">
+                                <input
+                                    type="number"
+                                    min={0}
+                                    value={form().tagLimit}
+                                    onInput={(e) => setForm(f => ({ ...f, tagLimit: Math.max(0, parseInt(e.currentTarget.value, 10) || 0) }))}
+                                    class="w-full"
+                                />
+                            </FormField>
+                            <FormField label="Max tag age (days)" hint="(build-date order only; 0 = no limit)">
+                                <input
+                                    type="number"
+                                    min={0}
+                                    value={form().maxTagAgeDays}
+                                    disabled={form().tagOrder !== "created" && !(form().tagOrder === "auto" && !toPatternArray(form().tagPatterns).includes("semver"))}
+                                    onInput={(e) => setForm(f => ({ ...f, maxTagAgeDays: Math.max(0, parseInt(e.currentTarget.value, 10) || 0) }))}
+                                    class="w-full"
+                                />
+                            </FormField>
+                        </Show>
                         <FormField label="Scan Mode">
                             <select
                                 value={form().scanMode}
@@ -427,6 +533,36 @@ export function RegistryFormDialog(props: {
                             <CheckboxField label="Enabled" checked={editEnabled()} onChange={setEditEnabled} />
                         </Show>
                     </div>
+                    <div data-testid="scope-preview" class="mb-3 text-[0.85rem]">
+                        <Show
+                            when={preview().data}
+                            fallback={
+                                <span class="text-[var(--color-text-muted)]">
+                                    {preview().isFetching
+                                        ? "Checking what this would scan…"
+                                        : preview().isError
+                                            ? `Preview unavailable: ${preview().error?.message ?? "the registry could not be read"}`
+                                            : "Enter a URL to see what this would scan."}
+                                </span>
+                            }
+                        >
+                            {(p) => (
+                                <span>
+                                    Will scan <strong>~{p().estimated_sboms.toLocaleString()}</strong> images
+                                    ({p().selected.toLocaleString()} tags across {(p().repositories ?? []).length} repositories
+                                    {p().skipped_by_limit > 0 ? `; ${p().skipped_by_limit.toLocaleString()} older tags left out` : ""})
+                                    {usesSavedPreview() ? " — saved settings; enter the token to preview edits" : ""}
+                                </span>
+                            )}
+                        </Show>
+                    </div>
+                    <Show when={warning()}>
+                        {(w) => (
+                            <Card tone="warning" data-testid="scope-warning" class="mb-3 text-[0.85rem]">
+                                {w()}
+                            </Card>
+                        )}
+                    </Show>
                 </fieldset>
                 <div class="flex gap-2">
                     <Button variant="primary" type="submit" disabled={createReg.isPending || updateReg.isPending || editingManaged()}>
