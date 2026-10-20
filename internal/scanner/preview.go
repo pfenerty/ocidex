@@ -4,6 +4,7 @@ import (
 	"context"
 	"log/slog"
 	"net/http"
+	"slices"
 	"time"
 
 	"github.com/pfenerty/ocidex/internal/netguard"
@@ -92,4 +93,22 @@ func tagPlatforms(ctx context.Context, client *http.Client, baseURL, repo, tag s
 		return 0
 	}
 	return len(platforms)
+}
+
+// TagInWindow reports whether a pushed tag falls inside its repository's scan
+// window (ADR-0053 S8). Under created order it always does: a push is almost
+// always the newest build, and the next walk's view is the one retention acts
+// on. Under semver and lexical it costs one tag list. tag must already pass
+// the registry's filter.
+func TagInWindow(ctx context.Context, reg service.Registry, repo, tag string, egress netguard.Policy, logger *slog.Logger) (bool, error) {
+	if reg.TagLimit == 0 || reg.EffectiveTagOrder() == service.TagOrderCreated {
+		return true, nil
+	}
+	scheme, host := registrySchemeHost(reg)
+	client := registryClient(egress, 15*time.Second, derefStr(reg.AuthUsername), derefStr(reg.AuthToken))
+	window, _, err := selectRepoTags(ctx, client, scheme+"://"+host, repo, reg, logger)
+	if err != nil {
+		return false, err
+	}
+	return slices.Contains(window.Selected, tag), nil
 }

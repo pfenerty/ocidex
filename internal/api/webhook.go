@@ -3,6 +3,7 @@ package api
 import (
 	"context"
 	"crypto/subtle"
+	"log/slog"
 	"strings"
 
 	"github.com/danielgtaylor/huma/v2"
@@ -56,6 +57,16 @@ func (h *Handler) HandleRegistryWebhook(ctx context.Context, in *RegistryWebhook
 
 	// Apply registry-level ingestion filters.
 	if !reg.MatchesImage(in.Body.Name, in.Body.Reference) {
+		return nil, nil
+	}
+	// And the scan window (ADR-0053 S8), so a push of an old tag does not scan
+	// what the walk deliberately leaves out. If the tag list cannot be read the
+	// push is scanned: it is almost always the newest build, and dropping it
+	// would hide a registry outage behind a silent 204.
+	inWindow, err := scanner.TagInWindow(ctx, reg, in.Body.Name, in.Body.Reference, h.egress(), slog.Default())
+	if err != nil {
+		slog.Warn("webhook: scan window unavailable, scanning the push", "registry", reg.Name, "repo", in.Body.Name, "err", err)
+	} else if !inWindow {
 		return nil, nil
 	}
 
