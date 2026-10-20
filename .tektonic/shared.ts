@@ -141,6 +141,10 @@ export const goEnv = [
   { name: "GOPATH", value: sourceWs.at(".go-path") },
   { name: "GOMODCACHE", value: sourceWs.at(".go-mod") },
   { name: "GOCACHE", value: sourceWs.at(".go-build") },
+  // Go creates module-cache dirs 0555. The cache save chmods the tree writable and then tars
+  // it, but other Go tasks share .go-mod and can add a 0555 dir in between. tar then archives
+  // it read-only and every later restore fails with "Permission denied" (ocidex-zhji).
+  { name: "GOFLAGS", value: "-modcacherw" },
   {
     name: "GIT_CONFIG_GLOBAL",
     value: sourceWs.at(".gitconfig"),

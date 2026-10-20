@@ -79,6 +79,8 @@ spec:
         value: $(workspaces.workspace.path)/.go-mod
       - name: GOCACHE
         value: $(workspaces.workspace.path)/.go-build
+      - name: GOFLAGS
+        value: -modcacherw
       - name: GIT_CONFIG_GLOBAL
         value: $(workspaces.workspace.path)/.gitconfig
       - name: GOMAXPROCS
