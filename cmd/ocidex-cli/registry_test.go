@@ -172,6 +172,26 @@ func TestRegistryCreate(t *testing.T) {
 	is.True(got.ScanMode == nil)
 	is.True(got.Visibility == nil)
 	is.True(got.IncludeUntagged == nil)
+	is.True(got.TagLimit == nil) // the server applies its default of 50
+	is.True(got.TagOrder == nil)
+}
+
+func TestRegistryCreateScanWindow(t *testing.T) {
+	is := is.New(t)
+	var got client.CreateRegistryInputBody
+	fake := &client.FakeClient{
+		CreateRegistryFn: func(_ context.Context, body client.CreateRegistryInputBody) (client.CreateRegistryResponseBody, error) {
+			got = body
+			return client.CreateRegistryResponseBody{Id: testRegistryID, Name: body.Name}, nil
+		},
+	}
+	_, _, err := runCLI(t, fake, "registry", "create",
+		"--name", "quay", "--url", "quay.io", "--type", "docker",
+		"--tag-limit", "0", "--tag-order", "created", "--max-tag-age-days", "30")
+	is.NoErr(err)
+	is.Equal(*got.TagLimit, int64(0)) // an explicit 0 (unlimited) must reach the server
+	is.Equal(string(*got.TagOrder), "created")
+	is.Equal(*got.MaxTagAgeDays, int64(30))
 }
 
 // A missing required flag fails before the client is ever built, so it is a
@@ -236,6 +256,27 @@ func TestRegistryUpdate(t *testing.T) {
 	is.Equal(string(*got.VerificationMode), "keyless")
 	is.Equal(*got.Repositories, []string{"ocidex", "apko-cicd"})
 	is.Equal(*got.IncludeUntagged, true)
+	// The API keeps an omitted scan window, so it is not carried over.
+	is.True(got.TagLimit == nil)
+	is.True(got.TagOrder == nil)
+	is.True(got.MaxTagAgeDays == nil)
+}
+
+func TestRegistryUpdateScanWindow(t *testing.T) {
+	is := is.New(t)
+	var got client.UpdateRegistryInputBody
+	fake := &client.FakeClient{
+		GetRegistryFn: func(context.Context, string) (client.RegistryResponse, error) { return testRegistry(), nil },
+		UpdateRegistryFn: func(_ context.Context, _ string, body client.UpdateRegistryInputBody) (client.RegistryResponse, error) {
+			got = body
+			return testRegistry(), nil
+		},
+	}
+	_, _, err := runCLI(t, fake, "registry", "update", testRegistryID, "--tag-limit", "5", "--tag-order", "auto")
+	is.NoErr(err)
+	is.Equal(*got.TagLimit, int64(5))
+	is.Equal(string(*got.TagOrder), "auto")
+	is.True(got.MaxTagAgeDays == nil)
 }
 
 // --enabled defaults to true, and a default must not silently re-enable a

@@ -52,7 +52,7 @@ INSERT INTO registry (
     id, type, url, insecure, webhook_secret, repository_patterns, tag_patterns,
     scan_mode, poll_interval_minutes, repositories, auth_username, auth_token,
     include_untagged, verification_mode, trust_public_key, trust_identity,
-    trust_issuer, managed_by, managed_ref
+    trust_issuer, managed_by, managed_ref, tag_limit, tag_order, max_tag_age_days
 )
 SELECT
     src.id, @type::text, @url::text, @insecure::boolean, sqlc.narg('webhook_secret')::text,
@@ -60,7 +60,8 @@ SELECT
     @poll_interval_minutes::int, @repositories::text[], sqlc.narg('auth_username')::text,
     sqlc.narg('auth_token')::text, @include_untagged::boolean, @verification_mode::text,
     sqlc.narg('trust_public_key')::text, sqlc.narg('trust_identity')::text, sqlc.narg('trust_issuer')::text,
-    sqlc.narg('managed_by')::text, sqlc.narg('managed_ref')::text
+    sqlc.narg('managed_by')::text, sqlc.narg('managed_ref')::text, @tag_limit::int,
+    sqlc.narg('tag_order')::text, sqlc.narg('max_tag_age_days')::int
 FROM src
 RETURNING *;
 
@@ -164,6 +165,9 @@ SET type                  = @type::text,
     trust_issuer          = sqlc.narg('trust_issuer')::text,
     managed_by            = sqlc.narg('managed_by')::text,
     managed_ref           = sqlc.narg('managed_ref')::text,
+    tag_limit             = @tag_limit::int,
+    tag_order             = sqlc.narg('tag_order')::text,
+    max_tag_age_days      = sqlc.narg('max_tag_age_days')::int,
     updated_at            = now()
 WHERE registry.id = @id
 RETURNING *;

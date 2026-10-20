@@ -33,6 +33,9 @@ type RegistryResponse struct {
 	TrustIssuer         *string  `json:"trust_issuer,omitempty" doc:"Expected OIDC issuer URL; required for keyless verification mode"`
 	ManagedBy           *string  `json:"managed_by,omitempty" doc:"External system that owns this registry's configuration (e.g. kubernetes); absent when managed through this API"`
 	ManagedRef          *string  `json:"managed_ref,omitempty" doc:"Identifier within the managing system, e.g. '<namespace>/<name>' of the OCIRegistry resource"`
+	TagLimit            int      `json:"tag_limit" doc:"Newest tags kept per repository (ADR-0053); 0 = unlimited"`
+	TagOrder            string   `json:"tag_order" enum:"auto,semver,created,lexical" doc:"How 'newest' is decided; auto = semver when tag_patterns contains semver, created otherwise"`
+	MaxTagAgeDays       int      `json:"max_tag_age_days" doc:"Tags whose image is older than this many days are skipped; 0 = no age limit"`
 }
 
 // ListRegistriesInput is the request for GET /api/v1/registries.
@@ -97,6 +100,9 @@ type CreateRegistryInput struct {
 		TrustIssuer         *string  `json:"trust_issuer,omitempty" doc:"Expected OIDC issuer URL; required when verification_mode is keyless"`
 		ManagedBy           *string  `json:"managed_by,omitempty" doc:"External system that owns this registry's configuration (e.g. kubernetes); set by that system's controller, not by hand"`
 		ManagedRef          *string  `json:"managed_ref,omitempty" doc:"Identifier within the managing system, e.g. '<namespace>/<name>' of the OCIRegistry resource"`
+		TagLimit            *int     `json:"tag_limit,omitempty" minimum:"0" maximum:"100000" doc:"Newest tags kept per repository (ADR-0053); 0 = unlimited. Defaults to 50"`
+		TagOrder            string   `json:"tag_order,omitempty" enum:"auto,semver,created,lexical" doc:"How 'newest' is decided; auto (the default) = semver when tag_patterns contains semver, created otherwise"`
+		MaxTagAgeDays       int      `json:"max_tag_age_days,omitempty" minimum:"0" maximum:"36500" doc:"Skip tags whose image is older than this many days; needs the created order. 0 = no age limit"`
 	}
 }
 
@@ -148,6 +154,9 @@ type UpdateRegistryInput struct {
 		TrustIssuer         *string  `json:"trust_issuer,omitempty" doc:"Expected OIDC issuer URL; required when verification_mode is keyless"`
 		ManagedBy           *string  `json:"managed_by,omitempty" doc:"External system that owns this registry's configuration; omit to leave the existing marker untouched"`
 		ManagedRef          *string  `json:"managed_ref,omitempty" doc:"Identifier within the managing system; omit to leave the existing value untouched"`
+		TagLimit            *int     `json:"tag_limit,omitempty" minimum:"0" maximum:"100000" doc:"Newest tags kept per repository; 0 = unlimited. Omit to keep the current value"`
+		TagOrder            *string  `json:"tag_order,omitempty" enum:"auto,semver,created,lexical" doc:"How 'newest' is decided; auto = semver when tag_patterns contains semver, created otherwise. Omit to keep the current value"`
+		MaxTagAgeDays       *int     `json:"max_tag_age_days,omitempty" minimum:"0" maximum:"36500" doc:"Skip tags whose image is older than this many days; 0 clears it. Omit to keep the current value"`
 	}
 }
 

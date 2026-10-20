@@ -100,6 +100,11 @@ func WalkRegistry(ctx context.Context, reg service.Registry, sub Submitter, know
 
 // walkRepo scans a single repository: enumerates tagged manifests, then
 // optionally discovers untagged manifests via registry-specific APIs.
+//
+// Tags go through the registry's selection window (ADR-0053 S1): filter, then
+// order, then keep the newest TagLimit. The window is taken before the
+// known-digest skip in scanTag, so tags already ingested keep their slots and
+// the walk never reaches further back into the history to fill them.
 func walkRepo(ctx context.Context, client *http.Client, baseURL, repo string, reg service.Registry, sub Submitter, knownDigests map[string]bool, logger *slog.Logger) int {
 	scannedDigests := make(map[string]bool)
 	for d := range knownDigests {
@@ -111,16 +116,26 @@ func walkRepo(ctx context.Context, client *http.Client, baseURL, repo string, re
 		logger.Warn("listing tags for repo", "repo", repo, "err", err)
 		return 0
 	}
+	candidates := make([]string, 0, len(tags))
 	for _, tag := range tags {
 		if !reg.MatchesTag(tag) {
 			continue
 		}
-		// Short-circuit before the manifest HEAD/GET. ociGetImageMetadata also
-		// catches these by media type, but only after 2-3 registry requests.
+		// Filtered before the window so they never take a slot, and before the
+		// manifest HEAD/GET: ociGetImageMetadata also catches these by media
+		// type, but only after 2-3 registry requests.
 		if IsAttachedArtifactTag(tag) {
 			logger.Debug("skipping attached artifact", "repo", repo, "tag", tag, "reason", "cosign tag scheme")
 			continue
 		}
+		candidates = append(candidates, tag)
+	}
+	window := reg.SelectTags(candidates, tagCreatedFunc(ctx, client, baseURL, repo), time.Now())
+	if window.SkippedByLimit > 0 || window.SkippedByAge > 0 {
+		logger.Debug("tags outside the scan window", "repo", repo, "selected", len(window.Selected),
+			"skipped_by_limit", window.SkippedByLimit, "skipped_by_age", window.SkippedByAge)
+	}
+	for _, tag := range window.Selected {
 		queued += scanTag(ctx, client, baseURL, repo, tag, reg, sub, scannedDigests, logger)
 	}
 	if reg.IncludeUntagged {
@@ -229,18 +244,27 @@ func discoverUntagged(ctx context.Context, client *http.Client, baseURL, repo st
 		return 0
 	}
 
-	queued := 0
+	// Tagged manifests belong to the tag window; submitting them here would let
+	// tags from outside it back in (ADR-0053 S4). The rest get a window of their
+	// own, ordered by created.
+	untagged := make(map[string]DiscoveredManifest, len(manifests))
+	digests := make([]string, 0, len(manifests))
 	for _, m := range manifests {
+		if m.Tag != "" || !isImageManifestType(m.MediaType) {
+			continue
+		}
+		if _, dup := untagged[m.Digest]; dup {
+			continue
+		}
+		untagged[m.Digest] = m
+		digests = append(digests, m.Digest)
+	}
+	window := reg.SelectUntagged(digests, digestCreatedFunc(ctx, client, baseURL, repo, untagged), time.Now())
+
+	queued := 0
+	for _, d := range window.Selected {
+		m := untagged[d]
 		if scannedDigests[m.Digest] {
-			continue
-		}
-		if !isImageManifestType(m.MediaType) {
-			continue
-		}
-		// The zot and harbor discoverers surface cosign tags, and the ghcr one
-		// hardcodes mediaTypeOCIManifest, so the media type above never rejects them.
-		if IsAttachedArtifactTag(m.Tag) {
-			logger.Debug("skipping attached artifact", "repo", repo, "tag", m.Tag, "reason", "cosign tag scheme")
 			continue
 		}
 		scannedDigests[m.Digest] = true

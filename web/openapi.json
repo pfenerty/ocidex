@@ -1353,6 +1353,13 @@
             "description": "Identifier within the managing system, e.g. '\u003cnamespace\u003e/\u003cname\u003e' of the OCIRegistry resource",
             "type": "string"
           },
+          "max_tag_age_days": {
+            "description": "Skip tags whose image is older than this many days; needs the created order. 0 = no age limit",
+            "format": "int64",
+            "maximum": 36500,
+            "minimum": 0,
+            "type": "integer"
+          },
           "name": {
             "description": "Human-readable registry name",
             "maxLength": 100,
@@ -1396,6 +1403,23 @@
               "webhook",
               "poll",
               "both"
+            ],
+            "type": "string"
+          },
+          "tag_limit": {
+            "description": "Newest tags kept per repository (ADR-0053); 0 = unlimited. Defaults to 50",
+            "format": "int64",
+            "maximum": 100000,
+            "minimum": 0,
+            "type": "integer"
+          },
+          "tag_order": {
+            "description": "How 'newest' is decided; auto (the default) = semver when tag_patterns contains semver, created otherwise",
+            "enum": [
+              "auto",
+              "semver",
+              "created",
+              "lexical"
             ],
             "type": "string"
           },
@@ -1513,6 +1537,11 @@
             "description": "Identifier within the managing system, e.g. '\u003cnamespace\u003e/\u003cname\u003e' of the OCIRegistry resource",
             "type": "string"
           },
+          "max_tag_age_days": {
+            "description": "Tags whose image is older than this many days are skipped; 0 = no age limit",
+            "format": "int64",
+            "type": "integer"
+          },
           "name": {
             "type": "string"
           },
@@ -1541,6 +1570,21 @@
             ]
           },
           "scan_mode": {
+            "type": "string"
+          },
+          "tag_limit": {
+            "description": "Newest tags kept per repository (ADR-0053); 0 = unlimited",
+            "format": "int64",
+            "type": "integer"
+          },
+          "tag_order": {
+            "description": "How 'newest' is decided; auto = semver when tag_patterns contains semver, created otherwise",
+            "enum": [
+              "auto",
+              "semver",
+              "created",
+              "lexical"
+            ],
             "type": "string"
           },
           "tag_patterns": {
@@ -1614,7 +1658,10 @@
           "updated_at",
           "visibility",
           "include_untagged",
-          "verification_mode"
+          "verification_mode",
+          "tag_limit",
+          "tag_order",
+          "max_tag_age_days"
         ],
         "type": "object"
       },
@@ -4719,6 +4766,11 @@
             "description": "Identifier within the managing system, e.g. '\u003cnamespace\u003e/\u003cname\u003e' of the OCIRegistry resource",
             "type": "string"
           },
+          "max_tag_age_days": {
+            "description": "Tags whose image is older than this many days are skipped; 0 = no age limit",
+            "format": "int64",
+            "type": "integer"
+          },
           "name": {
             "type": "string"
           },
@@ -4747,6 +4799,21 @@
             ]
           },
           "scan_mode": {
+            "type": "string"
+          },
+          "tag_limit": {
+            "description": "Newest tags kept per repository (ADR-0053); 0 = unlimited",
+            "format": "int64",
+            "type": "integer"
+          },
+          "tag_order": {
+            "description": "How 'newest' is decided; auto = semver when tag_patterns contains semver, created otherwise",
+            "enum": [
+              "auto",
+              "semver",
+              "created",
+              "lexical"
+            ],
             "type": "string"
           },
           "tag_patterns": {
@@ -4816,7 +4883,10 @@
           "updated_at",
           "visibility",
           "include_untagged",
-          "verification_mode"
+          "verification_mode",
+          "tag_limit",
+          "tag_order",
+          "max_tag_age_days"
         ],
         "type": "object"
       },
@@ -6049,6 +6119,13 @@
             "description": "Identifier within the managing system; omit to leave the existing value untouched",
             "type": "string"
           },
+          "max_tag_age_days": {
+            "description": "Skip tags whose image is older than this many days; 0 clears it. Omit to keep the current value",
+            "format": "int64",
+            "maximum": 36500,
+            "minimum": 0,
+            "type": "integer"
+          },
           "name": {
             "maxLength": 100,
             "minLength": 1,
@@ -6084,6 +6161,23 @@
               "webhook",
               "poll",
               "both"
+            ],
+            "type": "string"
+          },
+          "tag_limit": {
+            "description": "Newest tags kept per repository; 0 = unlimited. Omit to keep the current value",
+            "format": "int64",
+            "maximum": 100000,
+            "minimum": 0,
+            "type": "integer"
+          },
+          "tag_order": {
+            "description": "How 'newest' is decided; auto = semver when tag_patterns contains semver, created otherwise. Omit to keep the current value",
+            "enum": [
+              "auto",
+              "semver",
+              "created",
+              "lexical"
             ],
             "type": "string"
           },

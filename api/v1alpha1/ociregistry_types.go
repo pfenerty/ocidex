@@ -89,6 +89,26 @@ type OCIRegistrySpec struct {
 	// TrustIssuer is the expected OIDC issuer URL, required when VerificationMode is keyless.
 	// +optional
 	TrustIssuer *string `json:"trustIssuer,omitempty"`
+
+	// TagLimit is how many of the newest tags OCIDex keeps per repository
+	// (ADR-0053). 0 means unlimited.
+	// +kubebuilder:validation:Minimum=0
+	// +kubebuilder:default=50
+	// +optional
+	TagLimit *int64 `json:"tagLimit,omitempty"`
+
+	// TagOrder decides which tags are newest. auto is semver when tagPatterns
+	// contains semver, and created (the image build date) otherwise.
+	// +kubebuilder:validation:Enum=auto;semver;created;lexical
+	// +kubebuilder:default=auto
+	// +optional
+	TagOrder string `json:"tagOrder,omitempty"`
+
+	// MaxTagAgeDays skips tags whose image is older than this many days. It
+	// needs the created order. Omit for no age limit.
+	// +kubebuilder:validation:Minimum=1
+	// +optional
+	MaxTagAgeDays *int64 `json:"maxTagAgeDays,omitempty"`
 }
 
 // OCIRegistryStatus reflects the observed state of an OCIRegistry.

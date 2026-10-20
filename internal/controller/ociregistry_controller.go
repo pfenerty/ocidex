@@ -218,11 +218,34 @@ func specToCreateBody(spec v1alpha1.OCIRegistrySpec, ref, ocidexNS, username, to
 	body.TrustPublicKey = spec.TrustPublicKey
 	body.TrustIdentity = spec.TrustIdentity
 	body.TrustIssuer = spec.TrustIssuer
+	tagLimit, tagOrder, maxTagAgeDays := specScanWindow(spec)
+	body.TagLimit = &tagLimit
+	body.TagOrder = (*ocidexclient.CreateRegistryInputBodyTagOrder)(&tagOrder)
+	body.MaxTagAgeDays = &maxTagAgeDays
 	if username != "" {
 		body.AuthUsername = &username
 		body.AuthToken = &token
 	}
 	return body
+}
+
+// specScanWindow resolves the CR's scan window with the CRD defaults, so the
+// operator always sends all three fields and the CR, not an earlier UI edit,
+// is what the registry ends up with. A CR stored before the fields existed
+// reads back without them.
+func specScanWindow(spec v1alpha1.OCIRegistrySpec) (tagLimit int64, tagOrder string, maxTagAgeDays int64) {
+	tagLimit = 50
+	if spec.TagLimit != nil {
+		tagLimit = *spec.TagLimit
+	}
+	tagOrder = spec.TagOrder
+	if tagOrder == "" {
+		tagOrder = "auto"
+	}
+	if spec.MaxTagAgeDays != nil {
+		maxTagAgeDays = *spec.MaxTagAgeDays
+	}
+	return tagLimit, tagOrder, maxTagAgeDays
 }
 
 // specToUpdateBody re-stamps the ownership marker on every reconcile, which is
@@ -273,6 +296,10 @@ func specToUpdateBody(spec v1alpha1.OCIRegistrySpec, ref, username, token string
 	body.TrustPublicKey = spec.TrustPublicKey
 	body.TrustIdentity = spec.TrustIdentity
 	body.TrustIssuer = spec.TrustIssuer
+	tagLimit, tagOrder, maxTagAgeDays := specScanWindow(spec)
+	body.TagLimit = &tagLimit
+	body.TagOrder = (*ocidexclient.UpdateRegistryInputBodyTagOrder)(&tagOrder)
+	body.MaxTagAgeDays = &maxTagAgeDays
 	if username != "" {
 		body.AuthUsername = &username
 		body.AuthToken = &token

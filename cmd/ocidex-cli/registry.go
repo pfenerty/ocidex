@@ -117,6 +117,9 @@ type registryOpts struct {
 	trustIdentity      string
 	trustIssuer        string
 	trustPublicKeyFile string
+	tagLimit           int64
+	tagOrder           string
+	maxTagAgeDays      int64
 }
 
 // bindCommon registers the flags create and update share. The two secrets are
@@ -140,6 +143,9 @@ func (o *registryOpts) bindCommon(cmd *cobra.Command) {
 	f.StringVar(&o.trustIdentity, "trust-identity", "", "regex matched against the Fulcio certificate SAN (keyless)")
 	f.StringVar(&o.trustIssuer, "trust-issuer", "", "expected OIDC issuer URL (keyless)")
 	f.StringVar(&o.trustPublicKeyFile, "trust-public-key-file", "", "file holding the PEM-encoded EC public key (public_key)")
+	f.Int64Var(&o.tagLimit, "tag-limit", 0, "newest tags kept per repository; 0 = unlimited (server default 50)")
+	f.StringVar(&o.tagOrder, "tag-order", "", "how newest is decided: auto, semver, created, or lexical")
+	f.Int64Var(&o.maxTagAgeDays, "max-tag-age-days", 0, "skip tags whose image is older than this; needs created order, 0 = no limit")
 }
 
 // secrets reads the file-backed flags, so a create or update fails before it
@@ -229,6 +235,13 @@ func runRegistryCreate(cmd *cobra.Command, cfg *rootConfig, o *registryOpts) err
 	if cmd.Flags().Changed("include-untagged") {
 		body.IncludeUntagged = &o.includeUntagged
 	}
+	if cmd.Flags().Changed("tag-limit") {
+		body.TagLimit = &o.tagLimit
+	}
+	if cmd.Flags().Changed("max-tag-age-days") {
+		body.MaxTagAgeDays = &o.maxTagAgeDays
+	}
+	body.TagOrder = optionalEnum[client.CreateRegistryInputBodyTagOrder](o.tagOrder)
 
 	out, err := cfg.api.CreateRegistry(cmd.Context(), body)
 	if err != nil {
@@ -293,6 +306,11 @@ func runRegistryUpdate(cmd *cobra.Command, cfg *rootConfig, o *registryOpts, ref
 		"trust-identity":        func() { body.TrustIdentity = &o.trustIdentity },
 		"trust-issuer":          func() { body.TrustIssuer = &o.trustIssuer },
 		"trust-public-key-file": func() { body.TrustPublicKey = &trustPublicKey },
+		// The scan window is left out of updateBodyFrom: the API keeps whatever
+		// a field omits, so only a flag the user gave reaches the server.
+		"tag-limit":        func() { body.TagLimit = &o.tagLimit },
+		"tag-order":        func() { body.TagOrder = optionalEnum[client.UpdateRegistryInputBodyTagOrder](o.tagOrder) },
+		"max-tag-age-days": func() { body.MaxTagAgeDays = &o.maxTagAgeDays },
 	})
 
 	updated, err := cfg.api.UpdateRegistry(cmd.Context(), current.Id, body)

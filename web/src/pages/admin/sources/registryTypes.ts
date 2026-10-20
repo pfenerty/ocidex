@@ -19,6 +19,8 @@ export const regTypeLabel = (t: string): string => (t in TYPE_CAPS ? TYPE_CAPS[t
 export type ScanMode = "webhook" | "poll" | "both";
 export type Visibility = "public" | "private";
 export type VerificationMode = "none" | "public_key" | "keyless";
+/** auto = semver when the tag patterns name it, the image build date otherwise (ADR-0053). */
+export type TagOrder = "auto" | "semver" | "created" | "lexical";
 
 export interface RegistryFormState {
     name: string;
@@ -45,6 +47,11 @@ export interface RegistryFormState {
     trustPublicKey: string;
     trustIdentity: string;
     trustIssuer: string;
+    /** Newest tags kept per repository; 0 = unlimited (ADR-0053). */
+    tagLimit: number;
+    tagOrder: TagOrder;
+    /** 0 = no age limit; only valid with the created order. */
+    maxTagAgeDays: number;
 }
 
 export const emptyForm = (): RegistryFormState => ({
@@ -66,6 +73,9 @@ export const emptyForm = (): RegistryFormState => ({
     trustPublicKey: "",
     trustIdentity: "",
     trustIssuer: "",
+    tagLimit: 50,
+    tagOrder: "auto",
+    maxTagAgeDays: 0,
 });
 
 /**

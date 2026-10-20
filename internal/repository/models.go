@@ -305,6 +305,9 @@ type Registry struct {
 	TrustIssuer         pgtype.Text        `json:"trust_issuer"`
 	ManagedBy           pgtype.Text        `json:"managed_by"`
 	ManagedRef          pgtype.Text        `json:"managed_ref"`
+	TagLimit            int32              `json:"tag_limit"`
+	TagOrder            pgtype.Text        `json:"tag_order"`
+	MaxTagAgeDays       pgtype.Int4        `json:"max_tag_age_days"`
 }
 
 type Sbom struct {

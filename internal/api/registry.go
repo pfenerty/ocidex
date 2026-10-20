@@ -354,6 +354,9 @@ func (h *Handler) CreateRegistry(ctx context.Context, in *CreateRegistryInput) (
 		TrustIssuer:         in.Body.TrustIssuer,
 		ManagedBy:           in.Body.ManagedBy,
 		ManagedRef:          in.Body.ManagedRef,
+		TagLimit:            in.Body.TagLimit,
+		TagOrder:            tagOrderFromAPI(in.Body.TagOrder),
+		MaxTagAgeDays:       in.Body.MaxTagAgeDays,
 	})
 	if err != nil {
 		return nil, err
@@ -461,6 +464,9 @@ func (h *Handler) RegenerateWebhookSecret(ctx context.Context, in *RegenerateWeb
 		TrustIssuer:         existing.TrustIssuer,
 		ManagedBy:           existing.ManagedBy,
 		ManagedRef:          existing.ManagedRef,
+		TagLimit:            &existing.TagLimit,
+		TagOrder:            &existing.TagOrder,
+		MaxTagAgeDays:       &existing.MaxTagAgeDays,
 	})
 	if err != nil {
 		return nil, huma.Error500InternalServerError("updating webhook secret")
@@ -546,7 +552,16 @@ func (h *Handler) UpdateRegistry(ctx context.Context, in *UpdateRegistryInput) (
 		// operator-owned registry can't quietly claim it as unmanaged.
 		ManagedBy:  in.Body.ManagedBy,
 		ManagedRef: in.Body.ManagedRef,
+		// nil keeps the stored window, so a client that predates ADR-0053
+		// can't reset it to unlimited by leaving the fields out.
+		TagLimit:      in.Body.TagLimit,
+		TagOrder:      tagOrderPtrFromAPI(in.Body.TagOrder),
+		MaxTagAgeDays: in.Body.MaxTagAgeDays,
 	})
+	var valErr *service.ValidationError
+	if errors.As(err, &valErr) {
+		return nil, mapServiceError(err)
+	}
 	if err != nil {
 		return nil, huma.Error404NotFound("registry not found")
 	}
@@ -653,6 +668,24 @@ func uuidToStr(u pgtype.UUID) string {
 		b[0:4], b[4:6], b[6:8], b[8:10], b[10:16])
 }
 
+// tagOrderAuto is the API's name for the order the service stores as "".
+const tagOrderAuto = "auto"
+
+func tagOrderFromAPI(s string) string {
+	if s == tagOrderAuto {
+		return ""
+	}
+	return s
+}
+
+func tagOrderPtrFromAPI(s *string) *string {
+	if s == nil {
+		return nil
+	}
+	v := tagOrderFromAPI(*s)
+	return &v
+}
+
 func toRegistryResponse(r service.Registry, apiBaseURL string) RegistryResponse {
 	rr := RegistryResponse{
 		ID:                  r.ID,
@@ -679,6 +712,12 @@ func toRegistryResponse(r service.Registry, apiBaseURL string) RegistryResponse 
 		TrustIssuer:         r.TrustIssuer,
 		ManagedBy:           r.ManagedBy,
 		ManagedRef:          r.ManagedRef,
+		TagLimit:            r.TagLimit,
+		TagOrder:            r.TagOrder,
+		MaxTagAgeDays:       r.MaxTagAgeDays,
+	}
+	if rr.TagOrder == "" {
+		rr.TagOrder = tagOrderAuto
 	}
 	if r.LastPolledAt != nil {
 		s := r.LastPolledAt.UTC().Format("2006-01-02T15:04:05Z")

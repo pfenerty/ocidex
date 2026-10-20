@@ -79,6 +79,13 @@ spec:
               insecure:
                 description: Insecure allows HTTP (non-TLS) connections.
                 type: boolean
+              maxTagAgeDays:
+                description: |-
+                  MaxTagAgeDays skips tags whose image is older than this many days. It
+                  needs the created order. Omit for no age limit.
+                format: int64
+                minimum: 1
+                type: integer
               name:
                 description: Name is a human-readable label for the registry.
                 type: string
@@ -113,6 +120,25 @@ spec:
                 - poll
                 - webhook
                 - both
+                type: string
+              tagLimit:
+                default: 50
+                description: |-
+                  TagLimit is how many of the newest tags OCIDex keeps per repository
+                  (ADR-0053). 0 means unlimited.
+                format: int64
+                minimum: 0
+                type: integer
+              tagOrder:
+                default: auto
+                description: |-
+                  TagOrder decides which tags are newest. auto is semver when tagPatterns
+                  contains semver, and created (the image build date) otherwise.
+                enum:
+                - auto
+                - semver
+                - created
+                - lexical
                 type: string
               tagPatterns:
                 description: TagPatterns are glob patterns or "semver" for tags to

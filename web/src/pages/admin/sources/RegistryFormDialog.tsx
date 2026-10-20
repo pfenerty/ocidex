@@ -109,6 +109,9 @@ export function RegistryFormDialog(props: {
                 trustPublicKey: reg.trust_public_key ?? "",
                 trustIdentity: reg.trust_identity ?? "",
                 trustIssuer: reg.trust_issuer ?? "",
+                tagLimit: reg.tag_limit,
+                tagOrder: reg.tag_order,
+                maxTagAgeDays: reg.max_tag_age_days,
             });
             dialogRef?.showModal();
         },
@@ -137,6 +140,7 @@ export function RegistryFormDialog(props: {
             visibility: f.visibility, include_untagged: f.includeUntagged,
             verification_mode: f.verificationMode, trust_public_key: trustPublicKey,
             trust_identity: trustIdentity, trust_issuer: trustIssuer,
+            tag_limit: f.tagLimit, tag_order: f.tagOrder, max_tag_age_days: f.maxTagAgeDays,
         };
 
         // Create only. The update endpoint takes no namespace: moving a

@@ -427,3 +427,22 @@ func isConditionFalse(conditions []metav1.Condition, condType string) bool {
 	}
 	return false
 }
+
+// The CR is the source of truth for the scan window: a CR without the fields
+// (stored before they existed) still sends the CRD defaults, and set fields
+// pass through.
+func TestSpecScanWindow(t *testing.T) {
+	is := is.New(t)
+	spec := newTestRegistry().Spec
+	body := specToUpdateBody(spec, "default/reg", "", "")
+	is.Equal(*body.TagLimit, int64(50))
+	is.Equal(string(*body.TagOrder), "auto")
+	is.Equal(*body.MaxTagAgeDays, int64(0))
+
+	limit, age := int64(5), int64(30)
+	spec.TagLimit, spec.TagOrder, spec.MaxTagAgeDays = &limit, "created", &age
+	create := specToCreateBody(spec, "default/reg", "default", "", "")
+	is.Equal(*create.TagLimit, int64(5))
+	is.Equal(string(*create.TagOrder), "created")
+	is.Equal(*create.MaxTagAgeDays, int64(30))
+}

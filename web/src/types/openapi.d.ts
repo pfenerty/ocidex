@@ -2207,6 +2207,11 @@ export interface components {
             managed_by?: string;
             /** @description Identifier within the managing system, e.g. '<namespace>/<name>' of the OCIRegistry resource */
             managed_ref?: string;
+            /**
+             * Format: int64
+             * @description Skip tags whose image is older than this many days; needs the created order. 0 = no age limit
+             */
+            max_tag_age_days?: number;
             /** @description Human-readable registry name */
             name: string;
             /** @description Namespace to create the registry in, created on first use; omit to give the registry a namespace of its own named after it */
@@ -2225,6 +2230,16 @@ export interface components {
              * @enum {string}
              */
             scan_mode?: "webhook" | "poll" | "both";
+            /**
+             * Format: int64
+             * @description Newest tags kept per repository (ADR-0053); 0 = unlimited. Defaults to 50
+             */
+            tag_limit?: number;
+            /**
+             * @description How 'newest' is decided; auto (the default) = semver when tag_patterns contains semver, created otherwise
+             * @enum {string}
+             */
+            tag_order?: "auto" | "semver" | "created" | "lexical";
             /** @description Glob patterns or 'semver' for tags to ingest; empty = all */
             tag_patterns?: string[] | null;
             /** @description Regex matched against the Fulcio certificate SAN; required when verification_mode is keyless */
@@ -2274,6 +2289,11 @@ export interface components {
             managed_by?: string;
             /** @description Identifier within the managing system, e.g. '<namespace>/<name>' of the OCIRegistry resource */
             managed_ref?: string;
+            /**
+             * Format: int64
+             * @description Tags whose image is older than this many days are skipped; 0 = no age limit
+             */
+            max_tag_age_days: number;
             name: string;
             /** Format: int64 */
             poll_interval_minutes: number;
@@ -2282,6 +2302,16 @@ export interface components {
             /** @description Glob patterns for repositories to ingest; empty = all */
             repository_patterns: string[] | null;
             scan_mode: string;
+            /**
+             * Format: int64
+             * @description Newest tags kept per repository (ADR-0053); 0 = unlimited
+             */
+            tag_limit: number;
+            /**
+             * @description How 'newest' is decided; auto = semver when tag_patterns contains semver, created otherwise
+             * @enum {string}
+             */
+            tag_order: "auto" | "semver" | "created" | "lexical";
             /** @description Glob patterns or 'semver' for tags to ingest; empty = all */
             tag_patterns: string[] | null;
             /** @description Regex matched against the Fulcio certificate SAN; required for keyless verification mode */
@@ -3413,6 +3443,11 @@ export interface components {
             managed_by?: string;
             /** @description Identifier within the managing system, e.g. '<namespace>/<name>' of the OCIRegistry resource */
             managed_ref?: string;
+            /**
+             * Format: int64
+             * @description Tags whose image is older than this many days are skipped; 0 = no age limit
+             */
+            max_tag_age_days: number;
             name: string;
             /** Format: int64 */
             poll_interval_minutes: number;
@@ -3421,6 +3456,16 @@ export interface components {
             /** @description Glob patterns for repositories to ingest; empty = all */
             repository_patterns: string[] | null;
             scan_mode: string;
+            /**
+             * Format: int64
+             * @description Newest tags kept per repository (ADR-0053); 0 = unlimited
+             */
+            tag_limit: number;
+            /**
+             * @description How 'newest' is decided; auto = semver when tag_patterns contains semver, created otherwise
+             * @enum {string}
+             */
+            tag_order: "auto" | "semver" | "created" | "lexical";
             /** @description Glob patterns or 'semver' for tags to ingest; empty = all */
             tag_patterns: string[] | null;
             /** @description Regex matched against the Fulcio certificate SAN; required for keyless verification mode */
@@ -3922,6 +3967,11 @@ export interface components {
             managed_by?: string;
             /** @description Identifier within the managing system; omit to leave the existing value untouched */
             managed_ref?: string;
+            /**
+             * Format: int64
+             * @description Skip tags whose image is older than this many days; 0 clears it. Omit to keep the current value
+             */
+            max_tag_age_days?: number;
             name: string;
             /**
              * Format: int64
@@ -3935,6 +3985,16 @@ export interface components {
              * @enum {string}
              */
             scan_mode?: "webhook" | "poll" | "both";
+            /**
+             * Format: int64
+             * @description Newest tags kept per repository; 0 = unlimited. Omit to keep the current value
+             */
+            tag_limit?: number;
+            /**
+             * @description How 'newest' is decided; auto = semver when tag_patterns contains semver, created otherwise. Omit to keep the current value
+             * @enum {string}
+             */
+            tag_order?: "auto" | "semver" | "created" | "lexical";
             tag_patterns?: string[] | null;
             /** @description Regex matched against the Fulcio certificate SAN; required when verification_mode is keyless */
             trust_identity?: string;

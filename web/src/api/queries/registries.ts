@@ -52,6 +52,9 @@ export function useCreateRegistry() {
             trust_public_key?: string;
             trust_identity?: string;
             trust_issuer?: string;
+            tag_limit?: number;
+            tag_order?: "auto" | "semver" | "created" | "lexical";
+            max_tag_age_days?: number;
         }) => unwrap(client.POST("/api/v1/registries", { body })),
         onSuccess: () => queryClient.invalidateQueries({ queryKey: ["registries"] }),
     }));
@@ -83,6 +86,9 @@ export function useUpdateRegistry() {
             trust_public_key?: string;
             trust_identity?: string;
             trust_issuer?: string;
+            tag_limit?: number;
+            tag_order?: "auto" | "semver" | "created" | "lexical";
+            max_tag_age_days?: number;
         }) =>
             unwrap(
                 client.PATCH("/api/v1/registries/{id}", {
