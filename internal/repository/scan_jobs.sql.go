@@ -153,6 +153,41 @@ func (q *Queries) ClaimScanJobByID(ctx context.Context, arg ClaimScanJobByIDPara
 	return i, err
 }
 
+const countActiveScanJobs = `-- name: CountActiveScanJobs :many
+SELECT state, count(*)::bigint AS jobs
+FROM scan_jobs
+WHERE state IN ('queued', 'running')
+GROUP BY state
+`
+
+type CountActiveScanJobsRow struct {
+	State string `json:"state"`
+	Jobs  int64  `json:"jobs"`
+}
+
+// Queue depth for the ocidex.jobs gauge (ADR-0054). Only queued and running
+// rows, so the partial indexes idx_scan_jobs_queued / idx_scan_jobs_running
+// answer it without touching terminal rows.
+func (q *Queries) CountActiveScanJobs(ctx context.Context) ([]CountActiveScanJobsRow, error) {
+	rows, err := q.db.Query(ctx, countActiveScanJobs)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	items := []CountActiveScanJobsRow{}
+	for rows.Next() {
+		var i CountActiveScanJobsRow
+		if err := rows.Scan(&i.State, &i.Jobs); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
 const countScanJobs = `-- name: CountScanJobs :one
 SELECT COUNT(*) FROM scan_jobs j
 WHERE ($1::text IS NULL OR j.state = $1::text)

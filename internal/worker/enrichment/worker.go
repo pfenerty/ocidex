@@ -24,6 +24,7 @@ import (
 	"github.com/pfenerty/ocidex/internal/extension"
 	"github.com/pfenerty/ocidex/internal/health"
 	"github.com/pfenerty/ocidex/internal/jobqueue"
+	"github.com/pfenerty/ocidex/internal/metrics"
 	natspkg "github.com/pfenerty/ocidex/internal/nats"
 	"github.com/pfenerty/ocidex/internal/repository"
 	"github.com/pfenerty/ocidex/internal/service"
@@ -114,6 +115,9 @@ func Run(factory EnricherFactory, cfg RunConfig) error {
 	}
 	dispatcher := enrichment.NewDispatcher(enrichStore, enrichReg)
 
+	meterProvider, metricsHandler, stopMetrics := metrics.Start(ctx, "ocidex-enricher-"+cfg.EnricherName)
+	defer stopMetrics()
+
 	enrichJobSvc := service.NewEnrichJobService(pool, cfg.EnricherName)
 	workerID, _ := os.Hostname()
 	enrichProcessor := func(ctx context.Context, claim service.EnrichJobClaim) error {
@@ -156,7 +160,7 @@ func Run(factory EnricherFactory, cfg RunConfig) error {
 			HintDurable:       cfg.HintDurable,
 		},
 		logger,
-	))
+	).WithMetrics(meterProvider, cfg.EnricherName))
 
 	if err := reg.InitAll(); err != nil {
 		return fmt.Errorf("initializing extensions: %w", err)
@@ -169,7 +173,7 @@ func Run(factory EnricherFactory, cfg RunConfig) error {
 		return fmt.Errorf("starting extensions: %w", err)
 	}
 
-	healthSrv := health.New(":9090", pool, natsClient, slog.Default())
+	healthSrv := health.New(":9090", pool, natsClient, slog.Default()).WithMetrics(metricsHandler)
 	healthSrv.Start()
 	defer healthSrv.Stop()
 

@@ -24,6 +24,7 @@ import (
 
 	"github.com/pfenerty/ocidex/internal/config"
 	"github.com/pfenerty/ocidex/internal/health"
+	"github.com/pfenerty/ocidex/internal/metrics"
 	"github.com/pfenerty/ocidex/internal/service"
 	"github.com/pfenerty/ocidex/internal/vuln"
 	"github.com/pfenerty/ocidex/internal/vuln/grypematch"
@@ -100,7 +101,9 @@ func run() error {
 		slog.Info("vuln refresh election started", "lock_key", lockKey)
 	}
 
-	healthSrv := health.New(":9090", pool, nil, slog.Default())
+	_, metricsHandler, stopMetrics := metrics.Start(ctx, "ocidex-vuln-worker")
+	defer stopMetrics()
+	healthSrv := health.New(":9090", pool, nil, slog.Default()).WithMetrics(metricsHandler)
 	healthSrv.Start()
 	defer healthSrv.Stop()
 

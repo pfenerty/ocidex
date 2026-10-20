@@ -15,10 +15,11 @@ type Server struct {
 	logger *slog.Logger
 }
 
-// NewServer returns a Server that serves p's handler at /metrics on addr.
-func NewServer(addr string, p *Provider, logger *slog.Logger) *Server {
+// NewServer returns a Server that serves h, a Provider's handler, at /metrics
+// on addr.
+func NewServer(addr string, h http.Handler, logger *slog.Logger) *Server {
 	mux := http.NewServeMux()
-	mux.Handle("/metrics", p.Handler())
+	mux.Handle("/metrics", h)
 	return &Server{
 		srv: &http.Server{
 			Addr:              addr,

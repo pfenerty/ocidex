@@ -163,6 +163,45 @@ func (q *Queries) ClaimNextEnrichmentJob(ctx context.Context, arg ClaimNextEnric
 	return i, err
 }
 
+const countActiveEnrichmentJobs = `-- name: CountActiveEnrichmentJobs :many
+SELECT 'queued'::text AS state, count(*)::bigint AS jobs
+FROM enrichment_jobs
+WHERE enricher_name = $1::text AND state = 'queued'
+UNION ALL
+SELECT 'running'::text AS state, count(*)::bigint AS jobs
+FROM enrichment_jobs
+WHERE enricher_name = $1::text AND state = 'running'
+`
+
+type CountActiveEnrichmentJobsRow struct {
+	State string `json:"state"`
+	Jobs  int64  `json:"jobs"`
+}
+
+// Queue depth of one enricher's partition for the ocidex.jobs gauge
+// (ADR-0054). One branch per state so each can use its partial index
+// (idx_enrichment_jobs_enricher_queued, idx_enrichment_jobs_running); an IN
+// over both states matches neither index's predicate.
+func (q *Queries) CountActiveEnrichmentJobs(ctx context.Context, enricherName string) ([]CountActiveEnrichmentJobsRow, error) {
+	rows, err := q.db.Query(ctx, countActiveEnrichmentJobs, enricherName)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	items := []CountActiveEnrichmentJobsRow{}
+	for rows.Next() {
+		var i CountActiveEnrichmentJobsRow
+		if err := rows.Scan(&i.State, &i.Jobs); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
 const countEnrichmentJobs = `-- name: CountEnrichmentJobs :one
 SELECT COUNT(*) FROM enrichment_jobs j
 LEFT JOIN sbom s ON s.id = j.sbom_id

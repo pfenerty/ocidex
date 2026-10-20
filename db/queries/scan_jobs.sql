@@ -295,3 +295,12 @@ WHERE s.artifact_id = @artifact_id
   AND j.registry_id = s.source_id
   AND j.digest = s.digest
   AND j.state = 'succeeded';
+
+-- name: CountActiveScanJobs :many
+-- Queue depth for the ocidex.jobs gauge (ADR-0054). Only queued and running
+-- rows, so the partial indexes idx_scan_jobs_queued / idx_scan_jobs_running
+-- answer it without touching terminal rows.
+SELECT state, count(*)::bigint AS jobs
+FROM scan_jobs
+WHERE state IN ('queued', 'running')
+GROUP BY state;

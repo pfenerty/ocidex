@@ -29,6 +29,7 @@ import (
 
 	"github.com/pfenerty/ocidex/internal/config"
 	"github.com/pfenerty/ocidex/internal/health"
+	"github.com/pfenerty/ocidex/internal/metrics"
 	"github.com/pfenerty/ocidex/pkg/client"
 )
 
@@ -88,7 +89,9 @@ func run() error {
 		return nil
 	}
 
-	healthSrv := health.New(cfg.HealthAddr, nil, nil, slog.Default())
+	_, metricsHandler, stopMetrics := metrics.Start(ctx, "ocidex-k8s-agent")
+	defer stopMetrics()
+	healthSrv := health.New(cfg.HealthAddr, nil, nil, slog.Default()).WithMetrics(metricsHandler)
 	healthSrv.Start()
 	defer healthSrv.Stop()
 

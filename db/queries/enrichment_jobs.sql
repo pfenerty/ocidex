@@ -229,3 +229,16 @@ SET state           = 'queued',
 WHERE sbom_id = @sbom_id::uuid
   AND enricher_name = @enricher_name::text
   AND state IN ('succeeded', 'failed');
+
+-- name: CountActiveEnrichmentJobs :many
+-- Queue depth of one enricher's partition for the ocidex.jobs gauge
+-- (ADR-0054). One branch per state so each can use its partial index
+-- (idx_enrichment_jobs_enricher_queued, idx_enrichment_jobs_running); an IN
+-- over both states matches neither index's predicate.
+SELECT 'queued'::text AS state, count(*)::bigint AS jobs
+FROM enrichment_jobs
+WHERE enricher_name = sqlc.arg(enricher_name)::text AND state = 'queued'
+UNION ALL
+SELECT 'running'::text AS state, count(*)::bigint AS jobs
+FROM enrichment_jobs
+WHERE enricher_name = sqlc.arg(enricher_name)::text AND state = 'running';

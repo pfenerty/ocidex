@@ -25,6 +25,7 @@ import (
 	"github.com/pfenerty/ocidex/internal/extension"
 	"github.com/pfenerty/ocidex/internal/health"
 	"github.com/pfenerty/ocidex/internal/jobqueue"
+	"github.com/pfenerty/ocidex/internal/metrics"
 	natspkg "github.com/pfenerty/ocidex/internal/nats"
 	"github.com/pfenerty/ocidex/internal/scanner"
 	"github.com/pfenerty/ocidex/internal/scanner/engine"
@@ -120,6 +121,9 @@ func run() error {
 	enrichJobSvc := service.NewEnrichJobService(pool, "")
 	registry.Register(enrichment.NewNATSSubmitter(natsClient, cfg.NATSStreamName, enrichJobSvc, logger))
 
+	meterProvider, metricsHandler, stopMetrics := metrics.Start(ctx, "ocidex-scanner-worker")
+	defer stopMetrics()
+
 	workerID, _ := os.Hostname()
 	scanProcessor := func(ctx context.Context, claim service.ScanJobClaim) error {
 		req := scanner.ScanRequestFromClaim(claim)
@@ -146,7 +150,7 @@ func run() error {
 			HintDurable:       scanner.ScannerHintDurable,
 		},
 		logger,
-	))
+	).WithMetrics(meterProvider, "scan"))
 
 	// Wire catalog walk consumer: receives catalog.walk.requested from the API server poller
 	// and performs the OCI catalog walk here in the scanner-worker.
@@ -167,7 +171,7 @@ func run() error {
 		return fmt.Errorf("starting extensions: %w", err)
 	}
 
-	healthSrv := health.New(":9090", pool, natsClient, slog.Default())
+	healthSrv := health.New(":9090", pool, natsClient, slog.Default()).WithMetrics(metricsHandler)
 	healthSrv.Start()
 	defer healthSrv.Stop()
 

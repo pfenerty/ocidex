@@ -365,6 +365,20 @@ func (s *jobService) RequeueStuckRunning(ctx context.Context, stuckThreshold tim
 	})
 }
 
+// CountActive returns how many scan jobs are queued and running, keyed by
+// state. It satisfies jobqueue.DepthCounter for the ocidex.jobs gauge.
+func (s *jobService) CountActive(ctx context.Context) (map[string]int64, error) {
+	rows, err := s.repo.CountActiveScanJobs(ctx)
+	if err != nil {
+		return nil, fmt.Errorf("count active scan jobs: %w", err)
+	}
+	out := make(map[string]int64, len(rows))
+	for _, r := range rows {
+		out[r.State] = r.Jobs
+	}
+	return out, nil
+}
+
 func (s *jobService) Retry(ctx context.Context, id string) error {
 	uid, err := parseUUID(id)
 	if err != nil {

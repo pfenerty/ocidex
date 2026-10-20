@@ -60,7 +60,7 @@ func TestServerServesMetricsPath(t *testing.T) {
 	is.NoErr(err)
 	t.Cleanup(func() { _ = p.Shutdown(t.Context()) })
 
-	srv := httptest.NewServer(metrics.NewServer("", p, nil).Handler())
+	srv := httptest.NewServer(metrics.NewServer("", p.Handler(), nil).Handler())
 	defer srv.Close()
 	resp, err := http.Get(srv.URL + "/metrics")
 	is.NoErr(err)

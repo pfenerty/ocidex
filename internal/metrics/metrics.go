@@ -10,7 +10,9 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"log/slog"
 	"net/http"
+	"time"
 
 	"github.com/prometheus/client_golang/prometheus"
 	"github.com/prometheus/client_golang/prometheus/collectors"
@@ -19,6 +21,7 @@ import (
 	"go.opentelemetry.io/contrib/instrumentation/runtime"
 	otelprom "go.opentelemetry.io/otel/exporters/prometheus"
 	"go.opentelemetry.io/otel/metric"
+	"go.opentelemetry.io/otel/metric/noop"
 	sdkmetric "go.opentelemetry.io/otel/sdk/metric"
 	"go.opentelemetry.io/otel/sdk/resource"
 	semconv "go.opentelemetry.io/otel/semconv/v1.43.0"
@@ -84,4 +87,22 @@ func (p *Provider) Handler() http.Handler { return p.handler }
 // Meter is a shorthand for the instrumentation scope OCIDex packages use.
 func Meter(mp metric.MeterProvider) metric.Meter {
 	return mp.Meter("github.com/pfenerty/ocidex")
+}
+
+// Start builds the Provider for serviceName. If that fails it logs why and
+// returns a no-op provider and a nil handler: losing metrics must not take a
+// binary down. The returned func flushes and stops the provider.
+func Start(ctx context.Context, serviceName string) (metric.MeterProvider, http.Handler, func()) {
+	p, err := New(ctx, serviceName)
+	if err != nil {
+		slog.Error("metrics disabled", "err", err)
+		return noop.NewMeterProvider(), nil, func() {}
+	}
+	return p, p.Handler(), func() {
+		stopCtx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+		defer cancel()
+		if err := p.Shutdown(stopCtx); err != nil {
+			slog.Error("metrics shutdown", "err", err)
+		}
+	}
 }

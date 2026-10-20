@@ -402,28 +402,27 @@ func setupScannerExt(cfg *config.Config, _ *pgxpool.Pool, _ *event.Bus, _ *exten
 }
 
 // setupMetrics builds the API's MeterProvider and starts the private /metrics
-// listener on METRICS_ADDR (ADR-0054). With METRICS_ADDR empty it returns a
-// no-op provider, and it does the same when setup fails: losing metrics must
-// not take the API down. The returned func stops the listener and flushes the
-// provider.
+// listener on METRICS_ADDR (ADR-0054). With METRICS_ADDR empty, or when setup
+// fails, it returns a no-op provider. The returned func stops the listener and
+// flushes the provider.
 func setupMetrics(ctx context.Context, cfg *config.Config) (metric.MeterProvider, func()) {
 	if cfg.MetricsAddr == "" {
 		slog.Info("metrics disabled: METRICS_ADDR is empty")
 		return noop.NewMeterProvider(), func() {}
 	}
-	mp, err := metrics.New(ctx, "ocidex-api")
-	if err != nil {
-		slog.Error("metrics disabled", "err", err)
-		return noop.NewMeterProvider(), func() {}
+	mp, handler, stop := metrics.Start(ctx, "ocidex-api")
+	if handler == nil {
+		return mp, stop
 	}
-	srv := metrics.NewServer(cfg.MetricsAddr, mp, slog.Default())
+	srv := metrics.NewServer(cfg.MetricsAddr, handler, slog.Default())
 	srv.Start()
 	return mp, func() {
 		stopCtx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
 		defer cancel()
-		if err := errors.Join(srv.Stop(stopCtx), mp.Shutdown(stopCtx)); err != nil {
-			slog.Error("metrics shutdown", "err", err)
+		if err := srv.Stop(stopCtx); err != nil {
+			slog.Error("metrics server shutdown", "err", err)
 		}
+		stop()
 	}
 }
 

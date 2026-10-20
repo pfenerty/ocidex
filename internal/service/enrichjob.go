@@ -202,6 +202,21 @@ func (s *enrichJobService) RequeueStuckRunning(ctx context.Context, stuckThresho
 	})
 }
 
+// CountActive returns how many of this enricher's jobs are queued and
+// running, keyed by state. It satisfies jobqueue.DepthCounter for the
+// ocidex.jobs gauge.
+func (s *enrichJobService) CountActive(ctx context.Context) (map[string]int64, error) {
+	rows, err := s.repo.CountActiveEnrichmentJobs(ctx, s.enricherName)
+	if err != nil {
+		return nil, fmt.Errorf("count active enrichment jobs: %w", err)
+	}
+	out := make(map[string]int64, len(rows))
+	for _, r := range rows {
+		out[r.State] = r.Jobs
+	}
+	return out, nil
+}
+
 func (s *enrichJobService) List(ctx context.Context, state, enricherName string, vis VisibilityFilter, limit, offset int32) ([]EnrichJob, int64, error) {
 	stateFilter := pgtype.Text{String: state, Valid: state != ""}
 	enricherFilter := pgtype.Text{String: enricherName, Valid: enricherName != ""}

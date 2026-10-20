@@ -256,6 +256,12 @@ count. Go runtime (`go_*`) and process (`process_*`) metrics are included.
 
 All worker binaries require `DATABASE_URL` and `NATS_URL` and will exit non-zero immediately if either is missing.
 
+Every worker, and `k8s-agent`, serves `/healthz`, `/readyz` and Prometheus `/metrics` on `:9090`.
+Job workers add `ocidex_jobs_processed_total{queue,outcome}` (`success`, `retry`,
+`permanent_failure`), `ocidex_job_duration_seconds{queue}` and the queue-depth gauge
+`ocidex_jobs{queue,state}` (`queued`, `running`). `queue` is `scan` or the enricher name
+(ADR-0054).
+
 ### `scanner-worker`
 
 Runs as a long-lived daemon consuming scan jobs from NATS.

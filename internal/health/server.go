@@ -14,13 +14,15 @@ import (
 	natspkg "github.com/pfenerty/ocidex/internal/nats"
 )
 
-// Server exposes /healthz (liveness) and /readyz (readiness).
+// Server exposes /healthz (liveness) and /readyz (readiness), and /metrics
+// when WithMetrics supplies a handler (ADR-0054 M2).
 type Server struct {
-	addr   string
-	pool   *pgxpool.Pool
-	nats   *natspkg.Client
-	srv    *http.Server
-	logger *slog.Logger
+	addr    string
+	pool    *pgxpool.Pool
+	nats    *natspkg.Client
+	metrics http.Handler
+	srv     *http.Server
+	logger  *slog.Logger
 }
 
 // New returns a Server bound to addr (e.g. ":9090"). pool and nats may be nil;
@@ -29,14 +31,28 @@ func New(addr string, pool *pgxpool.Pool, nats *natspkg.Client, logger *slog.Log
 	return &Server{addr: addr, pool: pool, nats: nats, logger: logger}
 }
 
-// Start spins up the HTTP server in a goroutine. Call Stop to shut it down.
-func (s *Server) Start() {
+// WithMetrics serves h at /metrics on the health port. Call it before Start.
+func (s *Server) WithMetrics(h http.Handler) *Server {
+	s.metrics = h
+	return s
+}
+
+// Handler returns the server's routes.
+func (s *Server) Handler() http.Handler {
 	mux := http.NewServeMux()
 	mux.HandleFunc("/healthz", s.handleHealthz)
 	mux.HandleFunc("/readyz", s.handleReadyz)
+	if s.metrics != nil {
+		mux.Handle("/metrics", s.metrics)
+	}
+	return mux
+}
+
+// Start spins up the HTTP server in a goroutine. Call Stop to shut it down.
+func (s *Server) Start() {
 	s.srv = &http.Server{
 		Addr:              s.addr,
-		Handler:           mux,
+		Handler:           s.Handler(),
 		ReadHeaderTimeout: 5 * time.Second,
 	}
 	go func() {
