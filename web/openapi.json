@@ -4510,6 +4510,112 @@
         ],
         "type": "object"
       },
+      "PreviewRegistryConfigInputBody": {
+        "additionalProperties": false,
+        "properties": {
+          "$schema": {
+            "description": "A URL to the JSON Schema for this object.",
+            "examples": [
+              "https://example.com/schemas/PreviewRegistryConfigInputBody.json"
+            ],
+            "format": "uri",
+            "readOnly": true,
+            "type": "string"
+          },
+          "auth_token": {
+            "description": "Token or PAT for registry authentication; omit for anonymous access",
+            "type": "string"
+          },
+          "auth_username": {
+            "description": "Username for registry authentication; omit for anonymous access",
+            "type": "string"
+          },
+          "include_untagged": {
+            "description": "Scan untagged manifests via registry-specific APIs (supported: zot, harbor, ghcr)",
+            "type": "boolean"
+          },
+          "insecure": {
+            "description": "Allow HTTP (non-TLS) connections",
+            "type": "boolean"
+          },
+          "max_tag_age_days": {
+            "description": "Skip tags whose image is older than this many days; needs the created order",
+            "format": "int64",
+            "maximum": 36500,
+            "minimum": 0,
+            "type": "integer"
+          },
+          "repositories": {
+            "description": "Explicit repositories to walk; bypasses /v2/_catalog discovery when non-empty",
+            "items": {
+              "type": "string"
+            },
+            "type": [
+              "array",
+              "null"
+            ]
+          },
+          "repository_patterns": {
+            "description": "Glob patterns for repositories to ingest; empty = all",
+            "items": {
+              "type": "string"
+            },
+            "type": [
+              "array",
+              "null"
+            ]
+          },
+          "tag_limit": {
+            "description": "Newest tags kept per repository; 0 = unlimited. Defaults to 50",
+            "format": "int64",
+            "maximum": 100000,
+            "minimum": 0,
+            "type": "integer"
+          },
+          "tag_order": {
+            "description": "How 'newest' is decided; defaults to auto",
+            "enum": [
+              "auto",
+              "semver",
+              "created",
+              "lexical"
+            ],
+            "type": "string"
+          },
+          "tag_patterns": {
+            "description": "Glob patterns or 'semver' for tags to ingest; empty = all",
+            "items": {
+              "type": "string"
+            },
+            "type": [
+              "array",
+              "null"
+            ]
+          },
+          "type": {
+            "description": "Registry type",
+            "enum": [
+              "zot",
+              "harbor",
+              "docker",
+              "generic",
+              "ghcr"
+            ],
+            "type": "string"
+          },
+          "url": {
+            "description": "Registry address (e.g. zot:5000)",
+            "minLength": 1,
+            "type": "string"
+          }
+        },
+        "required": [
+          "type",
+          "url",
+          "insecure"
+        ],
+        "type": "object"
+      },
       "ProvenanceDriftSummary": {
         "additionalProperties": false,
         "properties": {
@@ -4718,6 +4824,48 @@
         },
         "required": [
           "webhook_secret"
+        ],
+        "type": "object"
+      },
+      "RegistryPreview": {
+        "additionalProperties": false,
+        "properties": {
+          "$schema": {
+            "description": "A URL to the JSON Schema for this object.",
+            "examples": [
+              "https://example.com/schemas/RegistryPreview.json"
+            ],
+            "format": "uri",
+            "readOnly": true,
+            "type": "string"
+          },
+          "estimated_sboms": {
+            "format": "int64",
+            "type": "integer"
+          },
+          "repositories": {
+            "items": {
+              "$ref": "#/components/schemas/RepoPreview"
+            },
+            "type": [
+              "array",
+              "null"
+            ]
+          },
+          "selected": {
+            "format": "int64",
+            "type": "integer"
+          },
+          "skipped_by_limit": {
+            "format": "int64",
+            "type": "integer"
+          }
+        },
+        "required": [
+          "repositories",
+          "selected",
+          "skipped_by_limit",
+          "estimated_sboms"
         ],
         "type": "object"
       },
@@ -4945,6 +5093,64 @@
           "digest",
           "mediaType",
           "manifest"
+        ],
+        "type": "object"
+      },
+      "RepoPreview": {
+        "additionalProperties": false,
+        "properties": {
+          "error": {
+            "description": "Why this repository could not be previewed; the others still are",
+            "type": "string"
+          },
+          "estimated_sboms": {
+            "description": "(selected tags x platforms) + untagged manifests; an estimate, since tags can share digests and platforms vary",
+            "format": "int64",
+            "type": "integer"
+          },
+          "matched": {
+            "description": "Tags that pass the filter",
+            "format": "int64",
+            "type": "integer"
+          },
+          "platforms": {
+            "description": "Platforms of the newest selected tag, the sample the estimate multiplies by",
+            "format": "int64",
+            "type": "integer"
+          },
+          "repository": {
+            "type": "string"
+          },
+          "selected": {
+            "description": "Tags inside the window",
+            "format": "int64",
+            "type": "integer"
+          },
+          "skipped_by_age": {
+            "description": "Matching tags older than max_tag_age_days, or with no build date while it is set",
+            "format": "int64",
+            "type": "integer"
+          },
+          "skipped_by_limit": {
+            "description": "Matching tags past tag_limit",
+            "format": "int64",
+            "type": "integer"
+          },
+          "untagged": {
+            "description": "Untagged manifests inside the untagged window (include_untagged only)",
+            "format": "int64",
+            "type": "integer"
+          }
+        },
+        "required": [
+          "repository",
+          "matched",
+          "selected",
+          "skipped_by_limit",
+          "skipped_by_age",
+          "untagged",
+          "platforms",
+          "estimated_sboms"
         ],
         "type": "object"
       },
@@ -10448,6 +10654,48 @@
         ]
       }
     },
+    "/api/v1/registries/preview": {
+      "post": {
+        "description": "Runs the scan window (ADR-0053) against the registry without saving or submitting anything: per repository, the matched, selected and skipped tag counts, and an SBOM estimate.",
+        "operationId": "preview-registry-config",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/PreviewRegistryConfigInputBody"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/RegistryPreview"
+                }
+              }
+            },
+            "description": "OK"
+          },
+          "default": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorModel"
+                }
+              }
+            },
+            "description": "Error"
+          }
+        },
+        "summary": "Preview what an unsaved registry would scan",
+        "tags": [
+          "Registries"
+        ]
+      }
+    },
     "/api/v1/registries/test-connection": {
       "post": {
         "description": "Probes the registry's /v2/ endpoint and reports whether it is reachable. Admin-only.",
@@ -10648,6 +10896,51 @@
           }
         },
         "summary": "Update a registry (partial)",
+        "tags": [
+          "Registries"
+        ]
+      }
+    },
+    "/api/v1/registries/{id}/preview": {
+      "get": {
+        "description": "Runs the saved registry's scan window (ADR-0053) with its stored credentials and submits nothing.",
+        "operationId": "get-registry-preview",
+        "parameters": [
+          {
+            "description": "Registry UUID",
+            "in": "path",
+            "name": "id",
+            "required": true,
+            "schema": {
+              "description": "Registry UUID",
+              "format": "uuid",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/RegistryPreview"
+                }
+              }
+            },
+            "description": "OK"
+          },
+          "default": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorModel"
+                }
+              }
+            },
+            "description": "Error"
+          }
+        },
+        "summary": "Preview what a registry's next walk would scan",
         "tags": [
           "Registries"
         ]

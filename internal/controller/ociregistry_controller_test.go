@@ -446,3 +446,49 @@ func TestSpecScanWindow(t *testing.T) {
 	is.Equal(string(*create.TagOrder), "created")
 	is.Equal(*create.MaxTagAgeDays, int64(30))
 }
+
+// TestOCIRegistryReconciler_RecordsScope covers ocidex-5y0r.2: a synced CR
+// carries the preview estimate, and a preview failure is recorded without
+// failing the reconcile.
+func TestOCIRegistryReconciler_RecordsScope(t *testing.T) {
+	for _, tc := range []struct {
+		name       string
+		previewErr error
+	}{{"estimate", nil}, {"preview fails", errors.New("registry unreachable")}} {
+		t.Run(tc.name, func(t *testing.T) {
+			is := is.New(t)
+			cr := newTestRegistry()
+			cr.Status.RegistryID = "existing-uuid"
+			cr.Finalizers = []string{ociRegistryFinalizer}
+			k8s := fake.NewClientBuilder().WithScheme(testScheme).WithObjects(cr).WithStatusSubresource(cr).Build()
+			repos := []ocidexclient.RepoPreview{{Repository: "a"}, {Repository: "b"}}
+			ocidex := &ocidexclient.FakeClient{
+				GetRegistryFn: func(_ context.Context, id string) (ocidexclient.RegistryResponse, error) {
+					return ocidexclient.RegistryResponse{Id: id}, nil
+				},
+				GetRegistryPreviewFn: func(context.Context, string) (ocidexclient.RegistryPreview, error) {
+					if tc.previewErr != nil {
+						return ocidexclient.RegistryPreview{}, tc.previewErr
+					}
+					return ocidexclient.RegistryPreview{Repositories: &repos, Selected: 10, SkippedByLimit: 40, EstimatedSboms: 25}, nil
+				},
+			}
+
+			_, err := reconcile(t, k8s, ocidex, cr)
+			is.NoErr(err)
+
+			updated := &v1alpha1.OCIRegistry{}
+			is.NoErr(k8s.Get(context.Background(), types.NamespacedName{Name: "reg", Namespace: "default"}, updated))
+			is.True(isConditionTrue(updated.Status.Conditions, "Ready"))
+			is.True(updated.Status.Scope != nil)
+			is.Equal(updated.Status.Scope.ObservedGeneration, int64(1))
+			if tc.previewErr != nil {
+				is.Equal(updated.Status.Scope.Error, "registry unreachable")
+				return
+			}
+			is.Equal(updated.Status.Scope.Repositories, int64(2))
+			is.Equal(updated.Status.Scope.SelectedTags, int64(10))
+			is.Equal(updated.Status.Scope.EstimatedSBOMs, int64(25))
+		})
+	}
+}

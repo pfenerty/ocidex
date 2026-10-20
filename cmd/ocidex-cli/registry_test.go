@@ -364,3 +364,40 @@ func TestRegistryNotFoundExitCode(t *testing.T) {
 	is.True(err != nil)
 	is.Equal(exitCode(err, true), exitNotFound)
 }
+
+func TestRegistryPreviewSaved(t *testing.T) {
+	is := is.New(t)
+	repos := []client.RepoPreview{{Repository: "app", Matched: 30, Selected: 10, SkippedByLimit: 20, Platforms: 2, EstimatedSboms: 20}}
+	fake := &client.FakeClient{
+		GetRegistryFn: func(context.Context, string) (client.RegistryResponse, error) { return testRegistry(), nil },
+		GetRegistryPreviewFn: func(_ context.Context, id string) (client.RegistryPreview, error) {
+			is.Equal(id, testRegistryID)
+			return client.RegistryPreview{Repositories: &repos, Selected: 10, SkippedByLimit: 20, EstimatedSboms: 20}, nil
+		},
+	}
+	stdout, stderr, err := runCLI(t, fake, "registry", "preview", testRegistryID)
+	is.NoErr(err)
+	is.True(strings.Contains(stdout, "app"))
+	is.True(strings.Contains(stdout, "PAST LIMIT"))
+	is.True(strings.Contains(stderr, "~20 SBOMs"))
+}
+
+func TestRegistryPreviewUnsaved(t *testing.T) {
+	is := is.New(t)
+	var got client.PreviewRegistryConfigInputBody
+	fake := &client.FakeClient{
+		PreviewRegistryConfigFn: func(_ context.Context, body client.PreviewRegistryConfigInputBody) (client.RegistryPreview, error) {
+			got = body
+			return client.RegistryPreview{}, nil
+		},
+	}
+	_, _, err := runCLI(t, fake, "registry", "preview", "--url", "quay.io", "--type", "docker",
+		"--repository", "metallb/controller", "--tag-pattern", "semver", "--tag-limit", "5")
+	is.NoErr(err)
+	is.Equal(got.Url, "quay.io")
+	is.Equal(*got.TagLimit, int64(5))
+	is.Equal(*got.Repositories, []string{"metallb/controller"})
+
+	_, _, err = runCLI(t, fake, "registry", "preview")
+	is.Equal(exitCode(err, false), exitUsage) // neither a registry nor --url/--type
+}

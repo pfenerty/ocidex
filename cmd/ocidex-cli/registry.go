@@ -30,6 +30,7 @@ is resolved through /api/v1/registries/by-name before the call.`,
 		newRegistryUpdateCmd(cfg),
 		newRegistryDeleteCmd(cfg),
 		newRegistryScanCmd(cfg),
+		newRegistryPreviewCmd(cfg),
 	)
 	return cmd
 }
@@ -395,6 +396,112 @@ func newRegistryScanCmd(cfg *rootConfig) *cobra.Command {
 			fmt.Fprintf(cmd.OutOrStdout(), "%s: %s\n", reg.Id, out.Message)
 			return nil
 		},
+	}
+}
+
+func newRegistryPreviewCmd(cfg *rootConfig) *cobra.Command {
+	o := &registryOpts{}
+	cmd := &cobra.Command{
+		Use:   "preview [id|name]",
+		Short: "Show what a registry would scan, without scanning",
+		Long: `Show what a registry would scan, without scanning (ADR-0053).
+
+With a registry, previews its saved configuration and credentials. Without one,
+previews the configuration given by the same flags as create, before it is
+saved. Either way nothing is queued. The table has one row per repository; the
+total estimate goes to stderr.`,
+		Example: `  ocidex-cli registry preview ghcr
+  ocidex-cli registry preview --url quay.io --type docker \
+    --repository metallb/controller --tag-pattern semver --tag-limit 5`,
+		Args: cobra.MaximumNArgs(1),
+		RunE: func(cmd *cobra.Command, args []string) error {
+			return runRegistryPreview(cmd, cfg, o, args)
+		},
+	}
+	o.bindCommon(cmd)
+	return cmd
+}
+
+func runRegistryPreview(cmd *cobra.Command, cfg *rootConfig, o *registryOpts, args []string) error {
+	var (
+		p   client.RegistryPreview
+		err error
+	)
+	if len(args) == 1 {
+		reg, getErr := getRegistry(cmd.Context(), cfg.api, args[0])
+		if getErr != nil {
+			return getErr
+		}
+		p, err = cfg.api.GetRegistryPreview(cmd.Context(), reg.Id)
+	} else {
+		body, bodyErr := previewBody(cmd, o)
+		if bodyErr != nil {
+			return bodyErr
+		}
+		p, err = cfg.api.PreviewRegistryConfig(cmd.Context(), body)
+	}
+	if err != nil {
+		return fmt.Errorf("previewing registry: %w", err)
+	}
+	if cfg.format != output.Table {
+		return output.Item(cmd.OutOrStdout(), cfg.format, p)
+	}
+	var repos []client.RepoPreview
+	if p.Repositories != nil {
+		repos = *p.Repositories
+	}
+	if err := output.List(cmd.OutOrStdout(), cfg.format, repos, previewColumns()...); err != nil {
+		return err
+	}
+	fmt.Fprintf(cmd.ErrOrStderr(), "\n%d tags selected, %d past the limit, ~%d SBOMs\n",
+		p.Selected, p.SkippedByLimit, p.EstimatedSboms)
+	return nil
+}
+
+// previewBody builds an unsaved configuration from the create flags.
+func previewBody(cmd *cobra.Command, o *registryOpts) (client.PreviewRegistryConfigInputBody, error) {
+	if o.url == "" || o.typ == "" {
+		return client.PreviewRegistryConfigInputBody{}, usagef("give a registry, or --url and --type to preview an unsaved one")
+	}
+	authToken, _, _, err := o.secrets()
+	if err != nil {
+		return client.PreviewRegistryConfigInputBody{}, err
+	}
+	body := client.PreviewRegistryConfigInputBody{
+		Url:                o.url,
+		Type:               client.PreviewRegistryConfigInputBodyType(o.typ),
+		Insecure:           o.insecure,
+		Repositories:       optionalSlice(o.repositories),
+		RepositoryPatterns: optionalSlice(o.repositoryPatterns),
+		TagPatterns:        optionalSlice(o.tagPatterns),
+		AuthUsername:       optional(o.authUsername),
+		AuthToken:          optional(authToken),
+		TagOrder:           optionalEnum[client.PreviewRegistryConfigInputBodyTagOrder](o.tagOrder),
+	}
+	if cmd.Flags().Changed("include-untagged") {
+		body.IncludeUntagged = &o.includeUntagged
+	}
+	if cmd.Flags().Changed("tag-limit") {
+		body.TagLimit = &o.tagLimit
+	}
+	if cmd.Flags().Changed("max-tag-age-days") {
+		body.MaxTagAgeDays = &o.maxTagAgeDays
+	}
+	return body, nil
+}
+
+func previewColumns() []output.Column[client.RepoPreview] {
+	n := func(v int64) string { return fmt.Sprint(v) }
+	return []output.Column[client.RepoPreview]{
+		{Header: "REPOSITORY", Value: func(r client.RepoPreview) string { return r.Repository }},
+		{Header: "MATCHED", Value: func(r client.RepoPreview) string { return n(r.Matched) }},
+		{Header: "SELECTED", Value: func(r client.RepoPreview) string { return n(r.Selected) }},
+		{Header: "PAST LIMIT", Value: func(r client.RepoPreview) string { return n(r.SkippedByLimit) }},
+		{Header: "TOO OLD", Value: func(r client.RepoPreview) string { return n(r.SkippedByAge) }},
+		{Header: "UNTAGGED", Value: func(r client.RepoPreview) string { return n(r.Untagged) }},
+		{Header: "PLATFORMS", Value: func(r client.RepoPreview) string { return n(r.Platforms) }},
+		{Header: "~SBOMS", Value: func(r client.RepoPreview) string { return n(r.EstimatedSboms) }},
+		{Header: "ERROR", Value: func(r client.RepoPreview) string { return deref(r.Error) }},
 	}
 }
 

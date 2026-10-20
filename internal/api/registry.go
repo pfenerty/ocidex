@@ -577,6 +577,60 @@ func (h *Handler) DeleteRegistry(ctx context.Context, in *DeleteRegistryInput) (
 	return nil, nil
 }
 
+// PreviewRegistryConfig runs the ADR-0053 selection for a registry that is not
+// saved yet, so a form can show what it would scan before it scans anything.
+// It needs what create needs: an authenticated caller and a URL the egress
+// policy admits.
+func (h *Handler) PreviewRegistryConfig(ctx context.Context, in *PreviewRegistryConfigInput) (*RegistryPreviewOutput, error) {
+	b := in.Body
+	regURL := b.URL
+	if fixedURL, ok := typeFixedURL[b.Type]; ok {
+		regURL = fixedURL
+	} else if err := validateRegistryURL(regURL, b.Insecure, h.egress()); err != nil {
+		return nil, err
+	}
+	tagLimit := service.DefaultTagLimit
+	if b.TagLimit != nil {
+		tagLimit = *b.TagLimit
+	}
+	tagOrder := tagOrderFromAPI(b.TagOrder)
+	if err := service.ValidateScanScope(tagLimit, tagOrder, b.MaxTagAgeDays, b.TagPatterns); err != nil {
+		return nil, mapServiceError(err)
+	}
+	return h.previewRegistry(ctx, service.Registry{
+		Type:               b.Type,
+		URL:                regURL,
+		Insecure:           b.Insecure,
+		AuthUsername:       b.AuthUsername,
+		AuthToken:          b.AuthToken,
+		Repositories:       b.Repositories,
+		RepositoryPatterns: b.RepositoryPatterns,
+		TagPatterns:        b.TagPatterns,
+		IncludeUntagged:    b.IncludeUntagged,
+		TagLimit:           tagLimit,
+		TagOrder:           tagOrder,
+		MaxTagAgeDays:      b.MaxTagAgeDays,
+	})
+}
+
+// GetRegistryPreview runs the selection for a saved registry, with its stored
+// credentials. The route requires trigger_scan, as a scan does (ADR-046).
+func (h *Handler) GetRegistryPreview(ctx context.Context, in *GetRegistryPreviewInput) (*RegistryPreviewOutput, error) {
+	reg, err := h.registryService.Get(ctx, in.ID)
+	if err != nil {
+		return nil, huma.Error404NotFound("registry not found")
+	}
+	return h.previewRegistry(ctx, reg)
+}
+
+func (h *Handler) previewRegistry(ctx context.Context, reg service.Registry) (*RegistryPreviewOutput, error) {
+	p, err := scanner.PreviewRegistry(ctx, reg, h.egress(), slog.Default())
+	if err != nil {
+		return nil, huma.Error502BadGateway(fmt.Sprintf("previewing registry: %v", err))
+	}
+	return &RegistryPreviewOutput{Body: p}, nil
+}
+
 // egress is the policy every dial to a user-supplied registry obeys. A handler
 // built without config (tests) gets the default, which is the strict one.
 func (h *Handler) egress() netguard.Policy {

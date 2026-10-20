@@ -1,6 +1,9 @@
 package api
 
-import "github.com/pfenerty/ocidex/internal/service"
+import (
+	"github.com/pfenerty/ocidex/internal/scanner"
+	"github.com/pfenerty/ocidex/internal/service"
+)
 
 // ---------------------------------------------------------------------------
 // Registries
@@ -171,6 +174,36 @@ type ScanRegistryOutput struct {
 	Body struct {
 		Message string `json:"message" doc:"Confirmation that ad-hoc scan has been initiated"`
 	}
+}
+
+// PreviewRegistryConfigInput is the request for POST /api/v1/registries/preview:
+// the discovery and scan-window fields of a registry that is not saved yet.
+type PreviewRegistryConfigInput struct {
+	Body struct {
+		Type               string   `json:"type" enum:"zot,harbor,docker,generic,ghcr" doc:"Registry type"`
+		URL                string   `json:"url" minLength:"1" doc:"Registry address (e.g. zot:5000)"`
+		Insecure           bool     `json:"insecure" doc:"Allow HTTP (non-TLS) connections"`
+		AuthUsername       *string  `json:"auth_username,omitempty" doc:"Username for registry authentication; omit for anonymous access"`
+		AuthToken          *string  `json:"auth_token,omitempty" doc:"Token or PAT for registry authentication; omit for anonymous access"`
+		Repositories       []string `json:"repositories,omitempty" doc:"Explicit repositories to walk; bypasses /v2/_catalog discovery when non-empty"`
+		RepositoryPatterns []string `json:"repository_patterns,omitempty" doc:"Glob patterns for repositories to ingest; empty = all"`
+		TagPatterns        []string `json:"tag_patterns,omitempty" doc:"Glob patterns or 'semver' for tags to ingest; empty = all"`
+		IncludeUntagged    bool     `json:"include_untagged,omitempty" doc:"Scan untagged manifests via registry-specific APIs (supported: zot, harbor, ghcr)"`
+		TagLimit           *int     `json:"tag_limit,omitempty" minimum:"0" maximum:"100000" doc:"Newest tags kept per repository; 0 = unlimited. Defaults to 50"`
+		TagOrder           string   `json:"tag_order,omitempty" enum:"auto,semver,created,lexical" doc:"How 'newest' is decided; defaults to auto"`
+		MaxTagAgeDays      int      `json:"max_tag_age_days,omitempty" minimum:"0" maximum:"36500" doc:"Skip tags whose image is older than this many days; needs the created order"`
+	}
+}
+
+// GetRegistryPreviewInput is the request for GET /api/v1/registries/{id}/preview.
+type GetRegistryPreviewInput struct {
+	ID string `path:"id" doc:"Registry UUID" format:"uuid"`
+}
+
+// RegistryPreviewOutput is the response for both preview routes: what a walk
+// would select, per repository, with nothing submitted.
+type RegistryPreviewOutput struct {
+	Body scanner.RegistryPreview
 }
 
 // UpdateRegistryOutput is the response for PUT /api/v1/registries/{id}.

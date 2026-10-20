@@ -435,6 +435,57 @@ func (e NamespaceResponseVisibility) Valid() bool {
 	}
 }
 
+// Defines values for PreviewRegistryConfigInputBodyTagOrder.
+const (
+	PreviewRegistryConfigInputBodyTagOrderAuto    PreviewRegistryConfigInputBodyTagOrder = "auto"
+	PreviewRegistryConfigInputBodyTagOrderCreated PreviewRegistryConfigInputBodyTagOrder = "created"
+	PreviewRegistryConfigInputBodyTagOrderLexical PreviewRegistryConfigInputBodyTagOrder = "lexical"
+	PreviewRegistryConfigInputBodyTagOrderSemver  PreviewRegistryConfigInputBodyTagOrder = "semver"
+)
+
+// Valid indicates whether the value is a known member of the PreviewRegistryConfigInputBodyTagOrder enum.
+func (e PreviewRegistryConfigInputBodyTagOrder) Valid() bool {
+	switch e {
+	case PreviewRegistryConfigInputBodyTagOrderAuto:
+		return true
+	case PreviewRegistryConfigInputBodyTagOrderCreated:
+		return true
+	case PreviewRegistryConfigInputBodyTagOrderLexical:
+		return true
+	case PreviewRegistryConfigInputBodyTagOrderSemver:
+		return true
+	default:
+		return false
+	}
+}
+
+// Defines values for PreviewRegistryConfigInputBodyType.
+const (
+	PreviewRegistryConfigInputBodyTypeDocker  PreviewRegistryConfigInputBodyType = "docker"
+	PreviewRegistryConfigInputBodyTypeGeneric PreviewRegistryConfigInputBodyType = "generic"
+	PreviewRegistryConfigInputBodyTypeGhcr    PreviewRegistryConfigInputBodyType = "ghcr"
+	PreviewRegistryConfigInputBodyTypeHarbor  PreviewRegistryConfigInputBodyType = "harbor"
+	PreviewRegistryConfigInputBodyTypeZot     PreviewRegistryConfigInputBodyType = "zot"
+)
+
+// Valid indicates whether the value is a known member of the PreviewRegistryConfigInputBodyType enum.
+func (e PreviewRegistryConfigInputBodyType) Valid() bool {
+	switch e {
+	case PreviewRegistryConfigInputBodyTypeDocker:
+		return true
+	case PreviewRegistryConfigInputBodyTypeGeneric:
+		return true
+	case PreviewRegistryConfigInputBodyTypeGhcr:
+		return true
+	case PreviewRegistryConfigInputBodyTypeHarbor:
+		return true
+	case PreviewRegistryConfigInputBodyTypeZot:
+		return true
+	default:
+		return false
+	}
+}
+
 // Defines values for RegistryResponseTagOrder.
 const (
 	RegistryResponseTagOrderAuto    RegistryResponseTagOrder = "auto"
@@ -3026,6 +3077,54 @@ type PaginationMeta struct {
 	Total int64 `json:"total"`
 }
 
+// PreviewRegistryConfigInputBody defines model for PreviewRegistryConfigInputBody.
+type PreviewRegistryConfigInputBody struct {
+	// Schema A URL to the JSON Schema for this object.
+	Schema *string `json:"$schema,omitempty"`
+
+	// AuthToken Token or PAT for registry authentication; omit for anonymous access
+	AuthToken *string `json:"auth_token,omitempty"`
+
+	// AuthUsername Username for registry authentication; omit for anonymous access
+	AuthUsername *string `json:"auth_username,omitempty"`
+
+	// IncludeUntagged Scan untagged manifests via registry-specific APIs (supported: zot, harbor, ghcr)
+	IncludeUntagged *bool `json:"include_untagged,omitempty"`
+
+	// Insecure Allow HTTP (non-TLS) connections
+	Insecure bool `json:"insecure"`
+
+	// MaxTagAgeDays Skip tags whose image is older than this many days; needs the created order
+	MaxTagAgeDays *int64 `json:"max_tag_age_days,omitempty"`
+
+	// Repositories Explicit repositories to walk; bypasses /v2/_catalog discovery when non-empty
+	Repositories *[]string `json:"repositories,omitempty"`
+
+	// RepositoryPatterns Glob patterns for repositories to ingest; empty = all
+	RepositoryPatterns *[]string `json:"repository_patterns,omitempty"`
+
+	// TagLimit Newest tags kept per repository; 0 = unlimited. Defaults to 50
+	TagLimit *int64 `json:"tag_limit,omitempty"`
+
+	// TagOrder How 'newest' is decided; defaults to auto
+	TagOrder *PreviewRegistryConfigInputBodyTagOrder `json:"tag_order,omitempty"`
+
+	// TagPatterns Glob patterns or 'semver' for tags to ingest; empty = all
+	TagPatterns *[]string `json:"tag_patterns,omitempty"`
+
+	// Type Registry type
+	Type PreviewRegistryConfigInputBodyType `json:"type"`
+
+	// Url Registry address (e.g. zot:5000)
+	Url string `json:"url"`
+}
+
+// PreviewRegistryConfigInputBodyTagOrder How 'newest' is decided; defaults to auto
+type PreviewRegistryConfigInputBodyTagOrder string
+
+// PreviewRegistryConfigInputBodyType Registry type
+type PreviewRegistryConfigInputBodyType string
+
 // ProvenanceDriftSummary defines model for ProvenanceDriftSummary.
 type ProvenanceDriftSummary struct {
 	DetectedAt     time.Time `json:"detectedAt"`
@@ -3105,6 +3204,16 @@ type RegenerateWebhookSecretOutputBody struct {
 
 	// WebhookSecret New webhook secret — shown once only. The previous secret is immediately invalidated.
 	WebhookSecret string `json:"webhook_secret"`
+}
+
+// RegistryPreview defines model for RegistryPreview.
+type RegistryPreview struct {
+	// Schema A URL to the JSON Schema for this object.
+	Schema         *string        `json:"$schema,omitempty"`
+	EstimatedSboms int64          `json:"estimated_sboms"`
+	Repositories   *[]RepoPreview `json:"repositories"`
+	Selected       int64          `json:"selected"`
+	SkippedByLimit int64          `json:"skipped_by_limit"`
 }
 
 // RegistryResponse defines model for RegistryResponse.
@@ -3191,6 +3300,34 @@ type RegistryWebhookInputBody struct {
 	MediaType string  `json:"mediaType"`
 	Name      string  `json:"name"`
 	Reference string  `json:"reference"`
+}
+
+// RepoPreview defines model for RepoPreview.
+type RepoPreview struct {
+	// Error Why this repository could not be previewed; the others still are
+	Error *string `json:"error,omitempty"`
+
+	// EstimatedSboms (selected tags x platforms) + untagged manifests; an estimate, since tags can share digests and platforms vary
+	EstimatedSboms int64 `json:"estimated_sboms"`
+
+	// Matched Tags that pass the filter
+	Matched int64 `json:"matched"`
+
+	// Platforms Platforms of the newest selected tag, the sample the estimate multiplies by
+	Platforms  int64  `json:"platforms"`
+	Repository string `json:"repository"`
+
+	// Selected Tags inside the window
+	Selected int64 `json:"selected"`
+
+	// SkippedByAge Matching tags older than max_tag_age_days, or with no build date while it is set
+	SkippedByAge int64 `json:"skipped_by_age"`
+
+	// SkippedByLimit Matching tags past tag_limit
+	SkippedByLimit int64 `json:"skipped_by_limit"`
+
+	// Untagged Untagged manifests inside the untagged window (include_untagged only)
+	Untagged int64 `json:"untagged"`
 }
 
 // RetryAllFailedEnrichmentJobsOutputBody defines model for RetryAllFailedEnrichmentJobsOutputBody.
@@ -4578,6 +4715,9 @@ type SetNamespaceMemberJSONRequestBody = SetNamespaceMemberInputBody
 
 // CreateRegistryJSONRequestBody defines body for CreateRegistry for application/json ContentType.
 type CreateRegistryJSONRequestBody = CreateRegistryInputBody
+
+// PreviewRegistryConfigJSONRequestBody defines body for PreviewRegistryConfig for application/json ContentType.
+type PreviewRegistryConfigJSONRequestBody = PreviewRegistryConfigInputBody
 
 // TestRegistryConnectionJSONRequestBody defines body for TestRegistryConnection for application/json ContentType.
 type TestRegistryConnectionJSONRequestBody = TestRegistryConnectionInputBody

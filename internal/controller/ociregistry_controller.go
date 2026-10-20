@@ -90,6 +90,7 @@ func (r *OCIRegistryReconciler) Reconcile(ctx context.Context, req ctrl.Request)
 		}
 		cr.Status.RegistryID = resp.Id
 		SetCondition(&cr.Status.Conditions, "Ready", metav1.ConditionTrue, "Created", "", cr.Generation)
+		r.recordScope(ctx, cr)
 		return ctrl.Result{}, r.Status().Update(ctx, cr)
 	}
 
@@ -110,7 +111,29 @@ func (r *OCIRegistryReconciler) Reconcile(ctx context.Context, req ctrl.Request)
 		return ctrl.Result{}, err
 	}
 	SetCondition(&cr.Status.Conditions, "Ready", metav1.ConditionTrue, "Synced", "", cr.Generation)
+	r.recordScope(ctx, cr)
 	return ctrl.Result{}, r.Status().Update(ctx, cr)
+}
+
+// recordScope previews the synced registry and writes the summary to status.
+// The preview dials the registry, so a failure is recorded, not returned: the
+// registry is synced either way, and a retry loop would only hammer it.
+// Reconciles run on spec changes, so this runs once per change.
+func (r *OCIRegistryReconciler) recordScope(ctx context.Context, cr *v1alpha1.OCIRegistry) {
+	scope := &v1alpha1.OCIRegistryScope{ObservedGeneration: cr.Generation}
+	p, err := r.OCIDexClient.GetRegistryPreview(ctx, cr.Status.RegistryID)
+	if err != nil {
+		scope.Error = err.Error()
+		cr.Status.Scope = scope
+		return
+	}
+	if p.Repositories != nil {
+		scope.Repositories = int64(len(*p.Repositories))
+	}
+	scope.SelectedTags = p.Selected
+	scope.SkippedByLimit = p.SkippedByLimit
+	scope.EstimatedSBOMs = p.EstimatedSboms
+	cr.Status.Scope = scope
 }
 
 func (r *OCIRegistryReconciler) handleDeletion(ctx context.Context, cr *v1alpha1.OCIRegistry) (ctrl.Result, error) {

@@ -48,6 +48,18 @@ func (c *httpClient) ScanRegistry(ctx context.Context, id string) (ScanRegistryO
 	return out, err
 }
 
+func (c *httpClient) PreviewRegistryConfig(ctx context.Context, body PreviewRegistryConfigInputBody) (RegistryPreview, error) {
+	var out RegistryPreview
+	err := c.request(ctx, http.MethodPost, "/api/v1/registries/preview", nil, body, &out)
+	return out, err
+}
+
+func (c *httpClient) GetRegistryPreview(ctx context.Context, id string) (RegistryPreview, error) {
+	var out RegistryPreview
+	err := c.request(ctx, http.MethodGet, "/api/v1/registries/"+id+"/preview", nil, nil, &out)
+	return out, err
+}
+
 func (c *httpClient) TestRegistryConnection(ctx context.Context, body TestRegistryConnectionInputBody) (TestRegistryConnectionOutputBody, error) {
 	var out TestRegistryConnectionOutputBody
 	err := c.request(ctx, http.MethodPost, "/api/v1/registries/test-connection", nil, body, &out)

@@ -149,6 +149,7 @@ var capProbes = map[string]capProbe{
 	"delete-registry":               capEnforced,
 	"update-registry":               capEnforced,
 	"scan-registry":                 capEnforced,
+	"get-registry-preview":          capEnforced,
 	"regenerate-webhook-secret":     capEnforced,
 	"delete-source":                 capEnforced,
 	"list-namespace-members":        capEnforced,

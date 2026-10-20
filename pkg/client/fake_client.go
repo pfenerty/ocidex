@@ -16,6 +16,8 @@ type FakeClient struct {
 	UpdateRegistryFn          func(ctx context.Context, id string, body UpdateRegistryInputBody) (RegistryResponse, error)
 	DeleteRegistryFn          func(ctx context.Context, id string) error
 	ScanRegistryFn            func(ctx context.Context, id string) (ScanRegistryOutputBody, error)
+	PreviewRegistryConfigFn   func(ctx context.Context, body PreviewRegistryConfigInputBody) (RegistryPreview, error)
+	GetRegistryPreviewFn      func(ctx context.Context, id string) (RegistryPreview, error)
 	TestRegistryConnectionFn  func(ctx context.Context, body TestRegistryConnectionInputBody) (TestRegistryConnectionOutputBody, error)
 	RegenerateWebhookSecretFn func(ctx context.Context, id string) (RegenerateWebhookSecretOutputBody, error)
 
@@ -135,6 +137,20 @@ func (f *FakeClient) ScanRegistry(ctx context.Context, id string) (ScanRegistryO
 		return f.ScanRegistryFn(ctx, id)
 	}
 	return ScanRegistryOutputBody{}, nil
+}
+
+func (f *FakeClient) PreviewRegistryConfig(ctx context.Context, body PreviewRegistryConfigInputBody) (RegistryPreview, error) {
+	if f.PreviewRegistryConfigFn != nil {
+		return f.PreviewRegistryConfigFn(ctx, body)
+	}
+	return RegistryPreview{}, nil
+}
+
+func (f *FakeClient) GetRegistryPreview(ctx context.Context, id string) (RegistryPreview, error) {
+	if f.GetRegistryPreviewFn != nil {
+		return f.GetRegistryPreviewFn(ctx, id)
+	}
+	return RegistryPreview{}, nil
 }
 
 func (f *FakeClient) TestRegistryConnection(ctx context.Context, body TestRegistryConnectionInputBody) (TestRegistryConnectionOutputBody, error) {

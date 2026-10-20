@@ -714,6 +714,26 @@ func registerRegistryOps(api huma.API, h *Handler) {
 	}, h.ScanRegistry)
 
 	huma.Register(api, huma.Operation{
+		OperationID: "preview-registry-config",
+		Method:      http.MethodPost,
+		Path:        "/api/v1/registries/preview",
+		Summary:     "Preview what an unsaved registry would scan",
+		Description: "Runs the scan window (ADR-0053) against the registry without saving or submitting anything: per repository, the matched, selected and skipped tag counts, and an SBOM estimate.",
+		Tags:        []string{tagRegistries},
+		Middlewares: huma.Middlewares{authMW, writeMW},
+	}, h.PreviewRegistryConfig)
+
+	huma.Register(api, huma.Operation{
+		OperationID: "get-registry-preview",
+		Method:      http.MethodGet,
+		Path:        "/api/v1/registries/{id}/preview",
+		Summary:     "Preview what a registry's next walk would scan",
+		Description: "Runs the saved registry's scan window (ADR-0053) with its stored credentials and submits nothing.",
+		Tags:        []string{tagRegistries},
+		Middlewares: huma.Middlewares{scanRegistryMW},
+	}, h.GetRegistryPreview)
+
+	huma.Register(api, huma.Operation{
 		OperationID: "regenerate-webhook-secret",
 		Method:      http.MethodPost,
 		Path:        "/api/v1/registries/{id}/webhook-secret",

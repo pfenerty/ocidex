@@ -82,6 +82,10 @@ func (in *OCIRegistryStatus) DeepCopyInto(out *OCIRegistryStatus) {
 			(*in)[i].DeepCopyInto(&(*out)[i])
 		}
 	}
+	if in.Scope != nil {
+		s := *in.Scope
+		out.Scope = &s
+	}
 }
 
 // DeepCopy returns a deep copy of OCIRegistryStatus.
