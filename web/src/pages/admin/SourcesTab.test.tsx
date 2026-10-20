@@ -84,7 +84,7 @@ function sourceFor(reg: { id: string; name: string }, namespace = "acme") {
     };
 }
 
-function renderTab(rows: { id: string; name: string }[], sources?: unknown[], namespaces?: unknown[]) {
+function renderTab(rows: ({ id: string; name: string } & Record<string, unknown>)[], sources?: unknown[], namespaces?: unknown[]) {
     mockUseListNamespaces.mockImplementation((() => ({
         data: { data: namespaces ?? [] },
         isLoading: false,
