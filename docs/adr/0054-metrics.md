@@ -87,8 +87,8 @@ endpoint keeps serving both sets.
 The API's metrics server starts beside the main server and shuts down with it. Its health
 endpoints stay on the public port, where probes already reach them. The workers add `/metrics` to
 the health server they already run, so the chart's port and `metricsFrom` network policy cover
-them unchanged. The chart exposes the metrics port on a separate Service port, which the ingress
-never routes (ocidex-v590.5).
+them unchanged. The chart's existing PodMonitors (`monitoring.enabled`) scrape the port on the
+pods directly. No Service port, Gateway route or Ingress reaches it (ocidex-v590.5).
 
 ### Rule M3: names
 
