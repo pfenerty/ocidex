@@ -202,7 +202,9 @@ func (e *NATSCatalogExtension) handleMsg(ctx context.Context, msg natsMsg) {
 	}
 
 	known := FetchKnownDigests(walkCtx, e.digestLister, reg.ID)
-	queued, err := WalkRegistry(walkCtx, reg, e.submitter, known, e.egress, e.logger)
+	stats, err := WalkRegistryStats(walkCtx, reg, e.submitter, known, e.egress, e.logger)
+	RecordWalk(walkCtx, e.registrySvc, reg, stats, e.logger)
+	queued := stats.Queued
 	if errors.Is(err, netguard.ErrDenied) {
 		// The egress policy will refuse this registry on redelivery too.
 		e.logger.Error("nats catalog: registry address refused by egress policy", "registry", reg.Name, "err", err)

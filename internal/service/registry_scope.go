@@ -53,6 +53,20 @@ func ValidateScanScope(tagLimit int, tagOrder string, maxTagAgeDays int, tagPatt
 	return nil
 }
 
+// WalkStats is what one catalog walk of a registry selected (ADR-0053 S7),
+// summed over its repositories. Error is set when the walk could not list the
+// registry at all; per-repository failures are logged and leave their counts out.
+type WalkStats struct {
+	At             time.Time `json:"at" doc:"When the walk finished"`
+	Repositories   int       `json:"repositories" doc:"Repositories the walk visited"`
+	Matched        int       `json:"matched" doc:"Tags that passed the filter"`
+	Selected       int       `json:"selected" doc:"Tags inside the window"`
+	SkippedByLimit int       `json:"skipped_by_limit" doc:"Matching tags past tag_limit"`
+	SkippedByAge   int       `json:"skipped_by_age" doc:"Matching tags older than max_tag_age_days"`
+	Queued         int       `json:"queued" doc:"Scan jobs the walk submitted (already-ingested digests are not)"`
+	Error          string    `json:"error,omitempty" doc:"Why the walk failed, if it did"`
+}
+
 // TagWindow is the outcome of applying a registry's selection window to one
 // repository's candidate tags.
 type TagWindow struct {

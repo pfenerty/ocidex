@@ -146,7 +146,7 @@ func run() error {
 	}
 
 	if cfg.ScannerEnabled && cfg.RegistryPollerEnabled && scanSubmitter != nil {
-		walker := setupRegistryWalker(cfg, natsClient, scanSubmitter, sbomSvc, logger)
+		walker := setupRegistryWalker(cfg, natsClient, scanSubmitter, sbomSvc, registrySvc, logger)
 		poller := scanner.NewPoller(registrySvc, walker, logger)
 		h := fnv.New64a()
 		h.Write([]byte("ocidex-poller"))
@@ -375,11 +375,12 @@ func setupEnrichmentSubmitter(cfg *config.Config, reg *extension.Manager, natsCl
 	reg.Register(enrichment.NewNATSSubmitter(natsClient, cfg.NATSStreamName, jobSvc, logger))
 }
 
-func setupRegistryWalker(cfg *config.Config, natsClient *natspkg.Client, sub api.ScanSubmitter, dl scanner.DigestLister, logger *slog.Logger) scanner.RegistryWalker {
+func setupRegistryWalker(cfg *config.Config, natsClient *natspkg.Client, sub api.ScanSubmitter, dl scanner.DigestLister, rec scanner.WalkRecorder, logger *slog.Logger) scanner.RegistryWalker {
 	if natsClient != nil {
+		// The scanner-worker's catalog extension walks and records the stats.
 		return scanner.NewNATSCatalogPublisher(natsClient, cfg.NATSStreamName)
 	}
-	return scanner.NewDirectWalker(sub, dl, cfg.EgressPolicy, logger)
+	return scanner.NewDirectWalker(sub, dl, cfg.EgressPolicy, logger).WithRecorder(rec)
 }
 
 // setupScannerExt wires the NATS scan submitter when scanning is enabled.

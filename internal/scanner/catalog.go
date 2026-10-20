@@ -48,6 +48,7 @@ type DirectWalker struct {
 	digestLister DigestLister
 	egress       netguard.Policy
 	logger       *slog.Logger
+	recorder     WalkRecorder
 }
 
 // NewDirectWalker constructs a DirectWalker whose registry dials obey egress.
@@ -55,10 +56,18 @@ func NewDirectWalker(sub Submitter, dl DigestLister, egress netguard.Policy, log
 	return &DirectWalker{submitter: sub, digestLister: dl, egress: egress, logger: logger}
 }
 
+// WithRecorder makes the walker store each walk's stats on the registry.
+func (w *DirectWalker) WithRecorder(rec WalkRecorder) *DirectWalker {
+	w.recorder = rec
+	return w
+}
+
 // Walk fetches known digests then runs WalkRegistry in the calling goroutine.
 func (w *DirectWalker) Walk(ctx context.Context, reg service.Registry) (int, error) {
 	known := FetchKnownDigests(ctx, w.digestLister, reg.ID)
-	return WalkRegistry(ctx, reg, w.submitter, known, w.egress, w.logger)
+	stats, err := WalkRegistryStats(ctx, reg, w.submitter, known, w.egress, w.logger)
+	RecordWalk(ctx, w.recorder, reg, stats, w.logger)
+	return stats.Queued, err
 }
 
 // FetchKnownDigests loads existing SBOM digests for a registry using a DigestLister.
@@ -80,19 +89,44 @@ func FetchKnownDigests(ctx context.Context, dl DigestLister, registryID string) 
 // skipped to avoid re-scanning. Pass nil when unknown. Every dial obeys egress;
 // a refused one comes back wrapping netguard.ErrDenied.
 func WalkRegistry(ctx context.Context, reg service.Registry, sub Submitter, knownDigests map[string]bool, egress netguard.Policy, logger *slog.Logger) (int, error) {
+	stats, err := WalkRegistryStats(ctx, reg, sub, knownDigests, egress, logger)
+	return stats.Queued, err
+}
+
+// WalkRegistryStats is WalkRegistry returning what the walk selected as well
+// as what it queued (ADR-0053 S7).
+func WalkRegistryStats(ctx context.Context, reg service.Registry, sub Submitter, knownDigests map[string]bool, egress netguard.Policy, logger *slog.Logger) (service.WalkStats, error) {
 	scheme, host := registrySchemeHost(reg)
 	baseURL := scheme + "://" + host
 	client := registryClient(egress, 15*time.Second, derefStr(reg.AuthUsername), derefStr(reg.AuthToken))
 
 	repos, err := matchingRepos(ctx, client, baseURL, reg, logger)
 	if err != nil {
-		return 0, err
+		return service.WalkStats{At: time.Now().UTC(), Error: err.Error()}, err
 	}
-	queued := 0
+	var stats service.WalkStats
 	for _, repo := range repos {
-		queued += walkRepo(ctx, client, baseURL, repo, reg, sub, knownDigests, logger)
+		walkRepo(ctx, client, baseURL, repo, reg, sub, knownDigests, logger, &stats)
 	}
-	return queued, nil
+	stats.Repositories = len(repos)
+	stats.At = time.Now().UTC()
+	return stats, nil
+}
+
+// WalkRecorder stores a walk's stats; service.RegistryService satisfies it.
+type WalkRecorder interface {
+	RecordWalkStats(ctx context.Context, id string, stats service.WalkStats) error
+}
+
+// RecordWalk stores stats when rec is set, logging rather than returning a
+// failure: the walk itself already happened.
+func RecordWalk(ctx context.Context, rec WalkRecorder, reg service.Registry, stats service.WalkStats, logger *slog.Logger) {
+	if rec == nil || reg.ID == "" {
+		return
+	}
+	if err := rec.RecordWalkStats(ctx, reg.ID, stats); err != nil {
+		logger.Warn("recording walk stats", "registry", reg.Name, "err", err)
+	}
 }
 
 // matchingRepos returns the registry's explicit repositories, or its catalog,
@@ -125,17 +159,21 @@ func matchingRepos(ctx context.Context, client *http.Client, baseURL string, reg
 // order, then keep the newest TagLimit. The window is taken before the
 // known-digest skip in scanTag, so tags already ingested keep their slots and
 // the walk never reaches further back into the history to fill them.
-func walkRepo(ctx context.Context, client *http.Client, baseURL, repo string, reg service.Registry, sub Submitter, knownDigests map[string]bool, logger *slog.Logger) int {
+func walkRepo(ctx context.Context, client *http.Client, baseURL, repo string, reg service.Registry, sub Submitter, knownDigests map[string]bool, logger *slog.Logger, stats *service.WalkStats) {
 	scannedDigests := make(map[string]bool)
 	for d := range knownDigests {
 		scannedDigests[d] = true
 	}
 	queued := 0
-	window, _, err := selectRepoTags(ctx, client, baseURL, repo, reg, logger)
+	window, matched, err := selectRepoTags(ctx, client, baseURL, repo, reg, logger)
 	if err != nil {
 		logger.Warn("listing tags for repo", "repo", repo, "err", err)
-		return 0
+		return
 	}
+	stats.Matched += matched
+	stats.Selected += len(window.Selected)
+	stats.SkippedByLimit += window.SkippedByLimit
+	stats.SkippedByAge += window.SkippedByAge
 	if window.SkippedByLimit > 0 || window.SkippedByAge > 0 {
 		logger.Debug("tags outside the scan window", "repo", repo, "selected", len(window.Selected),
 			"skipped_by_limit", window.SkippedByLimit, "skipped_by_age", window.SkippedByAge)
@@ -146,7 +184,7 @@ func walkRepo(ctx context.Context, client *http.Client, baseURL, repo string, re
 	if reg.IncludeUntagged {
 		queued += discoverUntagged(ctx, client, baseURL, repo, reg, sub, scannedDigests, logger)
 	}
-	return queued
+	stats.Queued += queued
 }
 
 // selectRepoTags lists a repository's tags and applies the registry's window:

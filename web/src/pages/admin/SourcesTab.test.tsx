@@ -463,3 +463,24 @@ describe("SourcesTab scan scope (ADR-0053)", () => {
         expect(container.querySelector("[data-testid=scope-warning]")?.textContent).toMatch(/No tag limit/);
     });
 });
+
+describe("SourcesTab last walk (ADR-0053)", () => {
+    beforeEach(() => vi.clearAllMocks());
+
+    it("shows what the latest walk selected and queued", () => {
+        const { container } = renderTab([{
+            ...baseRegistry,
+            last_walk: { at: "2026-10-20T12:00:00Z", repositories: 2, matched: 30, selected: 10, skipped_by_limit: 20, skipped_by_age: 0, queued: 4 },
+        }]);
+        const cell = must(container.querySelector("[data-testid=last-walk]"), "last walk cell");
+        expect(cell.textContent).toContain("10 tags");
+        expect(cell.textContent).toContain("+20 past limit");
+        expect(cell.textContent).toContain("4 queued");
+    });
+
+    it("says never for a registry that has not been walked", () => {
+        const { container } = renderTab([baseRegistry]);
+        expect(container.querySelector("[data-testid=last-walk]")).toBeNull();
+        expect(container.textContent).toContain("never");
+    });
+});

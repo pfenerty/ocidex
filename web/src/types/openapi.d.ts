@@ -2325,6 +2325,8 @@ export interface components {
             include_untagged: boolean;
             insecure: boolean;
             last_polled_at?: string;
+            /** @description What the most recent catalog walk selected; absent until the first walk */
+            last_walk?: components["schemas"]["WalkStats"];
             /** @description External system that owns this registry's configuration (e.g. kubernetes); absent when managed through this API */
             managed_by?: string;
             /** @description Identifier within the managing system, e.g. '<namespace>/<name>' of the OCIRegistry resource */
@@ -3538,6 +3540,8 @@ export interface components {
             include_untagged: boolean;
             insecure: boolean;
             last_polled_at?: string;
+            /** @description What the most recent catalog walk selected; absent until the first walk */
+            last_walk?: components["schemas"]["WalkStats"];
             /** @description External system that owns this registry's configuration (e.g. kubernetes); absent when managed through this API */
             managed_by?: string;
             /** @description Identifier within the managing system, e.g. '<namespace>/<name>' of the OCIRegistry resource */
@@ -4253,6 +4257,45 @@ export interface components {
             total: number;
             /** Format: int64 */
             unknown: number;
+        };
+        WalkStats: {
+            /**
+             * Format: date-time
+             * @description When the walk finished
+             */
+            at: string;
+            /** @description Why the walk failed, if it did */
+            error?: string;
+            /**
+             * Format: int64
+             * @description Tags that passed the filter
+             */
+            matched: number;
+            /**
+             * Format: int64
+             * @description Scan jobs the walk submitted (already-ingested digests are not)
+             */
+            queued: number;
+            /**
+             * Format: int64
+             * @description Repositories the walk visited
+             */
+            repositories: number;
+            /**
+             * Format: int64
+             * @description Tags inside the window
+             */
+            selected: number;
+            /**
+             * Format: int64
+             * @description Matching tags older than max_tag_age_days
+             */
+            skipped_by_age: number;
+            /**
+             * Format: int64
+             * @description Matching tags past tag_limit
+             */
+            skipped_by_limit: number;
         };
         WatchEntry: {
             artifactId: string;

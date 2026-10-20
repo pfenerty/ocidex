@@ -308,6 +308,7 @@ type Registry struct {
 	TagLimit            int32              `json:"tag_limit"`
 	TagOrder            pgtype.Text        `json:"tag_order"`
 	MaxTagAgeDays       pgtype.Int4        `json:"max_tag_age_days"`
+	LastWalkStats       []byte             `json:"last_walk_stats"`
 }
 
 type Sbom struct {

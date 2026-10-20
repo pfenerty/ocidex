@@ -706,7 +706,9 @@ func (h *Handler) ScanRegistry(ctx context.Context, in *ScanRegistryInput) (*Sca
 		} else {
 			known = scanner.FetchKnownDigests(walkCtx, h.sbomService, reg.ID)
 		}
-		queued, err := scanner.WalkRegistry(walkCtx, reg, sub, known, h.egress(), slog.Default())
+		stats, err := scanner.WalkRegistryStats(walkCtx, reg, sub, known, h.egress(), slog.Default())
+		scanner.RecordWalk(walkCtx, h.registryService, reg, stats, slog.Default())
+		queued := stats.Queued
 		if err != nil {
 			slog.Error("ad-hoc registry scan failed", "registry", reg.Name, "err", err)
 			return
@@ -774,6 +776,7 @@ func toRegistryResponse(r service.Registry, apiBaseURL string) RegistryResponse 
 		TagLimit:            r.TagLimit,
 		TagOrder:            r.TagOrder,
 		MaxTagAgeDays:       r.MaxTagAgeDays,
+		LastWalk:            r.LastWalk,
 	}
 	if rr.TagOrder == "" {
 		rr.TagOrder = tagOrderAuto

@@ -244,3 +244,7 @@ SET auth_token     = sqlc.narg('new_auth_token')::text,
 WHERE id = @id
   AND auth_token IS NOT DISTINCT FROM sqlc.narg('old_auth_token')::text
   AND webhook_secret IS NOT DISTINCT FROM sqlc.narg('old_webhook_secret')::text;
+
+-- name: RecordRegistryWalkStats :exec
+-- Leaves updated_at alone: a walk is not a configuration change.
+UPDATE registry SET last_walk_stats = @stats::jsonb WHERE id = @id;

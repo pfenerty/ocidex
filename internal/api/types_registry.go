@@ -11,34 +11,35 @@ import (
 
 // RegistryResponse is the public representation of a configured OCI registry.
 type RegistryResponse struct {
-	ID                  string   `json:"id"`
-	Name                string   `json:"name"`
-	Type                string   `json:"type"`
-	URL                 string   `json:"url"`
-	Insecure            bool     `json:"insecure"`
-	HasSecret           bool     `json:"has_secret"`
-	HasAuth             bool     `json:"has_auth"`
-	Enabled             bool     `json:"enabled"`
-	WebhookURL          string   `json:"webhook_url"`
-	Repositories        []string `json:"repositories" doc:"Explicit repositories to walk; overrides catalog discovery when non-empty"`
-	RepositoryPatterns  []string `json:"repository_patterns" doc:"Glob patterns for repositories to ingest; empty = all"`
-	TagPatterns         []string `json:"tag_patterns" doc:"Glob patterns or 'semver' for tags to ingest; empty = all"`
-	ScanMode            string   `json:"scan_mode"`
-	PollIntervalMinutes int      `json:"poll_interval_minutes"`
-	LastPolledAt        *string  `json:"last_polled_at,omitempty"`
-	CreatedAt           string   `json:"created_at"`
-	UpdatedAt           string   `json:"updated_at"`
-	Visibility          string   `json:"visibility" doc:"Registry visibility: public or private"`
-	IncludeUntagged     bool     `json:"include_untagged" doc:"Scan untagged manifests via registry-specific APIs (supported: zot, harbor, ghcr)"`
-	VerificationMode    string   `json:"verification_mode" enum:"none,public_key,keyless" doc:"Signature verification mode"`
-	TrustPublicKey      *string  `json:"trust_public_key,omitempty" doc:"PEM-encoded EC public key for public_key verification mode"`
-	TrustIdentity       *string  `json:"trust_identity,omitempty" doc:"Regex matched against the Fulcio certificate SAN; required for keyless verification mode"`
-	TrustIssuer         *string  `json:"trust_issuer,omitempty" doc:"Expected OIDC issuer URL; required for keyless verification mode"`
-	ManagedBy           *string  `json:"managed_by,omitempty" doc:"External system that owns this registry's configuration (e.g. kubernetes); absent when managed through this API"`
-	ManagedRef          *string  `json:"managed_ref,omitempty" doc:"Identifier within the managing system, e.g. '<namespace>/<name>' of the OCIRegistry resource"`
-	TagLimit            int      `json:"tag_limit" doc:"Newest tags kept per repository (ADR-0053); 0 = unlimited"`
-	TagOrder            string   `json:"tag_order" enum:"auto,semver,created,lexical" doc:"How 'newest' is decided; auto = semver when tag_patterns contains semver, created otherwise"`
-	MaxTagAgeDays       int      `json:"max_tag_age_days" doc:"Tags whose image is older than this many days are skipped; 0 = no age limit"`
+	ID                  string             `json:"id"`
+	Name                string             `json:"name"`
+	Type                string             `json:"type"`
+	URL                 string             `json:"url"`
+	Insecure            bool               `json:"insecure"`
+	HasSecret           bool               `json:"has_secret"`
+	HasAuth             bool               `json:"has_auth"`
+	Enabled             bool               `json:"enabled"`
+	WebhookURL          string             `json:"webhook_url"`
+	Repositories        []string           `json:"repositories" doc:"Explicit repositories to walk; overrides catalog discovery when non-empty"`
+	RepositoryPatterns  []string           `json:"repository_patterns" doc:"Glob patterns for repositories to ingest; empty = all"`
+	TagPatterns         []string           `json:"tag_patterns" doc:"Glob patterns or 'semver' for tags to ingest; empty = all"`
+	ScanMode            string             `json:"scan_mode"`
+	PollIntervalMinutes int                `json:"poll_interval_minutes"`
+	LastPolledAt        *string            `json:"last_polled_at,omitempty"`
+	CreatedAt           string             `json:"created_at"`
+	UpdatedAt           string             `json:"updated_at"`
+	Visibility          string             `json:"visibility" doc:"Registry visibility: public or private"`
+	IncludeUntagged     bool               `json:"include_untagged" doc:"Scan untagged manifests via registry-specific APIs (supported: zot, harbor, ghcr)"`
+	VerificationMode    string             `json:"verification_mode" enum:"none,public_key,keyless" doc:"Signature verification mode"`
+	TrustPublicKey      *string            `json:"trust_public_key,omitempty" doc:"PEM-encoded EC public key for public_key verification mode"`
+	TrustIdentity       *string            `json:"trust_identity,omitempty" doc:"Regex matched against the Fulcio certificate SAN; required for keyless verification mode"`
+	TrustIssuer         *string            `json:"trust_issuer,omitempty" doc:"Expected OIDC issuer URL; required for keyless verification mode"`
+	ManagedBy           *string            `json:"managed_by,omitempty" doc:"External system that owns this registry's configuration (e.g. kubernetes); absent when managed through this API"`
+	ManagedRef          *string            `json:"managed_ref,omitempty" doc:"Identifier within the managing system, e.g. '<namespace>/<name>' of the OCIRegistry resource"`
+	TagLimit            int                `json:"tag_limit" doc:"Newest tags kept per repository (ADR-0053); 0 = unlimited"`
+	TagOrder            string             `json:"tag_order" enum:"auto,semver,created,lexical" doc:"How 'newest' is decided; auto = semver when tag_patterns contains semver, created otherwise"`
+	MaxTagAgeDays       int                `json:"max_tag_age_days" doc:"Tags whose image is older than this many days are skipped; 0 = no age limit"`
+	LastWalk            *service.WalkStats `json:"last_walk,omitempty" doc:"What the most recent catalog walk selected; absent until the first walk"`
 }
 
 // ListRegistriesInput is the request for GET /api/v1/registries.

@@ -1,11 +1,14 @@
 package service
 
 import (
+	"encoding/json"
 	"errors"
 	"testing"
 	"time"
 
 	"github.com/matryer/is"
+
+	"github.com/pfenerty/ocidex/internal/repository"
 )
 
 var scopeNow = time.Date(2026, 10, 20, 0, 0, 0, 0, time.UTC)
@@ -140,4 +143,17 @@ func TestValidateScanScope(t *testing.T) {
 			is.True(errors.As(err, &ve))
 		})
 	}
+}
+
+func TestLastWalkRoundTrip(t *testing.T) {
+	is := is.New(t)
+	at := time.Date(2026, 10, 20, 12, 0, 0, 0, time.UTC)
+	b, err := json.Marshal(WalkStats{At: at, Repositories: 2, Matched: 30, Selected: 10, SkippedByLimit: 20, Queued: 4})
+	is.NoErr(err)
+	r := fromRepo(registryComposite{reg: repository.Registry{LastWalkStats: b}})
+	is.True(r.LastWalk != nil)
+	is.Equal(r.LastWalk.Selected, 10)
+	is.Equal(r.LastWalk.At, at)
+
+	is.True(fromRepo(registryComposite{}).LastWalk == nil) // never walked
 }

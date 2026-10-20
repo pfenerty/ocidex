@@ -1,6 +1,7 @@
 package scanner
 
 import (
+	"context"
 	"encoding/json"
 	"fmt"
 	"slices"
@@ -150,4 +151,45 @@ func TestWalkRegistry_UntaggedWindow(t *testing.T) {
 	is.NoErr(err)
 	is.Equal(queued, 1)
 	is.Equal(sub.submitted()[0].Digest, "sha256:u-new")
+}
+
+type recordedStats struct{ stats []service.WalkStats }
+
+func (r *recordedStats) RecordWalkStats(_ context.Context, _ string, s service.WalkStats) error {
+	r.stats = append(r.stats, s)
+	return nil
+}
+
+// TestDirectWalkerRecordsStats covers ocidex-5y0r.4: a walk records what its
+// window selected, and the queued count leaves out digests already ingested.
+func TestDirectWalkerRecordsStats(t *testing.T) {
+	is := is.New(t)
+	cfg := ociRegistryConfig{tags: map[string][]string{}}
+	for i := range 20 {
+		addImage(&cfg, fmt.Sprintf("2.%d.0", i), fmt.Sprintf("sha256:s%02d", i), "")
+	}
+	srv := newFakeOCIRegistry(t, cfg)
+	defer srv.Close()
+
+	rec := &recordedStats{}
+	known := knownDigestLister{"sha256:s19": true}
+	w := NewDirectWalker(&fakeSubmitter{}, known, testEgress, discardLogger()).WithRecorder(rec)
+	reg := service.Registry{ID: "r1", URL: srv.URL, Repositories: []string{"app"}, TagPatterns: []string{"semver"}, TagLimit: 5}
+	queued, err := w.Walk(t.Context(), reg)
+	is.NoErr(err)
+	is.Equal(queued, 4)
+	is.Equal(len(rec.stats), 1)
+	s := rec.stats[0]
+	is.Equal(s.Repositories, 1)
+	is.Equal(s.Matched, 20)
+	is.Equal(s.Selected, 5)
+	is.Equal(s.SkippedByLimit, 15)
+	is.Equal(s.Queued, 4)
+	is.True(!s.At.IsZero())
+}
+
+type knownDigestLister map[string]bool
+
+func (k knownDigestLister) ListDigestsBySource(context.Context, string) (map[string]bool, error) {
+	return k, nil
 }

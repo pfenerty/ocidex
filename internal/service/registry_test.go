@@ -126,6 +126,10 @@ func (f *fakeRegistryRepo) UpdateRegistryLastPolled(ctx context.Context, id pgty
 	return repository.Registry{}, nil
 }
 
+func (f *fakeRegistryRepo) RecordRegistryWalkStats(_ context.Context, _ repository.RecordRegistryWalkStatsParams) error {
+	return nil
+}
+
 func (f *fakeRegistryRepo) ListRegistryTrustSummary(ctx context.Context, arg repository.ListRegistryTrustSummaryParams) ([]repository.ListRegistryTrustSummaryRow, error) {
 	if f.trustSummaryFn != nil {
 		return f.trustSummaryFn(ctx, arg)
@@ -725,6 +729,10 @@ func (f *fakeListRegistryService) ListPollable(_ context.Context) ([]Registry, e
 
 func (f *fakeListRegistryService) MarkPolled(_ context.Context, _ string) (Registry, error) {
 	return Registry{}, nil
+}
+
+func (f *fakeListRegistryService) RecordWalkStats(_ context.Context, _ string, _ WalkStats) error {
+	return nil
 }
 
 func (f *fakeListRegistryService) TrustSummary(_ context.Context, _ VisibilityFilter) ([]RegistryTrustCount, error) {

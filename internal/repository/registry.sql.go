@@ -53,7 +53,7 @@ SELECT
     $17::text, $18::text, $19::int,
     $20::text, $21::int
 FROM src
-RETURNING id, type, url, insecure, webhook_secret, enabled, created_at, updated_at, repository_patterns, tag_patterns, scan_mode, poll_interval_minutes, last_polled_at, repositories, auth_username, auth_token, include_untagged, verification_mode, trust_public_key, trust_identity, trust_issuer, managed_by, managed_ref, tag_limit, tag_order, max_tag_age_days
+RETURNING id, type, url, insecure, webhook_secret, enabled, created_at, updated_at, repository_patterns, tag_patterns, scan_mode, poll_interval_minutes, last_polled_at, repositories, auth_username, auth_token, include_untagged, verification_mode, trust_public_key, trust_identity, trust_issuer, managed_by, managed_ref, tag_limit, tag_order, max_tag_age_days, last_walk_stats
 `
 
 type CreateRegistryParams struct {
@@ -165,6 +165,7 @@ func (q *Queries) CreateRegistry(ctx context.Context, arg CreateRegistryParams) 
 		&i.TagLimit,
 		&i.TagOrder,
 		&i.MaxTagAgeDays,
+		&i.LastWalkStats,
 	)
 	return i, err
 }
@@ -185,7 +186,7 @@ func (q *Queries) DeleteRegistry(ctx context.Context, id pgtype.UUID) (int64, er
 }
 
 const getRegistry = `-- name: GetRegistry :one
-SELECT r.id, r.type, r.url, r.insecure, r.webhook_secret, r.enabled, r.created_at, r.updated_at, r.repository_patterns, r.tag_patterns, r.scan_mode, r.poll_interval_minutes, r.last_polled_at, r.repositories, r.auth_username, r.auth_token, r.include_untagged, r.verification_mode, r.trust_public_key, r.trust_identity, r.trust_issuer, r.managed_by, r.managed_ref, r.tag_limit, r.tag_order, r.max_tag_age_days, src.name, n.id AS namespace_id, n.visibility
+SELECT r.id, r.type, r.url, r.insecure, r.webhook_secret, r.enabled, r.created_at, r.updated_at, r.repository_patterns, r.tag_patterns, r.scan_mode, r.poll_interval_minutes, r.last_polled_at, r.repositories, r.auth_username, r.auth_token, r.include_untagged, r.verification_mode, r.trust_public_key, r.trust_identity, r.trust_issuer, r.managed_by, r.managed_ref, r.tag_limit, r.tag_order, r.max_tag_age_days, r.last_walk_stats, src.name, n.id AS namespace_id, n.visibility
 FROM registry r
 JOIN source src ON src.id = r.id
 JOIN namespace n ON n.id = src.namespace_id
@@ -229,6 +230,7 @@ func (q *Queries) GetRegistry(ctx context.Context, id pgtype.UUID) (GetRegistryR
 		&i.Registry.TagLimit,
 		&i.Registry.TagOrder,
 		&i.Registry.MaxTagAgeDays,
+		&i.Registry.LastWalkStats,
 		&i.Name,
 		&i.NamespaceID,
 		&i.Visibility,
@@ -237,7 +239,7 @@ func (q *Queries) GetRegistry(ctx context.Context, id pgtype.UUID) (GetRegistryR
 }
 
 const getRegistryByName = `-- name: GetRegistryByName :one
-SELECT r.id, r.type, r.url, r.insecure, r.webhook_secret, r.enabled, r.created_at, r.updated_at, r.repository_patterns, r.tag_patterns, r.scan_mode, r.poll_interval_minutes, r.last_polled_at, r.repositories, r.auth_username, r.auth_token, r.include_untagged, r.verification_mode, r.trust_public_key, r.trust_identity, r.trust_issuer, r.managed_by, r.managed_ref, r.tag_limit, r.tag_order, r.max_tag_age_days, src.name, n.id AS namespace_id, n.visibility
+SELECT r.id, r.type, r.url, r.insecure, r.webhook_secret, r.enabled, r.created_at, r.updated_at, r.repository_patterns, r.tag_patterns, r.scan_mode, r.poll_interval_minutes, r.last_polled_at, r.repositories, r.auth_username, r.auth_token, r.include_untagged, r.verification_mode, r.trust_public_key, r.trust_identity, r.trust_issuer, r.managed_by, r.managed_ref, r.tag_limit, r.tag_order, r.max_tag_age_days, r.last_walk_stats, src.name, n.id AS namespace_id, n.visibility
 FROM registry r
 JOIN source src ON src.id = r.id
 JOIN namespace n ON n.id = src.namespace_id
@@ -287,6 +289,7 @@ func (q *Queries) GetRegistryByName(ctx context.Context, name string) (GetRegist
 		&i.Registry.TagLimit,
 		&i.Registry.TagOrder,
 		&i.Registry.MaxTagAgeDays,
+		&i.Registry.LastWalkStats,
 		&i.Name,
 		&i.NamespaceID,
 		&i.Visibility,
@@ -295,7 +298,7 @@ func (q *Queries) GetRegistryByName(ctx context.Context, name string) (GetRegist
 }
 
 const listPollableRegistries = `-- name: ListPollableRegistries :many
-SELECT r.id, r.type, r.url, r.insecure, r.webhook_secret, r.enabled, r.created_at, r.updated_at, r.repository_patterns, r.tag_patterns, r.scan_mode, r.poll_interval_minutes, r.last_polled_at, r.repositories, r.auth_username, r.auth_token, r.include_untagged, r.verification_mode, r.trust_public_key, r.trust_identity, r.trust_issuer, r.managed_by, r.managed_ref, r.tag_limit, r.tag_order, r.max_tag_age_days, src.name, n.id AS namespace_id, n.visibility
+SELECT r.id, r.type, r.url, r.insecure, r.webhook_secret, r.enabled, r.created_at, r.updated_at, r.repository_patterns, r.tag_patterns, r.scan_mode, r.poll_interval_minutes, r.last_polled_at, r.repositories, r.auth_username, r.auth_token, r.include_untagged, r.verification_mode, r.trust_public_key, r.trust_identity, r.trust_issuer, r.managed_by, r.managed_ref, r.tag_limit, r.tag_order, r.max_tag_age_days, r.last_walk_stats, src.name, n.id AS namespace_id, n.visibility
 FROM registry r
 JOIN source src ON src.id = r.id
 JOIN namespace n ON n.id = src.namespace_id
@@ -346,6 +349,7 @@ func (q *Queries) ListPollableRegistries(ctx context.Context) ([]ListPollableReg
 			&i.Registry.TagLimit,
 			&i.Registry.TagOrder,
 			&i.Registry.MaxTagAgeDays,
+			&i.Registry.LastWalkStats,
 			&i.Name,
 			&i.NamespaceID,
 			&i.Visibility,
@@ -361,7 +365,7 @@ func (q *Queries) ListPollableRegistries(ctx context.Context) ([]ListPollableReg
 }
 
 const listRegistries = `-- name: ListRegistries :many
-SELECT r.id, r.type, r.url, r.insecure, r.webhook_secret, r.enabled, r.created_at, r.updated_at, r.repository_patterns, r.tag_patterns, r.scan_mode, r.poll_interval_minutes, r.last_polled_at, r.repositories, r.auth_username, r.auth_token, r.include_untagged, r.verification_mode, r.trust_public_key, r.trust_identity, r.trust_issuer, r.managed_by, r.managed_ref, r.tag_limit, r.tag_order, r.max_tag_age_days, src.name, n.id AS namespace_id, n.visibility
+SELECT r.id, r.type, r.url, r.insecure, r.webhook_secret, r.enabled, r.created_at, r.updated_at, r.repository_patterns, r.tag_patterns, r.scan_mode, r.poll_interval_minutes, r.last_polled_at, r.repositories, r.auth_username, r.auth_token, r.include_untagged, r.verification_mode, r.trust_public_key, r.trust_identity, r.trust_issuer, r.managed_by, r.managed_ref, r.tag_limit, r.tag_order, r.max_tag_age_days, r.last_walk_stats, src.name, n.id AS namespace_id, n.visibility
 FROM registry r
 JOIN source src ON src.id = r.id
 JOIN namespace n ON n.id = src.namespace_id
@@ -417,6 +421,7 @@ func (q *Queries) ListRegistries(ctx context.Context, arg ListRegistriesParams) 
 			&i.Registry.TagLimit,
 			&i.Registry.TagOrder,
 			&i.Registry.MaxTagAgeDays,
+			&i.Registry.LastWalkStats,
 			&i.Name,
 			&i.NamespaceID,
 			&i.Visibility,
@@ -432,7 +437,7 @@ func (q *Queries) ListRegistries(ctx context.Context, arg ListRegistriesParams) 
 }
 
 const listRegistriesByNamespace = `-- name: ListRegistriesByNamespace :many
-SELECT r.id, r.type, r.url, r.insecure, r.webhook_secret, r.enabled, r.created_at, r.updated_at, r.repository_patterns, r.tag_patterns, r.scan_mode, r.poll_interval_minutes, r.last_polled_at, r.repositories, r.auth_username, r.auth_token, r.include_untagged, r.verification_mode, r.trust_public_key, r.trust_identity, r.trust_issuer, r.managed_by, r.managed_ref, r.tag_limit, r.tag_order, r.max_tag_age_days, src.name, n.id AS namespace_id, n.visibility
+SELECT r.id, r.type, r.url, r.insecure, r.webhook_secret, r.enabled, r.created_at, r.updated_at, r.repository_patterns, r.tag_patterns, r.scan_mode, r.poll_interval_minutes, r.last_polled_at, r.repositories, r.auth_username, r.auth_token, r.include_untagged, r.verification_mode, r.trust_public_key, r.trust_identity, r.trust_issuer, r.managed_by, r.managed_ref, r.tag_limit, r.tag_order, r.max_tag_age_days, r.last_walk_stats, src.name, n.id AS namespace_id, n.visibility
 FROM registry r
 JOIN source src ON src.id = r.id
 JOIN namespace n ON n.id = src.namespace_id
@@ -487,6 +492,7 @@ func (q *Queries) ListRegistriesByNamespace(ctx context.Context, namespaceID pgt
 			&i.Registry.TagLimit,
 			&i.Registry.TagOrder,
 			&i.Registry.MaxTagAgeDays,
+			&i.Registry.LastWalkStats,
 			&i.Name,
 			&i.NamespaceID,
 			&i.Visibility,
@@ -502,7 +508,7 @@ func (q *Queries) ListRegistriesByNamespace(ctx context.Context, namespaceID pgt
 }
 
 const listRegistriesPaged = `-- name: ListRegistriesPaged :many
-SELECT r.id, r.type, r.url, r.insecure, r.webhook_secret, r.enabled, r.created_at, r.updated_at, r.repository_patterns, r.tag_patterns, r.scan_mode, r.poll_interval_minutes, r.last_polled_at, r.repositories, r.auth_username, r.auth_token, r.include_untagged, r.verification_mode, r.trust_public_key, r.trust_identity, r.trust_issuer, r.managed_by, r.managed_ref, r.tag_limit, r.tag_order, r.max_tag_age_days, src.name, n.id AS namespace_id, n.visibility, COUNT(*) OVER() AS total_count
+SELECT r.id, r.type, r.url, r.insecure, r.webhook_secret, r.enabled, r.created_at, r.updated_at, r.repository_patterns, r.tag_patterns, r.scan_mode, r.poll_interval_minutes, r.last_polled_at, r.repositories, r.auth_username, r.auth_token, r.include_untagged, r.verification_mode, r.trust_public_key, r.trust_identity, r.trust_issuer, r.managed_by, r.managed_ref, r.tag_limit, r.tag_order, r.max_tag_age_days, r.last_walk_stats, src.name, n.id AS namespace_id, n.visibility, COUNT(*) OVER() AS total_count
 FROM registry r
 JOIN source src ON src.id = r.id
 JOIN namespace n ON n.id = src.namespace_id
@@ -576,6 +582,7 @@ func (q *Queries) ListRegistriesPaged(ctx context.Context, arg ListRegistriesPag
 			&i.Registry.TagLimit,
 			&i.Registry.TagOrder,
 			&i.Registry.MaxTagAgeDays,
+			&i.Registry.LastWalkStats,
 			&i.Name,
 			&i.NamespaceID,
 			&i.Visibility,
@@ -690,6 +697,21 @@ func (q *Queries) ListRegistryTrustSummary(ctx context.Context, arg ListRegistry
 	return items, nil
 }
 
+const recordRegistryWalkStats = `-- name: RecordRegistryWalkStats :exec
+UPDATE registry SET last_walk_stats = $1::jsonb WHERE id = $2
+`
+
+type RecordRegistryWalkStatsParams struct {
+	Stats []byte      `json:"stats"`
+	ID    pgtype.UUID `json:"id"`
+}
+
+// Leaves updated_at alone: a walk is not a configuration change.
+func (q *Queries) RecordRegistryWalkStats(ctx context.Context, arg RecordRegistryWalkStatsParams) error {
+	_, err := q.db.Exec(ctx, recordRegistryWalkStats, arg.Stats, arg.ID)
+	return err
+}
+
 const rewriteRegistrySecrets = `-- name: RewriteRegistrySecrets :execrows
 UPDATE registry
 SET auth_token     = $1::text,
@@ -729,7 +751,7 @@ UPDATE registry
 SET enabled    = $2,
     updated_at = now()
 WHERE id = $1
-RETURNING id, type, url, insecure, webhook_secret, enabled, created_at, updated_at, repository_patterns, tag_patterns, scan_mode, poll_interval_minutes, last_polled_at, repositories, auth_username, auth_token, include_untagged, verification_mode, trust_public_key, trust_identity, trust_issuer, managed_by, managed_ref, tag_limit, tag_order, max_tag_age_days
+RETURNING id, type, url, insecure, webhook_secret, enabled, created_at, updated_at, repository_patterns, tag_patterns, scan_mode, poll_interval_minutes, last_polled_at, repositories, auth_username, auth_token, include_untagged, verification_mode, trust_public_key, trust_identity, trust_issuer, managed_by, managed_ref, tag_limit, tag_order, max_tag_age_days, last_walk_stats
 `
 
 type SetRegistryEnabledParams struct {
@@ -767,6 +789,7 @@ func (q *Queries) SetRegistryEnabled(ctx context.Context, arg SetRegistryEnabled
 		&i.TagLimit,
 		&i.TagOrder,
 		&i.MaxTagAgeDays,
+		&i.LastWalkStats,
 	)
 	return i, err
 }
@@ -812,7 +835,7 @@ SET type                  = $1::text,
     max_tag_age_days      = $22::int,
     updated_at            = now()
 WHERE registry.id = $23
-RETURNING id, type, url, insecure, webhook_secret, enabled, created_at, updated_at, repository_patterns, tag_patterns, scan_mode, poll_interval_minutes, last_polled_at, repositories, auth_username, auth_token, include_untagged, verification_mode, trust_public_key, trust_identity, trust_issuer, managed_by, managed_ref, tag_limit, tag_order, max_tag_age_days
+RETURNING id, type, url, insecure, webhook_secret, enabled, created_at, updated_at, repository_patterns, tag_patterns, scan_mode, poll_interval_minutes, last_polled_at, repositories, auth_username, auth_token, include_untagged, verification_mode, trust_public_key, trust_identity, trust_issuer, managed_by, managed_ref, tag_limit, tag_order, max_tag_age_days, last_walk_stats
 `
 
 type UpdateRegistryParams struct {
@@ -907,6 +930,7 @@ func (q *Queries) UpdateRegistry(ctx context.Context, arg UpdateRegistryParams) 
 		&i.TagLimit,
 		&i.TagOrder,
 		&i.MaxTagAgeDays,
+		&i.LastWalkStats,
 	)
 	return i, err
 }
@@ -915,7 +939,7 @@ const updateRegistryLastPolled = `-- name: UpdateRegistryLastPolled :one
 UPDATE registry
 SET last_polled_at = now(), updated_at = now()
 WHERE id = $1
-RETURNING id, type, url, insecure, webhook_secret, enabled, created_at, updated_at, repository_patterns, tag_patterns, scan_mode, poll_interval_minutes, last_polled_at, repositories, auth_username, auth_token, include_untagged, verification_mode, trust_public_key, trust_identity, trust_issuer, managed_by, managed_ref, tag_limit, tag_order, max_tag_age_days
+RETURNING id, type, url, insecure, webhook_secret, enabled, created_at, updated_at, repository_patterns, tag_patterns, scan_mode, poll_interval_minutes, last_polled_at, repositories, auth_username, auth_token, include_untagged, verification_mode, trust_public_key, trust_identity, trust_issuer, managed_by, managed_ref, tag_limit, tag_order, max_tag_age_days, last_walk_stats
 `
 
 func (q *Queries) UpdateRegistryLastPolled(ctx context.Context, id pgtype.UUID) (Registry, error) {
@@ -948,6 +972,7 @@ func (q *Queries) UpdateRegistryLastPolled(ctx context.Context, id pgtype.UUID) 
 		&i.TagLimit,
 		&i.TagOrder,
 		&i.MaxTagAgeDays,
+		&i.LastWalkStats,
 	)
 	return i, err
 }

@@ -2124,9 +2124,10 @@ type CreateRegistryResponseBody struct {
 	Id        string  `json:"id"`
 
 	// IncludeUntagged Scan untagged manifests via registry-specific APIs (supported: zot, harbor, ghcr)
-	IncludeUntagged bool    `json:"include_untagged"`
-	Insecure        bool    `json:"insecure"`
-	LastPolledAt    *string `json:"last_polled_at,omitempty"`
+	IncludeUntagged bool       `json:"include_untagged"`
+	Insecure        bool       `json:"insecure"`
+	LastPolledAt    *string    `json:"last_polled_at,omitempty"`
+	LastWalk        *WalkStats `json:"last_walk,omitempty"`
 
 	// ManagedBy External system that owns this registry's configuration (e.g. kubernetes); absent when managed through this API
 	ManagedBy *string `json:"managed_by,omitempty"`
@@ -3233,9 +3234,10 @@ type RegistryResponse struct {
 	Id        string  `json:"id"`
 
 	// IncludeUntagged Scan untagged manifests via registry-specific APIs (supported: zot, harbor, ghcr)
-	IncludeUntagged bool    `json:"include_untagged"`
-	Insecure        bool    `json:"insecure"`
-	LastPolledAt    *string `json:"last_polled_at,omitempty"`
+	IncludeUntagged bool       `json:"include_untagged"`
+	Insecure        bool       `json:"insecure"`
+	LastPolledAt    *string    `json:"last_polled_at,omitempty"`
+	LastWalk        *WalkStats `json:"last_walk,omitempty"`
 
 	// ManagedBy External system that owns this registry's configuration (e.g. kubernetes); absent when managed through this API
 	ManagedBy *string `json:"managed_by,omitempty"`
@@ -3904,6 +3906,33 @@ type VulnSummary struct {
 	Medium   int64 `json:"medium"`
 	Total    int64 `json:"total"`
 	Unknown  int64 `json:"unknown"`
+}
+
+// WalkStats defines model for WalkStats.
+type WalkStats struct {
+	// At When the walk finished
+	At time.Time `json:"at"`
+
+	// Error Why the walk failed, if it did
+	Error *string `json:"error,omitempty"`
+
+	// Matched Tags that passed the filter
+	Matched int64 `json:"matched"`
+
+	// Queued Scan jobs the walk submitted (already-ingested digests are not)
+	Queued int64 `json:"queued"`
+
+	// Repositories Repositories the walk visited
+	Repositories int64 `json:"repositories"`
+
+	// Selected Tags inside the window
+	Selected int64 `json:"selected"`
+
+	// SkippedByAge Matching tags older than max_tag_age_days
+	SkippedByAge int64 `json:"skipped_by_age"`
+
+	// SkippedByLimit Matching tags past tag_limit
+	SkippedByLimit int64 `json:"skipped_by_limit"`
 }
 
 // WatchEntry defines model for WatchEntry.

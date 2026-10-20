@@ -2,6 +2,7 @@ package service
 
 import (
 	"context"
+	"encoding/json"
 	"errors"
 	"fmt"
 	"path"
@@ -60,6 +61,7 @@ type Registry struct {
 	TagLimit      int
 	TagOrder      string
 	MaxTagAgeDays int
+	LastWalk      *WalkStats // nil until the first walk records one
 }
 
 // IsManaged reports whether an external controller owns this registry's config
@@ -402,6 +404,8 @@ type RegistryService interface {
 	Delete(ctx context.Context, id string) error
 	ListPollable(ctx context.Context) ([]Registry, error)
 	MarkPolled(ctx context.Context, id string) (Registry, error)
+	// RecordWalkStats stores what the registry's latest walk selected.
+	RecordWalkStats(ctx context.Context, id string, stats WalkStats) error
 	// TrustSummary is visibility-filtered so a namespace owner can read the
 	// signing posture of their own artifacts without the admin role.
 	TrustSummary(ctx context.Context, vis VisibilityFilter) ([]RegistryTrustCount, error)
@@ -750,6 +754,21 @@ func (s *registryService) MarkPolled(ctx context.Context, id string) (Registry, 
 	return s.Get(ctx, id)
 }
 
+func (s *registryService) RecordWalkStats(ctx context.Context, id string, stats WalkStats) error {
+	uid, err := parseUUID(id)
+	if err != nil {
+		return ErrNotFound
+	}
+	b, err := json.Marshal(stats)
+	if err != nil {
+		return fmt.Errorf("encoding walk stats: %w", err)
+	}
+	if err := s.repo.RecordRegistryWalkStats(ctx, repository.RecordRegistryWalkStatsParams{ID: uid, Stats: b}); err != nil {
+		return fmt.Errorf("recording walk stats: %w", err)
+	}
+	return nil
+}
+
 func (s *registryService) SetEnabled(ctx context.Context, id string, enabled bool) (Registry, error) {
 	uid, err := parseUUID(id)
 	if err != nil {
@@ -831,6 +850,12 @@ func fromRepo(c registryComposite) Registry {
 		TagLimit:            int(r.TagLimit),
 		TagOrder:            r.TagOrder.String,
 		MaxTagAgeDays:       int(r.MaxTagAgeDays.Int32),
+	}
+	if len(r.LastWalkStats) > 0 {
+		var w WalkStats
+		if json.Unmarshal(r.LastWalkStats, &w) == nil {
+			out.LastWalk = &w
+		}
 	}
 	if r.WebhookSecret.Valid {
 		s := r.WebhookSecret.String

@@ -1529,6 +1529,10 @@
           "last_polled_at": {
             "type": "string"
           },
+          "last_walk": {
+            "$ref": "#/components/schemas/WalkStats",
+            "description": "What the most recent catalog walk selected; absent until the first walk"
+          },
           "managed_by": {
             "description": "External system that owns this registry's configuration (e.g. kubernetes); absent when managed through this API",
             "type": "string"
@@ -4906,6 +4910,10 @@
           "last_polled_at": {
             "type": "string"
           },
+          "last_walk": {
+            "$ref": "#/components/schemas/WalkStats",
+            "description": "What the most recent catalog walk selected; absent until the first walk"
+          },
           "managed_by": {
             "description": "External system that owns this registry's configuration (e.g. kubernetes); absent when managed through this API",
             "type": "string"
@@ -6708,6 +6716,60 @@
           "low",
           "unknown",
           "total"
+        ],
+        "type": "object"
+      },
+      "WalkStats": {
+        "additionalProperties": false,
+        "properties": {
+          "at": {
+            "description": "When the walk finished",
+            "format": "date-time",
+            "type": "string"
+          },
+          "error": {
+            "description": "Why the walk failed, if it did",
+            "type": "string"
+          },
+          "matched": {
+            "description": "Tags that passed the filter",
+            "format": "int64",
+            "type": "integer"
+          },
+          "queued": {
+            "description": "Scan jobs the walk submitted (already-ingested digests are not)",
+            "format": "int64",
+            "type": "integer"
+          },
+          "repositories": {
+            "description": "Repositories the walk visited",
+            "format": "int64",
+            "type": "integer"
+          },
+          "selected": {
+            "description": "Tags inside the window",
+            "format": "int64",
+            "type": "integer"
+          },
+          "skipped_by_age": {
+            "description": "Matching tags older than max_tag_age_days",
+            "format": "int64",
+            "type": "integer"
+          },
+          "skipped_by_limit": {
+            "description": "Matching tags past tag_limit",
+            "format": "int64",
+            "type": "integer"
+          }
+        },
+        "required": [
+          "at",
+          "repositories",
+          "matched",
+          "selected",
+          "skipped_by_limit",
+          "skipped_by_age",
+          "queued"
         ],
         "type": "object"
       },
