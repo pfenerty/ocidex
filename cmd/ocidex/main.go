@@ -18,6 +18,8 @@ import (
 	"github.com/jackc/pgx/v5/pgxpool"
 	_ "github.com/jackc/pgx/v5/stdlib"
 	"github.com/pressly/goose/v3"
+	"go.opentelemetry.io/otel/metric"
+	"go.opentelemetry.io/otel/metric/noop"
 
 	"github.com/pfenerty/ocidex/db"
 	"github.com/pfenerty/ocidex/internal/api"
@@ -29,6 +31,7 @@ import (
 	"github.com/pfenerty/ocidex/internal/enrichment/ocivalidate"
 	"github.com/pfenerty/ocidex/internal/event"
 	"github.com/pfenerty/ocidex/internal/extension"
+	"github.com/pfenerty/ocidex/internal/metrics"
 	natspkg "github.com/pfenerty/ocidex/internal/nats"
 	"github.com/pfenerty/ocidex/internal/repository"
 	"github.com/pfenerty/ocidex/internal/scanner"
@@ -136,7 +139,11 @@ func run() error {
 
 	watchSvc := service.NewWatchService(pool)
 	clusterSvc := service.NewClusterService(pool, cfg.SecretBox)
-	handler := api.NewHandler(sbomSvc, searchSvc, authSvc, registrySvc, namespaceSvc, sourceSvc, jobSvc, enrichJobSvc, watchSvc, clusterSvc, pool, scanSubmitter, cfg)
+	meterProvider, stopMetrics := setupMetrics(ctx, cfg)
+	defer stopMetrics()
+
+	handler := api.NewHandler(sbomSvc, searchSvc, authSvc, registrySvc, namespaceSvc, sourceSvc, jobSvc, enrichJobSvc, watchSvc, clusterSvc, pool, scanSubmitter, cfg).
+		WithMeterProvider(meterProvider)
 	router := api.NewRouter(handler, cfg.CORSAllowedOrigins, cfg.FrontendURL, cfg.APIBaseURL)
 
 	extCtx, extCancel := context.WithCancel(context.Background())
@@ -392,6 +399,32 @@ func setupScannerExt(cfg *config.Config, _ *pgxpool.Pool, _ *event.Bus, _ *exten
 		return nil
 	}
 	return scanner.NewNATSSubmitter(natsClient, cfg.NATSStreamName, jobSvc)
+}
+
+// setupMetrics builds the API's MeterProvider and starts the private /metrics
+// listener on METRICS_ADDR (ADR-0054). With METRICS_ADDR empty it returns a
+// no-op provider, and it does the same when setup fails: losing metrics must
+// not take the API down. The returned func stops the listener and flushes the
+// provider.
+func setupMetrics(ctx context.Context, cfg *config.Config) (metric.MeterProvider, func()) {
+	if cfg.MetricsAddr == "" {
+		slog.Info("metrics disabled: METRICS_ADDR is empty")
+		return noop.NewMeterProvider(), func() {}
+	}
+	mp, err := metrics.New(ctx, "ocidex-api")
+	if err != nil {
+		slog.Error("metrics disabled", "err", err)
+		return noop.NewMeterProvider(), func() {}
+	}
+	srv := metrics.NewServer(cfg.MetricsAddr, mp, slog.Default())
+	srv.Start()
+	return mp, func() {
+		stopCtx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+		defer cancel()
+		if err := errors.Join(srv.Stop(stopCtx), mp.Shutdown(stopCtx)); err != nil {
+			slog.Error("metrics shutdown", "err", err)
+		}
+	}
 }
 
 func runSessionCleaner(ctx context.Context, authSvc service.AuthService) {

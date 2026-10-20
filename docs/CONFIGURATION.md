@@ -235,6 +235,21 @@ Required by every process — the API and both workers fail to start without `NA
 |----------|---------|-------------|
 | `AUDIT_LOG_ENABLED` | `true` | Emit structured audit log entries for mutating API operations. |
 
+### Metrics
+
+The API serves Prometheus metrics on a separate, private listener (ADR-0054), never on `PORT`.
+Don't route it through your ingress.
+
+| Variable | Default | Description |
+|----------|---------|-------------|
+| `METRICS_ADDR` | `:9090` | Listen address for `/metrics`. Empty disables the listener and metrics. |
+| `OTEL_RESOURCE_ATTRIBUTES` | — | Extra resource attributes, e.g. `deployment.environment.name=prod`. They appear on the `target_info` series. |
+
+Request metrics are the `http_server_request_duration_seconds` histogram, labelled
+`http_request_method`, `http_route` (the route pattern, such as `/api/v1/sboms/{id}`; `unmatched`
+for paths no route serves) and `http_response_status_code`. Its `_count` series is the request
+count. Go runtime (`go_*`) and process (`process_*`) metrics are included.
+
 ---
 
 ## Worker Binaries
