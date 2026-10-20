@@ -64,6 +64,31 @@ export function registryColumns(opts: {
             ),
         },
         {
+            // What the scan window selected on the latest walk (ADR-0053).
+            header: "Last walk",
+            render: (reg) => (
+                <Show when={reg.last_walk} fallback={<span class="text-[var(--color-text-muted)]">never</span>}>
+                    {(w) => (
+                        <Show
+                            when={w().error === undefined || w().error === ""}
+                            fallback={<span class="text-[var(--color-danger)]" title={w().error}>failed</span>}
+                        >
+                            <span
+                                data-testid="last-walk"
+                                title={`${w().repositories} repositories, ${w().matched} matching tags, ${w().skipped_by_age} too old. ${new Date(w().at).toLocaleString()}`}
+                            >
+                                {w().selected} tags
+                                <Show when={w().skipped_by_limit > 0}>
+                                    <span class="text-[var(--color-text-muted)]"> (+{w().skipped_by_limit} past limit)</span>
+                                </Show>
+                                {" · "}{w().queued} queued
+                            </span>
+                        </Show>
+                    )}
+                </Show>
+            ),
+        },
+        {
             header: "Signing Status",
             render: (reg) => (
                 <Show

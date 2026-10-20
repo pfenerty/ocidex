@@ -193,11 +193,13 @@ cookies carry no ceiling and are unaffected.
 | POST | `/api/v1/registries` | `create-registry` | `authenticated` | — | ✓ | A new or omitted `namespace` is created and owned by the caller. Naming an existing namespace requires manage_source in it, checked in the handler; a non-member gets 404. Minting a namespace with SELF_SERVICE_NAMESPACES=false is 403 for a global viewer. |
 | GET | `/api/v1/registries/by-name/{name}` | `get-registry-by-name` | `authenticated` | — |  | A private registry the caller does not own 404s. |
 | GET | `/api/v1/registries/drift-feed` | `list-recent-drift` | `authenticated` | — |  | Rows filtered via visible_namespace_ids; admins see every namespace. |
+| POST | `/api/v1/registries/preview` | `preview-registry-config` | `authenticated` | — | ✓ | Dials the caller-supplied registry like create-registry's first poll would, under the same egress policy; saves and submits nothing. |
 | POST | `/api/v1/registries/test-connection` | `test-registry-connection` | `admin` | — | ✓ | Dials an arbitrary caller-supplied host from inside the cluster. |
 | GET | `/api/v1/registries/trust-summary` | `get-registry-trust-summary` | `authenticated` | — |  | Rows filtered via visible_namespace_ids; admins see every namespace. |
 | DELETE | `/api/v1/registries/{id}` | `delete-registry` | `capability` | `manage_source` | ✓ | RequireCapability(manage_source) middleware. |
 | GET | `/api/v1/registries/{id}` | `get-registry` | `authenticated` | — |  | A private registry the caller does not own 404s. |
 | PATCH | `/api/v1/registries/{id}` | `update-registry` | `capability` | `manage_source` | ✓ | RequireCapability(manage_source) middleware. |
+| GET | `/api/v1/registries/{id}/preview` | `get-registry-preview` | `capability` | `trigger_scan` |  | RequireCapability(trigger_scan) middleware: it spends the registry's stored credentials, as a scan does. |
 | POST | `/api/v1/registries/{id}/scan` | `scan-registry` | `capability` | `trigger_scan` | ✓ | RequireCapability(trigger_scan) middleware. |
 | POST | `/api/v1/registries/{id}/webhook` | `registry-webhook` | `secret` | — |  | HMAC over the body against the registry's webhook secret; no user identity. |
 | POST | `/api/v1/registries/{id}/webhook-secret` | `regenerate-webhook-secret` | `capability` | `read_secret` | ✓ | RequireCapability(read_secret) middleware; response contains the new secret. |

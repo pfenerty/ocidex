@@ -61,8 +61,15 @@ var (
 )
 
 func createRegistryRouter(nsSvc service.NamespaceService, regSvc service.RegistryService) http.Handler {
+	h := api.NewHandler(nil, nil, createRegistryAuthService(), regSvc, nsSvc, nil, nil, nil, nil, nil, &fakePinger{}, nil, &config.Config{})
+	return api.NewRouter(h, "*", "", "")
+}
+
+// createRegistryAuthService knows the owner, developer, stranger and admin
+// tokens these registry tests use.
+func createRegistryAuthService() *fakeAuthService {
 	allCaps := authz.AllCapabilities()
-	authSvc := &fakeAuthService{
+	return &fakeAuthService{
 		users: map[string]service.AuthUser{
 			"owner-token":     {ID: ownerUUID, Role: "member", APIKeyAuth: true, APIKeyCaps: allCaps},
 			"developer-token": {ID: developerUUID, Role: "member", APIKeyAuth: true, APIKeyCaps: allCaps},
@@ -74,8 +81,6 @@ func createRegistryRouter(nsSvc service.NamespaceService, regSvc service.Registr
 			uuidString(developerUUID): {testNamespaceID: authz.RoleDeveloper},
 		},
 	}
-	h := api.NewHandler(nil, nil, authSvc, regSvc, nsSvc, nil, nil, nil, nil, nil, &fakePinger{}, nil, &config.Config{})
-	return api.NewRouter(h, "*", "", "")
 }
 
 // TestCreateRegistry_ExistingNamespaceAuthz covers ocidex-avsz.2: naming a

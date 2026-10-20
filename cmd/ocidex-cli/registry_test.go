@@ -172,6 +172,26 @@ func TestRegistryCreate(t *testing.T) {
 	is.True(got.ScanMode == nil)
 	is.True(got.Visibility == nil)
 	is.True(got.IncludeUntagged == nil)
+	is.True(got.TagLimit == nil) // the server applies its default of 50
+	is.True(got.TagOrder == nil)
+}
+
+func TestRegistryCreateScanWindow(t *testing.T) {
+	is := is.New(t)
+	var got client.CreateRegistryInputBody
+	fake := &client.FakeClient{
+		CreateRegistryFn: func(_ context.Context, body client.CreateRegistryInputBody) (client.CreateRegistryResponseBody, error) {
+			got = body
+			return client.CreateRegistryResponseBody{Id: testRegistryID, Name: body.Name}, nil
+		},
+	}
+	_, _, err := runCLI(t, fake, "registry", "create",
+		"--name", "quay", "--url", "quay.io", "--type", "docker",
+		"--tag-limit", "0", "--tag-order", "created", "--max-tag-age-days", "30")
+	is.NoErr(err)
+	is.Equal(*got.TagLimit, int64(0)) // an explicit 0 (unlimited) must reach the server
+	is.Equal(string(*got.TagOrder), "created")
+	is.Equal(*got.MaxTagAgeDays, int64(30))
 }
 
 // A missing required flag fails before the client is ever built, so it is a
@@ -236,6 +256,27 @@ func TestRegistryUpdate(t *testing.T) {
 	is.Equal(string(*got.VerificationMode), "keyless")
 	is.Equal(*got.Repositories, []string{"ocidex", "apko-cicd"})
 	is.Equal(*got.IncludeUntagged, true)
+	// The API keeps an omitted scan window, so it is not carried over.
+	is.True(got.TagLimit == nil)
+	is.True(got.TagOrder == nil)
+	is.True(got.MaxTagAgeDays == nil)
+}
+
+func TestRegistryUpdateScanWindow(t *testing.T) {
+	is := is.New(t)
+	var got client.UpdateRegistryInputBody
+	fake := &client.FakeClient{
+		GetRegistryFn: func(context.Context, string) (client.RegistryResponse, error) { return testRegistry(), nil },
+		UpdateRegistryFn: func(_ context.Context, _ string, body client.UpdateRegistryInputBody) (client.RegistryResponse, error) {
+			got = body
+			return testRegistry(), nil
+		},
+	}
+	_, _, err := runCLI(t, fake, "registry", "update", testRegistryID, "--tag-limit", "5", "--tag-order", "auto")
+	is.NoErr(err)
+	is.Equal(*got.TagLimit, int64(5))
+	is.Equal(string(*got.TagOrder), "auto")
+	is.True(got.MaxTagAgeDays == nil)
 }
 
 // --enabled defaults to true, and a default must not silently re-enable a
@@ -322,4 +363,41 @@ func TestRegistryNotFoundExitCode(t *testing.T) {
 	_, _, err := runCLI(t, fake, "registry", "get", testRegistryID)
 	is.True(err != nil)
 	is.Equal(exitCode(err, true), exitNotFound)
+}
+
+func TestRegistryPreviewSaved(t *testing.T) {
+	is := is.New(t)
+	repos := []client.RepoPreview{{Repository: "app", Matched: 30, Selected: 10, SkippedByLimit: 20, Platforms: 2, EstimatedSboms: 20}}
+	fake := &client.FakeClient{
+		GetRegistryFn: func(context.Context, string) (client.RegistryResponse, error) { return testRegistry(), nil },
+		GetRegistryPreviewFn: func(_ context.Context, id string) (client.RegistryPreview, error) {
+			is.Equal(id, testRegistryID)
+			return client.RegistryPreview{Repositories: &repos, Selected: 10, SkippedByLimit: 20, EstimatedSboms: 20}, nil
+		},
+	}
+	stdout, stderr, err := runCLI(t, fake, "registry", "preview", testRegistryID)
+	is.NoErr(err)
+	is.True(strings.Contains(stdout, "app"))
+	is.True(strings.Contains(stdout, "PAST LIMIT"))
+	is.True(strings.Contains(stderr, "~20 SBOMs"))
+}
+
+func TestRegistryPreviewUnsaved(t *testing.T) {
+	is := is.New(t)
+	var got client.PreviewRegistryConfigInputBody
+	fake := &client.FakeClient{
+		PreviewRegistryConfigFn: func(_ context.Context, body client.PreviewRegistryConfigInputBody) (client.RegistryPreview, error) {
+			got = body
+			return client.RegistryPreview{}, nil
+		},
+	}
+	_, _, err := runCLI(t, fake, "registry", "preview", "--url", "quay.io", "--type", "docker",
+		"--repository", "metallb/controller", "--tag-pattern", "semver", "--tag-limit", "5")
+	is.NoErr(err)
+	is.Equal(got.Url, "quay.io")
+	is.Equal(*got.TagLimit, int64(5))
+	is.Equal(*got.Repositories, []string{"metallb/controller"})
+
+	_, _, err = runCLI(t, fake, "registry", "preview")
+	is.Equal(exitCode(err, false), exitUsage) // neither a registry nor --url/--type
 }

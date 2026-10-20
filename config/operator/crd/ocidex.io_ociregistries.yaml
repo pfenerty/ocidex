@@ -26,6 +26,9 @@ spec:
     - jsonPath: .status.conditions[?(@.type=="Ready")].status
       name: Ready
       type: string
+    - jsonPath: .status.scope.estimatedSBOMs
+      name: Est. SBOMs
+      type: integer
     - jsonPath: .metadata.creationTimestamp
       name: Age
       type: date
@@ -78,6 +81,13 @@ spec:
               insecure:
                 description: Insecure allows HTTP (non-TLS) connections.
                 type: boolean
+              maxTagAgeDays:
+                description: |-
+                  MaxTagAgeDays skips tags whose image is older than this many days. It
+                  needs the created order. Omit for no age limit.
+                format: int64
+                minimum: 1
+                type: integer
               name:
                 description: Name is a human-readable label for the registry.
                 type: string
@@ -112,6 +122,25 @@ spec:
                 - poll
                 - webhook
                 - both
+                type: string
+              tagLimit:
+                default: 50
+                description: |-
+                  TagLimit is how many of the newest tags OCIDex keeps per repository
+                  (ADR-0053). 0 means unlimited.
+                format: int64
+                minimum: 0
+                type: integer
+              tagOrder:
+                default: auto
+                description: |-
+                  TagOrder decides which tags are newest. auto is semver when tagPatterns
+                  contains semver, and created (the image build date) otherwise.
+                enum:
+                - auto
+                - semver
+                - created
+                - lexical
                 type: string
               tagPatterns:
                 description: TagPatterns are glob patterns or "semver" for tags to
@@ -240,6 +269,47 @@ spec:
               registryID:
                 description: RegistryID is the OCIDex UUID assigned on creation.
                 type: string
+              scope:
+                description: |-
+                  Scope is what the registry's scan window selects (ADR-0053), previewed
+                  after each spec change. Nothing is queued to produce it.
+                properties:
+                  error:
+                    description: Error is why the preview could not run; the registry
+                      is still synced.
+                    type: string
+                  estimatedSBOMs:
+                    description: |-
+                      EstimatedSBOMs is selected tags times their sampled platform count, plus
+                      untagged manifests.
+                    format: int64
+                    type: integer
+                  observedGeneration:
+                    description: ObservedGeneration is the spec generation this preview
+                      describes.
+                    format: int64
+                    type: integer
+                  repositories:
+                    description: Repositories is how many repositories the walk would
+                      visit.
+                    format: int64
+                    type: integer
+                  selectedTags:
+                    description: SelectedTags is how many tags fall inside the window,
+                      across repositories.
+                    format: int64
+                    type: integer
+                  skippedByLimit:
+                    description: SkippedByLimit is how many matching tags are past
+                      tagLimit.
+                    format: int64
+                    type: integer
+                required:
+                - estimatedSBOMs
+                - repositories
+                - selectedTags
+                - skippedByLimit
+                type: object
             type: object
         type: object
     served: true

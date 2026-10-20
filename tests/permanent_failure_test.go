@@ -43,7 +43,7 @@ func TestFailOrRequeue_PermanentBudget(t *testing.T) {
 
 	enqueueClaimed := func(digest string) string {
 		t.Helper()
-		job, err := jobSvc.Enqueue(ctx, "", "repo/permanent", digest, "", "latest", "")
+		job, err := jobSvc.Enqueue(ctx, "", "repo/permanent", digest, "", "latest", "", false)
 		if err != nil {
 			t.Fatalf("enqueue: %v", err)
 		}

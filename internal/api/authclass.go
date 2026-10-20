@@ -268,6 +268,8 @@ var authRules = map[string]AuthRule{
 	"update-registry":            {Class: ClassCapability, Cap: authz.CapManageSource, Write: true, Notes: noteManageRegistryMW},
 	"delete-registry":            {Class: ClassCapability, Cap: authz.CapManageSource, Write: true, Notes: noteManageRegistryMW},
 	"scan-registry":              {Class: ClassCapability, Cap: authz.CapTriggerScan, Write: true, Notes: "RequireCapability(trigger_scan) middleware."},
+	"preview-registry-config":    {Class: ClassAuthenticated, Write: true, Notes: "Dials the caller-supplied registry like create-registry's first poll would, under the same egress policy; saves and submits nothing."},
+	"get-registry-preview":       {Class: ClassCapability, Cap: authz.CapTriggerScan, Notes: "RequireCapability(trigger_scan) middleware: it spends the registry's stored credentials, as a scan does."},
 	"regenerate-webhook-secret":  {Class: ClassCapability, Cap: authz.CapReadSecret, Write: true, Notes: "RequireCapability(read_secret) middleware; response contains the new secret."},
 	"test-registry-connection":   {Class: ClassAdmin, Write: true, Notes: "Dials an arbitrary caller-supplied host from inside the cluster."},
 	"get-registry-trust-summary": {Class: ClassAuthenticated, Notes: noteNamespaceScoped},

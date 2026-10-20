@@ -52,6 +52,14 @@ func (in *OCIRegistrySpec) DeepCopyInto(out *OCIRegistrySpec) {
 		v := *in.TrustIssuer
 		out.TrustIssuer = &v
 	}
+	if in.TagLimit != nil {
+		v := *in.TagLimit
+		out.TagLimit = &v
+	}
+	if in.MaxTagAgeDays != nil {
+		v := *in.MaxTagAgeDays
+		out.MaxTagAgeDays = &v
+	}
 }
 
 // DeepCopy returns a deep copy of OCIRegistrySpec.
@@ -73,6 +81,10 @@ func (in *OCIRegistryStatus) DeepCopyInto(out *OCIRegistryStatus) {
 		for i := range *in {
 			(*in)[i].DeepCopyInto(&(*out)[i])
 		}
+	}
+	if in.Scope != nil {
+		s := *in.Scope
+		out.Scope = &s
 	}
 }
 

@@ -1021,6 +1021,26 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/v1/registries/preview": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Preview what an unsaved registry would scan
+         * @description Runs the scan window (ADR-0053) against the registry without saving or submitting anything: per repository, the matched, selected and skipped tag counts, and an SBOM estimate.
+         */
+        post: operations["preview-registry-config"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/v1/registries/test-connection": {
         parameters: {
             query?: never;
@@ -1078,6 +1098,26 @@ export interface paths {
         head?: never;
         /** Update a registry (partial) */
         patch: operations["update-registry"];
+        trace?: never;
+    };
+    "/api/v1/registries/{id}/preview": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Preview what a registry's next walk would scan
+         * @description Runs the saved registry's scan window (ADR-0053) with its stored credentials and submits nothing.
+         */
+        get: operations["get-registry-preview"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
         trace?: never;
     };
     "/api/v1/registries/{id}/scan": {
@@ -2207,6 +2247,11 @@ export interface components {
             managed_by?: string;
             /** @description Identifier within the managing system, e.g. '<namespace>/<name>' of the OCIRegistry resource */
             managed_ref?: string;
+            /**
+             * Format: int64
+             * @description Skip tags whose image is older than this many days; needs the created order. 0 = no age limit
+             */
+            max_tag_age_days?: number;
             /** @description Human-readable registry name */
             name: string;
             /** @description Namespace to create the registry in, created on first use; omit to give the registry a namespace of its own named after it */
@@ -2225,6 +2270,16 @@ export interface components {
              * @enum {string}
              */
             scan_mode?: "webhook" | "poll" | "both";
+            /**
+             * Format: int64
+             * @description Newest tags kept per repository (ADR-0053); 0 = unlimited. Defaults to 50
+             */
+            tag_limit?: number;
+            /**
+             * @description How 'newest' is decided; auto (the default) = semver when tag_patterns contains semver, created otherwise
+             * @enum {string}
+             */
+            tag_order?: "auto" | "semver" | "created" | "lexical";
             /** @description Glob patterns or 'semver' for tags to ingest; empty = all */
             tag_patterns?: string[] | null;
             /** @description Regex matched against the Fulcio certificate SAN; required when verification_mode is keyless */
@@ -2270,10 +2325,17 @@ export interface components {
             include_untagged: boolean;
             insecure: boolean;
             last_polled_at?: string;
+            /** @description What the most recent catalog walk selected; absent until the first walk */
+            last_walk?: components["schemas"]["WalkStats"];
             /** @description External system that owns this registry's configuration (e.g. kubernetes); absent when managed through this API */
             managed_by?: string;
             /** @description Identifier within the managing system, e.g. '<namespace>/<name>' of the OCIRegistry resource */
             managed_ref?: string;
+            /**
+             * Format: int64
+             * @description Tags whose image is older than this many days are skipped; 0 = no age limit
+             */
+            max_tag_age_days: number;
             name: string;
             /** Format: int64 */
             poll_interval_minutes: number;
@@ -2282,6 +2344,16 @@ export interface components {
             /** @description Glob patterns for repositories to ingest; empty = all */
             repository_patterns: string[] | null;
             scan_mode: string;
+            /**
+             * Format: int64
+             * @description Newest tags kept per repository (ADR-0053); 0 = unlimited
+             */
+            tag_limit: number;
+            /**
+             * @description How 'newest' is decided; auto = semver when tag_patterns contains semver, created otherwise
+             * @enum {string}
+             */
+            tag_order: "auto" | "semver" | "created" | "lexical";
             /** @description Glob patterns or 'semver' for tags to ingest; empty = all */
             tag_patterns: string[] | null;
             /** @description Regex matched against the Fulcio certificate SAN; required for keyless verification mode */
@@ -3308,6 +3380,50 @@ export interface components {
              */
             total: number;
         };
+        PreviewRegistryConfigInputBody: {
+            /**
+             * Format: uri
+             * @description A URL to the JSON Schema for this object.
+             * @example https://example.com/schemas/PreviewRegistryConfigInputBody.json
+             */
+            readonly $schema?: string;
+            /** @description Token or PAT for registry authentication; omit for anonymous access */
+            auth_token?: string;
+            /** @description Username for registry authentication; omit for anonymous access */
+            auth_username?: string;
+            /** @description Scan untagged manifests via registry-specific APIs (supported: zot, harbor, ghcr) */
+            include_untagged?: boolean;
+            /** @description Allow HTTP (non-TLS) connections */
+            insecure: boolean;
+            /**
+             * Format: int64
+             * @description Skip tags whose image is older than this many days; needs the created order
+             */
+            max_tag_age_days?: number;
+            /** @description Explicit repositories to walk; bypasses /v2/_catalog discovery when non-empty */
+            repositories?: string[] | null;
+            /** @description Glob patterns for repositories to ingest; empty = all */
+            repository_patterns?: string[] | null;
+            /**
+             * Format: int64
+             * @description Newest tags kept per repository; 0 = unlimited. Defaults to 50
+             */
+            tag_limit?: number;
+            /**
+             * @description How 'newest' is decided; defaults to auto
+             * @enum {string}
+             */
+            tag_order?: "auto" | "semver" | "created" | "lexical";
+            /** @description Glob patterns or 'semver' for tags to ingest; empty = all */
+            tag_patterns?: string[] | null;
+            /**
+             * @description Registry type
+             * @enum {string}
+             */
+            type: "zot" | "harbor" | "docker" | "generic" | "ghcr";
+            /** @description Registry address (e.g. zot:5000) */
+            url: string;
+        };
         ProvenanceDriftSummary: {
             /** Format: date-time */
             detectedAt: string;
@@ -3393,6 +3509,21 @@ export interface components {
             /** @description New webhook secret — shown once only. The previous secret is immediately invalidated. */
             webhook_secret: string;
         };
+        RegistryPreview: {
+            /**
+             * Format: uri
+             * @description A URL to the JSON Schema for this object.
+             * @example https://example.com/schemas/RegistryPreview.json
+             */
+            readonly $schema?: string;
+            /** Format: int64 */
+            estimated_sboms: number;
+            repositories: components["schemas"]["RepoPreview"][] | null;
+            /** Format: int64 */
+            selected: number;
+            /** Format: int64 */
+            skipped_by_limit: number;
+        };
         RegistryResponse: {
             /**
              * Format: uri
@@ -3409,10 +3540,17 @@ export interface components {
             include_untagged: boolean;
             insecure: boolean;
             last_polled_at?: string;
+            /** @description What the most recent catalog walk selected; absent until the first walk */
+            last_walk?: components["schemas"]["WalkStats"];
             /** @description External system that owns this registry's configuration (e.g. kubernetes); absent when managed through this API */
             managed_by?: string;
             /** @description Identifier within the managing system, e.g. '<namespace>/<name>' of the OCIRegistry resource */
             managed_ref?: string;
+            /**
+             * Format: int64
+             * @description Tags whose image is older than this many days are skipped; 0 = no age limit
+             */
+            max_tag_age_days: number;
             name: string;
             /** Format: int64 */
             poll_interval_minutes: number;
@@ -3421,6 +3559,16 @@ export interface components {
             /** @description Glob patterns for repositories to ingest; empty = all */
             repository_patterns: string[] | null;
             scan_mode: string;
+            /**
+             * Format: int64
+             * @description Newest tags kept per repository (ADR-0053); 0 = unlimited
+             */
+            tag_limit: number;
+            /**
+             * @description How 'newest' is decided; auto = semver when tag_patterns contains semver, created otherwise
+             * @enum {string}
+             */
+            tag_order: "auto" | "semver" | "created" | "lexical";
             /** @description Glob patterns or 'semver' for tags to ingest; empty = all */
             tag_patterns: string[] | null;
             /** @description Regex matched against the Fulcio certificate SAN; required for keyless verification mode */
@@ -3459,6 +3607,46 @@ export interface components {
             mediaType: string;
             name: string;
             reference: string;
+        };
+        RepoPreview: {
+            /** @description Why this repository could not be previewed; the others still are */
+            error?: string;
+            /**
+             * Format: int64
+             * @description (selected tags x platforms) + untagged manifests; an estimate, since tags can share digests and platforms vary
+             */
+            estimated_sboms: number;
+            /**
+             * Format: int64
+             * @description Tags that pass the filter
+             */
+            matched: number;
+            /**
+             * Format: int64
+             * @description Platforms of the newest selected tag, the sample the estimate multiplies by
+             */
+            platforms: number;
+            repository: string;
+            /**
+             * Format: int64
+             * @description Tags inside the window
+             */
+            selected: number;
+            /**
+             * Format: int64
+             * @description Matching tags older than max_tag_age_days, or with no build date while it is set
+             */
+            skipped_by_age: number;
+            /**
+             * Format: int64
+             * @description Matching tags past tag_limit
+             */
+            skipped_by_limit: number;
+            /**
+             * Format: int64
+             * @description Untagged manifests inside the untagged window (include_untagged only)
+             */
+            untagged: number;
         };
         RetryAllFailedEnrichmentJobsOutputBody: {
             /**
@@ -3642,7 +3830,7 @@ export interface components {
             sbom_id?: string;
             started_at?: string;
             /** @enum {string} */
-            state: "queued" | "running" | "succeeded" | "failed";
+            state: "queued" | "running" | "succeeded" | "failed" | "pruned";
             tag?: string;
             /** @description Pod hostname that is processing this job */
             worker_id?: string;
@@ -3922,6 +4110,11 @@ export interface components {
             managed_by?: string;
             /** @description Identifier within the managing system; omit to leave the existing value untouched */
             managed_ref?: string;
+            /**
+             * Format: int64
+             * @description Skip tags whose image is older than this many days; 0 clears it. Omit to keep the current value
+             */
+            max_tag_age_days?: number;
             name: string;
             /**
              * Format: int64
@@ -3935,6 +4128,16 @@ export interface components {
              * @enum {string}
              */
             scan_mode?: "webhook" | "poll" | "both";
+            /**
+             * Format: int64
+             * @description Newest tags kept per repository; 0 = unlimited. Omit to keep the current value
+             */
+            tag_limit?: number;
+            /**
+             * @description How 'newest' is decided; auto = semver when tag_patterns contains semver, created otherwise. Omit to keep the current value
+             * @enum {string}
+             */
+            tag_order?: "auto" | "semver" | "created" | "lexical";
             tag_patterns?: string[] | null;
             /** @description Regex matched against the Fulcio certificate SAN; required when verification_mode is keyless */
             trust_identity?: string;
@@ -4054,6 +4257,45 @@ export interface components {
             total: number;
             /** Format: int64 */
             unknown: number;
+        };
+        WalkStats: {
+            /**
+             * Format: date-time
+             * @description When the walk finished
+             */
+            at: string;
+            /** @description Why the walk failed, if it did */
+            error?: string;
+            /**
+             * Format: int64
+             * @description Tags that passed the filter
+             */
+            matched: number;
+            /**
+             * Format: int64
+             * @description Scan jobs the walk submitted (already-ingested digests are not)
+             */
+            queued: number;
+            /**
+             * Format: int64
+             * @description Repositories the walk visited
+             */
+            repositories: number;
+            /**
+             * Format: int64
+             * @description Tags inside the window
+             */
+            selected: number;
+            /**
+             * Format: int64
+             * @description Matching tags older than max_tag_age_days
+             */
+            skipped_by_age: number;
+            /**
+             * Format: int64
+             * @description Matching tags past tag_limit
+             */
+            skipped_by_limit: number;
         };
         WatchEntry: {
             artifactId: string;
@@ -5735,7 +5977,7 @@ export interface operations {
                 /** @description Number of results to skip */
                 offset?: number;
                 /** @description Filter by job state */
-                state?: "queued" | "running" | "succeeded" | "failed";
+                state?: "queued" | "running" | "succeeded" | "failed" | "pruned";
             };
             header?: never;
             path?: never;
@@ -6331,6 +6573,39 @@ export interface operations {
             };
         };
     };
+    "preview-registry-config": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["PreviewRegistryConfigInputBody"];
+            };
+        };
+        responses: {
+            /** @description OK */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["RegistryPreview"];
+                };
+            };
+            /** @description Error */
+            default: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["ErrorModel"];
+                };
+            };
+        };
+    };
     "test-registry-connection": {
         parameters: {
             query?: never;
@@ -6478,6 +6753,38 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["RegistryResponse"];
+                };
+            };
+            /** @description Error */
+            default: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["ErrorModel"];
+                };
+            };
+        };
+    };
+    "get-registry-preview": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                /** @description Registry UUID */
+                id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description OK */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["RegistryPreview"];
                 };
             };
             /** @description Error */

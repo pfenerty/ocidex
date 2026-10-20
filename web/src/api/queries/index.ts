@@ -41,5 +41,5 @@ export type {
     VulnSeverityFilter,
 } from "./clusters";
 export { useListNamespaces, useNamespace, useCreateNamespace, useUpdateNamespace, useDeleteNamespace, useNamespaceMembers, useSetNamespaceMember, useRemoveNamespaceMember } from "./namespaces";
-export { useListRegistries, useCreateRegistry, useUpdateRegistry, useDeleteRegistry, useTestRegistryConnection, useScanRegistry, useRegenerateWebhookSecret, useRegistryTrustSummary, useRecentDrift } from "./registries";
+export { useListRegistries, useCreateRegistry, useUpdateRegistry, useDeleteRegistry, useTestRegistryConnection, useScanRegistry, useRegenerateWebhookSecret, useRegistryTrustSummary, useRecentDrift, usePreviewRegistryConfig, useRegistryPreview, type RegistryPreviewBody } from "./registries";
 export { useListScanJobs, useGetScanJob, useRetryScanJob, useRetryAllFailedScanJobs, useListEnrichmentJobs, useEnrichmentJobsSummary, useRetryEnrichmentJob, useRetryAllFailedEnrichmentJobs } from "./jobs";

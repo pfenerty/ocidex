@@ -9,6 +9,8 @@ export const JOB_STATE_COLORS: Record<string, string> = {
     running: "var(--color-info)",
     succeeded: "var(--color-success)",
     failed: "var(--color-danger)",
+    // The SBOM was deleted on purpose; the walk will not scan it again (ADR-0053).
+    pruned: "var(--color-text-muted)",
 };
 
 /**

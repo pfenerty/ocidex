@@ -354,6 +354,9 @@ func (h *Handler) CreateRegistry(ctx context.Context, in *CreateRegistryInput) (
 		TrustIssuer:         in.Body.TrustIssuer,
 		ManagedBy:           in.Body.ManagedBy,
 		ManagedRef:          in.Body.ManagedRef,
+		TagLimit:            in.Body.TagLimit,
+		TagOrder:            tagOrderFromAPI(in.Body.TagOrder),
+		MaxTagAgeDays:       in.Body.MaxTagAgeDays,
 	})
 	if err != nil {
 		return nil, err
@@ -461,6 +464,9 @@ func (h *Handler) RegenerateWebhookSecret(ctx context.Context, in *RegenerateWeb
 		TrustIssuer:         existing.TrustIssuer,
 		ManagedBy:           existing.ManagedBy,
 		ManagedRef:          existing.ManagedRef,
+		TagLimit:            &existing.TagLimit,
+		TagOrder:            &existing.TagOrder,
+		MaxTagAgeDays:       &existing.MaxTagAgeDays,
 	})
 	if err != nil {
 		return nil, huma.Error500InternalServerError("updating webhook secret")
@@ -546,7 +552,16 @@ func (h *Handler) UpdateRegistry(ctx context.Context, in *UpdateRegistryInput) (
 		// operator-owned registry can't quietly claim it as unmanaged.
 		ManagedBy:  in.Body.ManagedBy,
 		ManagedRef: in.Body.ManagedRef,
+		// nil keeps the stored window, so a client that predates ADR-0053
+		// can't reset it to unlimited by leaving the fields out.
+		TagLimit:      in.Body.TagLimit,
+		TagOrder:      tagOrderPtrFromAPI(in.Body.TagOrder),
+		MaxTagAgeDays: in.Body.MaxTagAgeDays,
 	})
+	var valErr *service.ValidationError
+	if errors.As(err, &valErr) {
+		return nil, mapServiceError(err)
+	}
 	if err != nil {
 		return nil, huma.Error404NotFound("registry not found")
 	}
@@ -560,6 +575,60 @@ func (h *Handler) DeleteRegistry(ctx context.Context, in *DeleteRegistryInput) (
 		return nil, huma.Error404NotFound("registry not found")
 	}
 	return nil, nil
+}
+
+// PreviewRegistryConfig runs the ADR-0053 selection for a registry that is not
+// saved yet, so a form can show what it would scan before it scans anything.
+// It needs what create needs: an authenticated caller and a URL the egress
+// policy admits.
+func (h *Handler) PreviewRegistryConfig(ctx context.Context, in *PreviewRegistryConfigInput) (*RegistryPreviewOutput, error) {
+	b := in.Body
+	regURL := b.URL
+	if fixedURL, ok := typeFixedURL[b.Type]; ok {
+		regURL = fixedURL
+	} else if err := validateRegistryURL(regURL, b.Insecure, h.egress()); err != nil {
+		return nil, err
+	}
+	tagLimit := service.DefaultTagLimit
+	if b.TagLimit != nil {
+		tagLimit = *b.TagLimit
+	}
+	tagOrder := tagOrderFromAPI(b.TagOrder)
+	if err := service.ValidateScanScope(tagLimit, tagOrder, b.MaxTagAgeDays, b.TagPatterns); err != nil {
+		return nil, mapServiceError(err)
+	}
+	return h.previewRegistry(ctx, service.Registry{
+		Type:               b.Type,
+		URL:                regURL,
+		Insecure:           b.Insecure,
+		AuthUsername:       b.AuthUsername,
+		AuthToken:          b.AuthToken,
+		Repositories:       b.Repositories,
+		RepositoryPatterns: b.RepositoryPatterns,
+		TagPatterns:        b.TagPatterns,
+		IncludeUntagged:    b.IncludeUntagged,
+		TagLimit:           tagLimit,
+		TagOrder:           tagOrder,
+		MaxTagAgeDays:      b.MaxTagAgeDays,
+	})
+}
+
+// GetRegistryPreview runs the selection for a saved registry, with its stored
+// credentials. The route requires trigger_scan, as a scan does (ADR-046).
+func (h *Handler) GetRegistryPreview(ctx context.Context, in *GetRegistryPreviewInput) (*RegistryPreviewOutput, error) {
+	reg, err := h.registryService.Get(ctx, in.ID)
+	if err != nil {
+		return nil, huma.Error404NotFound("registry not found")
+	}
+	return h.previewRegistry(ctx, reg)
+}
+
+func (h *Handler) previewRegistry(ctx context.Context, reg service.Registry) (*RegistryPreviewOutput, error) {
+	p, err := scanner.PreviewRegistry(ctx, reg, h.egress(), slog.Default())
+	if err != nil {
+		return nil, huma.Error502BadGateway(fmt.Sprintf("previewing registry: %v", err))
+	}
+	return &RegistryPreviewOutput{Body: p}, nil
 }
 
 // egress is the policy every dial to a user-supplied registry obeys. A handler
@@ -628,11 +697,18 @@ func (h *Handler) ScanRegistry(ctx context.Context, in *ScanRegistryInput) (*Sca
 		// scanner) so a re-scan only re-pulls new/changed images. force=true passes
 		// nil so every digest is re-walked and re-queued via the InsertScanJob upsert
 		// — used to repopulate enrichment for already-ingested images.
+		// force also re-queues digests whose SBOM was deleted on purpose
+		// (pruned, ADR-0053 S6); a plain walk leaves those alone.
 		var known map[string]bool
-		if !force {
+		sub := h.scanSubmitter
+		if force {
+			sub = scanner.ForceSubmitter{Submitter: sub}
+		} else {
 			known = scanner.FetchKnownDigests(walkCtx, h.sbomService, reg.ID)
 		}
-		queued, err := scanner.WalkRegistry(walkCtx, reg, h.scanSubmitter, known, h.egress(), slog.Default())
+		stats, err := scanner.WalkRegistryStats(walkCtx, reg, sub, known, h.egress(), slog.Default())
+		scanner.RecordWalk(walkCtx, h.registryService, reg, stats, slog.Default())
+		queued := stats.Queued
 		if err != nil {
 			slog.Error("ad-hoc registry scan failed", "registry", reg.Name, "err", err)
 			return
@@ -651,6 +727,24 @@ func uuidToStr(u pgtype.UUID) string {
 	b := u.Bytes
 	return fmt.Sprintf("%08x-%04x-%04x-%04x-%012x",
 		b[0:4], b[4:6], b[6:8], b[8:10], b[10:16])
+}
+
+// tagOrderAuto is the API's name for the order the service stores as "".
+const tagOrderAuto = "auto"
+
+func tagOrderFromAPI(s string) string {
+	if s == tagOrderAuto {
+		return ""
+	}
+	return s
+}
+
+func tagOrderPtrFromAPI(s *string) *string {
+	if s == nil {
+		return nil
+	}
+	v := tagOrderFromAPI(*s)
+	return &v
 }
 
 func toRegistryResponse(r service.Registry, apiBaseURL string) RegistryResponse {
@@ -679,6 +773,13 @@ func toRegistryResponse(r service.Registry, apiBaseURL string) RegistryResponse 
 		TrustIssuer:         r.TrustIssuer,
 		ManagedBy:           r.ManagedBy,
 		ManagedRef:          r.ManagedRef,
+		TagLimit:            r.TagLimit,
+		TagOrder:            r.TagOrder,
+		MaxTagAgeDays:       r.MaxTagAgeDays,
+		LastWalk:            r.LastWalk,
+	}
+	if rr.TagOrder == "" {
+		rr.TagOrder = tagOrderAuto
 	}
 	if r.LastPolledAt != nil {
 		s := r.LastPolledAt.UTC().Format("2006-01-02T15:04:05Z")

@@ -19,6 +19,8 @@ export const regTypeLabel = (t: string): string => (t in TYPE_CAPS ? TYPE_CAPS[t
 export type ScanMode = "webhook" | "poll" | "both";
 export type Visibility = "public" | "private";
 export type VerificationMode = "none" | "public_key" | "keyless";
+/** auto = semver when the tag patterns name it, the image build date otherwise (ADR-0053). */
+export type TagOrder = "auto" | "semver" | "created" | "lexical";
 
 export interface RegistryFormState {
     name: string;
@@ -45,6 +47,11 @@ export interface RegistryFormState {
     trustPublicKey: string;
     trustIdentity: string;
     trustIssuer: string;
+    /** Newest tags kept per repository; 0 = unlimited (ADR-0053). */
+    tagLimit: number;
+    tagOrder: TagOrder;
+    /** 0 = no age limit; only valid with the created order. */
+    maxTagAgeDays: number;
 }
 
 export const emptyForm = (): RegistryFormState => ({
@@ -57,7 +64,8 @@ export const emptyForm = (): RegistryFormState => ({
     authToken: "",
     repositories: "",
     repositoryPatterns: "",
-    tagPatterns: "",
+    // The "releases" scope preset (ADR-0053): bounded from the first poll.
+    tagPatterns: "semver",
     scanMode: "webhook",
     pollIntervalMinutes: 60,
     visibility: "public",
@@ -66,6 +74,9 @@ export const emptyForm = (): RegistryFormState => ({
     trustPublicKey: "",
     trustIdentity: "",
     trustIssuer: "",
+    tagLimit: 50,
+    tagOrder: "auto",
+    maxTagAgeDays: 0,
 });
 
 /**
@@ -121,6 +132,64 @@ export function prefillForHost(
         ...(namespace === undefined || namespace === "" ? {} : { namespace }),
         ...(repos === undefined || repos.length === 0 ? {} : { repositories: repos.join("\n") }),
     };
+}
+
+/** The scan-scope settings a preset fixes; "custom" leaves them to the reader. */
+type ScopeFields = Pick<RegistryFormState, "tagPatterns" | "tagLimit" | "tagOrder" | "maxTagAgeDays">;
+
+export type ScopePreset = "releases" | "latest" | "recent" | "custom";
+
+/**
+ * SCOPE_PRESETS are the one-step answers to "how much of each repository's
+ * history should OCIDex scan?" (ADR-0053). Each fixes the tag filter and the
+ * window; "custom" exposes them. Releases is the default because version
+ * history is what changelog and diff are for.
+ */
+export const SCOPE_PRESETS: Record<Exclude<ScopePreset, "custom">, { label: string; hint: string; fields: ScopeFields }> = {
+    releases: {
+        label: "Releases: latest 50 semver",
+        hint: "the 50 newest semantic-version tags per repository",
+        fields: { tagPatterns: "semver", tagLimit: 50, tagOrder: "auto", maxTagAgeDays: 0 },
+    },
+    latest: {
+        label: "Latest only",
+        hint: "just the latest tag of each repository",
+        fields: { tagPatterns: "latest", tagLimit: 1, tagOrder: "auto", maxTagAgeDays: 0 },
+    },
+    recent: {
+        label: "Recent builds by date",
+        hint: "the 50 most recently built images of each repository, whatever their tags",
+        fields: { tagPatterns: "", tagLimit: 50, tagOrder: "created", maxTagAgeDays: 0 },
+    },
+};
+
+/** presetFor names the preset a form's scope fields match, or "custom". */
+export function presetFor(f: ScopeFields): ScopePreset {
+    const norm = (s: string) => toPatternArray(s).join("\n");
+    for (const [name, p] of Object.entries(SCOPE_PRESETS) as [Exclude<ScopePreset, "custom">, typeof SCOPE_PRESETS.releases][]) {
+        if (norm(f.tagPatterns) === norm(p.fields.tagPatterns) && f.tagLimit === p.fields.tagLimit &&
+            f.tagOrder === p.fields.tagOrder && f.maxTagAgeDays === p.fields.maxTagAgeDays) {
+            return name;
+        }
+    }
+    return "custom";
+}
+
+/** Above this many estimated SBOMs a scope gets a warning before it is saved. */
+export const LARGE_SCOPE_SBOMS = 2000;
+
+/**
+ * scopeWarning is the line shown before save when a scope can grow without
+ * bound (limit 0) or is already large; undefined when there is nothing to say.
+ */
+export function scopeWarning(tagLimit: number, estimatedSBOMs: number | undefined): string | undefined {
+    if (tagLimit === 0) {
+        return "No tag limit: every matching tag is scanned, now and as the history grows.";
+    }
+    if (estimatedSBOMs !== undefined && estimatedSBOMs > LARGE_SCOPE_SBOMS) {
+        return `About ${estimatedSBOMs.toLocaleString()} SBOMs. Consider a lower limit or tighter tag patterns.`;
+    }
+    return undefined;
 }
 
 export function toPatternArray(s: string): string[] {

@@ -123,6 +123,22 @@ func TestScanRegistry(t *testing.T) {
 	is.Equal(resp.Message, "scan initiated")
 }
 
+func TestGetRegistryPreview(t *testing.T) {
+	is := is.New(t)
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		is.Equal(r.Method, http.MethodGet)
+		is.Equal(r.URL.Path, "/api/v1/registries/reg-1/preview")
+		w.Header().Set("Content-Type", "application/json")
+		_, _ = w.Write([]byte(`{"repositories":[{"repository":"app","matched":3,"selected":2,"skipped_by_limit":1,"skipped_by_age":0,"untagged":0,"platforms":1,"estimated_sboms":2}],"selected":2,"skipped_by_limit":1,"estimated_sboms":2}`))
+	}))
+	defer srv.Close()
+
+	p, err := newTestClient(srv).GetRegistryPreview(context.Background(), "reg-1")
+	is.NoErr(err)
+	is.Equal(p.EstimatedSboms, int64(2))
+	is.Equal((*p.Repositories)[0].Repository, "app")
+}
+
 func TestTestRegistryConnection(t *testing.T) {
 	is := is.New(t)
 	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {

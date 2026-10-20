@@ -856,31 +856,51 @@ func TestExtractDigestFromBOM(t *testing.T) {
 	}
 }
 
-// TestDeleteSBOM_NotFound verifies that deleting a non-existent SBOM returns ErrNotFound.
-func TestDeleteSBOM_NotFound(t *testing.T) {
-	is := is.New(t)
-	db := &fakeDB{
-		execFn: func(_ context.Context, _ string, _ ...any) (pgconn.CommandTag, error) {
-			return pgconn.NewCommandTag("DELETE 0"), nil
+// deleteSBOMTx is a transaction whose first exec is PruneScanJobsForSBOM and
+// whose second, DeleteSBOM, reports deleted rows.
+func deleteSBOMTx(deleted string, committed *bool) *fakeTx {
+	execCount := 0
+	return &fakeTx{
+		fakeDB: fakeDB{
+			execFn: func(_ context.Context, _ string, _ ...any) (pgconn.CommandTag, error) {
+				execCount++
+				if execCount == 1 { // PruneScanJobsForSBOM
+					return pgconn.NewCommandTag("UPDATE 1"), nil
+				}
+				return pgconn.NewCommandTag(deleted), nil
+			},
+		},
+		commitFn: func(_ context.Context) error {
+			*committed = true
+			return nil
 		},
 	}
+}
+
+// TestDeleteSBOM_NotFound verifies that deleting a non-existent SBOM returns
+// ErrNotFound and commits nothing, so no scan job is tombstoned for it.
+func TestDeleteSBOM_NotFound(t *testing.T) {
+	is := is.New(t)
+	committed := false
+	tx := deleteSBOMTx("DELETE 0", &committed)
+	db := &fakeDB{beginFn: func(_ context.Context) (pgx.Tx, error) { return tx, nil }}
 	svc := NewSBOMService(db, nil, nil)
 	err := svc.DeleteSBOM(context.Background(), newUUID(t))
 	is.True(errors.Is(err, ErrNotFound))
+	is.True(!committed)
 }
 
 // TestDeleteSBOM_Success verifies that a successful deletion publishes a SBOMDeleted event.
 func TestDeleteSBOM_Success(t *testing.T) {
 	is := is.New(t)
 	publisher := &fakePublisher{}
-	db := &fakeDB{
-		execFn: func(_ context.Context, _ string, _ ...any) (pgconn.CommandTag, error) {
-			return pgconn.NewCommandTag("DELETE 1"), nil
-		},
-	}
+	committed := false
+	tx := deleteSBOMTx("DELETE 1", &committed)
+	db := &fakeDB{beginFn: func(_ context.Context) (pgx.Tx, error) { return tx, nil }}
 	svc := NewSBOMService(db, publisher, nil)
 	err := svc.DeleteSBOM(context.Background(), newUUID(t))
 	is.NoErr(err)
+	is.True(committed)
 	is.Equal(len(publisher.events), 1)
 	is.Equal(publisher.events[0], event.SBOMDeleted)
 }
@@ -948,7 +968,9 @@ func TestDeleteArtifact_NotFound(t *testing.T) {
 			execFn: func(_ context.Context, _ string, _ ...any) (pgconn.CommandTag, error) {
 				execCount++
 				switch execCount {
-				case 1: // DeleteSBOMsByArtifact
+				case 1: // PruneScanJobsForArtifact
+					return pgconn.NewCommandTag("UPDATE 0"), nil
+				case 2: // DeleteSBOMsByArtifact
 					return pgconn.NewCommandTag("DELETE 0"), nil
 				default: // DeleteArtifact
 					return pgconn.NewCommandTag("DELETE 0"), nil
@@ -975,7 +997,9 @@ func TestDeleteArtifact_Success(t *testing.T) {
 			execFn: func(_ context.Context, _ string, _ ...any) (pgconn.CommandTag, error) {
 				execCount++
 				switch execCount {
-				case 1: // DeleteSBOMsByArtifact
+				case 1: // PruneScanJobsForArtifact
+					return pgconn.NewCommandTag("UPDATE 3"), nil
+				case 2: // DeleteSBOMsByArtifact
 					return pgconn.NewCommandTag("DELETE 3"), nil
 				default: // DeleteArtifact
 					return pgconn.NewCommandTag("DELETE 1"), nil

@@ -59,7 +59,7 @@ func TestRegistryCredentialsEncryptedAtRest(t *testing.T) {
 
 	claimToken := func(t *testing.T, digest string) string {
 		t.Helper()
-		job, err := jobSvc.Enqueue(ctx, reg.ID, "app", digest, "", "latest", "")
+		job, err := jobSvc.Enqueue(ctx, reg.ID, "app", digest, "", "latest", "", false)
 		if err != nil {
 			t.Fatalf("enqueue: %v", err)
 		}

@@ -454,15 +454,29 @@ func linkArtifactNamespace(ctx context.Context, q *repository.Queries, artifactI
 }
 
 // DeleteSBOM removes an SBOM and all its associated data (components, hashes,
-// licenses, dependencies, external references) via ON DELETE CASCADE.
+// licenses, dependencies, external references) via ON DELETE CASCADE. A
+// registry-sourced SBOM's scan job is tombstoned in the same transaction, so
+// the next catalog walk does not scan the digest again (ADR-0053 S6).
 func (s *sbomService) DeleteSBOM(ctx context.Context, id pgtype.UUID) error {
-	q := repository.New(s.pool)
+	tx, err := s.pool.Begin(ctx)
+	if err != nil {
+		return fmt.Errorf("beginning transaction: %w", err)
+	}
+	defer tx.Rollback(ctx) //nolint:errcheck // rollback on committed tx is a no-op
+
+	q := repository.New(tx)
+	if _, err := q.PruneScanJobsForSBOM(ctx, id); err != nil {
+		return fmt.Errorf("tombstoning scan job: %w", err)
+	}
 	rows, err := q.DeleteSBOM(ctx, id)
 	if err != nil {
 		return fmt.Errorf("deleting sbom: %w", err)
 	}
 	if rows == 0 {
 		return ErrNotFound
+	}
+	if err := tx.Commit(ctx); err != nil {
+		return fmt.Errorf("committing transaction: %w", err)
 	}
 
 	if s.publisher != nil {
@@ -482,6 +496,10 @@ func (s *sbomService) DeleteArtifact(ctx context.Context, id pgtype.UUID) error 
 
 	q := repository.New(tx)
 
+	// Tombstone the scan jobs before their SBOMs go (ADR-0053 S6).
+	if _, err := q.PruneScanJobsForArtifact(ctx, id); err != nil {
+		return fmt.Errorf("tombstoning scan jobs: %w", err)
+	}
 	// Delete child SBOMs first (cascades to components, deps, etc.).
 	if _, err := q.DeleteSBOMsByArtifact(ctx, id); err != nil {
 		return fmt.Errorf("deleting artifact sboms: %w", err)

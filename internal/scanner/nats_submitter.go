@@ -59,9 +59,13 @@ func (s *NATSSubmitter) Submit(ctx context.Context, req ScanRequest) error {
 	// same purpose at the row level.
 	idempotencyKey := req.RegistryID + "@" + req.Digest
 
-	job, err := s.jobSvc.Enqueue(ctx, req.RegistryID, req.Repository, req.Digest, req.IndexDigest, req.Tag, idempotencyKey)
+	job, err := s.jobSvc.Enqueue(ctx, req.RegistryID, req.Repository, req.Digest, req.IndexDigest, req.Tag, idempotencyKey, req.Force)
 	if err != nil {
 		return err
+	}
+	if job.State == service.ScanJobPruned {
+		// Its SBOM was deleted on purpose; no worker would claim it.
+		return nil
 	}
 
 	hint, err := json.Marshal(scanHint{ID: job.ID})

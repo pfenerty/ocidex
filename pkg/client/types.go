@@ -165,6 +165,30 @@ func (e CreateRegistryInputBodyScanMode) Valid() bool {
 	}
 }
 
+// Defines values for CreateRegistryInputBodyTagOrder.
+const (
+	CreateRegistryInputBodyTagOrderAuto    CreateRegistryInputBodyTagOrder = "auto"
+	CreateRegistryInputBodyTagOrderCreated CreateRegistryInputBodyTagOrder = "created"
+	CreateRegistryInputBodyTagOrderLexical CreateRegistryInputBodyTagOrder = "lexical"
+	CreateRegistryInputBodyTagOrderSemver  CreateRegistryInputBodyTagOrder = "semver"
+)
+
+// Valid indicates whether the value is a known member of the CreateRegistryInputBodyTagOrder enum.
+func (e CreateRegistryInputBodyTagOrder) Valid() bool {
+	switch e {
+	case CreateRegistryInputBodyTagOrderAuto:
+		return true
+	case CreateRegistryInputBodyTagOrderCreated:
+		return true
+	case CreateRegistryInputBodyTagOrderLexical:
+		return true
+	case CreateRegistryInputBodyTagOrderSemver:
+		return true
+	default:
+		return false
+	}
+}
+
 // Defines values for CreateRegistryInputBodyType.
 const (
 	CreateRegistryInputBodyTypeDocker  CreateRegistryInputBodyType = "docker"
@@ -225,6 +249,30 @@ func (e CreateRegistryInputBodyVisibility) Valid() bool {
 	case CreateRegistryInputBodyVisibilityPrivate:
 		return true
 	case CreateRegistryInputBodyVisibilityPublic:
+		return true
+	default:
+		return false
+	}
+}
+
+// Defines values for CreateRegistryResponseBodyTagOrder.
+const (
+	CreateRegistryResponseBodyTagOrderAuto    CreateRegistryResponseBodyTagOrder = "auto"
+	CreateRegistryResponseBodyTagOrderCreated CreateRegistryResponseBodyTagOrder = "created"
+	CreateRegistryResponseBodyTagOrderLexical CreateRegistryResponseBodyTagOrder = "lexical"
+	CreateRegistryResponseBodyTagOrderSemver  CreateRegistryResponseBodyTagOrder = "semver"
+)
+
+// Valid indicates whether the value is a known member of the CreateRegistryResponseBodyTagOrder enum.
+func (e CreateRegistryResponseBodyTagOrder) Valid() bool {
+	switch e {
+	case CreateRegistryResponseBodyTagOrderAuto:
+		return true
+	case CreateRegistryResponseBodyTagOrderCreated:
+		return true
+	case CreateRegistryResponseBodyTagOrderLexical:
+		return true
+	case CreateRegistryResponseBodyTagOrderSemver:
 		return true
 	default:
 		return false
@@ -387,6 +435,81 @@ func (e NamespaceResponseVisibility) Valid() bool {
 	}
 }
 
+// Defines values for PreviewRegistryConfigInputBodyTagOrder.
+const (
+	PreviewRegistryConfigInputBodyTagOrderAuto    PreviewRegistryConfigInputBodyTagOrder = "auto"
+	PreviewRegistryConfigInputBodyTagOrderCreated PreviewRegistryConfigInputBodyTagOrder = "created"
+	PreviewRegistryConfigInputBodyTagOrderLexical PreviewRegistryConfigInputBodyTagOrder = "lexical"
+	PreviewRegistryConfigInputBodyTagOrderSemver  PreviewRegistryConfigInputBodyTagOrder = "semver"
+)
+
+// Valid indicates whether the value is a known member of the PreviewRegistryConfigInputBodyTagOrder enum.
+func (e PreviewRegistryConfigInputBodyTagOrder) Valid() bool {
+	switch e {
+	case PreviewRegistryConfigInputBodyTagOrderAuto:
+		return true
+	case PreviewRegistryConfigInputBodyTagOrderCreated:
+		return true
+	case PreviewRegistryConfigInputBodyTagOrderLexical:
+		return true
+	case PreviewRegistryConfigInputBodyTagOrderSemver:
+		return true
+	default:
+		return false
+	}
+}
+
+// Defines values for PreviewRegistryConfigInputBodyType.
+const (
+	PreviewRegistryConfigInputBodyTypeDocker  PreviewRegistryConfigInputBodyType = "docker"
+	PreviewRegistryConfigInputBodyTypeGeneric PreviewRegistryConfigInputBodyType = "generic"
+	PreviewRegistryConfigInputBodyTypeGhcr    PreviewRegistryConfigInputBodyType = "ghcr"
+	PreviewRegistryConfigInputBodyTypeHarbor  PreviewRegistryConfigInputBodyType = "harbor"
+	PreviewRegistryConfigInputBodyTypeZot     PreviewRegistryConfigInputBodyType = "zot"
+)
+
+// Valid indicates whether the value is a known member of the PreviewRegistryConfigInputBodyType enum.
+func (e PreviewRegistryConfigInputBodyType) Valid() bool {
+	switch e {
+	case PreviewRegistryConfigInputBodyTypeDocker:
+		return true
+	case PreviewRegistryConfigInputBodyTypeGeneric:
+		return true
+	case PreviewRegistryConfigInputBodyTypeGhcr:
+		return true
+	case PreviewRegistryConfigInputBodyTypeHarbor:
+		return true
+	case PreviewRegistryConfigInputBodyTypeZot:
+		return true
+	default:
+		return false
+	}
+}
+
+// Defines values for RegistryResponseTagOrder.
+const (
+	RegistryResponseTagOrderAuto    RegistryResponseTagOrder = "auto"
+	RegistryResponseTagOrderCreated RegistryResponseTagOrder = "created"
+	RegistryResponseTagOrderLexical RegistryResponseTagOrder = "lexical"
+	RegistryResponseTagOrderSemver  RegistryResponseTagOrder = "semver"
+)
+
+// Valid indicates whether the value is a known member of the RegistryResponseTagOrder enum.
+func (e RegistryResponseTagOrder) Valid() bool {
+	switch e {
+	case RegistryResponseTagOrderAuto:
+		return true
+	case RegistryResponseTagOrderCreated:
+		return true
+	case RegistryResponseTagOrderLexical:
+		return true
+	case RegistryResponseTagOrderSemver:
+		return true
+	default:
+		return false
+	}
+}
+
 // Defines values for RegistryResponseVerificationMode.
 const (
 	RegistryResponseVerificationModeKeyless   RegistryResponseVerificationMode = "keyless"
@@ -435,6 +558,7 @@ func (e RunningWorkloadResponseMatchState) Valid() bool {
 // Defines values for ScanJobResponseState.
 const (
 	ScanJobResponseStateFailed    ScanJobResponseState = "failed"
+	ScanJobResponseStatePruned    ScanJobResponseState = "pruned"
 	ScanJobResponseStateQueued    ScanJobResponseState = "queued"
 	ScanJobResponseStateRunning   ScanJobResponseState = "running"
 	ScanJobResponseStateSucceeded ScanJobResponseState = "succeeded"
@@ -444,6 +568,8 @@ const (
 func (e ScanJobResponseState) Valid() bool {
 	switch e {
 	case ScanJobResponseStateFailed:
+		return true
+	case ScanJobResponseStatePruned:
 		return true
 	case ScanJobResponseStateQueued:
 		return true
@@ -582,6 +708,30 @@ func (e UpdateRegistryInputBodyScanMode) Valid() bool {
 	case UpdateRegistryInputBodyScanModePoll:
 		return true
 	case UpdateRegistryInputBodyScanModeWebhook:
+		return true
+	default:
+		return false
+	}
+}
+
+// Defines values for UpdateRegistryInputBodyTagOrder.
+const (
+	UpdateRegistryInputBodyTagOrderAuto    UpdateRegistryInputBodyTagOrder = "auto"
+	UpdateRegistryInputBodyTagOrderCreated UpdateRegistryInputBodyTagOrder = "created"
+	UpdateRegistryInputBodyTagOrderLexical UpdateRegistryInputBodyTagOrder = "lexical"
+	UpdateRegistryInputBodyTagOrderSemver  UpdateRegistryInputBodyTagOrder = "semver"
+)
+
+// Valid indicates whether the value is a known member of the UpdateRegistryInputBodyTagOrder enum.
+func (e UpdateRegistryInputBodyTagOrder) Valid() bool {
+	switch e {
+	case UpdateRegistryInputBodyTagOrderAuto:
+		return true
+	case UpdateRegistryInputBodyTagOrderCreated:
+		return true
+	case UpdateRegistryInputBodyTagOrderLexical:
+		return true
+	case UpdateRegistryInputBodyTagOrderSemver:
 		return true
 	default:
 		return false
@@ -1155,6 +1305,7 @@ func (e ListEnrichmentJobsParamsEnricherName) Valid() bool {
 // Defines values for ListScanJobsParamsState.
 const (
 	ListScanJobsParamsStateFailed    ListScanJobsParamsState = "failed"
+	ListScanJobsParamsStatePruned    ListScanJobsParamsState = "pruned"
 	ListScanJobsParamsStateQueued    ListScanJobsParamsState = "queued"
 	ListScanJobsParamsStateRunning   ListScanJobsParamsState = "running"
 	ListScanJobsParamsStateSucceeded ListScanJobsParamsState = "succeeded"
@@ -1164,6 +1315,8 @@ const (
 func (e ListScanJobsParamsState) Valid() bool {
 	switch e {
 	case ListScanJobsParamsStateFailed:
+		return true
+	case ListScanJobsParamsStatePruned:
 		return true
 	case ListScanJobsParamsStateQueued:
 		return true
@@ -1890,6 +2043,9 @@ type CreateRegistryInputBody struct {
 	// ManagedRef Identifier within the managing system, e.g. '<namespace>/<name>' of the OCIRegistry resource
 	ManagedRef *string `json:"managed_ref,omitempty"`
 
+	// MaxTagAgeDays Skip tags whose image is older than this many days; needs the created order. 0 = no age limit
+	MaxTagAgeDays *int64 `json:"max_tag_age_days,omitempty"`
+
 	// Name Human-readable registry name
 	Name string `json:"name"`
 
@@ -1907,6 +2063,12 @@ type CreateRegistryInputBody struct {
 
 	// ScanMode Scanning mode
 	ScanMode *CreateRegistryInputBodyScanMode `json:"scan_mode,omitempty"`
+
+	// TagLimit Newest tags kept per repository (ADR-0053); 0 = unlimited. Defaults to 50
+	TagLimit *int64 `json:"tag_limit,omitempty"`
+
+	// TagOrder How 'newest' is decided; auto (the default) = semver when tag_patterns contains semver, created otherwise
+	TagOrder *CreateRegistryInputBodyTagOrder `json:"tag_order,omitempty"`
 
 	// TagPatterns Glob patterns or 'semver' for tags to ingest; empty = all
 	TagPatterns *[]string `json:"tag_patterns,omitempty"`
@@ -1939,6 +2101,9 @@ type CreateRegistryInputBody struct {
 // CreateRegistryInputBodyScanMode Scanning mode
 type CreateRegistryInputBodyScanMode string
 
+// CreateRegistryInputBodyTagOrder How 'newest' is decided; auto (the default) = semver when tag_patterns contains semver, created otherwise
+type CreateRegistryInputBodyTagOrder string
+
 // CreateRegistryInputBodyType Registry type
 type CreateRegistryInputBodyType string
 
@@ -1959,17 +2124,21 @@ type CreateRegistryResponseBody struct {
 	Id        string  `json:"id"`
 
 	// IncludeUntagged Scan untagged manifests via registry-specific APIs (supported: zot, harbor, ghcr)
-	IncludeUntagged bool    `json:"include_untagged"`
-	Insecure        bool    `json:"insecure"`
-	LastPolledAt    *string `json:"last_polled_at,omitempty"`
+	IncludeUntagged bool       `json:"include_untagged"`
+	Insecure        bool       `json:"insecure"`
+	LastPolledAt    *string    `json:"last_polled_at,omitempty"`
+	LastWalk        *WalkStats `json:"last_walk,omitempty"`
 
 	// ManagedBy External system that owns this registry's configuration (e.g. kubernetes); absent when managed through this API
 	ManagedBy *string `json:"managed_by,omitempty"`
 
 	// ManagedRef Identifier within the managing system, e.g. '<namespace>/<name>' of the OCIRegistry resource
-	ManagedRef          *string `json:"managed_ref,omitempty"`
-	Name                string  `json:"name"`
-	PollIntervalMinutes int64   `json:"poll_interval_minutes"`
+	ManagedRef *string `json:"managed_ref,omitempty"`
+
+	// MaxTagAgeDays Tags whose image is older than this many days are skipped; 0 = no age limit
+	MaxTagAgeDays       int64  `json:"max_tag_age_days"`
+	Name                string `json:"name"`
+	PollIntervalMinutes int64  `json:"poll_interval_minutes"`
 
 	// Repositories Explicit repositories to walk; overrides catalog discovery when non-empty
 	Repositories *[]string `json:"repositories"`
@@ -1977,6 +2146,12 @@ type CreateRegistryResponseBody struct {
 	// RepositoryPatterns Glob patterns for repositories to ingest; empty = all
 	RepositoryPatterns *[]string `json:"repository_patterns"`
 	ScanMode           string    `json:"scan_mode"`
+
+	// TagLimit Newest tags kept per repository (ADR-0053); 0 = unlimited
+	TagLimit int64 `json:"tag_limit"`
+
+	// TagOrder How 'newest' is decided; auto = semver when tag_patterns contains semver, created otherwise
+	TagOrder CreateRegistryResponseBodyTagOrder `json:"tag_order"`
 
 	// TagPatterns Glob patterns or 'semver' for tags to ingest; empty = all
 	TagPatterns *[]string `json:"tag_patterns"`
@@ -2003,6 +2178,9 @@ type CreateRegistryResponseBody struct {
 	WebhookSecret *string `json:"webhook_secret,omitempty"`
 	WebhookUrl    string  `json:"webhook_url"`
 }
+
+// CreateRegistryResponseBodyTagOrder How 'newest' is decided; auto = semver when tag_patterns contains semver, created otherwise
+type CreateRegistryResponseBodyTagOrder string
 
 // CreateRegistryResponseBodyVerificationMode Signature verification mode
 type CreateRegistryResponseBodyVerificationMode string
@@ -2906,6 +3084,54 @@ type PaginationMeta struct {
 	Total int64 `json:"total"`
 }
 
+// PreviewRegistryConfigInputBody defines model for PreviewRegistryConfigInputBody.
+type PreviewRegistryConfigInputBody struct {
+	// Schema A URL to the JSON Schema for this object.
+	Schema *string `json:"$schema,omitempty"`
+
+	// AuthToken Token or PAT for registry authentication; omit for anonymous access
+	AuthToken *string `json:"auth_token,omitempty"`
+
+	// AuthUsername Username for registry authentication; omit for anonymous access
+	AuthUsername *string `json:"auth_username,omitempty"`
+
+	// IncludeUntagged Scan untagged manifests via registry-specific APIs (supported: zot, harbor, ghcr)
+	IncludeUntagged *bool `json:"include_untagged,omitempty"`
+
+	// Insecure Allow HTTP (non-TLS) connections
+	Insecure bool `json:"insecure"`
+
+	// MaxTagAgeDays Skip tags whose image is older than this many days; needs the created order
+	MaxTagAgeDays *int64 `json:"max_tag_age_days,omitempty"`
+
+	// Repositories Explicit repositories to walk; bypasses /v2/_catalog discovery when non-empty
+	Repositories *[]string `json:"repositories,omitempty"`
+
+	// RepositoryPatterns Glob patterns for repositories to ingest; empty = all
+	RepositoryPatterns *[]string `json:"repository_patterns,omitempty"`
+
+	// TagLimit Newest tags kept per repository; 0 = unlimited. Defaults to 50
+	TagLimit *int64 `json:"tag_limit,omitempty"`
+
+	// TagOrder How 'newest' is decided; defaults to auto
+	TagOrder *PreviewRegistryConfigInputBodyTagOrder `json:"tag_order,omitempty"`
+
+	// TagPatterns Glob patterns or 'semver' for tags to ingest; empty = all
+	TagPatterns *[]string `json:"tag_patterns,omitempty"`
+
+	// Type Registry type
+	Type PreviewRegistryConfigInputBodyType `json:"type"`
+
+	// Url Registry address (e.g. zot:5000)
+	Url string `json:"url"`
+}
+
+// PreviewRegistryConfigInputBodyTagOrder How 'newest' is decided; defaults to auto
+type PreviewRegistryConfigInputBodyTagOrder string
+
+// PreviewRegistryConfigInputBodyType Registry type
+type PreviewRegistryConfigInputBodyType string
+
 // ProvenanceDriftSummary defines model for ProvenanceDriftSummary.
 type ProvenanceDriftSummary struct {
 	DetectedAt     time.Time `json:"detectedAt"`
@@ -2987,6 +3213,16 @@ type RegenerateWebhookSecretOutputBody struct {
 	WebhookSecret string `json:"webhook_secret"`
 }
 
+// RegistryPreview defines model for RegistryPreview.
+type RegistryPreview struct {
+	// Schema A URL to the JSON Schema for this object.
+	Schema         *string        `json:"$schema,omitempty"`
+	EstimatedSboms int64          `json:"estimated_sboms"`
+	Repositories   *[]RepoPreview `json:"repositories"`
+	Selected       int64          `json:"selected"`
+	SkippedByLimit int64          `json:"skipped_by_limit"`
+}
+
 // RegistryResponse defines model for RegistryResponse.
 type RegistryResponse struct {
 	// Schema A URL to the JSON Schema for this object.
@@ -2998,17 +3234,21 @@ type RegistryResponse struct {
 	Id        string  `json:"id"`
 
 	// IncludeUntagged Scan untagged manifests via registry-specific APIs (supported: zot, harbor, ghcr)
-	IncludeUntagged bool    `json:"include_untagged"`
-	Insecure        bool    `json:"insecure"`
-	LastPolledAt    *string `json:"last_polled_at,omitempty"`
+	IncludeUntagged bool       `json:"include_untagged"`
+	Insecure        bool       `json:"insecure"`
+	LastPolledAt    *string    `json:"last_polled_at,omitempty"`
+	LastWalk        *WalkStats `json:"last_walk,omitempty"`
 
 	// ManagedBy External system that owns this registry's configuration (e.g. kubernetes); absent when managed through this API
 	ManagedBy *string `json:"managed_by,omitempty"`
 
 	// ManagedRef Identifier within the managing system, e.g. '<namespace>/<name>' of the OCIRegistry resource
-	ManagedRef          *string `json:"managed_ref,omitempty"`
-	Name                string  `json:"name"`
-	PollIntervalMinutes int64   `json:"poll_interval_minutes"`
+	ManagedRef *string `json:"managed_ref,omitempty"`
+
+	// MaxTagAgeDays Tags whose image is older than this many days are skipped; 0 = no age limit
+	MaxTagAgeDays       int64  `json:"max_tag_age_days"`
+	Name                string `json:"name"`
+	PollIntervalMinutes int64  `json:"poll_interval_minutes"`
 
 	// Repositories Explicit repositories to walk; overrides catalog discovery when non-empty
 	Repositories *[]string `json:"repositories"`
@@ -3016,6 +3256,12 @@ type RegistryResponse struct {
 	// RepositoryPatterns Glob patterns for repositories to ingest; empty = all
 	RepositoryPatterns *[]string `json:"repository_patterns"`
 	ScanMode           string    `json:"scan_mode"`
+
+	// TagLimit Newest tags kept per repository (ADR-0053); 0 = unlimited
+	TagLimit int64 `json:"tag_limit"`
+
+	// TagOrder How 'newest' is decided; auto = semver when tag_patterns contains semver, created otherwise
+	TagOrder RegistryResponseTagOrder `json:"tag_order"`
 
 	// TagPatterns Glob patterns or 'semver' for tags to ingest; empty = all
 	TagPatterns *[]string `json:"tag_patterns"`
@@ -3040,6 +3286,9 @@ type RegistryResponse struct {
 	WebhookUrl string `json:"webhook_url"`
 }
 
+// RegistryResponseTagOrder How 'newest' is decided; auto = semver when tag_patterns contains semver, created otherwise
+type RegistryResponseTagOrder string
+
 // RegistryResponseVerificationMode Signature verification mode
 type RegistryResponseVerificationMode string
 
@@ -3059,6 +3308,34 @@ type RegistryWebhookInputBody struct {
 	MediaType string  `json:"mediaType"`
 	Name      string  `json:"name"`
 	Reference string  `json:"reference"`
+}
+
+// RepoPreview defines model for RepoPreview.
+type RepoPreview struct {
+	// Error Why this repository could not be previewed; the others still are
+	Error *string `json:"error,omitempty"`
+
+	// EstimatedSboms (selected tags x platforms) + untagged manifests; an estimate, since tags can share digests and platforms vary
+	EstimatedSboms int64 `json:"estimated_sboms"`
+
+	// Matched Tags that pass the filter
+	Matched int64 `json:"matched"`
+
+	// Platforms Platforms of the newest selected tag, the sample the estimate multiplies by
+	Platforms  int64  `json:"platforms"`
+	Repository string `json:"repository"`
+
+	// Selected Tags inside the window
+	Selected int64 `json:"selected"`
+
+	// SkippedByAge Matching tags older than max_tag_age_days, or with no build date while it is set
+	SkippedByAge int64 `json:"skipped_by_age"`
+
+	// SkippedByLimit Matching tags past tag_limit
+	SkippedByLimit int64 `json:"skipped_by_limit"`
+
+	// Untagged Untagged manifests inside the untagged window (include_untagged only)
+	Untagged int64 `json:"untagged"`
 }
 
 // RetryAllFailedEnrichmentJobsOutputBody defines model for RetryAllFailedEnrichmentJobsOutputBody.
@@ -3494,7 +3771,10 @@ type UpdateRegistryInputBody struct {
 
 	// ManagedRef Identifier within the managing system; omit to leave the existing value untouched
 	ManagedRef *string `json:"managed_ref,omitempty"`
-	Name       string  `json:"name"`
+
+	// MaxTagAgeDays Skip tags whose image is older than this many days; 0 clears it. Omit to keep the current value
+	MaxTagAgeDays *int64 `json:"max_tag_age_days,omitempty"`
+	Name          string `json:"name"`
 
 	// PollIntervalMinutes Minutes between polls
 	PollIntervalMinutes *int64    `json:"poll_interval_minutes,omitempty"`
@@ -3502,7 +3782,13 @@ type UpdateRegistryInputBody struct {
 	RepositoryPatterns  *[]string `json:"repository_patterns,omitempty"`
 
 	// ScanMode Scanning mode
-	ScanMode    *UpdateRegistryInputBodyScanMode `json:"scan_mode,omitempty"`
+	ScanMode *UpdateRegistryInputBodyScanMode `json:"scan_mode,omitempty"`
+
+	// TagLimit Newest tags kept per repository; 0 = unlimited. Omit to keep the current value
+	TagLimit *int64 `json:"tag_limit,omitempty"`
+
+	// TagOrder How 'newest' is decided; auto = semver when tag_patterns contains semver, created otherwise. Omit to keep the current value
+	TagOrder    *UpdateRegistryInputBodyTagOrder `json:"tag_order,omitempty"`
 	TagPatterns *[]string                        `json:"tag_patterns,omitempty"`
 
 	// TrustIdentity Regex matched against the Fulcio certificate SAN; required when verification_mode is keyless
@@ -3525,6 +3811,9 @@ type UpdateRegistryInputBody struct {
 
 // UpdateRegistryInputBodyScanMode Scanning mode
 type UpdateRegistryInputBodyScanMode string
+
+// UpdateRegistryInputBodyTagOrder How 'newest' is decided; auto = semver when tag_patterns contains semver, created otherwise. Omit to keep the current value
+type UpdateRegistryInputBodyTagOrder string
 
 // UpdateRegistryInputBodyType defines model for UpdateRegistryInputBody.Type.
 type UpdateRegistryInputBodyType string
@@ -3617,6 +3906,33 @@ type VulnSummary struct {
 	Medium   int64 `json:"medium"`
 	Total    int64 `json:"total"`
 	Unknown  int64 `json:"unknown"`
+}
+
+// WalkStats defines model for WalkStats.
+type WalkStats struct {
+	// At When the walk finished
+	At time.Time `json:"at"`
+
+	// Error Why the walk failed, if it did
+	Error *string `json:"error,omitempty"`
+
+	// Matched Tags that passed the filter
+	Matched int64 `json:"matched"`
+
+	// Queued Scan jobs the walk submitted (already-ingested digests are not)
+	Queued int64 `json:"queued"`
+
+	// Repositories Repositories the walk visited
+	Repositories int64 `json:"repositories"`
+
+	// Selected Tags inside the window
+	Selected int64 `json:"selected"`
+
+	// SkippedByAge Matching tags older than max_tag_age_days
+	SkippedByAge int64 `json:"skipped_by_age"`
+
+	// SkippedByLimit Matching tags past tag_limit
+	SkippedByLimit int64 `json:"skipped_by_limit"`
 }
 
 // WatchEntry defines model for WatchEntry.
@@ -4434,6 +4750,9 @@ type SetNamespaceMemberJSONRequestBody = SetNamespaceMemberInputBody
 
 // CreateRegistryJSONRequestBody defines body for CreateRegistry for application/json ContentType.
 type CreateRegistryJSONRequestBody = CreateRegistryInputBody
+
+// PreviewRegistryConfigJSONRequestBody defines body for PreviewRegistryConfig for application/json ContentType.
+type PreviewRegistryConfigJSONRequestBody = PreviewRegistryConfigInputBody
 
 // TestRegistryConnectionJSONRequestBody defines body for TestRegistryConnection for application/json ContentType.
 type TestRegistryConnectionJSONRequestBody = TestRegistryConnectionInputBody

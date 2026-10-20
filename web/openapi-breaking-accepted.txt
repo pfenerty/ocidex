@@ -13,3 +13,8 @@ GET /api/v1/auth/keys removed the required property `keys/items/scope` from the 
 GET /api/v1/users removed the required property `users/items/github_username` from the response with the `200` status
 GET /api/v1/users/me removed the required property `github_username` from the response with the `200` status
 PATCH /api/v1/users/{id}/role removed the required property `github_username` from the response with the `200` status
+
+# Since v0.1.0 (pre-1.0, minor bump allowed):
+# ADR-0053 S6: 'pruned' scan jobs, the tombstone an explicit SBOM delete leaves.
+GET /api/v1/jobs added the new `pruned` enum value to the `data/items/state` response property for the response status `200`
+GET /api/v1/jobs/{id} added the new `pruned` enum value to the `state` response property for the response status `200`

@@ -89,6 +89,26 @@ type OCIRegistrySpec struct {
 	// TrustIssuer is the expected OIDC issuer URL, required when VerificationMode is keyless.
 	// +optional
 	TrustIssuer *string `json:"trustIssuer,omitempty"`
+
+	// TagLimit is how many of the newest tags OCIDex keeps per repository
+	// (ADR-0053). 0 means unlimited.
+	// +kubebuilder:validation:Minimum=0
+	// +kubebuilder:default=50
+	// +optional
+	TagLimit *int64 `json:"tagLimit,omitempty"`
+
+	// TagOrder decides which tags are newest. auto is semver when tagPatterns
+	// contains semver, and created (the image build date) otherwise.
+	// +kubebuilder:validation:Enum=auto;semver;created;lexical
+	// +kubebuilder:default=auto
+	// +optional
+	TagOrder string `json:"tagOrder,omitempty"`
+
+	// MaxTagAgeDays skips tags whose image is older than this many days. It
+	// needs the created order. Omit for no age limit.
+	// +kubebuilder:validation:Minimum=1
+	// +optional
+	MaxTagAgeDays *int64 `json:"maxTagAgeDays,omitempty"`
 }
 
 // OCIRegistryStatus reflects the observed state of an OCIRegistry.
@@ -100,6 +120,29 @@ type OCIRegistryStatus struct {
 	// The Ready condition is True when the registry exists in OCIDex and spec is in sync.
 	// +optional
 	Conditions []metav1.Condition `json:"conditions,omitempty" patchStrategy:"merge" patchMergeKey:"type"`
+
+	// Scope is what the registry's scan window selects (ADR-0053), previewed
+	// after each spec change. Nothing is queued to produce it.
+	// +optional
+	Scope *OCIRegistryScope `json:"scope,omitempty"`
+}
+
+// OCIRegistryScope summarizes a registry preview across its repositories.
+type OCIRegistryScope struct {
+	// ObservedGeneration is the spec generation this preview describes.
+	ObservedGeneration int64 `json:"observedGeneration,omitempty"`
+	// Repositories is how many repositories the walk would visit.
+	Repositories int64 `json:"repositories"`
+	// SelectedTags is how many tags fall inside the window, across repositories.
+	SelectedTags int64 `json:"selectedTags"`
+	// SkippedByLimit is how many matching tags are past tagLimit.
+	SkippedByLimit int64 `json:"skippedByLimit"`
+	// EstimatedSBOMs is selected tags times their sampled platform count, plus
+	// untagged manifests.
+	EstimatedSBOMs int64 `json:"estimatedSBOMs"`
+	// Error is why the preview could not run; the registry is still synced.
+	// +optional
+	Error string `json:"error,omitempty"`
 }
 
 // +kubebuilder:object:root=true
@@ -108,6 +151,7 @@ type OCIRegistryStatus struct {
 // +kubebuilder:printcolumn:name="URL",type=string,JSONPath=`.spec.url`
 // +kubebuilder:printcolumn:name="Type",type=string,JSONPath=`.spec.type`
 // +kubebuilder:printcolumn:name="Ready",type=string,JSONPath=`.status.conditions[?(@.type=="Ready")].status`
+// +kubebuilder:printcolumn:name="Est. SBOMs",type=integer,JSONPath=`.status.scope.estimatedSBOMs`
 // +kubebuilder:printcolumn:name="Age",type=date,JSONPath=`.metadata.creationTimestamp`
 
 // OCIRegistry declaratively registers an OCI registry with OCIDex.

@@ -20,6 +20,16 @@ type Submitter interface {
 	Submit(ctx context.Context, req ScanRequest) error
 }
 
+// ForceSubmitter marks every request it passes on as forced, so a forced walk
+// re-queues digests whose SBOM was deleted on purpose (ADR-0053 S6).
+type ForceSubmitter struct{ Submitter }
+
+// Submit forwards req with Force set.
+func (f ForceSubmitter) Submit(ctx context.Context, req ScanRequest) error {
+	req.Force = true
+	return f.Submitter.Submit(ctx, req)
+}
+
 // DigestLister returns known SBOM digests for a registry, used to skip re-scanning.
 type DigestLister interface {
 	ListDigestsBySource(ctx context.Context, sourceID string) (map[string]bool, error)
@@ -38,6 +48,7 @@ type DirectWalker struct {
 	digestLister DigestLister
 	egress       netguard.Policy
 	logger       *slog.Logger
+	recorder     WalkRecorder
 }
 
 // NewDirectWalker constructs a DirectWalker whose registry dials obey egress.
@@ -45,10 +56,18 @@ func NewDirectWalker(sub Submitter, dl DigestLister, egress netguard.Policy, log
 	return &DirectWalker{submitter: sub, digestLister: dl, egress: egress, logger: logger}
 }
 
+// WithRecorder makes the walker store each walk's stats on the registry.
+func (w *DirectWalker) WithRecorder(rec WalkRecorder) *DirectWalker {
+	w.recorder = rec
+	return w
+}
+
 // Walk fetches known digests then runs WalkRegistry in the calling goroutine.
 func (w *DirectWalker) Walk(ctx context.Context, reg service.Registry) (int, error) {
 	known := FetchKnownDigests(ctx, w.digestLister, reg.ID)
-	return WalkRegistry(ctx, reg, w.submitter, known, w.egress, w.logger)
+	stats, err := WalkRegistryStats(ctx, reg, w.submitter, known, w.egress, w.logger)
+	RecordWalk(ctx, w.recorder, reg, stats, w.logger)
+	return stats.Queued, err
 }
 
 // FetchKnownDigests loads existing SBOM digests for a registry using a DigestLister.
@@ -70,63 +89,128 @@ func FetchKnownDigests(ctx context.Context, dl DigestLister, registryID string) 
 // skipped to avoid re-scanning. Pass nil when unknown. Every dial obeys egress;
 // a refused one comes back wrapping netguard.ErrDenied.
 func WalkRegistry(ctx context.Context, reg service.Registry, sub Submitter, knownDigests map[string]bool, egress netguard.Policy, logger *slog.Logger) (int, error) {
+	stats, err := WalkRegistryStats(ctx, reg, sub, knownDigests, egress, logger)
+	return stats.Queued, err
+}
+
+// WalkRegistryStats is WalkRegistry returning what the walk selected as well
+// as what it queued (ADR-0053 S7).
+func WalkRegistryStats(ctx context.Context, reg service.Registry, sub Submitter, knownDigests map[string]bool, egress netguard.Policy, logger *slog.Logger) (service.WalkStats, error) {
 	scheme, host := registrySchemeHost(reg)
 	baseURL := scheme + "://" + host
 	client := registryClient(egress, 15*time.Second, derefStr(reg.AuthUsername), derefStr(reg.AuthToken))
 
-	var repos []string
-	if len(reg.Repositories) > 0 {
-		repos = reg.Repositories
-	} else {
+	repos, err := matchingRepos(ctx, client, baseURL, reg, logger)
+	if err != nil {
+		return service.WalkStats{At: time.Now().UTC(), Error: err.Error()}, err
+	}
+	var stats service.WalkStats
+	for _, repo := range repos {
+		walkRepo(ctx, client, baseURL, repo, reg, sub, knownDigests, logger, &stats)
+	}
+	stats.Repositories = len(repos)
+	stats.At = time.Now().UTC()
+	return stats, nil
+}
+
+// WalkRecorder stores a walk's stats; service.RegistryService satisfies it.
+type WalkRecorder interface {
+	RecordWalkStats(ctx context.Context, id string, stats service.WalkStats) error
+}
+
+// RecordWalk stores stats when rec is set, logging rather than returning a
+// failure: the walk itself already happened.
+func RecordWalk(ctx context.Context, rec WalkRecorder, reg service.Registry, stats service.WalkStats, logger *slog.Logger) {
+	if rec == nil || reg.ID == "" {
+		return
+	}
+	if err := rec.RecordWalkStats(ctx, reg.ID, stats); err != nil {
+		logger.Warn("recording walk stats", "registry", reg.Name, "err", err)
+	}
+}
+
+// matchingRepos returns the registry's explicit repositories, or its catalog,
+// narrowed to those its repository filters accept.
+func matchingRepos(ctx context.Context, client *http.Client, baseURL string, reg service.Registry, logger *slog.Logger) ([]string, error) {
+	repos := reg.Repositories
+	if len(repos) == 0 {
 		var err error
 		repos, err = ociListCatalog(ctx, client, baseURL)
 		if err != nil {
-			return 0, fmt.Errorf("listing catalog: %w", err)
+			return nil, fmt.Errorf("listing catalog: %w", err)
 		}
 		if len(repos) == 0 {
 			logger.Warn("catalog returned 0 repositories; if this registry does not support /v2/_catalog, set explicit repositories on the registry config", "registry", reg.Name)
 		}
 	}
-
-	queued := 0
+	matched := make([]string, 0, len(repos))
 	for _, repo := range repos {
-		if !reg.MatchesRepository(repo) {
-			continue
+		if reg.MatchesRepository(repo) {
+			matched = append(matched, repo)
 		}
-		queued += walkRepo(ctx, client, baseURL, repo, reg, sub, knownDigests, logger)
 	}
-	return queued, nil
+	return matched, nil
 }
 
 // walkRepo scans a single repository: enumerates tagged manifests, then
 // optionally discovers untagged manifests via registry-specific APIs.
-func walkRepo(ctx context.Context, client *http.Client, baseURL, repo string, reg service.Registry, sub Submitter, knownDigests map[string]bool, logger *slog.Logger) int {
+//
+// Tags go through the registry's selection window (ADR-0053 S1): filter, then
+// order, then keep the newest TagLimit. The window is taken before the
+// known-digest skip in scanTag, so tags already ingested keep their slots and
+// the walk never reaches further back into the history to fill them.
+func walkRepo(ctx context.Context, client *http.Client, baseURL, repo string, reg service.Registry, sub Submitter, knownDigests map[string]bool, logger *slog.Logger, stats *service.WalkStats) {
 	scannedDigests := make(map[string]bool)
 	for d := range knownDigests {
 		scannedDigests[d] = true
 	}
 	queued := 0
-	tags, err := ociListTags(ctx, client, baseURL, repo)
+	window, matched, err := selectRepoTags(ctx, client, baseURL, repo, reg, logger)
 	if err != nil {
 		logger.Warn("listing tags for repo", "repo", repo, "err", err)
-		return 0
+		return
 	}
-	for _, tag := range tags {
-		if !reg.MatchesTag(tag) {
-			continue
-		}
-		// Short-circuit before the manifest HEAD/GET. ociGetImageMetadata also
-		// catches these by media type, but only after 2-3 registry requests.
-		if IsAttachedArtifactTag(tag) {
-			logger.Debug("skipping attached artifact", "repo", repo, "tag", tag, "reason", "cosign tag scheme")
-			continue
-		}
+	stats.Matched += matched
+	stats.Selected += len(window.Selected)
+	stats.SkippedByLimit += window.SkippedByLimit
+	stats.SkippedByAge += window.SkippedByAge
+	if window.SkippedByLimit > 0 || window.SkippedByAge > 0 {
+		logger.Debug("tags outside the scan window", "repo", repo, "selected", len(window.Selected),
+			"skipped_by_limit", window.SkippedByLimit, "skipped_by_age", window.SkippedByAge)
+	}
+	for _, tag := range window.Selected {
 		queued += scanTag(ctx, client, baseURL, repo, tag, reg, sub, scannedDigests, logger)
 	}
 	if reg.IncludeUntagged {
 		queued += discoverUntagged(ctx, client, baseURL, repo, reg, sub, scannedDigests, logger)
 	}
-	return queued
+	stats.Queued += queued
+}
+
+// selectRepoTags lists a repository's tags and applies the registry's window:
+// filter, then order, then keep (ADR-0053 S1). It returns the window and how
+// many tags passed the filter. The walk and the preview both use it, so a
+// preview shows exactly what a walk would select.
+func selectRepoTags(ctx context.Context, client *http.Client, baseURL, repo string, reg service.Registry, logger *slog.Logger) (service.TagWindow, int, error) {
+	tags, err := ociListTags(ctx, client, baseURL, repo)
+	if err != nil {
+		return service.TagWindow{}, 0, err
+	}
+	candidates := make([]string, 0, len(tags))
+	for _, tag := range tags {
+		if !reg.MatchesTag(tag) {
+			continue
+		}
+		// Filtered before the window so they never take a slot, and before the
+		// manifest HEAD/GET: ociGetImageMetadata also catches these by media
+		// type, but only after 2-3 registry requests.
+		if IsAttachedArtifactTag(tag) {
+			logger.Debug("skipping attached artifact", "repo", repo, "tag", tag, "reason", "cosign tag scheme")
+			continue
+		}
+		candidates = append(candidates, tag)
+	}
+	return reg.SelectTags(candidates, tagCreatedFunc(ctx, client, baseURL, repo), time.Now()), len(candidates), nil
 }
 
 // scanTag resolves a single tag to one or more scan requests.
@@ -222,25 +306,16 @@ func scanIndex(ctx context.Context, client *http.Client, baseURL, repo, tag, ind
 // discoverUntagged uses a registry-type-specific discoverer to find and submit
 // manifests not already covered by tag-based scanning.
 func discoverUntagged(ctx context.Context, client *http.Client, baseURL, repo string, reg service.Registry, sub Submitter, scannedDigests map[string]bool, logger *slog.Logger) int {
-	disc := discovererForType(reg)
-	manifests, err := disc.DiscoverManifests(ctx, client, baseURL, repo)
+	window, untagged, err := selectUntagged(ctx, client, baseURL, repo, reg)
 	if err != nil {
 		logger.Warn("discovering untagged manifests", "repo", repo, "err", err)
 		return 0
 	}
 
 	queued := 0
-	for _, m := range manifests {
+	for _, d := range window.Selected {
+		m := untagged[d]
 		if scannedDigests[m.Digest] {
-			continue
-		}
-		if !isImageManifestType(m.MediaType) {
-			continue
-		}
-		// The zot and harbor discoverers surface cosign tags, and the ghcr one
-		// hardcodes mediaTypeOCIManifest, so the media type above never rejects them.
-		if IsAttachedArtifactTag(m.Tag) {
-			logger.Debug("skipping attached artifact", "repo", repo, "tag", m.Tag, "reason", "cosign tag scheme")
 			continue
 		}
 		scannedDigests[m.Digest] = true
@@ -277,6 +352,30 @@ func discoverUntagged(ctx context.Context, client *http.Client, baseURL, repo st
 		queued++
 	}
 	return queued
+}
+
+// selectUntagged discovers a repository's untagged manifests and applies the
+// untagged window. Tagged manifests belong to the tag window; submitting them
+// here would let tags from outside it back in (ADR-0053 S4). The rest get a
+// window of their own, ordered by created.
+func selectUntagged(ctx context.Context, client *http.Client, baseURL, repo string, reg service.Registry) (service.TagWindow, map[string]DiscoveredManifest, error) {
+	manifests, err := discovererForType(reg).DiscoverManifests(ctx, client, baseURL, repo)
+	if err != nil {
+		return service.TagWindow{}, nil, err
+	}
+	untagged := make(map[string]DiscoveredManifest, len(manifests))
+	digests := make([]string, 0, len(manifests))
+	for _, m := range manifests {
+		if m.Tag != "" || !isImageManifestType(m.MediaType) {
+			continue
+		}
+		if _, dup := untagged[m.Digest]; dup {
+			continue
+		}
+		untagged[m.Digest] = m
+		digests = append(digests, m.Digest)
+	}
+	return reg.SelectUntagged(digests, digestCreatedFunc(ctx, client, baseURL, repo, untagged), time.Now()), untagged, nil
 }
 
 // submitUntaggedIndex expands an untagged image index discovered by a

@@ -2,6 +2,7 @@ package service
 
 import (
 	"context"
+	"encoding/json"
 	"errors"
 	"fmt"
 	"path"
@@ -54,6 +55,13 @@ type Registry struct {
 	TrustIssuer         *string    // exact OIDC issuer URL; nil when mode != keyless
 	ManagedBy           *string    // external owner of this config, e.g. "kubernetes"; nil = managed here
 	ManagedRef          *string    // identifier within that system, e.g. "<namespace>/<name>"
+	// Selection window (ADR-0053): keep the newest TagLimit tags per repository
+	// (0 = unlimited) in TagOrder ("" = auto, see EffectiveTagOrder), dropping
+	// those older than MaxTagAgeDays (0 = no age limit; created order only).
+	TagLimit      int
+	TagOrder      string
+	MaxTagAgeDays int
+	LastWalk      *WalkStats // nil until the first walk records one
 }
 
 // IsManaged reports whether an external controller owns this registry's config
@@ -328,6 +336,10 @@ type CreateRegistryParams struct {
 	TrustIssuer      *string
 	ManagedBy        *string
 	ManagedRef       *string
+	// TagLimit nil means DefaultTagLimit; see Registry for all three.
+	TagLimit      *int
+	TagOrder      string
+	MaxTagAgeDays int
 
 	// Namespace is the name of the namespace to create the registry in. Empty
 	// means "give it a namespace of its own named after it", the pre-ADR-039
@@ -374,6 +386,10 @@ type UpdateRegistryParams struct {
 	TrustIssuer         *string
 	ManagedBy           *string
 	ManagedRef          *string
+	// nil keeps the stored value. TagOrder "" and MaxTagAgeDays 0 clear them.
+	TagLimit      *int
+	TagOrder      *string
+	MaxTagAgeDays *int
 }
 
 // RegistryService manages registry configuration.
@@ -388,6 +404,8 @@ type RegistryService interface {
 	Delete(ctx context.Context, id string) error
 	ListPollable(ctx context.Context) ([]Registry, error)
 	MarkPolled(ctx context.Context, id string) (Registry, error)
+	// RecordWalkStats stores what the registry's latest walk selected.
+	RecordWalkStats(ctx context.Context, id string, stats WalkStats) error
 	// TrustSummary is visibility-filtered so a namespace owner can read the
 	// signing posture of their own artifacts without the admin role.
 	TrustSummary(ctx context.Context, vis VisibilityFilter) ([]RegistryTrustCount, error)
@@ -447,6 +465,13 @@ func (s *registryService) Create(ctx context.Context, params CreateRegistryParam
 	if verificationMode == "" {
 		verificationMode = "none"
 	}
+	tagLimit := DefaultTagLimit
+	if params.TagLimit != nil {
+		tagLimit = *params.TagLimit
+	}
+	if err := ValidateScanScope(tagLimit, params.TagOrder, params.MaxTagAgeDays, params.TagPatterns); err != nil {
+		return Registry{}, err
+	}
 	namespaceID, err := s.resolveNamespace(ctx, params, visibility)
 	if err != nil {
 		return Registry{}, err
@@ -484,6 +509,9 @@ func (s *registryService) Create(ctx context.Context, params CreateRegistryParam
 		TrustIssuer:         toNullText(params.TrustIssuer),
 		ManagedBy:           toNullText(params.ManagedBy),
 		ManagedRef:          toNullText(params.ManagedRef),
+		TagLimit:            int32(tagLimit), //nolint:gosec // G115: validated non-negative; the API bounds it
+		TagOrder:            pgtype.Text{String: params.TagOrder, Valid: params.TagOrder != ""},
+		MaxTagAgeDays:       pgtype.Int4{Int32: int32(params.MaxTagAgeDays), Valid: params.MaxTagAgeDays > 0}, //nolint:gosec // G115: as above
 	})
 	if err != nil {
 		if isUniqueViolation(err) {
@@ -603,6 +631,14 @@ func (s *registryService) ListPaged(ctx context.Context, filter VisibilityFilter
 	return PagedResult[Registry]{Data: out, Total: total, Limit: limit, Offset: offset}, nil
 }
 
+// orExisting is the update rule for an optional field: nil keeps what is stored.
+func orExisting[T any](v, existing *T) *T {
+	if v == nil {
+		return existing
+	}
+	return v
+}
+
 func (s *registryService) Update(ctx context.Context, params UpdateRegistryParams) (Registry, error) {
 	uid, err := parseUUID(params.ID)
 	if err != nil {
@@ -633,27 +669,18 @@ func (s *registryService) Update(ctx context.Context, params UpdateRegistryParam
 	if verificationMode == "" {
 		verificationMode = "none"
 	}
-	trustPublicKey := params.TrustPublicKey
-	if trustPublicKey == nil {
-		trustPublicKey = existing.TrustPublicKey
-	}
-	trustIdentity := params.TrustIdentity
-	if trustIdentity == nil {
-		trustIdentity = existing.TrustIdentity
-	}
-	trustIssuer := params.TrustIssuer
-	if trustIssuer == nil {
-		trustIssuer = existing.TrustIssuer
-	}
+	trustPublicKey := orExisting(params.TrustPublicKey, existing.TrustPublicKey)
+	trustIdentity := orExisting(params.TrustIdentity, existing.TrustIdentity)
+	trustIssuer := orExisting(params.TrustIssuer, existing.TrustIssuer)
 	// The UI's PATCH doesn't carry the ownership marker, so preserving it here is
 	// what keeps a UI edit from silently un-marking an operator-owned registry.
-	managedBy := params.ManagedBy
-	if managedBy == nil {
-		managedBy = existing.ManagedBy
-	}
-	managedRef := params.ManagedRef
-	if managedRef == nil {
-		managedRef = existing.ManagedRef
+	managedBy := orExisting(params.ManagedBy, existing.ManagedBy)
+	managedRef := orExisting(params.ManagedRef, existing.ManagedRef)
+	tagLimit := *orExisting(params.TagLimit, &existing.TagLimit)
+	tagOrder := *orExisting(params.TagOrder, &existing.TagOrder)
+	maxTagAgeDays := *orExisting(params.MaxTagAgeDays, &existing.MaxTagAgeDays)
+	if err := ValidateScanScope(tagLimit, tagOrder, maxTagAgeDays, params.TagPatterns); err != nil {
+		return Registry{}, err
 	}
 
 	webhookSecret, err := sealCredential(s.box, colWebhookSecret, uuidToStr(uid), params.WebhookSecret)
@@ -687,6 +714,9 @@ func (s *registryService) Update(ctx context.Context, params UpdateRegistryParam
 		TrustIssuer:         toNullText(trustIssuer),
 		ManagedBy:           toNullText(managedBy),
 		ManagedRef:          toNullText(managedRef),
+		TagLimit:            int32(tagLimit), //nolint:gosec // G115: validated non-negative; the API bounds it
+		TagOrder:            pgtype.Text{String: tagOrder, Valid: tagOrder != ""},
+		MaxTagAgeDays:       pgtype.Int4{Int32: int32(maxTagAgeDays), Valid: maxTagAgeDays > 0}, //nolint:gosec // G115: as above
 	})
 	if err != nil {
 		return Registry{}, fmt.Errorf("updating registry: %w", err)
@@ -722,6 +752,21 @@ func (s *registryService) MarkPolled(ctx context.Context, id string) (Registry, 
 		return Registry{}, fmt.Errorf("marking registry polled: %w", err)
 	}
 	return s.Get(ctx, id)
+}
+
+func (s *registryService) RecordWalkStats(ctx context.Context, id string, stats WalkStats) error {
+	uid, err := parseUUID(id)
+	if err != nil {
+		return ErrNotFound
+	}
+	b, err := json.Marshal(stats)
+	if err != nil {
+		return fmt.Errorf("encoding walk stats: %w", err)
+	}
+	if err := s.repo.RecordRegistryWalkStats(ctx, repository.RecordRegistryWalkStatsParams{ID: uid, Stats: b}); err != nil {
+		return fmt.Errorf("recording walk stats: %w", err)
+	}
+	return nil
 }
 
 func (s *registryService) SetEnabled(ctx context.Context, id string, enabled bool) (Registry, error) {
@@ -802,6 +847,15 @@ func fromRepo(c registryComposite) Registry {
 		PollIntervalMinutes: int(r.PollIntervalMinutes),
 		Visibility:          c.visibility,
 		IncludeUntagged:     r.IncludeUntagged,
+		TagLimit:            int(r.TagLimit),
+		TagOrder:            r.TagOrder.String,
+		MaxTagAgeDays:       int(r.MaxTagAgeDays.Int32),
+	}
+	if len(r.LastWalkStats) > 0 {
+		var w WalkStats
+		if json.Unmarshal(r.LastWalkStats, &w) == nil {
+			out.LastWalk = &w
+		}
 	}
 	if r.WebhookSecret.Valid {
 		s := r.WebhookSecret.String

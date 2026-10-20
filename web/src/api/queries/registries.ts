@@ -52,6 +52,9 @@ export function useCreateRegistry() {
             trust_public_key?: string;
             trust_identity?: string;
             trust_issuer?: string;
+            tag_limit?: number;
+            tag_order?: "auto" | "semver" | "created" | "lexical";
+            max_tag_age_days?: number;
         }) => unwrap(client.POST("/api/v1/registries", { body })),
         onSuccess: () => queryClient.invalidateQueries({ queryKey: ["registries"] }),
     }));
@@ -83,6 +86,9 @@ export function useUpdateRegistry() {
             trust_public_key?: string;
             trust_identity?: string;
             trust_issuer?: string;
+            tag_limit?: number;
+            tag_order?: "auto" | "semver" | "created" | "lexical";
+            max_tag_age_days?: number;
         }) =>
             unwrap(
                 client.PATCH("/api/v1/registries/{id}", {
@@ -126,4 +132,51 @@ export function useRegenerateWebhookSecret() {
                 params: { path: { id } },
             })),
     }));
+}
+
+export interface RegistryPreviewBody {
+    type: "zot" | "harbor" | "docker" | "generic" | "ghcr";
+    url: string;
+    insecure: boolean;
+    auth_username?: string;
+    auth_token?: string;
+    repositories?: string[];
+    repository_patterns?: string[];
+    tag_patterns?: string[];
+    include_untagged?: boolean;
+    tag_limit?: number;
+    tag_order?: "auto" | "semver" | "created" | "lexical";
+    max_tag_age_days?: number;
+}
+
+/**
+ * What an unsaved registry config would scan (ADR-0053). It dials the registry,
+ * so callers debounce `body` and pass undefined until there is something to ask.
+ */
+export function usePreviewRegistryConfig(body: Accessor<RegistryPreviewBody | undefined>) {
+    return createQuery(() => {
+        const b = body();
+        return {
+            queryKey: ["registries", "preview", b] as const,
+            // enabled gates on b, so the fallback body is never sent.
+            queryFn: () => unwrap(client.POST("/api/v1/registries/preview", { body: b ?? { type: "generic", url: "", insecure: false } })),
+            enabled: b !== undefined,
+            retry: false,
+            staleTime: 60_000,
+        };
+    });
+}
+
+/** What a saved registry's next walk would scan, with its stored credentials. */
+export function useRegistryPreview(id: Accessor<string | undefined>) {
+    return createQuery(() => {
+        const regID = id();
+        return {
+            queryKey: ["registries", "preview", "saved", regID] as const,
+            queryFn: () => unwrap(client.GET("/api/v1/registries/{id}/preview", { params: { path: { id: regID ?? "" } } })),
+            enabled: regID !== undefined,
+            retry: false,
+            staleTime: 60_000,
+        };
+    });
 }
