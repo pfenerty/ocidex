@@ -11,8 +11,8 @@
     "test": "node --import tsx --test test/*.test.ts"
   },
   "dependencies": {
-    "@tektonic-ci/core": "^2.3.0",
-    "@tektonic-ci/reporter-github": "^2.1.1"
+    "@tektonic-ci/core": "^2.4.0",
+    "@tektonic-ci/reporter-github": "^2.3.0"
   },
   "devDependencies": {
     "@types/node": "^25.0.0",

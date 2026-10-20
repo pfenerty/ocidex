@@ -63,7 +63,7 @@ spec:
         let contexts = ["image-release-api" "go-test" "go-build" "go-integration-test" "openapi-verify" "eslint-lint-web" "image-release-scanner-worker" "image-release-oci-metadata-worker" "image-release-git-worker" "image-release-user-enricher-worker" "image-release-provenance-worker" "image-release-vuln-worker" "image-release-web" "image-release-k8s-agent" "image-release-operator" "image-release-cli" "helm-check" "helm-release" "gh-release" "sbom-push"]
 
         let failed = $contexts | each { |context|
-          let body = { state: "pending", context: $context, description: "Running" }
+          let body = { state: "pending", context: $context, description: "Queued" }
           if (post-status $"status-pending [($context)]" $body) { null } else { $context }
         } | compact
 
