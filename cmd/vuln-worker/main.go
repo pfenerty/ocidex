@@ -101,8 +101,9 @@ func run() error {
 		slog.Info("vuln refresh election started", "lock_key", lockKey)
 	}
 
-	_, metricsHandler, stopMetrics := metrics.Start(ctx, "ocidex-vuln-worker")
+	meterProvider, metricsHandler, stopMetrics := metrics.Start(ctx, "ocidex-vuln-worker")
 	defer stopMetrics()
+	metrics.WatchPool(meterProvider, metrics.PoolMain, pool)
 	healthSrv := health.New(":9090", pool, nil, slog.Default()).WithMetrics(metricsHandler)
 	healthSrv.Start()
 	defer healthSrv.Stop()

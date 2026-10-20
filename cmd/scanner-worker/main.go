@@ -123,6 +123,8 @@ func run() error {
 
 	meterProvider, metricsHandler, stopMetrics := metrics.Start(ctx, "ocidex-scanner-worker")
 	defer stopMetrics()
+	metrics.WatchPool(meterProvider, metrics.PoolMain, pool)
+	natsClient.WithMetrics(meterProvider)
 
 	workerID, _ := os.Hostname()
 	scanProcessor := func(ctx context.Context, claim service.ScanJobClaim) error {

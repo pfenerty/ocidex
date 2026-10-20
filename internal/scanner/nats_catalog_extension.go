@@ -58,7 +58,7 @@ func (p *NATSCatalogPublisher) Walk(ctx context.Context, reg service.Registry) (
 	msg := nats.NewMsg(subject)
 	msg.Header.Set("Nats-Msg-Id", "catalog-walk-"+reg.ID)
 	msg.Data = data
-	_, err = p.client.JS.PublishMsg(pubCtx, msg)
+	_, err = p.client.PublishMsg(pubCtx, msg)
 	return 0, err
 }
 

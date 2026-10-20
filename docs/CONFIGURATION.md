@@ -250,6 +250,12 @@ Request metrics are the `http_server_request_duration_seconds` histogram, labell
 for paths no route serves) and `http_response_status_code`. Its `_count` series is the request
 count. Go runtime (`go_*`) and process (`process_*`) metrics are included.
 
+The API, the job workers and `vuln-worker` also report their database pools,
+`ocidex_db_pool_connections{pool,state}`, `ocidex_db_pool_acquires_total{pool,outcome}` and
+`ocidex_db_pool_acquire_wait_seconds_total{pool}` (`pool` is `main`, or `background` for the API's
+out-of-band pool), and binaries that publish to NATS count
+`ocidex_nats_publishes_total{subject_class,outcome}` (`ok`, `duplicate`, `error`).
+
 ---
 
 ## Worker Binaries

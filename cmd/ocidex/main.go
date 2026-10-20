@@ -139,7 +139,7 @@ func run() error {
 
 	watchSvc := service.NewWatchService(pool)
 	clusterSvc := service.NewClusterService(pool, cfg.SecretBox)
-	meterProvider, stopMetrics := setupMetrics(ctx, cfg)
+	meterProvider, stopMetrics := setupMetrics(ctx, cfg, pool, bgPool, natsClient)
 	defer stopMetrics()
 
 	handler := api.NewHandler(sbomSvc, searchSvc, authSvc, registrySvc, namespaceSvc, sourceSvc, jobSvc, enrichJobSvc, watchSvc, clusterSvc, pool, scanSubmitter, cfg).
@@ -404,8 +404,9 @@ func setupScannerExt(cfg *config.Config, _ *pgxpool.Pool, _ *event.Bus, _ *exten
 // setupMetrics builds the API's MeterProvider and starts the private /metrics
 // listener on METRICS_ADDR (ADR-0054). With METRICS_ADDR empty, or when setup
 // fails, it returns a no-op provider. The returned func stops the listener and
-// flushes the provider.
-func setupMetrics(ctx context.Context, cfg *config.Config) (metric.MeterProvider, func()) {
+// flushes the provider. It also instruments both DB pools and, when there is
+// one, the NATS client.
+func setupMetrics(ctx context.Context, cfg *config.Config, pool, bgPool *pgxpool.Pool, natsClient *natspkg.Client) (metric.MeterProvider, func()) {
 	if cfg.MetricsAddr == "" {
 		slog.Info("metrics disabled: METRICS_ADDR is empty")
 		return noop.NewMeterProvider(), func() {}
@@ -413,6 +414,11 @@ func setupMetrics(ctx context.Context, cfg *config.Config) (metric.MeterProvider
 	mp, handler, stop := metrics.Start(ctx, "ocidex-api")
 	if handler == nil {
 		return mp, stop
+	}
+	metrics.WatchPool(mp, metrics.PoolMain, pool)
+	metrics.WatchPool(mp, metrics.PoolBackground, bgPool)
+	if natsClient != nil {
+		natsClient.WithMetrics(mp)
 	}
 	srv := metrics.NewServer(cfg.MetricsAddr, handler, slog.Default())
 	srv.Start()

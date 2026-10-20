@@ -133,12 +133,16 @@ Names are given as instruments, with the scraped Prometheus name below each.
 | `ocidex.jobs.processed` <br> `ocidex_jobs_processed_total` | counter | `queue`, `outcome` (`success`, `retry`, `permanent_failure`) | ocidex-v590.3 |
 | `ocidex.job.duration` <br> `ocidex_job_duration_seconds` | histogram (s) | `queue` | ocidex-v590.3 |
 | `ocidex.jobs` <br> `ocidex_jobs` | gauge | `queue`, `state` | ocidex-v590.3 |
-| `ocidex.db.pool.connections` <br> `ocidex_db_pool_connections` | gauge | `state` (`acquired`, `idle`, `total`, `max`) | ocidex-v590.4 |
-| `ocidex.db.pool.acquires` <br> `ocidex_db_pool_acquires_total` | counter | `outcome` (`waited`, `immediate`, `canceled`) | ocidex-v590.4 |
-| `ocidex.db.pool.acquire_wait` <br> `ocidex_db_pool_acquire_wait_seconds_total` | counter (s) | none | ocidex-v590.4 |
+| `ocidex.db.pool.connections` <br> `ocidex_db_pool_connections` | gauge | `pool`, `state` (`acquired`, `idle`, `total`, `max`) | ocidex-v590.4 |
+| `ocidex.db.pool.acquires` <br> `ocidex_db_pool_acquires_total` | counter | `pool`, `outcome` (`waited`, `immediate`, `canceled`) | ocidex-v590.4 |
+| `ocidex.db.pool.acquire_wait` <br> `ocidex_db_pool_acquire_wait_seconds_total` | counter (s) | `pool` | ocidex-v590.4 |
 | `ocidex.nats.publishes` <br> `ocidex_nats_publishes_total` | counter | `subject_class`, `outcome` (`ok`, `duplicate`, `error`) | ocidex-v590.4 |
 | `ocidex.registry.tags.selected` <br> `ocidex_registry_tags_selected` | gauge | `registry` | ocidex-5y0r.7 |
 | `ocidex.registry.tags.skipped_limit` <br> `ocidex_registry_tags_skipped_limit` | gauge | `registry` | ocidex-5y0r.7 |
+
+`pool` is `main`, or `background` for the API's pool for out-of-band work. `subject_class` is
+the subject after the stream name (`scan.hint`, `enrich.hint`, `catalog.walk.requested`,
+`sbom.ingested`, ...), or `other`.
 
 The request count is the histogram's `_count` series, so there is no separate request counter.
 Gauges read from a source (queue depth, pool stats, last walk) are observable instruments with a

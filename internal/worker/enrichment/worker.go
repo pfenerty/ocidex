@@ -117,6 +117,8 @@ func Run(factory EnricherFactory, cfg RunConfig) error {
 
 	meterProvider, metricsHandler, stopMetrics := metrics.Start(ctx, "ocidex-enricher-"+cfg.EnricherName)
 	defer stopMetrics()
+	metrics.WatchPool(meterProvider, metrics.PoolMain, pool)
+	natsClient.WithMetrics(meterProvider)
 
 	enrichJobSvc := service.NewEnrichJobService(pool, cfg.EnricherName)
 	workerID, _ := os.Hostname()
@@ -139,7 +141,7 @@ func Run(factory EnricherFactory, cfg RunConfig) error {
 		if err := enrichJobSvc.FinishByID(ctx, claim.ID); err != nil {
 			return err
 		}
-		EnqueueDependents(ctx, enrichStore, enrichJobSvc, natsClient.JS, appCfg.NATSStreamName,
+		EnqueueDependents(ctx, enrichStore, enrichJobSvc, natsClient, appCfg.NATSStreamName,
 			claim.SBOMId, claim.Architecture, claim.BuildDate, cfg.EnricherName, logger)
 		return nil
 	}

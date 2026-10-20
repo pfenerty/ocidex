@@ -77,7 +77,7 @@ func (s *NATSSubmitter) handle(ctx context.Context, ev event.Event) {
 
 	msg := nats.NewMsg(s.streamName + ".enrich.hint")
 	msg.Data = hint
-	if _, err := s.client.JS.PublishMsgAsync(msg); err != nil {
+	if _, err := s.client.PublishMsgAsync(msg); err != nil {
 		s.logger.Warn("enrichment-submitter: hint publish failed; poll loop will pick up",
 			"sbom_id", d.SBOMID, "err", err,
 		)

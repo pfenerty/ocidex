@@ -114,7 +114,7 @@ func (r *RelayExtension) handleEvent(_ context.Context, ev event.Event) {
 	if id := msgIDForEvent(ev); id != "" {
 		msg.Header.Set("Nats-Msg-Id", id)
 	}
-	if _, err := r.client.JS.PublishMsgAsync(msg); err != nil {
+	if _, err := r.client.PublishMsgAsync(msg); err != nil {
 		r.logger.Error("nats relay: publish", "subject", subject, "err", err)
 	}
 }
