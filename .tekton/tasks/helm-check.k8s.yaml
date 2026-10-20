@@ -9,6 +9,8 @@ spec:
       type: string
     - name: revision
       type: string
+    - name: pipeline-run-name
+      type: string
   stepTemplate:
     computeResources:
       limits:
@@ -56,7 +58,7 @@ spec:
 
         try { date now | format date '%s' | save -f /tekton/home/.status-started-at } catch { |e| log $"report-running: cannot record start time: ($e.msg)" }
 
-        let body = { state: "pending", context: "helm-check", description: "Running" }
+        let body = ({ state: "pending", context: "helm-check", description: "Running" } | merge { target_url: "https://tekton-dashboard.bear-velociraptor.ts.net/#/namespaces/$(context.taskRun.namespace)/taskruns/$(context.taskRun.name)" })
         post-status "report-running [helm-check]" $body | ignore
     - computeResources:
         limits:
@@ -149,7 +151,7 @@ spec:
         log $"report-status [helm-check]: exit-code=($exit_code) state=($state)"
 
         let url = $"https://api.github.com/repos/$(params.repo-full-name)/statuses/$(params.revision)"
-        let body = { state: $state, context: "helm-check", description: $desc }
+        let body = ({ state: $state, context: "helm-check", description: $desc } | merge { target_url: "https://tekton-dashboard.bear-velociraptor.ts.net/#/namespaces/$(context.taskRun.namespace)/taskruns/$(context.taskRun.name)" })
 
         log $"report-status [helm-check]: POST ($url)"
         log $"report-status [helm-check]: body: ($body | to json -r)"

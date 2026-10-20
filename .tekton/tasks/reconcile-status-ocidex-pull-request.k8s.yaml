@@ -9,6 +9,8 @@ spec:
       type: string
     - name: revision
       type: string
+    - name: pipeline-run-name
+      type: string
     - name: status-go-build
       type: string
     - name: status-eslint-lint-web
@@ -117,7 +119,7 @@ spec:
             let state = if $entry.status == "None" { "success" } else { "failure" }
             let desc = if $entry.status == "None" { "Skipped" } else { "Failed or terminated" }
             log $"($label): task status is ($entry.status)"
-            let body = { state: $state, context: $entry.context, description: $desc }
+            let body = ({ state: $state, context: $entry.context, description: $desc } | merge { target_url: "https://tekton-dashboard.bear-velociraptor.ts.net/#/namespaces/$(context.taskRun.namespace)/pipelineruns/$(params.pipeline-run-name)" })
             if (post-status $label $body) { null } else { $entry.context }
           }
         } | compact

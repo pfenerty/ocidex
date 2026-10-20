@@ -1,5 +1,5 @@
 import { Workspace, TaskVolumeSpec, TaskStepSpec, rawScript, taskPreset, warmCache, PAC_PARAMS } from "@tektonic-ci/core";
-import { GitHubStatusReporter } from "@tektonic-ci/reporter-github";
+import { GitHubStatusReporter, tektonDashboardUrl } from "@tektonic-ci/reporter-github";
 
 // --- Images ─────────────────────────────────────────────────────────────────
 export const goImage = "ghcr.io/pfenerty/apko-cicd/golang:1.27";
@@ -23,8 +23,13 @@ export const gitleaksImage = "ghcr.io/pfenerty/apko-cicd/gitleaks:8.30.1";
 export const kyvernoImage = "ghcr.io/pfenerty/apko-cicd/kyverno:1.18.1-helm4";
 
 // ─── Status reporter ─────────────────────────────────────────────────────────
+// Each commit status links to its TaskRun (pending and reconciled ones to the
+// PipelineRun) on the tailnet-only Tekton Dashboard that homelab runs.
+const detailsUrl = tektonDashboardUrl("https://tekton-dashboard.bear-velociraptor.ts.net");
+
 export const statusReporter = new GitHubStatusReporter({
   tokenSecretName: "github-pipeline-token",
+  detailsUrl,
   // 5 tasks report status → 5 steps in set-status-pending, each just an HTTP POST.
   // Default 512Mi limit per step causes OOM on constrained nodes; these are tight
   // but sufficient for nushell + a single GitHub API call.
@@ -38,6 +43,7 @@ export const statusReporter = new GitHubStatusReporter({
 // without failing the TaskRun/PipelineRun (e.g. security scans on push to main).
 export const reportOnlyStatusReporter = new GitHubStatusReporter({
   tokenSecretName: "github-pipeline-token",
+  detailsUrl,
   pendingTaskComputeResources: {
     requests: { cpu: "25m", memory: "64Mi" },
     limits: { cpu: "200m", memory: "128Mi" },

@@ -28,6 +28,8 @@ spec:
             value: $(params.repo-full-name)
           - name: revision
             value: $(params.revision)
+          - name: pipeline-run-name
+            value: $(context.pipelineRun.name)
           - name: status-gofmt-check
             value: $(tasks.gofmt-check.status)
           - name: status-go-lint
@@ -105,6 +107,8 @@ spec:
             value: $(params.repo-full-name)
           - name: revision
             value: $(params.revision)
+          - name: pipeline-run-name
+            value: $(context.pipelineRun.name)
         runAfter:
           - git-clone
         taskRef:
@@ -128,6 +132,8 @@ spec:
             value: $(params.repo-full-name)
           - name: revision
             value: $(params.revision)
+          - name: pipeline-run-name
+            value: $(context.pipelineRun.name)
         runAfter:
           - set-status-pending-ocidex-push
         taskRef:
@@ -142,6 +148,8 @@ spec:
             value: $(params.repo-full-name)
           - name: revision
             value: $(params.revision)
+          - name: pipeline-run-name
+            value: $(context.pipelineRun.name)
         runAfter:
           - set-status-pending-ocidex-push
         taskRef:
@@ -158,6 +166,8 @@ spec:
             value: $(params.repo-full-name)
           - name: revision
             value: $(params.revision)
+          - name: pipeline-run-name
+            value: $(context.pipelineRun.name)
         runAfter:
           - go-build
           - set-status-pending-ocidex-push
@@ -175,6 +185,8 @@ spec:
             value: $(params.repo-full-name)
           - name: revision
             value: $(params.revision)
+          - name: pipeline-run-name
+            value: $(context.pipelineRun.name)
         runAfter:
           - go-build
           - set-status-pending-ocidex-push
@@ -192,6 +204,8 @@ spec:
             value: $(params.repo-full-name)
           - name: revision
             value: $(params.revision)
+          - name: pipeline-run-name
+            value: $(context.pipelineRun.name)
         runAfter:
           - set-status-pending-ocidex-push
         taskRef:
@@ -208,6 +222,8 @@ spec:
             value: $(params.repo-full-name)
           - name: revision
             value: $(params.revision)
+          - name: pipeline-run-name
+            value: $(context.pipelineRun.name)
         runAfter:
           - go-build
           - eslint-lint-web
@@ -226,6 +242,8 @@ spec:
             value: $(params.repo-full-name)
           - name: revision
             value: $(params.revision)
+          - name: pipeline-run-name
+            value: $(context.pipelineRun.name)
         runAfter:
           - go-build
           - set-status-pending-ocidex-push
@@ -243,6 +261,8 @@ spec:
             value: $(params.repo-full-name)
           - name: revision
             value: $(params.revision)
+          - name: pipeline-run-name
+            value: $(context.pipelineRun.name)
         runAfter:
           - go-test
           - set-status-pending-ocidex-push
@@ -263,6 +283,8 @@ spec:
             value: $(params.repo-full-name)
           - name: revision
             value: $(params.revision)
+          - name: pipeline-run-name
+            value: $(context.pipelineRun.name)
         runAfter:
           - go-build
           - set-status-pending-ocidex-push
@@ -282,6 +304,8 @@ spec:
             value: $(params.repo-full-name)
           - name: revision
             value: $(params.revision)
+          - name: pipeline-run-name
+            value: $(context.pipelineRun.name)
         runAfter:
           - set-status-pending-ocidex-push
         taskRef:
@@ -296,6 +320,8 @@ spec:
             value: $(params.repo-full-name)
           - name: revision
             value: $(params.revision)
+          - name: pipeline-run-name
+            value: $(context.pipelineRun.name)
         runAfter:
           - set-status-pending-ocidex-push
         taskRef:
@@ -312,6 +338,8 @@ spec:
             value: $(params.repo-full-name)
           - name: revision
             value: $(params.revision)
+          - name: pipeline-run-name
+            value: $(context.pipelineRun.name)
         runAfter:
           - set-status-pending-ocidex-push
         taskRef:
@@ -326,6 +354,8 @@ spec:
             value: $(params.repo-full-name)
           - name: revision
             value: $(params.revision)
+          - name: pipeline-run-name
+            value: $(context.pipelineRun.name)
         runAfter:
           - go-test
           - go-integration-test
@@ -345,6 +375,8 @@ spec:
             value: $(params.repo-full-name)
           - name: revision
             value: $(params.revision)
+          - name: pipeline-run-name
+            value: $(context.pipelineRun.name)
         runAfter:
           - go-test
           - go-integration-test
@@ -365,6 +397,8 @@ spec:
             value: $(params.repo-full-name)
           - name: revision
             value: $(params.revision)
+          - name: pipeline-run-name
+            value: $(context.pipelineRun.name)
         runAfter:
           - go-test
           - go-integration-test
@@ -385,6 +419,8 @@ spec:
             value: $(params.repo-full-name)
           - name: revision
             value: $(params.revision)
+          - name: pipeline-run-name
+            value: $(context.pipelineRun.name)
         runAfter:
           - go-test
           - go-integration-test
@@ -405,6 +441,8 @@ spec:
             value: $(params.repo-full-name)
           - name: revision
             value: $(params.revision)
+          - name: pipeline-run-name
+            value: $(context.pipelineRun.name)
         runAfter:
           - go-test
           - go-integration-test
@@ -425,6 +463,8 @@ spec:
             value: $(params.repo-full-name)
           - name: revision
             value: $(params.revision)
+          - name: pipeline-run-name
+            value: $(context.pipelineRun.name)
         runAfter:
           - go-test
           - go-integration-test
@@ -445,6 +485,8 @@ spec:
             value: $(params.repo-full-name)
           - name: revision
             value: $(params.revision)
+          - name: pipeline-run-name
+            value: $(context.pipelineRun.name)
         runAfter:
           - go-test
           - go-integration-test
@@ -465,6 +507,8 @@ spec:
             value: $(params.repo-full-name)
           - name: revision
             value: $(params.revision)
+          - name: pipeline-run-name
+            value: $(context.pipelineRun.name)
         runAfter:
           - go-test
           - go-integration-test
@@ -485,6 +529,8 @@ spec:
             value: $(params.repo-full-name)
           - name: revision
             value: $(params.revision)
+          - name: pipeline-run-name
+            value: $(context.pipelineRun.name)
         runAfter:
           - go-test
           - go-integration-test
@@ -505,6 +551,8 @@ spec:
             value: $(params.repo-full-name)
           - name: revision
             value: $(params.revision)
+          - name: pipeline-run-name
+            value: $(context.pipelineRun.name)
         runAfter:
           - go-test
           - go-integration-test
@@ -525,6 +573,8 @@ spec:
             value: $(params.repo-full-name)
           - name: revision
             value: $(params.revision)
+          - name: pipeline-run-name
+            value: $(context.pipelineRun.name)
         runAfter:
           - go-test
           - go-integration-test
@@ -545,6 +595,8 @@ spec:
             value: $(params.repo-full-name)
           - name: revision
             value: $(params.revision)
+          - name: pipeline-run-name
+            value: $(context.pipelineRun.name)
         runAfter:
           - set-status-pending-ocidex-push
         taskRef:
@@ -559,6 +611,8 @@ spec:
             value: $(params.repo-full-name)
           - name: revision
             value: $(params.revision)
+          - name: pipeline-run-name
+            value: $(context.pipelineRun.name)
         runAfter:
           - image-build-api
           - image-build-scanner-worker
@@ -587,6 +641,8 @@ spec:
             value: $(params.repo-full-name)
           - name: revision
             value: $(params.revision)
+          - name: pipeline-run-name
+            value: $(context.pipelineRun.name)
         runAfter:
           - go-build
           - set-status-pending-ocidex-push
