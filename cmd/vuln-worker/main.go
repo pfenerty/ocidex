@@ -26,6 +26,7 @@ import (
 	"github.com/pfenerty/ocidex/internal/health"
 	"github.com/pfenerty/ocidex/internal/metrics"
 	"github.com/pfenerty/ocidex/internal/service"
+	"github.com/pfenerty/ocidex/internal/tracing"
 	"github.com/pfenerty/ocidex/internal/vuln"
 	"github.com/pfenerty/ocidex/internal/vuln/grypematch"
 )
@@ -46,9 +47,9 @@ func run() error {
 		return err
 	}
 
-	slog.SetDefault(slog.New(slog.NewJSONHandler(os.Stdout, &slog.HandlerOptions{
+	slog.SetDefault(slog.New(tracing.LogHandler(slog.NewJSONHandler(os.Stdout, &slog.HandlerOptions{
 		Level: cfg.SlogLevel(),
-	})))
+	}))))
 	slog.Info("starting vuln-worker",
 		"environment", cfg.Environment,
 		"once", *once,
@@ -101,6 +102,8 @@ func run() error {
 		slog.Info("vuln refresh election started", "lock_key", lockKey)
 	}
 
+	_, stopTracing := tracing.Start(ctx, "ocidex-vuln-worker")
+	defer stopTracing()
 	meterProvider, metricsHandler, stopMetrics := metrics.Start(ctx, "ocidex-vuln-worker")
 	defer stopMetrics()
 	metrics.WatchPool(meterProvider, metrics.PoolMain, pool)

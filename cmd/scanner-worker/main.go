@@ -30,6 +30,7 @@ import (
 	"github.com/pfenerty/ocidex/internal/scanner"
 	"github.com/pfenerty/ocidex/internal/scanner/engine"
 	"github.com/pfenerty/ocidex/internal/service"
+	"github.com/pfenerty/ocidex/internal/tracing"
 )
 
 // scanTimeout bounds a single Syft scan. The stuck-running sweep uses a
@@ -54,9 +55,9 @@ func run() error {
 	// Before anything clones the default transport: syft's pulls do, per scan.
 	engine.GuardDefaultTransport(cfg.EgressPolicy)
 
-	slog.SetDefault(slog.New(slog.NewJSONHandler(os.Stdout, &slog.HandlerOptions{
+	slog.SetDefault(slog.New(tracing.LogHandler(slog.NewJSONHandler(os.Stdout, &slog.HandlerOptions{
 		Level: cfg.SlogLevel(),
-	})))
+	}))))
 	slog.Info("starting scanner-worker",
 		"environment", cfg.Environment,
 		"log_level", cfg.LogLevel,
@@ -121,6 +122,8 @@ func run() error {
 	enrichJobSvc := service.NewEnrichJobService(pool, "")
 	registry.Register(enrichment.NewNATSSubmitter(natsClient, cfg.NATSStreamName, enrichJobSvc, logger))
 
+	_, stopTracing := tracing.Start(ctx, "ocidex-scanner-worker")
+	defer stopTracing()
 	meterProvider, metricsHandler, stopMetrics := metrics.Start(ctx, "ocidex-scanner-worker")
 	defer stopMetrics()
 	metrics.WatchPool(meterProvider, metrics.PoolMain, pool)

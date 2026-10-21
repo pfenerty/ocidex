@@ -19,7 +19,6 @@ import (
 	_ "github.com/jackc/pgx/v5/stdlib"
 	"github.com/pressly/goose/v3"
 	"go.opentelemetry.io/otel/metric"
-	"go.opentelemetry.io/otel/metric/noop"
 
 	"github.com/pfenerty/ocidex/db"
 	"github.com/pfenerty/ocidex/internal/api"
@@ -37,6 +36,7 @@ import (
 	"github.com/pfenerty/ocidex/internal/scanner"
 	"github.com/pfenerty/ocidex/internal/secretbox"
 	"github.com/pfenerty/ocidex/internal/service"
+	"github.com/pfenerty/ocidex/internal/tracing"
 	"github.com/pfenerty/ocidex/internal/version"
 )
 
@@ -80,9 +80,9 @@ func run() error {
 	}
 
 	// Initialize structured logging.
-	slog.SetDefault(slog.New(slog.NewJSONHandler(os.Stdout, &slog.HandlerOptions{
+	slog.SetDefault(slog.New(tracing.LogHandler(slog.NewJSONHandler(os.Stdout, &slog.HandlerOptions{
 		Level: cfg.SlogLevel(),
-	})))
+	}))))
 	logStartup(cfg)
 
 	ctx := context.Background()
@@ -139,6 +139,8 @@ func run() error {
 
 	watchSvc := service.NewWatchService(pool)
 	clusterSvc := service.NewClusterService(pool, cfg.SecretBox)
+	_, stopTracing := tracing.Start(ctx, "ocidex-api")
+	defer stopTracing()
 	meterProvider, stopMetrics := setupMetrics(ctx, cfg, pool, bgPool, natsClient)
 	defer stopMetrics()
 
@@ -401,24 +403,21 @@ func setupScannerExt(cfg *config.Config, _ *pgxpool.Pool, _ *event.Bus, _ *exten
 	return scanner.NewNATSSubmitter(natsClient, cfg.NATSStreamName, jobSvc)
 }
 
-// setupMetrics builds the API's MeterProvider and starts the private /metrics
-// listener on METRICS_ADDR (ADR-0054). With METRICS_ADDR empty, or when setup
-// fails, it returns a no-op provider. The returned func stops the listener and
-// flushes the provider. It also instruments both DB pools and, when there is
-// one, the NATS client.
+// setupMetrics builds the API's MeterProvider, instruments both DB pools and,
+// when there is one, the NATS client, and serves /metrics on METRICS_ADDR
+// (ADR-0054). An empty METRICS_ADDR turns off only the listener, so
+// OTEL_METRICS_EXPORTER=otlp can still push. When setup fails it returns a
+// no-op provider. The returned func stops the listener and flushes the provider.
 func setupMetrics(ctx context.Context, cfg *config.Config, pool, bgPool *pgxpool.Pool, natsClient *natspkg.Client) (metric.MeterProvider, func()) {
-	if cfg.MetricsAddr == "" {
-		slog.Info("metrics disabled: METRICS_ADDR is empty")
-		return noop.NewMeterProvider(), func() {}
-	}
 	mp, handler, stop := metrics.Start(ctx, "ocidex-api")
-	if handler == nil {
-		return mp, stop
-	}
 	metrics.WatchPool(mp, metrics.PoolMain, pool)
 	metrics.WatchPool(mp, metrics.PoolBackground, bgPool)
 	if natsClient != nil {
 		natsClient.WithMetrics(mp)
+	}
+	if handler == nil || cfg.MetricsAddr == "" {
+		slog.Info("metrics listener off", "metrics_addr", cfg.MetricsAddr, "prometheus_export", handler != nil)
+		return mp, stop
 	}
 	srv := metrics.NewServer(cfg.MetricsAddr, handler, slog.Default())
 	srv.Start()

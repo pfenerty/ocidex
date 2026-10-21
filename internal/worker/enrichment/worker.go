@@ -28,6 +28,7 @@ import (
 	natspkg "github.com/pfenerty/ocidex/internal/nats"
 	"github.com/pfenerty/ocidex/internal/repository"
 	"github.com/pfenerty/ocidex/internal/service"
+	"github.com/pfenerty/ocidex/internal/tracing"
 )
 
 // RunConfig scopes a worker to a specific enricher queue partition.
@@ -59,9 +60,9 @@ func Run(factory EnricherFactory, cfg RunConfig) error {
 		return fmt.Errorf("loading config: %w", err)
 	}
 
-	slog.SetDefault(slog.New(slog.NewJSONHandler(os.Stdout, &slog.HandlerOptions{
+	slog.SetDefault(slog.New(tracing.LogHandler(slog.NewJSONHandler(os.Stdout, &slog.HandlerOptions{
 		Level: appCfg.SlogLevel(),
-	})))
+	}))))
 	slog.Info("starting enricher worker",
 		"environment", appCfg.Environment,
 		"log_level", appCfg.LogLevel,
@@ -115,6 +116,8 @@ func Run(factory EnricherFactory, cfg RunConfig) error {
 	}
 	dispatcher := enrichment.NewDispatcher(enrichStore, enrichReg)
 
+	_, stopTracing := tracing.Start(ctx, "ocidex-enricher-"+cfg.EnricherName)
+	defer stopTracing()
 	meterProvider, metricsHandler, stopMetrics := metrics.Start(ctx, "ocidex-enricher-"+cfg.EnricherName)
 	defer stopMetrics()
 	metrics.WatchPool(meterProvider, metrics.PoolMain, pool)

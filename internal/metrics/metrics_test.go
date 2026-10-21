@@ -1,6 +1,7 @@
 package metrics_test
 
 import (
+	"context"
 	"io"
 	"net/http"
 	"net/http/httptest"
@@ -71,4 +72,35 @@ func TestServerServesMetricsPath(t *testing.T) {
 	is.NoErr(err)
 	_ = resp.Body.Close()
 	is.Equal(resp.StatusCode, http.StatusNotFound) // only /metrics is served
+}
+
+func TestMetricsExporterEnv(t *testing.T) {
+	cases := []struct {
+		env         string
+		wantHandler bool
+		wantErr     bool
+	}{
+		{"", true, false},
+		{"prometheus", true, false},
+		{"none", false, false},
+		{"otlp", false, false},
+		{"prometheus,otlp", true, false},
+		{"zipkin", false, true},
+		{"none,otlp", false, true},
+	}
+	for _, tc := range cases {
+		t.Run(tc.env, func(t *testing.T) {
+			is := is.New(t)
+			t.Setenv("OTEL_METRICS_EXPORTER", tc.env)
+			t.Setenv("OTEL_EXPORTER_OTLP_ENDPOINT", "http://127.0.0.1:1") // never dialled before Shutdown
+			p, err := metrics.New(t.Context(), "ocidex-test")
+			if tc.wantErr {
+				is.True(err != nil)
+				return
+			}
+			is.NoErr(err)
+			defer func() { _ = p.Shutdown(context.Background()) }()
+			is.Equal(p.Handler() != nil, tc.wantHandler)
+		})
+	}
 }

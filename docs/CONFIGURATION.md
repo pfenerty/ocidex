@@ -243,7 +243,8 @@ Don't route it through your ingress.
 | Variable | Default | Description |
 |----------|---------|-------------|
 | `METRICS_ADDR` | `:9090` | Listen address for `/metrics`. Empty disables the listener and metrics. |
-| `OTEL_RESOURCE_ATTRIBUTES` | — | Extra resource attributes, e.g. `deployment.environment.name=prod`. They appear on the `target_info` series. |
+| `OTEL_RESOURCE_ATTRIBUTES` | — | Extra resource attributes, e.g. `deployment.environment.name=prod`. They appear on the `target_info` series and on every span. |
+| `OTEL_METRICS_EXPORTER` | `prometheus` | Comma-separated: `prometheus` serves `/metrics`, `otlp` also pushes to `OTEL_EXPORTER_OTLP_*`, `none` turns metrics off. |
 
 Request metrics are the `http_server_request_duration_seconds` histogram, labelled
 `http_request_method`, `http_route` (the route pattern, such as `/api/v1/sboms/{id}`; `unmatched`
@@ -267,6 +268,20 @@ Job workers add `ocidex_jobs_processed_total{queue,outcome}` (`success`, `retry`
 `permanent_failure`), `ocidex_job_duration_seconds{queue}` and the queue-depth gauge
 `ocidex_jobs{queue,state}` (`queued`, `running`). `queue` is `scan` or the enricher name
 (ADR-0054).
+
+
+### Tracing
+
+OpenTelemetry tracing (ADR-0055) is off by default and uses the standard variables, in the API
+and in every worker.
+
+| Variable | Default | Description |
+|----------|---------|-------------|
+| `OTEL_TRACES_EXPORTER` | `none` | `otlp` exports spans to `OTEL_EXPORTER_OTLP_*`; `console` prints them to stdout. |
+| `OTEL_EXPORTER_OTLP_ENDPOINT` | SDK default (`http://localhost:4318`) | Collector address for traces, and for metrics when `OTEL_METRICS_EXPORTER` includes `otlp`. `_PROTOCOL` (`http/protobuf` or `grpc`) and `_HEADERS` work as usual. |
+| `OTEL_TRACES_SAMPLER`, `OTEL_TRACES_SAMPLER_ARG` | `parentbased_traceidratio`, `0.1` | Keeps 10% of new traces; spans with a parent follow it, so a trace is kept or dropped whole. |
+
+Log records written inside a sampled span carry `trace_id` and `span_id`.
 
 ### `scanner-worker`
 

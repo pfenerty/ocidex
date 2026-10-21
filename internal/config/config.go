@@ -34,7 +34,7 @@ func parseSlogLevel(level string) slog.Level {
 type Config struct {
 	Port int `env:"PORT"            envDefault:"8080"`
 	// MetricsAddr is the private /metrics listener (ADR-0054 M2), never the
-	// public port. Empty disables it.
+	// public port. Empty turns the listener off; OTLP push still works.
 	MetricsAddr        string `env:"METRICS_ADDR" envDefault:":9090"`
 	LogLevel           string `env:"LOG_LEVEL"       envDefault:"info"`
 	Environment        string `env:"ENVIRONMENT"     envDefault:"development"`
