@@ -75,6 +75,7 @@ func Run(factory EnricherFactory, cfg RunConfig) error {
 	if err != nil {
 		return fmt.Errorf("parsing database config: %w", err)
 	}
+	poolCfg.ConnConfig.Tracer = tracing.PoolTracer()
 	if appCfg.DatabaseMaxConns > 0 {
 		poolCfg.MaxConns = int32(appCfg.DatabaseMaxConns) //nolint:gosec // G115: value is a configured pool size
 	}

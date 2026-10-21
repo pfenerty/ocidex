@@ -69,6 +69,7 @@ func run() error {
 	if err != nil {
 		return fmt.Errorf("parsing database config: %w", err)
 	}
+	poolCfg.ConnConfig.Tracer = tracing.PoolTracer()
 	if cfg.DatabaseMaxConns > 0 {
 		poolCfg.MaxConns = int32(cfg.DatabaseMaxConns) //nolint:gosec // G115: value is a configured pool size
 	}

@@ -270,6 +270,7 @@ func openPool(ctx context.Context, url string, maxConns int32) (*pgxpool.Pool, e
 	if err != nil {
 		return nil, fmt.Errorf("parsing database config: %w", err)
 	}
+	poolCfg.ConnConfig.Tracer = tracing.PoolTracer()
 	if maxConns > 0 {
 		poolCfg.MaxConns = maxConns
 	}
