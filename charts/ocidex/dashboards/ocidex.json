@@ -46,7 +46,8 @@
         "multi": true,
         "current": {},
         "hide": 0,
-        "sort": 1
+        "sort": 1,
+        "allValue": ".*"
       }
     ]
   },
@@ -170,7 +171,7 @@
       "id": 4,
       "type": "timeseries",
       "title": "p95 latency by route",
-      "description": "",
+      "description": "Alert threshold is 5s, the API's slow-request log threshold.",
       "datasource": {
         "type": "prometheus",
         "uid": "${datasource}"
@@ -179,7 +180,7 @@
         "x": 16,
         "y": 1,
         "w": 8,
-        "h": "Alert threshold is 5s, the API's slow-request log threshold."
+        "h": 8
       },
       "fieldConfig": {
         "defaults": {
@@ -234,7 +235,7 @@
       "id": 6,
       "type": "timeseries",
       "title": "Queue depth",
-      "description": "",
+      "description": "Queued and running rows. Every replica reports the same value, hence max.",
       "datasource": {
         "type": "prometheus",
         "uid": "${datasource}"
@@ -243,7 +244,7 @@
         "x": 0,
         "y": 10,
         "w": 8,
-        "h": "Queued and running rows. Every replica reports the same value, hence max."
+        "h": 8
       },
       "fieldConfig": {
         "defaults": {
@@ -460,7 +461,7 @@
       "id": 11,
       "type": "timeseries",
       "title": "Acquire wait",
-      "description": "",
+      "description": "Seconds spent waiting for a connection per second. Above 0.5 for 10m is the suggested alert.",
       "datasource": {
         "type": "prometheus",
         "uid": "${datasource}"
@@ -469,7 +470,7 @@
         "x": 8,
         "y": 19,
         "w": 8,
-        "h": "Seconds spent waiting for a connection per second. Above 0.5 for 10m is the suggested alert."
+        "h": 8
       },
       "fieldConfig": {
         "defaults": {
@@ -575,7 +576,7 @@
       "id": 14,
       "type": "timeseries",
       "title": "NATS publishes",
-      "description": "",
+      "description": "Failed hints are recovered by the poll loop: errors mean latency, not lost work.",
       "datasource": {
         "type": "prometheus",
         "uid": "${datasource}"
@@ -584,7 +585,7 @@
         "x": 0,
         "y": 28,
         "w": 12,
-        "h": "Failed hints are recovered by the poll loop: errors mean latency, not lost work."
+        "h": 8
       },
       "fieldConfig": {
         "defaults": {
@@ -626,7 +627,7 @@
       "id": 15,
       "type": "timeseries",
       "title": "Registry walk window",
-      "description": "",
+      "description": "Tags each registry's last walk kept and left out (ADR-0053).",
       "datasource": {
         "type": "prometheus",
         "uid": "${datasource}"
@@ -635,7 +636,7 @@
         "x": 12,
         "y": 28,
         "w": 12,
-        "h": "Tags each registry's last walk kept and left out (ADR-0053)."
+        "h": 8
       },
       "fieldConfig": {
         "defaults": {

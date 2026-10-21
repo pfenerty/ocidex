@@ -33,8 +33,11 @@ var seriesRe = regexp.MustCompile(`([a-zA-Z_:][a-zA-Z0-9_:]*)\s*[{\[]`)
 type dashboard struct {
 	UID    string `json:"uid"`
 	Panels []struct {
-		Type       string `json:"type"`
-		Title      string `json:"title"`
+		Type    string `json:"type"`
+		Title   string `json:"title"`
+		GridPos struct {
+			X, Y, W, H int
+		} `json:"gridPos"`
 		Datasource struct {
 			UID string `json:"uid"`
 		} `json:"datasource"`
@@ -59,11 +62,14 @@ func TestDashboardUsesM5Series(t *testing.T) {
 	raw, err := os.ReadFile("../../charts/ocidex/dashboards/ocidex.json")
 	is.NoErr(err)
 	var d dashboard
-	is.NoErr(json.Unmarshal(raw, &d))
+	is.NoErr(json.Unmarshal(raw, &d)) // also fails when a gridPos field is not a number
 	is.Equal(d.UID, "ocidex-overview")
 
 	seen := map[string]bool{}
 	for _, p := range d.Panels {
+		if p.GridPos.W <= 0 || p.GridPos.H <= 0 || p.GridPos.X+p.GridPos.W > 24 {
+			t.Errorf("panel %q: gridPos %+v does not fit the 24-column grid", p.Title, p.GridPos)
+		}
 		if p.Type == "row" {
 			continue
 		}
