@@ -156,6 +156,33 @@ spec:
         - port: 8080
           protocol: TCP
 {{- end }}
+{{- with $.Values.monitoring.otel.egress }}
+---
+# OTLP export to the collector (monitoring.otel), from every component that exports.
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: {{ $fullname }}-otlp
+  namespace: {{ $.Release.Namespace }}
+  labels:
+    {{- include "ocidex.labels" $ | nindent 4 }}
+spec:
+  podSelector:
+    matchLabels:
+      {{- toYaml $release | nindent 6 }}
+    matchExpressions:
+      - key: app.kubernetes.io/component
+        operator: NotIn
+        values: [web, nats, migrate]
+  policyTypes:
+    - Egress
+  egress:
+    - to:
+        {{- toYaml . | nindent 8 }}
+      ports:
+        - port: {{ $.Values.monitoring.otel.egressPort }}
+          protocol: TCP
+{{- end }}
 {{- with $np.ingress.metricsFrom }}
 ---
 # /metrics on :9090 (the api's metrics port, the workers' health port) and NATS

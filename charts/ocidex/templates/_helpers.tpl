@@ -90,6 +90,13 @@ scanner worker and the enrichers (internal/netguard).
 - name: OTEL_RESOURCE_ATTRIBUTES
   value: {{ . | quote }}
 {{- end }}
+{{- $otel := .Values.monitoring.otel }}
+{{- range $name, $value := dict "OTEL_TRACES_EXPORTER" $otel.tracesExporter "OTEL_METRICS_EXPORTER" $otel.metricsExporter "OTEL_EXPORTER_OTLP_ENDPOINT" $otel.endpoint "OTEL_EXPORTER_OTLP_PROTOCOL" $otel.protocol "OTEL_TRACES_SAMPLER" $otel.sampler "OTEL_TRACES_SAMPLER_ARG" $otel.samplerArg }}
+{{- if $value }}
+- name: {{ $name }}
+  value: {{ $value | quote }}
+{{- end }}
+{{- end }}
 {{- end }}
 
 {{- define "ocidex.egressGuardEnv" -}}

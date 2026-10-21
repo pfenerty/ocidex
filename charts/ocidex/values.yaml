@@ -354,6 +354,26 @@ monitoring:
   # OTEL_RESOURCE_ATTRIBUTES for every component; they appear on target_info.
   # e.g. "deployment.environment.name=prod"
   resourceAttributes: ""
+  # OpenTelemetry export (ADR-0055), set on every component. Empty values are not set,
+  # so the binaries' defaults apply: no tracing, metrics on /metrics only.
+  # OTLP auth (OTEL_EXPORTER_OTLP_HEADERS) belongs in existingSecret, never here.
+  otel:
+    # otlp or console; empty = off.
+    tracesExporter: ""
+    # Comma-separated prometheus, otlp, none; empty = prometheus.
+    metricsExporter: ""
+    # e.g. http://alloy.monitoring.svc.cluster.local:4318 (http/protobuf) or :4317 (grpc).
+    endpoint: ""
+    # http/protobuf (default) or grpc.
+    protocol: ""
+    # parentbased_traceidratio (default), always_on, ...; samplerArg is its ratio.
+    sampler: ""
+    samplerArg: ""
+    # With networkPolicy.enabled: the collector's pods or namespace (NetworkPolicyPeer list)
+    # and port. An in-cluster collector is otherwise blocked; egress.internet excludes
+    # private ranges.
+    egress: []
+    egressPort: 4318
   # Grafana dashboard (dashboards/ocidex.json) as a ConfigMap for the Grafana sidecar.
   # Independent of enabled: it only needs the metrics scraped somehow.
   dashboard:

@@ -46,6 +46,22 @@ labels. `target_info` carries `service_name` (`ocidex-api`, `ocidex-scanner-work
 | `ocidex_registry_tags_selected`, `ocidex_registry_tags_skipped_limit` | Per-registry walk window (ADR-0053), once ocidex-5y0r.7 lands. |
 | `go_*`, `process_*` | Go runtime and process stats. |
 
+### Tracing and OTLP export
+
+Tracing is off by default (ADR-0055). Turn it on in the chart with
+`monitoring.otel.tracesExporter: otlp` and `monitoring.otel.endpoint` pointing at a collector
+(for example Grafana Alloy or the OpenTelemetry Collector, feeding Tempo or Jaeger). The
+k8s-agent chart takes the same `monitoring.otel` values. Put collector auth
+(`OTEL_EXPORTER_OTLP_HEADERS`) in `existingSecret`, or in the agent's `monitoring.otel.headersSecret`,
+never in values. With `networkPolicy.enabled`, list the collector in `monitoring.otel.egress`:
+an in-cluster collector is otherwise blocked. `metricsExporter: prometheus,otlp` also pushes
+metrics.
+
+The default sampler keeps 10% of new traces. A trace is kept or dropped whole, so one sampled
+upload shows its request, its queries, the jobs it queued and every enricher that ran,
+including jobs a worker picked up from its poll loop after a lost NATS hint. Log lines inside a
+sampled span carry `trace_id`, which links a log line to its trace.
+
 ### Suggested alerts
 
 ```yaml
