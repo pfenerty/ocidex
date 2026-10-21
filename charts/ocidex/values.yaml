@@ -354,6 +354,17 @@ monitoring:
   # OTEL_RESOURCE_ATTRIBUTES for every component; they appear on target_info.
   # e.g. "deployment.environment.name=prod"
   resourceAttributes: ""
+  # Grafana dashboard (dashboards/ocidex.json) as a ConfigMap for the Grafana sidecar.
+  # Independent of enabled: it only needs the metrics scraped somehow.
+  dashboard:
+    enabled: false
+    # The sidecar's search namespace, when it is not the release namespace.
+    namespace: ""
+    # Labels the sidecar selects on (kube-prometheus-stack / grafana chart default).
+    labels:
+      grafana_dashboard: "1"
+    # e.g. {grafana_folder: OCIDex} with the sidecar's folderAnnotation.
+    annotations: {}
 
 # --- Gateway API (optional) --------------------------------------------------
 # Requires Gateway API CRDs (v1) and a conformant Gateway controller (e.g. Cilium).

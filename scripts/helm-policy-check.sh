@@ -49,6 +49,7 @@ helm template ocidex "$APP_CHART" >"$OUT/app-defaults.yaml"
 helm template ocidex "$APP_CHART" \
     --set keda.enabled=true \
     --set monitoring.enabled=true \
+    --set monitoring.dashboard.enabled=true \
     --set networkPolicy.enabled=true \
     --set-json 'networkPolicy.egress.database=[{"podSelector":{"matchLabels":{"cnpg.io/cluster":"ocidex-pg"}}}]' \
     --set-json 'networkPolicy.ingress.from=[{"namespaceSelector":{"matchLabels":{"kubernetes.io/metadata.name":"gateway-system"}}}]' \
