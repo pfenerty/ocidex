@@ -769,7 +769,7 @@ func isIndexMediaType(mt string) bool {
 func registryClient(egress netguard.Policy, timeout time.Duration, username, password string) *http.Client {
 	return &http.Client{
 		Timeout:   timeout,
-		Transport: newOCITokenTransport(egress.Transport(), username, password),
+		Transport: newOCITokenTransport(egress.RoundTripper(), username, password),
 	}
 }
 

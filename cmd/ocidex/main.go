@@ -139,13 +139,14 @@ func run() error {
 
 	watchSvc := service.NewWatchService(pool)
 	clusterSvc := service.NewClusterService(pool, cfg.SecretBox)
-	_, stopTracing := tracing.Start(ctx, "ocidex-api")
+	tracerProvider, stopTracing := tracing.Start(ctx, "ocidex-api")
 	defer stopTracing()
 	meterProvider, stopMetrics := setupMetrics(ctx, cfg, pool, bgPool, natsClient)
 	defer stopMetrics()
 
 	handler := api.NewHandler(sbomSvc, searchSvc, authSvc, registrySvc, namespaceSvc, sourceSvc, jobSvc, enrichJobSvc, watchSvc, clusterSvc, pool, scanSubmitter, cfg).
-		WithMeterProvider(meterProvider)
+		WithMeterProvider(meterProvider).
+		WithTracerProvider(tracerProvider)
 	router := api.NewRouter(handler, cfg.CORSAllowedOrigins, cfg.FrontendURL, cfg.APIBaseURL)
 
 	extCtx, extCancel := context.WithCancel(context.Background())

@@ -61,7 +61,8 @@ func NewOIDCProvider(ctx context.Context, cfg OIDCConfig) (*OIDCProvider, error)
 		return nil, fmt.Errorf("oidc %q: client ID is required", cfg.Name)
 	}
 
-	issuer, err := oidc.NewProvider(ctx, cfg.IssuerURL)
+	// The provider keeps this context's client for its later key-set fetches.
+	issuer, err := oidc.NewProvider(oidc.ClientContext(ctx, tracedClient), cfg.IssuerURL)
 	if err != nil {
 		return nil, fmt.Errorf("oidc %q: discovery against %s failed: %w", cfg.Name, cfg.IssuerURL, err)
 	}
@@ -116,7 +117,7 @@ func (p *OIDCProvider) Exchange(ctx context.Context, code, verifier string) (Ide
 		return Identity{}, fmt.Errorf("oidc %s: missing PKCE verifier", p.name)
 	}
 
-	token, err := p.oauth2.Exchange(ctx, code, oauth2.VerifierOption(verifier))
+	token, err := p.oauth2.Exchange(oidc.ClientContext(ctx, tracedClient), code, oauth2.VerifierOption(verifier))
 	if err != nil {
 		return Identity{}, fmt.Errorf("oidc %s: exchanging code: %w", p.name, err)
 	}

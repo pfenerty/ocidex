@@ -17,6 +17,8 @@ import (
 	"net/netip"
 	"syscall"
 	"time"
+
+	"github.com/pfenerty/ocidex/internal/tracing"
 )
 
 // ErrDenied is wrapped by every refusal, so a caller can classify it as a
@@ -114,6 +116,13 @@ func (p Policy) Transport() *http.Transport {
 	t := http.DefaultTransport.(*http.Transport).Clone()
 	t.DialContext = p.DialContext
 	return t
+}
+
+// RoundTripper is Transport with a client span per request (ADR-0055 T2).
+// Use it for outbound clients; keep Transport where a caller needs the
+// concrete *http.Transport.
+func (p Policy) RoundTripper() http.RoundTripper {
+	return tracing.Transport(p.Transport())
 }
 
 // ParsePrefixes parses CIDRs, accepting a bare address as a single-host prefix.

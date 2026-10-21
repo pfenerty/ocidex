@@ -18,6 +18,7 @@ import (
 
 	"github.com/pfenerty/ocidex/internal/enrichment"
 	"github.com/pfenerty/ocidex/internal/enrichment/names"
+	"github.com/pfenerty/ocidex/internal/tracing"
 )
 
 const (
@@ -94,7 +95,7 @@ func WithOCIDataReader(r OCIDataReader) Option {
 // NewEnricher creates a git enricher.
 func NewEnricher(opts ...Option) *Enricher {
 	e := &Enricher{
-		httpClient:   &http.Client{Timeout: defaultTimeout},
+		httpClient:   tracing.Client(&http.Client{Timeout: defaultTimeout}),
 		baseURL:      defaultBaseURL,
 		maxRespBytes: defaultMaxResponseBytes,
 	}

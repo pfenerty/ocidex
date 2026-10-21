@@ -81,7 +81,7 @@ func WithRemoteOptions(opts ...remote.Option) Option {
 // WithEgress routes every registry dial through p, so an artifact name pointing
 // at a refused address fails with an error wrapping netguard.ErrDenied.
 func WithEgress(p netguard.Policy) Option {
-	return func(e *Enricher) { e.options = append(e.options, remote.WithTransport(p.Transport())) }
+	return func(e *Enricher) { e.options = append(e.options, remote.WithTransport(p.RoundTripper())) }
 }
 
 // WithInsecure configures the enricher to use plain HTTP for registry connections.

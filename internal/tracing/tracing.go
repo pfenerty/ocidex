@@ -53,7 +53,10 @@ func New(ctx context.Context, serviceName string) (*sdktrace.TracerProvider, err
 	if err != nil {
 		return nil, err
 	}
-	opts := []sdktrace.TracerProviderOption{sdktrace.WithResource(res), sdktrace.WithBatcher(exp)}
+	opts := []sdktrace.TracerProviderOption{
+		sdktrace.WithResource(res),
+		sdktrace.WithBatcher(RedactExporter(exp)),
+	}
 	// An explicit sampler would override OTEL_TRACES_SAMPLER, so it is set only
 	// when the variable is not.
 	if os.Getenv("OTEL_TRACES_SAMPLER") == "" {

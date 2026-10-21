@@ -145,6 +145,7 @@ func NewRouter(h *Handler, corsOrigins, frontendURL, apiBaseURL string) chi.Rout
 	r := chi.NewRouter()
 
 	// Middleware stack
+	r.Use(RequestSpans(h.tracerProvider))
 	r.Use(middleware.RequestID)
 	r.Use(WithRequest)
 	r.Use(SlogLogger)
