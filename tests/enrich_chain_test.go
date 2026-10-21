@@ -168,7 +168,7 @@ func startGitWorker(t *testing.T, pool *pgxpool.Pool, natsClient *natspkg.Client
 		if err := gitJobSvc.FinishByID(ctx, claim.ID); err != nil {
 			return err
 		}
-		enrichmentworker.EnqueueDependents(ctx, store, gitJobSvc, natsClient.JS, chainStreamName,
+		enrichmentworker.EnqueueDependents(ctx, store, gitJobSvc, natsClient, chainStreamName,
 			claim.SBOMId, claim.Architecture, claim.BuildDate, "git", logger)
 		return nil
 	}
@@ -252,7 +252,7 @@ func TestEnricherDependencyChain_GitEnqueuedAfterOCIMetadata(t *testing.T) {
 	}))
 
 	gitJobSvc := service.NewEnrichJobService(pool, "git")
-	enrichmentworker.EnqueueDependents(ctx, store, gitJobSvc, natsClient.JS, chainStreamName,
+	enrichmentworker.EnqueueDependents(ctx, store, gitJobSvc, natsClient, chainStreamName,
 		sbomID, architecture, buildDate, "oci-metadata", logger)
 
 	var jobCount int
@@ -316,7 +316,7 @@ func TestEnricherDependencyChain_NoGitJobOnOCIMetadataFailure(t *testing.T) {
 	}))
 
 	gitJobSvc := service.NewEnrichJobService(pool, "git")
-	enrichmentworker.EnqueueDependents(ctx, store, gitJobSvc, natsClient.JS, chainStreamName,
+	enrichmentworker.EnqueueDependents(ctx, store, gitJobSvc, natsClient, chainStreamName,
 		sbomID, architecture, buildDate, "oci-metadata", logger)
 
 	var jobCount int

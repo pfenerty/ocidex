@@ -5,6 +5,7 @@ import (
 	"context"
 	"encoding/json"
 	"log/slog"
+	"strings"
 	"testing"
 
 	"github.com/matryer/is"
@@ -85,4 +86,25 @@ func TestLogHandlerAddsTraceIDs(t *testing.T) {
 	is.Equal(inside["component"], "test") // WithAttrs keeps the wrapper
 	_, has := outside["trace_id"]
 	is.True(!has)
+}
+
+func TestInjectExtractRoundTrip(t *testing.T) {
+	is := is.New(t)
+	tp := sdktrace.NewTracerProvider()
+	ctx, span := tracing.Tracer(tp).Start(context.Background(), "op")
+	defer span.End()
+
+	s := tracing.Inject(ctx)
+	is.True(strings.HasPrefix(s, "00-"+span.SpanContext().TraceID().String()))
+	got := trace.SpanContextFromContext(tracing.Extract(context.Background(), s))
+	is.Equal(got.TraceID(), span.SpanContext().TraceID())
+	is.Equal(got.SpanID(), span.SpanContext().SpanID())
+	is.True(got.IsRemote())
+
+	state, _ := trace.ParseTraceState("vendor=abc")
+	withState := trace.ContextWithSpanContext(ctx, span.SpanContext().WithTraceState(state))
+	is.Equal(trace.SpanContextFromContext(tracing.Extract(context.Background(), tracing.Inject(withState))).TraceState().Get("vendor"), "abc")
+
+	is.Equal(tracing.Inject(context.Background()), "") // nothing to carry with tracing off
+	is.True(!trace.SpanContextFromContext(tracing.Extract(context.Background(), "garbage")).IsValid())
 }

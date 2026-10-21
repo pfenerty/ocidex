@@ -27,7 +27,7 @@ claimed AS (
         worker_id       = $1::text,
         attempts        = attempts + 1
     WHERE id IN (SELECT id FROM next_id)
-    RETURNING id, registry_id, repository, digest, index_digest, tag, attempts
+    RETURNING id, registry_id, repository, digest, index_digest, tag, attempts, trace_context
 )
 SELECT
     c.id,
@@ -40,7 +40,8 @@ SELECT
     COALESCE(r.insecure, false)::bool           AS insecure,
     COALESCE(r.auth_username, '')::text         AS auth_username,
     COALESCE(r.auth_token, '')::text            AS auth_token,
-    c.attempts
+    c.attempts,
+    COALESCE(c.trace_context, '')::text         AS trace_context
 FROM claimed c
 LEFT JOIN registry r ON r.id = c.registry_id
 `
@@ -57,6 +58,7 @@ type ClaimNextQueuedJobRow struct {
 	AuthUsername string      `json:"auth_username"`
 	AuthToken    string      `json:"auth_token"`
 	Attempts     int32       `json:"attempts"`
+	TraceContext string      `json:"trace_context"`
 }
 
 func (q *Queries) ClaimNextQueuedJob(ctx context.Context, workerID string) (ClaimNextQueuedJobRow, error) {
@@ -74,6 +76,7 @@ func (q *Queries) ClaimNextQueuedJob(ctx context.Context, workerID string) (Clai
 		&i.AuthUsername,
 		&i.AuthToken,
 		&i.Attempts,
+		&i.TraceContext,
 	)
 	return i, err
 }
@@ -89,7 +92,7 @@ WITH claimed AS (
         attempts        = attempts + 1
     WHERE id = $2::uuid
       AND state = 'queued'
-    RETURNING id, registry_id, repository, digest, index_digest, tag, attempts
+    RETURNING id, registry_id, repository, digest, index_digest, tag, attempts, trace_context
 )
 SELECT
     c.id,
@@ -102,7 +105,8 @@ SELECT
     COALESCE(r.insecure, false)::bool           AS insecure,
     COALESCE(r.auth_username, '')::text         AS auth_username,
     COALESCE(r.auth_token, '')::text            AS auth_token,
-    c.attempts
+    c.attempts,
+    COALESCE(c.trace_context, '')::text         AS trace_context
 FROM claimed c
 LEFT JOIN registry r ON r.id = c.registry_id
 `
@@ -124,6 +128,7 @@ type ClaimScanJobByIDRow struct {
 	AuthUsername string      `json:"auth_username"`
 	AuthToken    string      `json:"auth_token"`
 	Attempts     int32       `json:"attempts"`
+	TraceContext string      `json:"trace_context"`
 }
 
 // Outbox-pattern queries. The scan_jobs row IS the queue; NATS hints just
@@ -149,6 +154,7 @@ func (q *Queries) ClaimScanJobByID(ctx context.Context, arg ClaimScanJobByIDPara
 		&i.AuthUsername,
 		&i.AuthToken,
 		&i.Attempts,
+		&i.TraceContext,
 	)
 	return i, err
 }
@@ -313,7 +319,7 @@ func (q *Queries) FinishScanJobByID(ctx context.Context, arg FinishScanJobByIDPa
 }
 
 const getScanJob = `-- name: GetScanJob :one
-SELECT j.id, j.registry_id, j.repository, j.digest, j.tag, j.state, j.attempts, j.last_error, j.nats_msg_id, j.sbom_id, j.created_at, j.started_at, j.finished_at, j.last_attempt_at, j.worker_id, j.index_digest FROM scan_jobs j
+SELECT j.id, j.registry_id, j.repository, j.digest, j.tag, j.state, j.attempts, j.last_error, j.nats_msg_id, j.sbom_id, j.created_at, j.started_at, j.finished_at, j.last_attempt_at, j.worker_id, j.index_digest, j.trace_context FROM scan_jobs j
 WHERE j.id = $1
   AND (
     COALESCE($2::boolean, false)
@@ -354,34 +360,39 @@ func (q *Queries) GetScanJob(ctx context.Context, arg GetScanJobParams) (ScanJob
 		&i.LastAttemptAt,
 		&i.WorkerID,
 		&i.IndexDigest,
+		&i.TraceContext,
 	)
 	return i, err
 }
 
 const insertScanJob = `-- name: InsertScanJob :one
-INSERT INTO scan_jobs (registry_id, repository, digest, index_digest, tag, nats_msg_id)
-VALUES ($1::uuid, $2, $3, $4, $5, $6)
+INSERT INTO scan_jobs (registry_id, repository, digest, index_digest, tag, nats_msg_id, trace_context)
+VALUES ($1::uuid, $2, $3, $4, $5, $6, $7)
 ON CONFLICT (nats_msg_id) DO UPDATE
-    SET state           = CASE WHEN scan_jobs.state = 'succeeded' OR (scan_jobs.state = 'pruned' AND $7::boolean) THEN 'queued'::text ELSE scan_jobs.state END,
-        attempts        = CASE WHEN scan_jobs.state = 'succeeded' OR (scan_jobs.state = 'pruned' AND $7::boolean) THEN 0 ELSE scan_jobs.attempts END,
+    SET state           = CASE WHEN scan_jobs.state = 'succeeded' OR (scan_jobs.state = 'pruned' AND $8::boolean) THEN 'queued'::text ELSE scan_jobs.state END,
+        attempts        = CASE WHEN scan_jobs.state = 'succeeded' OR (scan_jobs.state = 'pruned' AND $8::boolean) THEN 0 ELSE scan_jobs.attempts END,
         last_error      = CASE WHEN scan_jobs.state = 'succeeded' THEN NULL           ELSE scan_jobs.last_error      END,
         finished_at     = CASE WHEN scan_jobs.state = 'succeeded' THEN NULL           ELSE scan_jobs.finished_at     END,
         started_at      = CASE WHEN scan_jobs.state = 'succeeded' THEN NULL           ELSE scan_jobs.started_at      END,
-        last_attempt_at = CASE WHEN scan_jobs.state = 'succeeded' OR (scan_jobs.state = 'pruned' AND $7::boolean) THEN NULL ELSE scan_jobs.last_attempt_at END,
+        last_attempt_at = CASE WHEN scan_jobs.state = 'succeeded' OR (scan_jobs.state = 'pruned' AND $8::boolean) THEN NULL ELSE scan_jobs.last_attempt_at END,
         sbom_id         = CASE WHEN scan_jobs.state = 'succeeded' THEN NULL           ELSE scan_jobs.sbom_id         END,
         index_digest    = EXCLUDED.index_digest,
-        tag             = EXCLUDED.tag
-RETURNING id, registry_id, repository, digest, tag, state, attempts, last_error, nats_msg_id, sbom_id, created_at, started_at, finished_at, last_attempt_at, worker_id, index_digest
+        tag             = EXCLUDED.tag,
+        -- A row this upsert re-queues is a new run, so it joins the caller's trace
+        -- (ADR-0055 T3); an active row keeps the trace that queued it.
+        trace_context   = CASE WHEN scan_jobs.state = 'succeeded' OR (scan_jobs.state = 'pruned' AND $8::boolean) THEN EXCLUDED.trace_context ELSE scan_jobs.trace_context END
+RETURNING id, registry_id, repository, digest, tag, state, attempts, last_error, nats_msg_id, sbom_id, created_at, started_at, finished_at, last_attempt_at, worker_id, index_digest, trace_context
 `
 
 type InsertScanJobParams struct {
-	RegistryID  pgtype.UUID `json:"registry_id"`
-	Repository  string      `json:"repository"`
-	Digest      string      `json:"digest"`
-	IndexDigest pgtype.Text `json:"index_digest"`
-	Tag         pgtype.Text `json:"tag"`
-	NatsMsgID   pgtype.Text `json:"nats_msg_id"`
-	Force       bool        `json:"force"`
+	RegistryID   pgtype.UUID `json:"registry_id"`
+	Repository   string      `json:"repository"`
+	Digest       string      `json:"digest"`
+	IndexDigest  pgtype.Text `json:"index_digest"`
+	Tag          pgtype.Text `json:"tag"`
+	NatsMsgID    pgtype.Text `json:"nats_msg_id"`
+	TraceContext pgtype.Text `json:"trace_context"`
+	Force        bool        `json:"force"`
 }
 
 // On conflict with a 'succeeded' row, reset it to queued so a re-scan of an
@@ -415,6 +426,7 @@ func (q *Queries) InsertScanJob(ctx context.Context, arg InsertScanJobParams) (S
 		arg.IndexDigest,
 		arg.Tag,
 		arg.NatsMsgID,
+		arg.TraceContext,
 		arg.Force,
 	)
 	var i ScanJob
@@ -435,13 +447,14 @@ func (q *Queries) InsertScanJob(ctx context.Context, arg InsertScanJobParams) (S
 		&i.LastAttemptAt,
 		&i.WorkerID,
 		&i.IndexDigest,
+		&i.TraceContext,
 	)
 	return i, err
 }
 
 const listScanJobs = `-- name: ListScanJobs :many
 
-SELECT j.id, j.registry_id, j.repository, j.digest, j.tag, j.state, j.attempts, j.last_error, j.nats_msg_id, j.sbom_id, j.created_at, j.started_at, j.finished_at, j.last_attempt_at, j.worker_id, j.index_digest FROM scan_jobs j
+SELECT j.id, j.registry_id, j.repository, j.digest, j.tag, j.state, j.attempts, j.last_error, j.nats_msg_id, j.sbom_id, j.created_at, j.started_at, j.finished_at, j.last_attempt_at, j.worker_id, j.index_digest, j.trace_context FROM scan_jobs j
 WHERE ($1::text IS NULL OR j.state = $1::text)
   AND (
     COALESCE($2::boolean, false)
@@ -511,6 +524,7 @@ func (q *Queries) ListScanJobs(ctx context.Context, arg ListScanJobsParams) ([]S
 			&i.LastAttemptAt,
 			&i.WorkerID,
 			&i.IndexDigest,
+			&i.TraceContext,
 		); err != nil {
 			return nil, err
 		}

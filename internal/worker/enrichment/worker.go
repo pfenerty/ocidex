@@ -117,7 +117,7 @@ func Run(factory EnricherFactory, cfg RunConfig) error {
 	}
 	dispatcher := enrichment.NewDispatcher(enrichStore, enrichReg)
 
-	_, stopTracing := tracing.Start(ctx, "ocidex-enricher-"+cfg.EnricherName)
+	tracerProvider, stopTracing := tracing.Start(ctx, "ocidex-enricher-"+cfg.EnricherName)
 	defer stopTracing()
 	meterProvider, metricsHandler, stopMetrics := metrics.Start(ctx, "ocidex-enricher-"+cfg.EnricherName)
 	defer stopMetrics()
@@ -166,7 +166,7 @@ func Run(factory EnricherFactory, cfg RunConfig) error {
 			HintDurable:       cfg.HintDurable,
 		},
 		logger,
-	).WithMetrics(meterProvider, cfg.EnricherName))
+	).WithMetrics(meterProvider, cfg.EnricherName).WithTracing(tracerProvider, "enrich "+cfg.EnricherName))
 
 	if err := reg.InitAll(); err != nil {
 		return fmt.Errorf("initializing extensions: %w", err)

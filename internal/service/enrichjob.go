@@ -11,6 +11,7 @@ import (
 	"github.com/jackc/pgx/v5/pgxpool"
 
 	"github.com/pfenerty/ocidex/internal/repository"
+	"github.com/pfenerty/ocidex/internal/tracing"
 )
 
 // EnrichJobClaim is the "ready-to-enrich" projection a worker receives after
@@ -30,7 +31,13 @@ type EnrichJobClaim struct {
 	ArtifactName   string
 	RegistryID     pgtype.UUID
 	SourceKind     string
+	// TraceContext is the encoded trace context of whatever queued the job
+	// (ADR-0055 T3), empty when tracing was off.
+	TraceContext string
 }
+
+// JobTraceContext satisfies jobqueue.TraceCarrier.
+func (c EnrichJobClaim) JobTraceContext() string { return c.TraceContext }
 
 func (c EnrichJobClaim) JobID() string      { return c.ID }
 func (c EnrichJobClaim) JobAttempts() int32 { return c.Attempts }
@@ -124,6 +131,9 @@ func (s *enrichJobService) Enqueue(ctx context.Context, sbomID pgtype.UUID, arch
 		Architecture:   pgtype.Text{String: architecture, Valid: architecture != ""},
 		BuildDate:      pgtype.Text{String: buildDate, Valid: buildDate != ""},
 		EnricherName:   enricherName,
+		// The caller's trace, so the worker's job span joins it (ADR-0055 T3). A
+		// duplicate row keeps the trace that first queued it.
+		TraceContext: toNullText(nullStr(tracing.Inject(ctx))),
 	})
 	if err != nil {
 		if isUniqueViolation(err) {
@@ -327,6 +337,7 @@ func enrichClaimFromRow(r repository.ClaimEnrichmentJobByIDRow) EnrichJobClaim {
 		ArtifactName:   r.ArtifactName,
 		RegistryID:     r.SourceID,
 		SourceKind:     r.SourceKind,
+		TraceContext:   r.TraceContext,
 	}
 }
 
@@ -345,5 +356,6 @@ func enrichClaimFromNextRow(r repository.ClaimNextEnrichmentJobRow) EnrichJobCla
 		ArtifactName:   r.ArtifactName,
 		RegistryID:     r.SourceID,
 		SourceKind:     r.SourceKind,
+		TraceContext:   r.TraceContext,
 	}
 }

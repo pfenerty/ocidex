@@ -123,7 +123,7 @@ func run() error {
 	enrichJobSvc := service.NewEnrichJobService(pool, "")
 	registry.Register(enrichment.NewNATSSubmitter(natsClient, cfg.NATSStreamName, enrichJobSvc, logger))
 
-	_, stopTracing := tracing.Start(ctx, "ocidex-scanner-worker")
+	tracerProvider, stopTracing := tracing.Start(ctx, "ocidex-scanner-worker")
 	defer stopTracing()
 	meterProvider, metricsHandler, stopMetrics := metrics.Start(ctx, "ocidex-scanner-worker")
 	defer stopMetrics()
@@ -156,7 +156,7 @@ func run() error {
 			HintDurable:       scanner.ScannerHintDurable,
 		},
 		logger,
-	).WithMetrics(meterProvider, "scan"))
+	).WithMetrics(meterProvider, "scan").WithTracing(tracerProvider, "scan job"))
 
 	// Wire catalog walk consumer: receives catalog.walk.requested from the API server poller
 	// and performs the OCI catalog walk here in the scanner-worker.

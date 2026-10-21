@@ -10,6 +10,7 @@ import (
 
 	"github.com/nats-io/nats.go"
 	"github.com/nats-io/nats.go/jetstream"
+	"go.opentelemetry.io/otel/propagation"
 
 	"github.com/pfenerty/ocidex/internal/event"
 	natspkg "github.com/pfenerty/ocidex/internal/nats"
@@ -191,6 +192,8 @@ func (e *NATSCatalogExtension) handleMsg(ctx context.Context, msg natsMsg) {
 		return
 	}
 
+	// Continue the trace of whoever requested the walk (ADR-0055 T3).
+	ctx = propagation.TraceContext{}.Extract(ctx, propagation.HeaderCarrier(msg.Headers()))
 	walkCtx, cancel := context.WithTimeout(ctx, 30*time.Minute)
 	defer cancel()
 

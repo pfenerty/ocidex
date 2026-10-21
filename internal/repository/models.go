@@ -175,6 +175,7 @@ type EnrichmentJob struct {
 	LastAttemptAt  pgtype.Timestamptz `json:"last_attempt_at"`
 	FinishedAt     pgtype.Timestamptz `json:"finished_at"`
 	EnricherName   string             `json:"enricher_name"`
+	TraceContext   pgtype.Text        `json:"trace_context"`
 }
 
 type ExternalReference struct {
@@ -367,6 +368,7 @@ type ScanJob struct {
 	LastAttemptAt pgtype.Timestamptz `json:"last_attempt_at"`
 	WorkerID      pgtype.Text        `json:"worker_id"`
 	IndexDigest   pgtype.Text        `json:"index_digest"`
+	TraceContext  pgtype.Text        `json:"trace_context"`
 }
 
 type Session struct {

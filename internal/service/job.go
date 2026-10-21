@@ -12,6 +12,7 @@ import (
 
 	"github.com/pfenerty/ocidex/internal/repository"
 	"github.com/pfenerty/ocidex/internal/secretbox"
+	"github.com/pfenerty/ocidex/internal/tracing"
 )
 
 // ScanJobState represents the lifecycle state of a scan job.
@@ -61,7 +62,13 @@ type ScanJobClaim struct {
 	AuthUsername string
 	AuthToken    string
 	Attempts     int32
+	// TraceContext is the encoded trace context of whatever queued the job
+	// (ADR-0055 T3), empty when tracing was off.
+	TraceContext string
 }
+
+// JobTraceContext satisfies jobqueue.TraceCarrier.
+func (c ScanJobClaim) JobTraceContext() string { return c.TraceContext }
 
 func (c ScanJobClaim) JobID() string      { return c.ID }
 func (c ScanJobClaim) JobAttempts() int32 { return c.Attempts }
@@ -135,6 +142,8 @@ func (s *jobService) Enqueue(ctx context.Context, registryID, repo, digest, inde
 		Tag:         toNullText(nullStr(tag)),
 		NatsMsgID:   toNullText(nullStr(msgID)),
 		Force:       force,
+		// The caller's trace, so the worker's job span joins it (ADR-0055 T3).
+		TraceContext: toNullText(nullStr(tracing.Inject(ctx))),
 	})
 	if err != nil {
 		return ScanJob{}, fmt.Errorf("inserting scan job: %w", err)
@@ -307,7 +316,7 @@ func (s *jobService) ClaimByID(ctx context.Context, id, workerID string) (ScanJo
 		return ScanJobClaim{}, false, err
 	}
 	return claimFromRow(row.ID, row.RegistryID, row.Repository, row.Digest, row.IndexDigest,
-		row.Tag, row.RegistryUrl, row.Insecure, row.AuthUsername, authToken, row.Attempts), true, nil
+		row.Tag, row.RegistryUrl, row.Insecure, row.AuthUsername, authToken, row.Attempts, row.TraceContext), true, nil
 }
 
 func (s *jobService) ClaimNext(ctx context.Context, workerID string) (ScanJobClaim, bool, error) {
@@ -323,7 +332,7 @@ func (s *jobService) ClaimNext(ctx context.Context, workerID string) (ScanJobCla
 		return ScanJobClaim{}, false, err
 	}
 	return claimFromRow(row.ID, row.RegistryID, row.Repository, row.Digest, row.IndexDigest,
-		row.Tag, row.RegistryUrl, row.Insecure, row.AuthUsername, authToken, row.Attempts), true, nil
+		row.Tag, row.RegistryUrl, row.Insecure, row.AuthUsername, authToken, row.Attempts, row.TraceContext), true, nil
 }
 
 func (s *jobService) FinishByID(ctx context.Context, id string, sbomID pgtype.UUID) error {
@@ -399,7 +408,7 @@ func (s *jobService) openAuthToken(registryID, stored string) (string, error) {
 	return openCredential(s.box, colAuthToken, registryID, stored)
 }
 
-func claimFromRow(id pgtype.UUID, registryID, repo, digest, indexDigest, tag, registryURL string, insecure bool, authUser, authToken string, attempts int32) ScanJobClaim {
+func claimFromRow(id pgtype.UUID, registryID, repo, digest, indexDigest, tag, registryURL string, insecure bool, authUser, authToken string, attempts int32, traceContext string) ScanJobClaim {
 	return ScanJobClaim{
 		ID:           uuidToStr(id),
 		RegistryID:   registryID,
@@ -412,6 +421,7 @@ func claimFromRow(id pgtype.UUID, registryID, repo, digest, indexDigest, tag, re
 		AuthUsername: authUser,
 		AuthToken:    authToken,
 		Attempts:     attempts,
+		TraceContext: traceContext,
 	}
 }
 

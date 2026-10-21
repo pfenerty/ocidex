@@ -22,8 +22,8 @@
 -- budget of SCANNER_MAX_ATTEMPTS to ride out a blip, so what this gives up is
 -- automatic recovery from an outage longer than the budget — in exchange for a
 -- failed row that is still there to be read.
-INSERT INTO scan_jobs (registry_id, repository, digest, index_digest, tag, nats_msg_id)
-VALUES (sqlc.narg('registry_id')::uuid, @repository, @digest, sqlc.narg('index_digest'), sqlc.narg('tag'), sqlc.narg('nats_msg_id'))
+INSERT INTO scan_jobs (registry_id, repository, digest, index_digest, tag, nats_msg_id, trace_context)
+VALUES (sqlc.narg('registry_id')::uuid, @repository, @digest, sqlc.narg('index_digest'), sqlc.narg('tag'), sqlc.narg('nats_msg_id'), sqlc.narg('trace_context'))
 ON CONFLICT (nats_msg_id) DO UPDATE
     SET state           = CASE WHEN scan_jobs.state = 'succeeded' OR (scan_jobs.state = 'pruned' AND @force::boolean) THEN 'queued'::text ELSE scan_jobs.state END,
         attempts        = CASE WHEN scan_jobs.state = 'succeeded' OR (scan_jobs.state = 'pruned' AND @force::boolean) THEN 0 ELSE scan_jobs.attempts END,
@@ -33,7 +33,10 @@ ON CONFLICT (nats_msg_id) DO UPDATE
         last_attempt_at = CASE WHEN scan_jobs.state = 'succeeded' OR (scan_jobs.state = 'pruned' AND @force::boolean) THEN NULL ELSE scan_jobs.last_attempt_at END,
         sbom_id         = CASE WHEN scan_jobs.state = 'succeeded' THEN NULL           ELSE scan_jobs.sbom_id         END,
         index_digest    = EXCLUDED.index_digest,
-        tag             = EXCLUDED.tag
+        tag             = EXCLUDED.tag,
+        -- A row this upsert re-queues is a new run, so it joins the caller's trace
+        -- (ADR-0055 T3); an active row keeps the trace that queued it.
+        trace_context   = CASE WHEN scan_jobs.state = 'succeeded' OR (scan_jobs.state = 'pruned' AND @force::boolean) THEN EXCLUDED.trace_context ELSE scan_jobs.trace_context END
 RETURNING *;
 
 -- name: StartScanJob :exec
@@ -145,7 +148,7 @@ WITH claimed AS (
         attempts        = attempts + 1
     WHERE id = @id::uuid
       AND state = 'queued'
-    RETURNING id, registry_id, repository, digest, index_digest, tag, attempts
+    RETURNING id, registry_id, repository, digest, index_digest, tag, attempts, trace_context
 )
 SELECT
     c.id,
@@ -158,7 +161,8 @@ SELECT
     COALESCE(r.insecure, false)::bool           AS insecure,
     COALESCE(r.auth_username, '')::text         AS auth_username,
     COALESCE(r.auth_token, '')::text            AS auth_token,
-    c.attempts
+    c.attempts,
+    COALESCE(c.trace_context, '')::text         AS trace_context
 FROM claimed c
 LEFT JOIN registry r ON r.id = c.registry_id;
 
@@ -178,7 +182,7 @@ claimed AS (
         worker_id       = @worker_id::text,
         attempts        = attempts + 1
     WHERE id IN (SELECT id FROM next_id)
-    RETURNING id, registry_id, repository, digest, index_digest, tag, attempts
+    RETURNING id, registry_id, repository, digest, index_digest, tag, attempts, trace_context
 )
 SELECT
     c.id,
@@ -191,7 +195,8 @@ SELECT
     COALESCE(r.insecure, false)::bool           AS insecure,
     COALESCE(r.auth_username, '')::text         AS auth_username,
     COALESCE(r.auth_token, '')::text            AS auth_token,
-    c.attempts
+    c.attempts,
+    COALESCE(c.trace_context, '')::text         AS trace_context
 FROM claimed c
 LEFT JOIN registry r ON r.id = c.registry_id;
 

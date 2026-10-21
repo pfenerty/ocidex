@@ -8,8 +8,10 @@ import (
 	"go.opentelemetry.io/otel/attribute"
 	"go.opentelemetry.io/otel/metric"
 	"go.opentelemetry.io/otel/metric/noop"
+	"go.opentelemetry.io/otel/trace"
 
 	"github.com/pfenerty/ocidex/internal/metrics"
+	"github.com/pfenerty/ocidex/internal/tracing"
 )
 
 // Job outcomes for ocidex.jobs.processed (ADR-0054 M5).
@@ -46,6 +48,38 @@ func noopWorkerMetrics() workerMetrics {
 	processed, _ := m.Int64Counter("")
 	duration, _ := m.Float64Histogram("")
 	return workerMetrics{processed: processed, duration: duration}
+}
+
+// TraceCarrier is implemented by a Claim that carries the trace context of
+// whatever queued it (ADR-0055 T3). The job's span is then that trace's child,
+// whichever path claimed the row.
+type TraceCarrier interface {
+	JobTraceContext() string
+}
+
+// WithTracing starts a consumer span named spanName ("scan job", "enrich
+// oci-metadata") around each job on tp. Call it before Start.
+func (w *Worker[C]) WithTracing(tp trace.TracerProvider, spanName string) *Worker[C] {
+	w.tracer = tracing.Tracer(tp)
+	w.spanName = spanName
+	return w
+}
+
+// startJobSpan parents the job's span on the claim's stored context and returns
+// the context the processor runs in, so its queries, publishes and any jobs it
+// queues join the same trace.
+func (w *Worker[C]) startJobSpan(ctx context.Context, claim C) (context.Context, trace.Span) {
+	if tc, ok := any(claim).(TraceCarrier); ok {
+		ctx = tracing.Extract(ctx, tc.JobTraceContext())
+	}
+	attrs := []attribute.KeyValue{
+		attribute.String("ocidex.job.id", claim.JobID()),
+		attribute.Int("ocidex.job.attempt", int(claim.JobAttempts())),
+	}
+	if w.metrics.queue.Valid() {
+		attrs = append(attrs, w.metrics.queue)
+	}
+	return w.tracer.Start(ctx, w.spanName, trace.WithSpanKind(trace.SpanKindConsumer), trace.WithAttributes(attrs...))
 }
 
 // WithMetrics records the worker's jobs on mp under the given queue label: scan,

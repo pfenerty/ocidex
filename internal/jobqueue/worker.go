@@ -25,6 +25,10 @@ import (
 	"time"
 
 	"github.com/nats-io/nats.go/jetstream"
+	"go.opentelemetry.io/otel/attribute"
+	"go.opentelemetry.io/otel/codes"
+	"go.opentelemetry.io/otel/trace"
+	tracenoop "go.opentelemetry.io/otel/trace/noop"
 
 	"github.com/pfenerty/ocidex/internal/event"
 	natspkg "github.com/pfenerty/ocidex/internal/nats"
@@ -75,6 +79,8 @@ type Worker[C Claim] struct {
 	cfg        Config
 	logger     *slog.Logger
 	metrics    workerMetrics
+	tracer     trace.Tracer
+	spanName   string
 
 	hints        chan string
 	consume      jetstream.ConsumeContext
@@ -107,6 +113,8 @@ func NewWorker[C Claim](
 		cfg:        cfg,
 		logger:     logger,
 		metrics:    noopWorkerMetrics(),
+		tracer:     tracenoop.NewTracerProvider().Tracer(""),
+		spanName:   name,
 		hints:      make(chan string, cfg.MaxConc*4),
 	}
 }
@@ -254,6 +262,8 @@ func (w *Worker[C]) drainPoll(ctx context.Context) {
 const failNow int32 = 0
 
 func (w *Worker[C]) run(ctx context.Context, claim C) {
+	ctx, span := w.startJobSpan(ctx, claim)
+	defer span.End()
 	jobCtx, cancel := context.WithTimeout(ctx, w.cfg.JobTimeout)
 	defer cancel()
 
@@ -264,6 +274,8 @@ func (w *Worker[C]) run(ctx context.Context, claim C) {
 		w.metrics.record(ctx, outcomeSuccess, elapsed)
 		return
 	}
+	span.RecordError(err)
+	span.SetStatus(codes.Error, "job failed")
 
 	permanent := errors.Is(err, ErrPermanent)
 	w.logger.Error(w.name+": job failed",
@@ -280,6 +292,7 @@ func (w *Worker[C]) run(ctx context.Context, claim C) {
 		outcome = outcomePermanentFailure
 	}
 	w.metrics.record(ctx, outcome, elapsed)
+	span.SetAttributes(attribute.String("ocidex.job.outcome", outcome))
 	if ferr != nil {
 		w.logger.Error(w.name+": fail-or-requeue", "id", claim.JobID(), "err", ferr)
 	} else {

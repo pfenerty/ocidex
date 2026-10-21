@@ -9,9 +9,14 @@ import (
 	"github.com/matryer/is"
 	"github.com/nats-io/nats.go"
 	"github.com/nats-io/nats.go/jetstream"
+	"go.opentelemetry.io/otel"
 	"go.opentelemetry.io/otel/attribute"
+	"go.opentelemetry.io/otel/propagation"
 	sdkmetric "go.opentelemetry.io/otel/sdk/metric"
 	"go.opentelemetry.io/otel/sdk/metric/metricdata"
+	sdktrace "go.opentelemetry.io/otel/sdk/trace"
+	"go.opentelemetry.io/otel/sdk/trace/tracetest"
+	"go.opentelemetry.io/otel/trace"
 )
 
 func TestSubjectClass(t *testing.T) {
@@ -94,9 +99,9 @@ func TestPublishMetrics(t *testing.T) {
 	is.NoErr(err)
 	_, err = bad.PublishMsg(t.Context(), msg("ocidex.scan.hint"))
 	is.True(err != nil)
-	_, err = ok.PublishMsgAsync(msg("ocidex.enrich.hint"))
+	_, err = ok.PublishMsgAsync(t.Context(), msg("ocidex.enrich.hint"))
 	is.NoErr(err)
-	_, err = bad.PublishMsgAsync(msg("ocidex.enrich.hint"))
+	_, err = bad.PublishMsgAsync(t.Context(), msg("ocidex.enrich.hint"))
 	is.NoErr(err) // the failure arrives on the future
 
 	want := map[string]int64{
@@ -120,4 +125,32 @@ func TestPublishWithoutMetrics(t *testing.T) {
 	c := &Client{JS: stubJS{ack: &jetstream.PubAck{}}}
 	_, err := c.PublishMsg(t.Context(), &nats.Msg{Subject: "ocidex.scan.hint"})
 	is.NoErr(err) // no counter configured: publishing still works
+}
+
+func TestPublishInjectsTraceContext(t *testing.T) {
+	is := is.New(t)
+	exp := tracetest.NewInMemoryExporter()
+	tp := sdktrace.NewTracerProvider(sdktrace.WithSyncer(exp))
+	prev := otel.GetTracerProvider()
+	otel.SetTracerProvider(tp) // the client records on the global provider
+	t.Cleanup(func() { otel.SetTracerProvider(prev) })
+
+	ctx, parent := tp.Tracer("test").Start(context.Background(), "walk request")
+	msg := &nats.Msg{Subject: "ocidex.catalog.walk.requested"}
+	_, err := (&Client{JS: stubJS{ack: &jetstream.PubAck{}}}).PublishMsg(ctx, msg)
+	is.NoErr(err)
+	parent.End()
+
+	var publish sdktrace.ReadOnlySpan
+	for _, s := range exp.GetSpans().Snapshots() {
+		if s.Name() == "publish catalog.walk.requested" {
+			publish = s
+		}
+	}
+	is.True(publish != nil)
+	is.Equal(publish.SpanKind(), trace.SpanKindProducer)
+	is.Equal(publish.Parent().SpanID(), parent.SpanContext().SpanID())
+	// The header carries the publish span, so a consumer becomes its child.
+	got := propagation.TraceContext{}.Extract(context.Background(), propagation.HeaderCarrier(msg.Header))
+	is.Equal(trace.SpanContextFromContext(got).SpanID(), publish.SpanContext().SpanID())
 }
