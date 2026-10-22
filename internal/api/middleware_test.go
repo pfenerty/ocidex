@@ -108,6 +108,10 @@ func (f *fakeRegistryService) RecordWalkStats(_ context.Context, _ string, _ ser
 	return nil
 }
 
+func (f *fakeRegistryService) LastWalks(context.Context) (map[string]service.WalkStats, error) {
+	return nil, nil
+}
+
 func (f *fakeRegistryService) TrustSummary(_ context.Context, _ service.VisibilityFilter) ([]service.RegistryTrustCount, error) {
 	return nil, nil
 }
