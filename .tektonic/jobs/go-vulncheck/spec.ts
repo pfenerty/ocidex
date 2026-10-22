@@ -47,13 +47,14 @@ export const goVulncheck = sarifScanTask({
         // ./cmd/...), so 6Gi may be tight in-cluster; the watchdog then fails the check, not the node.
         { name: "GOMEMLIMIT", value: "5GiB" },
       ],
-      // The request is what the scan really holds, so the scheduler keeps a second concurrent
-      // scan (PR + push runs) and ocidex-pg from being packed onto the node beside it. The limit
-      // stays at homelab's 6Gi per-container cap for CI namespaces; if the live set outgrows it,
-      // the watchdog turns that into a failed report-only check rather than a node outage.
+      // The request is as high as the node allows: after the kubelet reservation the always-on
+      // services already request ~7.6Gi of x86-01's ~13Gi, and Tekton sums every step's request,
+      // so a 5Gi scan step (5.6Gi pod) never schedules. 4Gi still keeps a second concurrent scan
+      // off the node. The limit is homelab's 6Gi per-container cap for CI namespaces; if the live
+      // set outgrows it, the watchdog fails the report-only check rather than the node.
       computeResources: {
         limits: { cpu: "2", memory: "6Gi", "ephemeral-storage": "4Gi" },
-        requests: { cpu: "500m", memory: "5Gi", "ephemeral-storage": "2Gi" },
+        requests: { cpu: "500m", memory: "4Gi", "ephemeral-storage": "2Gi" },
       },
       // Scan from the command entry points (./cmd/...) rather than ./... : it still follows every
       // import the binaries actually use (so no production vuln is missed), but drops test files
