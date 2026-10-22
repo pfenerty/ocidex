@@ -134,14 +134,14 @@ spec:
         limits:
           cpu: "2"
           ephemeral-storage: 4Gi
-          memory: 10Gi
+          memory: 6Gi
         requests:
           cpu: 500m
           ephemeral-storage: 2Gi
-          memory: 4Gi
+          memory: 5Gi
       env:
         - name: GOMEMLIMIT
-          value: 8GiB
+          value: 5GiB
       image: ghcr.io/pfenerty/apko-cicd/govulncheck:1.9.0-go1.27
       name: govulncheck-scan
       onError: continue

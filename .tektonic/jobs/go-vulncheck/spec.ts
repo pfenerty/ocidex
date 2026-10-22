@@ -36,19 +36,24 @@ export const goVulncheck = sarifScanTask({
       env: [
         // govulncheck's whole-program SSA call graph is memory-hungry and grows with the dep
         // tree (grype/syft/AWS-SDK/k8s/cosign/sigstore-go) — it OOMKilled at 2Gi, 4Gi, 6Gi,
-        // then 10Gi (ocidex-2w2). Confirmed NOT a scheduling issue: the cluster's other three
-        // nodes are control-plane-tainted and have never been schedulable for this pod;
-        // talos-jlf-6ro (the only schedulable node) has always had ample free memory when this
-        // OOMKilled. GOMEMLIMIT gives the Go GC a soft target below the hard cgroup ceiling so
-        // it collects proactively instead of growing heap until the kernel OOM-kills it.
-        { name: "GOMEMLIMIT", value: "8GiB" },
+        // then 10Gi (ocidex-2w2), before the scan was narrowed to ./cmd/... and wrapped in the
+        // watchdog below. GOMEMLIMIT gives the Go GC a soft target below the hard cgroup ceiling
+        // so it collects proactively instead of growing heap until the kernel OOM-kills it.
+        //
+        // It must sit well under the node's spare memory, not just under this step's limit: at
+        // 8GiB the heap grew to ~2x its live set (8.3GB RSS) on talos-jlf-6ro, the only
+        // schedulable node, next to ocidex-pg, and Talos's OOM controller took the node down
+        // (ocidex-kt3x, homelab-ctd). Locally it peaks at 4.0-5.3GiB (v1.9.0, linux/amd64,
+        // ./cmd/...), so 6Gi may be tight in-cluster; the watchdog then fails the check, not the node.
+        { name: "GOMEMLIMIT", value: "5GiB" },
       ],
-      // Reflects realistic usage (~3.2GB measured locally), not a scheduling hint — there's
-      // only one schedulable node, so an inflated request just crowds out sibling pipeline
-      // tasks (go-build, go-test, etc.) competing for the same node during a PR run.
+      // The request is what the scan really holds, so the scheduler keeps a second concurrent
+      // scan (PR + push runs) and ocidex-pg from being packed onto the node beside it. The limit
+      // stays at homelab's 6Gi per-container cap for CI namespaces; if the live set outgrows it,
+      // the watchdog turns that into a failed report-only check rather than a node outage.
       computeResources: {
-        limits: { cpu: "2", memory: "10Gi", "ephemeral-storage": "4Gi" },
-        requests: { cpu: "500m", memory: "4Gi", "ephemeral-storage": "2Gi" },
+        limits: { cpu: "2", memory: "6Gi", "ephemeral-storage": "4Gi" },
+        requests: { cpu: "500m", memory: "5Gi", "ephemeral-storage": "2Gi" },
       },
       // Scan from the command entry points (./cmd/...) rather than ./... : it still follows every
       // import the binaries actually use (so no production vuln is missed), but drops test files
@@ -56,7 +61,7 @@ export const goVulncheck = sarifScanTask({
       // in what we ship" than including _test.go entry points.
       //
       // GOMEMLIMIT only prevents OOM from reclaimable garbage — if the live working set itself
-      // exceeds the 10Gi limit, the kernel still OOM-kills the container, and OOMKilled bypasses
+      // exceeds the 6Gi limit, the kernel still OOM-kills the container, and OOMKilled bypasses
       // this step's `onError: continue` entirely (Tekton treats it as an infrastructure failure,
       // not a script exit code), hard-failing the TaskRun/PipelineRun despite the report-only
       // design. So govulncheck runs as a child process under a watchdog that polls this cgroup's
