@@ -134,14 +134,14 @@ spec:
         limits:
           cpu: "2"
           ephemeral-storage: 4Gi
-          memory: 10Gi
+          memory: 6Gi
         requests:
           cpu: 500m
           ephemeral-storage: 2Gi
           memory: 4Gi
       env:
         - name: GOMEMLIMIT
-          value: 8GiB
+          value: 5GiB
       image: ghcr.io/pfenerty/apko-cicd/govulncheck:1.9.0-go1.27
       name: govulncheck-scan
       onError: continue
@@ -153,30 +153,80 @@ spec:
         def main [] {
         log $"go=(go version) uid=(id -u) pwd=(pwd)"
         ^git config --global --add safe.directory (pwd)
-        log "Running govulncheck -format sarif ./cmd/..."
-        ^sh -c r#'govulncheck -format sarif ./cmd/... > govulncheck.sarif &
-        pid=$!
-        max_file=/sys/fs/cgroup/memory.max
-        cur_file=/sys/fs/cgroup/memory.current
-        [ -f "$max_file" ] || max_file=/sys/fs/cgroup/memory/memory.limit_in_bytes
-        [ -f "$cur_file" ] || cur_file=/sys/fs/cgroup/memory/memory.usage_in_bytes
-        mem_max=$(cat "$max_file" 2>/dev/null || echo 0)
-        if [ "$mem_max" != "max" ] && [ "$mem_max" -gt 0 ] 2>/dev/null; then
-          threshold=$((mem_max * 92 / 100))
-          while kill -0 "$pid" 2>/dev/null; do
-            cur=$(cat "$cur_file" 2>/dev/null || echo 0)
-            if [ "$cur" -gt "$threshold" ] 2>/dev/null; then
-              echo "govulncheck: usage $cur bytes exceeded 92% of cgroup limit $mem_max - self-terminating before kernel OOM-kill" >&2
-              kill -TERM "$pid" 2>/dev/null
-              sleep 2
-              kill -KILL "$pid" 2>/dev/null
-              wait "$pid" 2>/dev/null
-              exit 99
+        let bins = (ls cmd | where type == dir | get name | each {|d| $d | path basename} | sort)
+        let package_bins = ["scanner-worker" "vuln-parity" "vuln-worker"]
+        mut failed = []
+        for bin in $bins {
+          # The watchdog's command is sh, so the binary and scan mode cross over as env vars.
+          $env.VULN_BIN = $bin
+          $env.VULN_SCAN = (if $bin in $package_bins { "package" } else { "symbol" })
+          log $"Running govulncheck -scan ($env.VULN_SCAN) -format sarif ./cmd/($bin)"
+          # try yields a value rather than mutating $failed: catch is a closure and can't capture it.
+          let ok = (try {
+            ^sh -c r#'govulncheck -scan "$VULN_SCAN" -format sarif "./cmd/$VULN_BIN" > "govulncheck-$VULN_BIN.sarif" &
+            pid=$!
+            max_file=/sys/fs/cgroup/memory.max
+            cur_file=/sys/fs/cgroup/memory.current
+            [ -f "$max_file" ] || max_file=/sys/fs/cgroup/memory/memory.limit_in_bytes
+            [ -f "$cur_file" ] || cur_file=/sys/fs/cgroup/memory/memory.usage_in_bytes
+            stat_file=/sys/fs/cgroup/memory.stat
+            mem_max=$(cat "$max_file" 2>/dev/null || echo 0)
+            peak=0
+            if [ "$mem_max" != "max" ] && [ "$mem_max" -gt 0 ] 2>/dev/null; then
+              threshold=$((mem_max * 92 / 100))
+              while kill -0 "$pid" 2>/dev/null; do
+                cur=$(cat "$cur_file" 2>/dev/null || echo 0)
+                # Working set, as kubelet counts it: memory.current less reclaimable inactive page cache,
+                # which builds up when one step runs the tool many times and is freed before any OOM-kill.
+                inactive=$(awk '$1 == "inactive_file" { print $2 }' "$stat_file" 2>/dev/null)
+                [ -n "$inactive" ] && cur=$((cur - inactive))
+                [ "$cur" -gt "$peak" ] 2>/dev/null && peak=$cur
+                if [ "$cur" -gt "$threshold" ] 2>/dev/null; then
+                  echo "govulncheck: usage $cur bytes exceeded 92% of cgroup limit $mem_max - self-terminating before kernel OOM-kill" >&2
+                  kill -TERM "$pid" 2>/dev/null
+                  sleep 2
+                  kill -KILL "$pid" 2>/dev/null
+                  wait "$pid" 2>/dev/null
+                  exit 99
+                fi
+                sleep 1
+              done
             fi
-            sleep 1
-          done
-        fi
-        wait "$pid"'# sh
+            wait "$pid"
+            rc=$?
+            [ "$peak" -gt 0 ] && echo "govulncheck: peak working set $peak bytes of cgroup limit $mem_max" >&2
+            exit $rc'# sh
+            true
+          } catch {|e| log $"govulncheck ($bin): ($e.msg)"; false })
+          if not $ok { $failed = ($failed | append $bin) }
+        }
+
+        # Most severe level per vuln across binaries: called in one binary (error) beats merely
+        # imported (warning) or required (note) in another.
+        let rank = {error: 3, warning: 2, note: 1}
+        # A package scan reports any imported vulnerable package at level error, though it never looked
+        # at calls. Only a symbol scan can say "called", so package-scan errors count as warnings.
+        let docs = ($bins | where {|b| $b not-in $failed} | each {|b|
+          let doc = (open --raw $"govulncheck-($b).sarif" | from json)
+          if $b in $package_bins {
+            let demoted = ($doc | get -o runs.0.results | default []
+              | each {|r| if $r.level == "error" { $r | update level "warning" } else { $r } })
+            $doc | update runs.0.results $demoted
+          } else { $doc }
+        })
+        if ($docs | is-not-empty) {
+          let merged_results = ($docs | each {|d| $d | get -o runs.0.results | default []} | flatten
+            | group-by ruleId | values
+            | each {|g| $g | sort-by --reverse {|r| $rank | get -o $r.level | default 0} | first})
+          let merged_rules = ($docs | each {|d| $d | get -o runs.0.tool.driver.rules | default []} | flatten | uniq-by id)
+          $docs | first | update runs.0.results $merged_results | update runs.0.tool.driver.rules $merged_rules
+            | to json | save -f govulncheck.sarif
+        }
+        # A binary the watchdog stopped has no findings to report, so the scan as a whole is incomplete.
+        # Fail after merging so the Security tab still gets every binary that did finish.
+        if ($failed | is-not-empty) {
+          error make {msg: $"govulncheck: scan did not finish for ($failed | str join ', ') (memory watchdog or error)"}
+        }
 
         let accepted = (if (".govulncheck-accepted.json" | path exists) { open --raw ".govulncheck-accepted.json" | from json } else { [] })
         let accepted_ids = ($accepted | get -o id | default [])
