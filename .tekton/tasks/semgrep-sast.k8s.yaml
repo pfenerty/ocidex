@@ -104,11 +104,18 @@ spec:
         cur_file=/sys/fs/cgroup/memory.current
         [ -f "$max_file" ] || max_file=/sys/fs/cgroup/memory/memory.limit_in_bytes
         [ -f "$cur_file" ] || cur_file=/sys/fs/cgroup/memory/memory.usage_in_bytes
+        stat_file=/sys/fs/cgroup/memory.stat
         mem_max=$(cat "$max_file" 2>/dev/null || echo 0)
+        peak=0
         if [ "$mem_max" != "max" ] && [ "$mem_max" -gt 0 ] 2>/dev/null; then
           threshold=$((mem_max * 92 / 100))
           while kill -0 "$pid" 2>/dev/null; do
             cur=$(cat "$cur_file" 2>/dev/null || echo 0)
+            # Working set, as kubelet counts it: memory.current less reclaimable inactive page cache,
+            # which builds up when one step runs the tool many times and is freed before any OOM-kill.
+            inactive=$(awk '$1 == "inactive_file" { print $2 }' "$stat_file" 2>/dev/null)
+            [ -n "$inactive" ] && cur=$((cur - inactive))
+            [ "$cur" -gt "$peak" ] 2>/dev/null && peak=$cur
             if [ "$cur" -gt "$threshold" ] 2>/dev/null; then
               echo "semgrep: usage $cur bytes exceeded 92% of cgroup limit $mem_max - self-terminating before kernel OOM-kill" >&2
               kill -TERM "$pid" 2>/dev/null
@@ -120,7 +127,10 @@ spec:
             sleep 1
           done
         fi
-        wait "$pid"'# sh
+        wait "$pid"
+        rc=$?
+        [ "$peak" -gt 0 ] && echo "semgrep: peak working set $peak bytes of cgroup limit $mem_max" >&2
+        exit $rc'# sh
         }
         let __tek_rc = (try { main; 0 } catch { |e| print $"error [semgrep-sast/semgrep-scan]: ($e.msg)"; 1 })
         let __tek_prev = (try { open --raw /tekton/home/.exit-code | str trim | into int } catch { 0 })

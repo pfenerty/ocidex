@@ -42,8 +42,9 @@ export const nodeSetup = fragment`
 // continue` entirely and hard-fails the TaskRun and PipelineRun despite a report-only design.
 // (Since tektonic-k2n.2 the reconciler at least marks such a task's check red instead of
 // leaving it pending, but the run still fails, which is what report-only exists to prevent.)
-// The watchdog runs the tool as a child process while polling this cgroup's own memory.current
-// against memory.max, and self-terminates the child at 92% — converting a would-be OOMKill
+// The watchdog runs the tool as a child process while polling this cgroup's own working set
+// (memory.current less inactive_file) against memory.max, and self-terminates the child at 92%,
+// logging the peak either way — converting a would-be OOMKill
 // into an ordinary exit 99 that `onError: continue` and `failOnError: false` already handle.
 //
 // `command` is POSIX sh, not nushell: embedSh runs it under `sh -c` from a raw string, so
@@ -59,11 +60,18 @@ max_file=/sys/fs/cgroup/memory.max
 cur_file=/sys/fs/cgroup/memory.current
 [ -f "$max_file" ] || max_file=/sys/fs/cgroup/memory/memory.limit_in_bytes
 [ -f "$cur_file" ] || cur_file=/sys/fs/cgroup/memory/memory.usage_in_bytes
+stat_file=/sys/fs/cgroup/memory.stat
 mem_max=$(cat "$max_file" 2>/dev/null || echo 0)
+peak=0
 if [ "$mem_max" != "max" ] && [ "$mem_max" -gt 0 ] 2>/dev/null; then
   threshold=$((mem_max * 92 / 100))
   while kill -0 "$pid" 2>/dev/null; do
     cur=$(cat "$cur_file" 2>/dev/null || echo 0)
+    # Working set, as kubelet counts it: memory.current less reclaimable inactive page cache,
+    # which builds up when one step runs the tool many times and is freed before any OOM-kill.
+    inactive=$(awk '$1 == "inactive_file" { print $2 }' "$stat_file" 2>/dev/null)
+    [ -n "$inactive" ] && cur=$((cur - inactive))
+    [ "$cur" -gt "$peak" ] 2>/dev/null && peak=$cur
     if [ "$cur" -gt "$threshold" ] 2>/dev/null; then
       echo "${label}: usage $cur bytes exceeded 92% of cgroup limit $mem_max - self-terminating before kernel OOM-kill" >&2
       kill -TERM "$pid" 2>/dev/null
@@ -76,6 +84,9 @@ if [ "$mem_max" != "max" ] && [ "$mem_max" -gt 0 ] 2>/dev/null; then
   done
 fi
 wait "$pid"
+rc=$?
+[ "$peak" -gt 0 ] && echo "${label}: peak working set $peak bytes of cgroup limit $mem_max" >&2
+exit $rc
 `);
 }
 

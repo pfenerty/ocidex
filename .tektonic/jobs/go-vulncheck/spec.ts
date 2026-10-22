@@ -13,6 +13,13 @@ import { goSetup, memoryWatchdog } from "../../script-lib";
 // needs no `make tekton-synth`. See docs/DEVELOPMENT.md "Accepting a govulncheck finding".
 const acceptFile = ".govulncheck-accepted.json";
 
+// Binaries that link grype/syft. Each needs more live heap for a symbol-level (call graph) scan
+// than the step's 6Gi allows (5.5GiB+ at the watchdog, vs 0.2-4.1GiB for every other binary), so
+// they get `-scan package`: vulns they import are still reported, but never as "called", so one
+// reachable only through grype/syft can't fail the check. Restoring the symbol scan for them
+// waits on more memory for the CI node (ocidex-l865).
+const packageScanBins = ["scanner-worker", "vuln-parity", "vuln-worker"];
+
 // Reachability-aware Go vuln scan. Unlike grype-on-SBOM, govulncheck resolves the
 // MVS-selected module versions and walks the call graph to report only vulns actually
 // reachable from ocidex's code — no phantom-version noise. Go-only + needs the toolchain, so
@@ -43,8 +50,8 @@ export const goVulncheck = sarifScanTask({
         // It must sit well under the node's spare memory, not just under this step's limit: at
         // 8GiB the heap grew to ~2x its live set (8.3GB RSS) on talos-jlf-6ro, the only
         // schedulable node, next to ocidex-pg, and Talos's OOM controller took the node down
-        // (ocidex-kt3x, homelab-ctd). Locally it peaks at 4.0-5.3GiB (v1.9.0, linux/amd64,
-        // ./cmd/...), so 6Gi may be tight in-cluster; the watchdog then fails the check, not the node.
+        // (ocidex-kt3x, homelab-ctd). Scanned one binary at a time (below), the largest
+        // symbol-level scan peaks at ~4.1GiB of working set.
         { name: "GOMEMLIMIT", value: "5GiB" },
       ],
       // The request is as high as the node allows: after the kubelet reservation the always-on
@@ -61,12 +68,18 @@ export const goVulncheck = sarifScanTask({
       // and unreachable internal packages — a smaller call graph, and a more accurate "reachable
       // in what we ship" than including _test.go entry points.
       //
+      // One govulncheck per binary, not one over ./cmd/...: a single call graph spanning every
+      // binary's deps grew past 6Gi of live heap in-cluster (ocidex-kt3x), while each binary's
+      // own graph is a fraction of that, so peak memory is the largest binary's rather than the
+      // union's. Per-binary SARIFs merge into one run keeping each vuln at its most severe
+      // level across binaries, which is what the ./cmd/... scan reported.
+      //
       // GOMEMLIMIT only prevents OOM from reclaimable garbage — if the live working set itself
       // exceeds the 6Gi limit, the kernel still OOM-kills the container, and OOMKilled bypasses
       // this step's `onError: continue` entirely (Tekton treats it as an infrastructure failure,
       // not a script exit code), hard-failing the TaskRun/PipelineRun despite the report-only
       // design. So govulncheck runs as a child process under a watchdog that polls this cgroup's
-      // own memory.current against memory.max and self-terminates it before the kernel's
+      // own working set against memory.max and self-terminates it before the kernel's
       // OOM-killer does — turning a would-be OOMKilled into a normal non-zero exit, which
       // `onError: continue` (this step) and `failOnError: false` (reportOnlyStatusReporter's
       // report-status step) already handle correctly. The watchdog itself now lives in
@@ -80,8 +93,48 @@ export const goVulncheck = sarifScanTask({
       // the only way to accept a finding that has no upstream fix.
       script: nu`
 ${goSetup}
-log "Running govulncheck -format sarif ./cmd/..."
-${memoryWatchdog("govulncheck", "govulncheck -format sarif ./cmd/... > govulncheck.sarif")}
+let bins = (ls cmd | where type == dir | get name | each {|d| $d | path basename} | sort)
+let package_bins = [${packageScanBins.map((b) => `"${b}"`).join(" ")}]
+mut failed = []
+for bin in $bins {
+  # The watchdog's command is sh, so the binary and scan mode cross over as env vars.
+  $env.VULN_BIN = $bin
+  $env.VULN_SCAN = (if $bin in $package_bins { "package" } else { "symbol" })
+  log $"Running govulncheck -scan ($env.VULN_SCAN) -format sarif ./cmd/($bin)"
+  # try yields a value rather than mutating $failed: catch is a closure and can't capture it.
+  let ok = (try {
+    ${memoryWatchdog("govulncheck", 'govulncheck -scan "$VULN_SCAN" -format sarif "./cmd/$VULN_BIN" > "govulncheck-$VULN_BIN.sarif"')}
+    true
+  } catch {|e| log $"govulncheck ($bin): ($e.msg)"; false })
+  if not $ok { $failed = ($failed | append $bin) }
+}
+
+# Most severe level per vuln across binaries: called in one binary (error) beats merely
+# imported (warning) or required (note) in another.
+let rank = {error: 3, warning: 2, note: 1}
+# A package scan reports any imported vulnerable package at level error, though it never looked
+# at calls. Only a symbol scan can say "called", so package-scan errors count as warnings.
+let docs = ($bins | where {|b| $b not-in $failed} | each {|b|
+  let doc = (open --raw $"govulncheck-($b).sarif" | from json)
+  if $b in $package_bins {
+    let demoted = ($doc | get -o runs.0.results | default []
+      | each {|r| if $r.level == "error" { $r | update level "warning" } else { $r } })
+    $doc | update runs.0.results $demoted
+  } else { $doc }
+})
+if ($docs | is-not-empty) {
+  let merged_results = ($docs | each {|d| $d | get -o runs.0.results | default []} | flatten
+    | group-by ruleId | values
+    | each {|g| $g | sort-by --reverse {|r| $rank | get -o $r.level | default 0} | first})
+  let merged_rules = ($docs | each {|d| $d | get -o runs.0.tool.driver.rules | default []} | flatten | uniq-by id)
+  $docs | first | update runs.0.results $merged_results | update runs.0.tool.driver.rules $merged_rules
+    | to json | save -f govulncheck.sarif
+}
+# A binary the watchdog stopped has no findings to report, so the scan as a whole is incomplete.
+# Fail after merging so the Security tab still gets every binary that did finish.
+if ($failed | is-not-empty) {
+  error make {msg: $"govulncheck: scan did not finish for ($failed | str join ', ') (memory watchdog or error)"}
+}
 
 let accepted = (if ("${acceptFile}" | path exists) { open --raw "${acceptFile}" | from json } else { [] })
 let accepted_ids = ($accepted | get -o id | default [])
