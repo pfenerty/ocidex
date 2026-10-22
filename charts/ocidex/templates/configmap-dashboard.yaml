@@ -1,0 +1,18 @@
+{{- if .Values.monitoring.dashboard.enabled }}
+{{- /* Grafana dashboard for the ADR-0054 metrics, for a Grafana sidecar that loads labelled ConfigMaps. */ -}}
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: {{ include "ocidex.fullname" . }}-dashboard
+  namespace: {{ .Values.monitoring.dashboard.namespace | default .Release.Namespace }}
+  labels:
+    {{- include "ocidex.labels" . | nindent 4 }}
+    {{- toYaml .Values.monitoring.dashboard.labels | nindent 4 }}
+  {{- with .Values.monitoring.dashboard.annotations }}
+  annotations:
+    {{- toYaml . | nindent 4 }}
+  {{- end }}
+data:
+  ocidex.json: |-
+    {{- .Files.Get "dashboards/ocidex.json" | nindent 4 }}
+{{- end }}

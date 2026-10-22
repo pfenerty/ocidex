@@ -33,6 +33,9 @@ spec:
           ports:
             - name: http
               containerPort: 8080
+            # Private /metrics (ADR-0054): the Service and routes never reach it.
+            - name: metrics
+              containerPort: 9090
           resources:
             {{- toYaml .Values.api.resources | nindent 12 }}
           envFrom:
@@ -42,6 +45,9 @@ spec:
             {{- include "ocidex.egressGuardEnv" . | nindent 12 }}
             - name: PORT
               value: "8080"
+            - name: METRICS_ADDR
+              value: ":9090"
+            {{- include "ocidex.metricsEnv" . | nindent 12 }}
             - name: NATS_URL
               value: "nats://{{ include "ocidex.fullname" . }}-nats:4222"
             - name: NATS_STREAM_REPLICAS

@@ -6,6 +6,11 @@ import (
 
 	"github.com/danielgtaylor/huma/v2"
 	"github.com/gorilla/securecookie"
+	"go.opentelemetry.io/otel/metric"
+	"go.opentelemetry.io/otel/metric/noop"
+	"go.opentelemetry.io/otel/trace"
+	tracenoop "go.opentelemetry.io/otel/trace/noop"
+
 	"github.com/pfenerty/ocidex/internal/config"
 	"github.com/pfenerty/ocidex/internal/scanner"
 	"github.com/pfenerty/ocidex/internal/service"
@@ -41,6 +46,8 @@ type Handler struct {
 	clientIPs        *ClientIPResolver
 	ingestLimit      *rateLimiter
 	heavyLimit       *rateLimiter
+	meterProvider    metric.MeterProvider
+	tracerProvider   trace.TracerProvider
 }
 
 // NewHandler creates a new Handler with the given dependencies.
@@ -67,7 +74,23 @@ func NewHandler(sbomSvc service.SBOMService, searchSvc service.SearchService, au
 		cfg:              cfg,
 		stateCookie:      sc2,
 		clientIPs:        NewClientIPResolver(trustedProxies),
+		meterProvider:    noop.NewMeterProvider(),
+		tracerProvider:   tracenoop.NewTracerProvider(),
 	}
+}
+
+// WithTracerProvider sets the provider the router records request spans on
+// (ADR-0055). Without it they go to a no-op provider. Call it before NewRouter.
+func (h *Handler) WithTracerProvider(tp trace.TracerProvider) *Handler {
+	h.tracerProvider = tp
+	return h
+}
+
+// WithMeterProvider sets the provider the router records request metrics on
+// (ADR-0054). Without it they go to a no-op provider. Call it before NewRouter.
+func (h *Handler) WithMeterProvider(mp metric.MeterProvider) *Handler {
+	h.meterProvider = mp
+	return h
 }
 
 // API returns the huma API instance. This is available after NewRouter has been

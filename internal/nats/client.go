@@ -9,7 +9,12 @@ import (
 
 	"github.com/nats-io/nats.go"
 	"github.com/nats-io/nats.go/jetstream"
+	"go.opentelemetry.io/otel/metric"
 )
+
+// asyncPublishTimeout bounds how long an async publish waits for its ack, so
+// every PubAckFuture resolves (the library default never times out).
+const asyncPublishTimeout = 30 * time.Second
 
 // Config holds NATS connection and stream parameters.
 type Config struct {
@@ -21,9 +26,13 @@ type Config struct {
 
 // Client wraps a NATS connection and JetStream context.
 // NC is exported so callers can check connection state (e.g. readiness probes).
+// Publish through PublishMsg and PublishMsgAsync so the publish is counted
+// (metrics.go).
 type Client struct {
 	NC *nats.Conn
 	JS jetstream.JetStream
+
+	publishes metric.Int64Counter // nil until WithMetrics
 }
 
 // Connect establishes a NATS connection and provisions the JetStream stream.
@@ -48,7 +57,7 @@ func Connect(cfg Config) (*Client, error) {
 		return nil, fmt.Errorf("nats connect: %w", err)
 	}
 
-	js, err := jetstream.New(nc)
+	js, err := jetstream.New(nc, jetstream.WithPublishAsyncTimeout(asyncPublishTimeout))
 	if err != nil {
 		nc.Close()
 		return nil, fmt.Errorf("nats jetstream: %w", err)

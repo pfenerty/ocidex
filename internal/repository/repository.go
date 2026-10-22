@@ -193,6 +193,7 @@ type EnrichmentJobRepository interface {
 	SummarizeEnrichmentJobs(ctx context.Context, arg SummarizeEnrichmentJobsParams) ([]SummarizeEnrichmentJobsRow, error)
 	RetryEnrichmentJob(ctx context.Context, id pgtype.UUID) error
 	RetryAllFailedEnrichmentJobs(ctx context.Context, enricherName pgtype.Text) (int64, error)
+	CountActiveEnrichmentJobs(ctx context.Context, enricherName string) ([]CountActiveEnrichmentJobsRow, error)
 }
 
 // JobRepository defines data access methods for scan job lifecycle.
@@ -213,6 +214,7 @@ type JobRepository interface {
 	RequeueStuckRunning(ctx context.Context, arg RequeueStuckRunningParams) error
 	RetryScanJob(ctx context.Context, id pgtype.UUID) error
 	RetryAllFailedScanJobs(ctx context.Context) (int64, error)
+	CountActiveScanJobs(ctx context.Context) ([]CountActiveScanJobsRow, error)
 }
 
 // AuthRepository defines data access methods for authentication and authorization.

@@ -24,9 +24,11 @@ import (
 	"github.com/pfenerty/ocidex/internal/extension"
 	"github.com/pfenerty/ocidex/internal/health"
 	"github.com/pfenerty/ocidex/internal/jobqueue"
+	"github.com/pfenerty/ocidex/internal/metrics"
 	natspkg "github.com/pfenerty/ocidex/internal/nats"
 	"github.com/pfenerty/ocidex/internal/repository"
 	"github.com/pfenerty/ocidex/internal/service"
+	"github.com/pfenerty/ocidex/internal/tracing"
 )
 
 // RunConfig scopes a worker to a specific enricher queue partition.
@@ -58,9 +60,9 @@ func Run(factory EnricherFactory, cfg RunConfig) error {
 		return fmt.Errorf("loading config: %w", err)
 	}
 
-	slog.SetDefault(slog.New(slog.NewJSONHandler(os.Stdout, &slog.HandlerOptions{
+	slog.SetDefault(slog.New(tracing.LogHandler(slog.NewJSONHandler(os.Stdout, &slog.HandlerOptions{
 		Level: appCfg.SlogLevel(),
-	})))
+	}))))
 	slog.Info("starting enricher worker",
 		"environment", appCfg.Environment,
 		"log_level", appCfg.LogLevel,
@@ -73,6 +75,7 @@ func Run(factory EnricherFactory, cfg RunConfig) error {
 	if err != nil {
 		return fmt.Errorf("parsing database config: %w", err)
 	}
+	poolCfg.ConnConfig.Tracer = tracing.PoolTracer()
 	if appCfg.DatabaseMaxConns > 0 {
 		poolCfg.MaxConns = int32(appCfg.DatabaseMaxConns) //nolint:gosec // G115: value is a configured pool size
 	}
@@ -114,6 +117,13 @@ func Run(factory EnricherFactory, cfg RunConfig) error {
 	}
 	dispatcher := enrichment.NewDispatcher(enrichStore, enrichReg)
 
+	tracerProvider, stopTracing := tracing.Start(ctx, "ocidex-enricher-"+cfg.EnricherName)
+	defer stopTracing()
+	meterProvider, metricsHandler, stopMetrics := metrics.Start(ctx, "ocidex-enricher-"+cfg.EnricherName)
+	defer stopMetrics()
+	metrics.WatchPool(meterProvider, metrics.PoolMain, pool)
+	natsClient.WithMetrics(meterProvider)
+
 	enrichJobSvc := service.NewEnrichJobService(pool, cfg.EnricherName)
 	workerID, _ := os.Hostname()
 	enrichProcessor := func(ctx context.Context, claim service.EnrichJobClaim) error {
@@ -135,7 +145,7 @@ func Run(factory EnricherFactory, cfg RunConfig) error {
 		if err := enrichJobSvc.FinishByID(ctx, claim.ID); err != nil {
 			return err
 		}
-		EnqueueDependents(ctx, enrichStore, enrichJobSvc, natsClient.JS, appCfg.NATSStreamName,
+		EnqueueDependents(ctx, enrichStore, enrichJobSvc, natsClient, appCfg.NATSStreamName,
 			claim.SBOMId, claim.Architecture, claim.BuildDate, cfg.EnricherName, logger)
 		return nil
 	}
@@ -156,7 +166,7 @@ func Run(factory EnricherFactory, cfg RunConfig) error {
 			HintDurable:       cfg.HintDurable,
 		},
 		logger,
-	))
+	).WithMetrics(meterProvider, cfg.EnricherName).WithTracing(tracerProvider, "enrich "+cfg.EnricherName))
 
 	if err := reg.InitAll(); err != nil {
 		return fmt.Errorf("initializing extensions: %w", err)
@@ -169,7 +179,7 @@ func Run(factory EnricherFactory, cfg RunConfig) error {
 		return fmt.Errorf("starting extensions: %w", err)
 	}
 
-	healthSrv := health.New(":9090", pool, natsClient, slog.Default())
+	healthSrv := health.New(":9090", pool, natsClient, slog.Default()).WithMetrics(metricsHandler)
 	healthSrv.Start()
 	defer healthSrv.Stop()
 

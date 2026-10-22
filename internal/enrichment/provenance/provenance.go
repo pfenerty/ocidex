@@ -175,7 +175,7 @@ func WithRemoteOptions(opts ...remote.Option) Option {
 // at a refused address fails with an error wrapping netguard.ErrDenied. Rekor
 // and the Sigstore trust root are fixed public hosts and are not covered.
 func WithEgress(p netguard.Policy) Option {
-	return func(e *Enricher) { e.options = append(e.options, remote.WithTransport(p.Transport())) }
+	return func(e *Enricher) { e.options = append(e.options, remote.WithTransport(p.RoundTripper())) }
 }
 
 // WithInsecure configures plain HTTP for all registry connections.

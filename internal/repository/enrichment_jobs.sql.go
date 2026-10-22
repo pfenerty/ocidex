@@ -21,7 +21,7 @@ WITH claimed AS (
         attempts        = attempts + 1
     WHERE id = $2::uuid
       AND state = 'queued'
-    RETURNING id, sbom_id, attempts, architecture, build_date
+    RETURNING id, sbom_id, attempts, architecture, build_date, trace_context
 )
 SELECT
     c.id,
@@ -35,7 +35,8 @@ SELECT
     COALESCE(a.type, '')::text                AS artifact_type,
     COALESCE(a.name, '')::text                AS artifact_name,
     s.source_id                               AS source_id,
-    COALESCE(src.kind, '')::text              AS source_kind
+    COALESCE(src.kind, '')::text              AS source_kind,
+    COALESCE(c.trace_context, '')::text       AS trace_context
 FROM claimed c
 JOIN sbom s ON s.id = c.sbom_id
 JOIN artifact a ON a.id = s.artifact_id
@@ -60,6 +61,7 @@ type ClaimEnrichmentJobByIDRow struct {
 	ArtifactName   string      `json:"artifact_name"`
 	SourceID       pgtype.UUID `json:"source_id"`
 	SourceKind     string      `json:"source_kind"`
+	TraceContext   string      `json:"trace_context"`
 }
 
 func (q *Queries) ClaimEnrichmentJobByID(ctx context.Context, arg ClaimEnrichmentJobByIDParams) (ClaimEnrichmentJobByIDRow, error) {
@@ -78,6 +80,7 @@ func (q *Queries) ClaimEnrichmentJobByID(ctx context.Context, arg ClaimEnrichmen
 		&i.ArtifactName,
 		&i.SourceID,
 		&i.SourceKind,
+		&i.TraceContext,
 	)
 	return i, err
 }
@@ -99,7 +102,7 @@ claimed AS (
         worker_id       = $2::text,
         attempts        = attempts + 1
     WHERE id IN (SELECT id FROM next_id)
-    RETURNING id, sbom_id, attempts, architecture, build_date, enricher_name
+    RETURNING id, sbom_id, attempts, architecture, build_date, enricher_name, trace_context
 )
 SELECT
     c.id,
@@ -114,7 +117,8 @@ SELECT
     COALESCE(a.type, '')::text                AS artifact_type,
     COALESCE(a.name, '')::text                AS artifact_name,
     s.source_id                               AS source_id,
-    COALESCE(src.kind, '')::text              AS source_kind
+    COALESCE(src.kind, '')::text              AS source_kind,
+    COALESCE(c.trace_context, '')::text       AS trace_context
 FROM claimed c
 JOIN sbom s ON s.id = c.sbom_id
 JOIN artifact a ON a.id = s.artifact_id
@@ -140,6 +144,7 @@ type ClaimNextEnrichmentJobRow struct {
 	ArtifactName   string      `json:"artifact_name"`
 	SourceID       pgtype.UUID `json:"source_id"`
 	SourceKind     string      `json:"source_kind"`
+	TraceContext   string      `json:"trace_context"`
 }
 
 func (q *Queries) ClaimNextEnrichmentJob(ctx context.Context, arg ClaimNextEnrichmentJobParams) (ClaimNextEnrichmentJobRow, error) {
@@ -159,8 +164,48 @@ func (q *Queries) ClaimNextEnrichmentJob(ctx context.Context, arg ClaimNextEnric
 		&i.ArtifactName,
 		&i.SourceID,
 		&i.SourceKind,
+		&i.TraceContext,
 	)
 	return i, err
+}
+
+const countActiveEnrichmentJobs = `-- name: CountActiveEnrichmentJobs :many
+SELECT 'queued'::text AS state, count(*)::bigint AS jobs
+FROM enrichment_jobs
+WHERE enricher_name = $1::text AND state = 'queued'
+UNION ALL
+SELECT 'running'::text AS state, count(*)::bigint AS jobs
+FROM enrichment_jobs
+WHERE enricher_name = $1::text AND state = 'running'
+`
+
+type CountActiveEnrichmentJobsRow struct {
+	State string `json:"state"`
+	Jobs  int64  `json:"jobs"`
+}
+
+// Queue depth of one enricher's partition for the ocidex.jobs gauge
+// (ADR-0054). One branch per state so each can use its partial index
+// (idx_enrichment_jobs_enricher_queued, idx_enrichment_jobs_running); an IN
+// over both states matches neither index's predicate.
+func (q *Queries) CountActiveEnrichmentJobs(ctx context.Context, enricherName string) ([]CountActiveEnrichmentJobsRow, error) {
+	rows, err := q.db.Query(ctx, countActiveEnrichmentJobs, enricherName)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	items := []CountActiveEnrichmentJobsRow{}
+	for rows.Next() {
+		var i CountActiveEnrichmentJobsRow
+		if err := rows.Scan(&i.State, &i.Jobs); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
 }
 
 const countEnrichmentJobs = `-- name: CountEnrichmentJobs :one
@@ -237,15 +282,16 @@ func (q *Queries) FinishEnrichmentJobByID(ctx context.Context, id pgtype.UUID) e
 }
 
 const insertEnrichmentJob = `-- name: InsertEnrichmentJob :one
-INSERT INTO enrichment_jobs (sbom_id, idempotency_key, architecture, build_date, enricher_name)
+INSERT INTO enrichment_jobs (sbom_id, idempotency_key, architecture, build_date, enricher_name, trace_context)
 VALUES (
     $1::uuid,
     $2,
     $3,
     $4,
-    $5::text
+    $5::text,
+$6
 )
-RETURNING id, sbom_id, state, attempts, last_error, idempotency_key, worker_id, architecture, build_date, created_at, started_at, last_attempt_at, finished_at, enricher_name
+RETURNING id, sbom_id, state, attempts, last_error, idempotency_key, worker_id, architecture, build_date, created_at, started_at, last_attempt_at, finished_at, enricher_name, trace_context
 `
 
 type InsertEnrichmentJobParams struct {
@@ -254,6 +300,7 @@ type InsertEnrichmentJobParams struct {
 	Architecture   pgtype.Text `json:"architecture"`
 	BuildDate      pgtype.Text `json:"build_date"`
 	EnricherName   string      `json:"enricher_name"`
+	TraceContext   pgtype.Text `json:"trace_context"`
 }
 
 func (q *Queries) InsertEnrichmentJob(ctx context.Context, arg InsertEnrichmentJobParams) (EnrichmentJob, error) {
@@ -263,6 +310,7 @@ func (q *Queries) InsertEnrichmentJob(ctx context.Context, arg InsertEnrichmentJ
 		arg.Architecture,
 		arg.BuildDate,
 		arg.EnricherName,
+		arg.TraceContext,
 	)
 	var i EnrichmentJob
 	err := row.Scan(
@@ -280,6 +328,7 @@ func (q *Queries) InsertEnrichmentJob(ctx context.Context, arg InsertEnrichmentJ
 		&i.LastAttemptAt,
 		&i.FinishedAt,
 		&i.EnricherName,
+		&i.TraceContext,
 	)
 	return i, err
 }

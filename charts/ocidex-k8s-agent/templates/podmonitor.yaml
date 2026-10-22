@@ -1,0 +1,20 @@
+{{- if .Values.monitoring.enabled }}
+apiVersion: monitoring.coreos.com/v1
+kind: PodMonitor
+metadata:
+  name: {{ include "ocidex-k8s-agent.fullname" . }}
+  namespace: {{ .Release.Namespace }}
+  labels:
+    {{- include "ocidex-k8s-agent.labels" . | nindent 4 }}
+    {{- with .Values.monitoring.additionalLabels }}
+    {{- toYaml . | nindent 4 }}
+    {{- end }}
+spec:
+  selector:
+    matchLabels:
+      app.kubernetes.io/name: {{ include "ocidex-k8s-agent.name" . }}
+      app.kubernetes.io/instance: {{ .Release.Name }}
+  podMetricsEndpoints:
+    - port: health
+      path: /metrics
+{{- end }}

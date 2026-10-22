@@ -11,8 +11,14 @@ import (
 	"sync"
 	"time"
 
+	"go.opentelemetry.io/otel"
+	"go.opentelemetry.io/otel/attribute"
+	"go.opentelemetry.io/otel/codes"
+	"go.opentelemetry.io/otel/trace"
+
 	"github.com/pfenerty/ocidex/internal/netguard"
 	"github.com/pfenerty/ocidex/internal/service"
+	"github.com/pfenerty/ocidex/internal/tracing"
 )
 
 // Submitter accepts scan requests.
@@ -96,22 +102,34 @@ func WalkRegistry(ctx context.Context, reg service.Registry, sub Submitter, know
 // WalkRegistryStats is WalkRegistry returning what the walk selected as well
 // as what it queued (ADR-0053 S7).
 func WalkRegistryStats(ctx context.Context, reg service.Registry, sub Submitter, knownDigests map[string]bool, egress netguard.Policy, logger *slog.Logger) (service.WalkStats, error) {
+	ctx, span := walkTracer().Start(ctx, "catalog walk", trace.WithAttributes(attribute.String("ocidex.registry.id", reg.ID)))
+	defer span.End()
 	scheme, host := registrySchemeHost(reg)
 	baseURL := scheme + "://" + host
 	client := registryClient(egress, 15*time.Second, derefStr(reg.AuthUsername), derefStr(reg.AuthToken))
 
 	repos, err := matchingRepos(ctx, client, baseURL, reg, logger)
 	if err != nil {
+		span.RecordError(err)
+		span.SetStatus(codes.Error, "listing repositories failed")
 		return service.WalkStats{At: time.Now().UTC(), Error: err.Error()}, err
 	}
 	var stats service.WalkStats
 	for _, repo := range repos {
-		walkRepo(ctx, client, baseURL, repo, reg, sub, knownDigests, logger, &stats)
+		repoCtx, repoSpan := walkTracer().Start(ctx, "catalog walk repository", trace.WithAttributes(attribute.String("oci.repository", repo)))
+		walkRepo(repoCtx, client, baseURL, repo, reg, sub, knownDigests, logger, &stats)
+		repoSpan.End()
 	}
+	span.SetAttributes(attribute.Int("ocidex.walk.selected", stats.Selected), attribute.Int("ocidex.walk.queued", stats.Queued))
 	stats.Repositories = len(repos)
 	stats.At = time.Now().UTC()
 	return stats, nil
 }
+
+// walkTracer records walk spans on the global TracerProvider, as the NATS
+// client and outbound HTTP do (ADR-0055 T2): the walk runs deep inside the
+// poller and the NATS consumer, where no provider is passed.
+func walkTracer() trace.Tracer { return tracing.Tracer(otel.GetTracerProvider()) }
 
 // WalkRecorder stores a walk's stats; service.RegistryService satisfies it.
 type WalkRecorder interface {
@@ -769,7 +787,7 @@ func isIndexMediaType(mt string) bool {
 func registryClient(egress netguard.Policy, timeout time.Duration, username, password string) *http.Client {
 	return &http.Client{
 		Timeout:   timeout,
-		Transport: newOCITokenTransport(egress.Transport(), username, password),
+		Transport: newOCITokenTransport(egress.RoundTripper(), username, password),
 	}
 }
 

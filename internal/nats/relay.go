@@ -84,7 +84,7 @@ func (r *RelayExtension) Start(_ context.Context) error { return nil }
 // Stop is a no-op; connection lifecycle is owned by Client.
 func (r *RelayExtension) Stop() error { return nil }
 
-func (r *RelayExtension) handleEvent(_ context.Context, ev event.Event) {
+func (r *RelayExtension) handleEvent(ctx context.Context, ev event.Event) {
 	subjectSuffix, ok := subjectMap[ev.Type]
 	if !ok {
 		return
@@ -114,7 +114,7 @@ func (r *RelayExtension) handleEvent(_ context.Context, ev event.Event) {
 	if id := msgIDForEvent(ev); id != "" {
 		msg.Header.Set("Nats-Msg-Id", id)
 	}
-	if _, err := r.client.JS.PublishMsgAsync(msg); err != nil {
+	if _, err := r.client.PublishMsgAsync(ctx, msg); err != nil {
 		r.logger.Error("nats relay: publish", "subject", subject, "err", err)
 	}
 }

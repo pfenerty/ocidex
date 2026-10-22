@@ -6,6 +6,8 @@ import (
 	"log/slog"
 	"time"
 
+	"github.com/nats-io/nats.go"
+
 	natspkg "github.com/pfenerty/ocidex/internal/nats"
 	"github.com/pfenerty/ocidex/internal/service"
 )
@@ -76,7 +78,7 @@ func (s *NATSSubmitter) Submit(ctx context.Context, req ScanRequest) error {
 	pubCtx, cancel := context.WithTimeout(ctx, natsPublishTimeout)
 	defer cancel()
 
-	if _, err := s.client.JS.Publish(pubCtx, s.streamName+ScanHintSubjectSuffix, hint); err != nil {
+	if _, err := s.client.PublishMsg(pubCtx, &nats.Msg{Subject: s.streamName + ScanHintSubjectSuffix, Data: hint}); err != nil {
 		// Hint is best-effort — the row exists in the DB, the worker poll loop
 		// will pick it up within the poll interval.
 		s.logger.Warn("scan hint publish failed; poll loop will pick up", "job_id", job.ID, "err", err)

@@ -25,10 +25,10 @@ type enqueuer interface {
 	Enqueue(ctx context.Context, sbomID pgtype.UUID, architecture, buildDate, enricherName string) error
 }
 
-// hintPublisher is the narrow seam over jetstream.JetStream needed to publish
+// hintPublisher is the narrow seam over natspkg.Client needed to publish
 // the completion-driven ".enrich.hint" doorbell.
 type hintPublisher interface {
-	PublishMsgAsync(msg *nats.Msg, opts ...jetstream.PublishOpt) (jetstream.PubAckFuture, error)
+	PublishMsgAsync(ctx context.Context, msg *nats.Msg, opts ...jetstream.PublishOpt) (jetstream.PubAckFuture, error)
 }
 
 // EnqueueDependents enqueues every enricher that declares completedEnricher as
@@ -66,11 +66,11 @@ func EnqueueDependents(
 			)
 			continue
 		}
-		publishHint(js, streamName, sbomID, logger)
+		publishHint(ctx, js, streamName, sbomID, logger)
 	}
 }
 
-func publishHint(js hintPublisher, streamName string, sbomID pgtype.UUID, logger *slog.Logger) {
+func publishHint(ctx context.Context, js hintPublisher, streamName string, sbomID pgtype.UUID, logger *slog.Logger) {
 	jobID := uuidToHex(sbomID)
 	hint, err := json.Marshal(struct {
 		ID string `json:"id"`
@@ -81,7 +81,7 @@ func publishHint(js hintPublisher, streamName string, sbomID pgtype.UUID, logger
 
 	msg := nats.NewMsg(streamName + ".enrich.hint")
 	msg.Data = hint
-	if _, err := js.PublishMsgAsync(msg); err != nil {
+	if _, err := js.PublishMsgAsync(ctx, msg); err != nil {
 		logger.Warn("enricher worker: dependent hint publish failed; poll loop will pick up",
 			"sbom_id", jobID, "err", err,
 		)

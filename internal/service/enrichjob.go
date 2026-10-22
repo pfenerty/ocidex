@@ -11,6 +11,7 @@ import (
 	"github.com/jackc/pgx/v5/pgxpool"
 
 	"github.com/pfenerty/ocidex/internal/repository"
+	"github.com/pfenerty/ocidex/internal/tracing"
 )
 
 // EnrichJobClaim is the "ready-to-enrich" projection a worker receives after
@@ -30,7 +31,13 @@ type EnrichJobClaim struct {
 	ArtifactName   string
 	RegistryID     pgtype.UUID
 	SourceKind     string
+	// TraceContext is the encoded trace context of whatever queued the job
+	// (ADR-0055 T3), empty when tracing was off.
+	TraceContext string
 }
+
+// JobTraceContext satisfies jobqueue.TraceCarrier.
+func (c EnrichJobClaim) JobTraceContext() string { return c.TraceContext }
 
 func (c EnrichJobClaim) JobID() string      { return c.ID }
 func (c EnrichJobClaim) JobAttempts() int32 { return c.Attempts }
@@ -124,6 +131,9 @@ func (s *enrichJobService) Enqueue(ctx context.Context, sbomID pgtype.UUID, arch
 		Architecture:   pgtype.Text{String: architecture, Valid: architecture != ""},
 		BuildDate:      pgtype.Text{String: buildDate, Valid: buildDate != ""},
 		EnricherName:   enricherName,
+		// The caller's trace, so the worker's job span joins it (ADR-0055 T3). A
+		// duplicate row keeps the trace that first queued it.
+		TraceContext: toNullText(nullStr(tracing.Inject(ctx))),
 	})
 	if err != nil {
 		if isUniqueViolation(err) {
@@ -200,6 +210,21 @@ func (s *enrichJobService) RequeueStuckRunning(ctx context.Context, stuckThresho
 		MaxAttempts: maxAttempts,
 		StuckBefore: cutoff,
 	})
+}
+
+// CountActive returns how many of this enricher's jobs are queued and
+// running, keyed by state. It satisfies jobqueue.DepthCounter for the
+// ocidex.jobs gauge.
+func (s *enrichJobService) CountActive(ctx context.Context) (map[string]int64, error) {
+	rows, err := s.repo.CountActiveEnrichmentJobs(ctx, s.enricherName)
+	if err != nil {
+		return nil, fmt.Errorf("count active enrichment jobs: %w", err)
+	}
+	out := make(map[string]int64, len(rows))
+	for _, r := range rows {
+		out[r.State] = r.Jobs
+	}
+	return out, nil
 }
 
 func (s *enrichJobService) List(ctx context.Context, state, enricherName string, vis VisibilityFilter, limit, offset int32) ([]EnrichJob, int64, error) {
@@ -312,6 +337,7 @@ func enrichClaimFromRow(r repository.ClaimEnrichmentJobByIDRow) EnrichJobClaim {
 		ArtifactName:   r.ArtifactName,
 		RegistryID:     r.SourceID,
 		SourceKind:     r.SourceKind,
+		TraceContext:   r.TraceContext,
 	}
 }
 
@@ -330,5 +356,6 @@ func enrichClaimFromNextRow(r repository.ClaimNextEnrichmentJobRow) EnrichJobCla
 		ArtifactName:   r.ArtifactName,
 		RegistryID:     r.SourceID,
 		SourceKind:     r.SourceKind,
+		TraceContext:   r.TraceContext,
 	}
 }

@@ -10,6 +10,8 @@ import (
 
 	"golang.org/x/oauth2"
 	"golang.org/x/oauth2/github"
+
+	"github.com/pfenerty/ocidex/internal/tracing"
 )
 
 // ProviderGitHub is the issuer key for the GitHub OAuth app.
@@ -43,9 +45,14 @@ func NewGitHubProvider(clientID, clientSecret, redirectURL string) *GitHubProvid
 			Endpoint:     github.Endpoint,
 		},
 		userAPI: githubUserAPI,
-		client:  &http.Client{Timeout: 10 * time.Second},
+		client:  tracing.Client(&http.Client{Timeout: 10 * time.Second}),
 	}
 }
+
+// tracedClient is http.DefaultClient (what the oauth2 and oidc libraries use
+// by default) with a client span per request, handed to them through the
+// context (ADR-0055 T2).
+var tracedClient = tracing.Client(http.DefaultClient)
 
 // Name returns the issuer key, "github".
 func (p *GitHubProvider) Name() string { return ProviderGitHub }
@@ -63,7 +70,7 @@ func (p *GitHubProvider) AuthURL(state, _ string) string {
 // logins are re-assignable, and keying an account on one would hand the account
 // to whoever claimed the name next.
 func (p *GitHubProvider) Exchange(ctx context.Context, code, _ string) (Identity, error) {
-	token, err := p.oauth2.Exchange(ctx, code)
+	token, err := p.oauth2.Exchange(context.WithValue(ctx, oauth2.HTTPClient, tracedClient), code)
 	if err != nil {
 		return Identity{}, fmt.Errorf("exchanging oauth code: %w", err)
 	}

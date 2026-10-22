@@ -87,6 +87,28 @@ securityContext:
     drop: ["ALL"]
   readOnlyRootFilesystem: true
 
+# --- Monitoring (optional) ---------------------------------------------------
+# The agent serves Prometheus /metrics on its health port (9090, ADR-0054). enabled
+# renders a PodMonitor, which requires the Prometheus Operator.
+monitoring:
+  enabled: false
+  # Additional labels to add to the PodMonitor (e.g. for label-based scrape selection).
+  additionalLabels: {}
+  # OpenTelemetry export (ADR-0055); empty values are not set. See the ocidex chart's
+  # monitoring.otel. OTLP auth headers: otel.headersSecret (a Secret key holding
+  # OTEL_EXPORTER_OTLP_HEADERS).
+  otel:
+    tracesExporter: ""
+    metricsExporter: ""
+    endpoint: ""
+    protocol: ""
+    sampler: ""
+    samplerArg: ""
+    resourceAttributes: ""
+    headersSecret:
+      name: ""
+      key: ""
+
 # --- Network policy (optional) -----------------------------------------------
 # Plain networking.k8s.io/v1 NetworkPolicy. When enabled the pod is default-deny in both
 # directions and gets only DNS, the OCIDex API (egress.server), the Kubernetes API server

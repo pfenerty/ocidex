@@ -8,7 +8,6 @@ import (
 	"time"
 
 	"github.com/danielgtaylor/huma/v2"
-	"github.com/go-chi/chi/v5"
 	"github.com/go-chi/chi/v5/middleware"
 	"github.com/jackc/pgx/v5/pgtype"
 
@@ -255,11 +254,10 @@ func SlogLogger(next http.Handler) http.Handler {
 		// UUIDs, so every request to an artifact endpoint is its own unique
 		// string and no aggregation over "how slow is this endpoint" is
 		// possible. Both are logged — the pattern to group by, the path to
-		// reproduce with. RouteContext is only populated once next has routed,
-		// which is why this reads it after ServeHTTP.
-		route := r.URL.Path
-		if rctx := chi.RouteContext(r.Context()); rctx != nil && rctx.RoutePattern() != "" {
-			route = rctx.RoutePattern()
+		// reproduce with.
+		route, ok := routePattern(r)
+		if !ok {
+			route = r.URL.Path
 		}
 
 		attrs := []any{

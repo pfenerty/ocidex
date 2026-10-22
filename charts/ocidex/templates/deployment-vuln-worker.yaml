@@ -68,6 +68,7 @@ spec:
             - secretRef:
                 name: {{ .Values.existingSecret }}
           env:
+            {{- include "ocidex.metricsEnv" . | nindent 12 }}
             - name: DATABASE_MAX_CONNECTIONS
               value: {{ .Values.vulnWorker.env.databaseMaxConnections | quote }}
             - name: ENVIRONMENT

@@ -49,6 +49,10 @@ helm template ocidex "$APP_CHART" >"$OUT/app-defaults.yaml"
 helm template ocidex "$APP_CHART" \
     --set keda.enabled=true \
     --set monitoring.enabled=true \
+    --set monitoring.dashboard.enabled=true \
+    --set monitoring.otel.tracesExporter=otlp \
+    --set monitoring.otel.endpoint=http://otel-collector.monitoring:4318 \
+    --set-json 'monitoring.otel.egress=[{"namespaceSelector":{"matchLabels":{"kubernetes.io/metadata.name":"monitoring"}}}]' \
     --set networkPolicy.enabled=true \
     --set-json 'networkPolicy.egress.database=[{"podSelector":{"matchLabels":{"cnpg.io/cluster":"ocidex-pg"}}}]' \
     --set-json 'networkPolicy.ingress.from=[{"namespaceSelector":{"matchLabels":{"kubernetes.io/metadata.name":"gateway-system"}}}]' \
@@ -79,6 +83,9 @@ helm template ocidex-k8s-agent "$AGENT_CHART" \
     --set server.url=https://ocidex.example.com \
     --set cluster.id=00000000-0000-0000-0000-000000000000 \
     --set 'namespaces={default,kube-system}' \
+    --set monitoring.enabled=true \
+    --set monitoring.otel.tracesExporter=otlp \
+    --set monitoring.otel.headersSecret.name=otlp-auth \
     --set networkPolicy.enabled=true \
     --set-json 'networkPolicy.egress.server=[{"ipBlock":{"cidr":"203.0.113.10/32"}}]' \
     --set-json 'networkPolicy.egress.apiServer=[{"ipBlock":{"cidr":"192.0.2.1/32"}}]' \

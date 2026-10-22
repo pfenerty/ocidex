@@ -18,6 +18,7 @@ import (
 	"github.com/jackc/pgx/v5/pgxpool"
 	_ "github.com/jackc/pgx/v5/stdlib"
 	"github.com/pressly/goose/v3"
+	"go.opentelemetry.io/otel/metric"
 
 	"github.com/pfenerty/ocidex/db"
 	"github.com/pfenerty/ocidex/internal/api"
@@ -29,11 +30,13 @@ import (
 	"github.com/pfenerty/ocidex/internal/enrichment/ocivalidate"
 	"github.com/pfenerty/ocidex/internal/event"
 	"github.com/pfenerty/ocidex/internal/extension"
+	"github.com/pfenerty/ocidex/internal/metrics"
 	natspkg "github.com/pfenerty/ocidex/internal/nats"
 	"github.com/pfenerty/ocidex/internal/repository"
 	"github.com/pfenerty/ocidex/internal/scanner"
 	"github.com/pfenerty/ocidex/internal/secretbox"
 	"github.com/pfenerty/ocidex/internal/service"
+	"github.com/pfenerty/ocidex/internal/tracing"
 	"github.com/pfenerty/ocidex/internal/version"
 )
 
@@ -77,9 +80,9 @@ func run() error {
 	}
 
 	// Initialize structured logging.
-	slog.SetDefault(slog.New(slog.NewJSONHandler(os.Stdout, &slog.HandlerOptions{
+	slog.SetDefault(slog.New(tracing.LogHandler(slog.NewJSONHandler(os.Stdout, &slog.HandlerOptions{
 		Level: cfg.SlogLevel(),
-	})))
+	}))))
 	logStartup(cfg)
 
 	ctx := context.Background()
@@ -136,7 +139,14 @@ func run() error {
 
 	watchSvc := service.NewWatchService(pool)
 	clusterSvc := service.NewClusterService(pool, cfg.SecretBox)
-	handler := api.NewHandler(sbomSvc, searchSvc, authSvc, registrySvc, namespaceSvc, sourceSvc, jobSvc, enrichJobSvc, watchSvc, clusterSvc, pool, scanSubmitter, cfg)
+	tracerProvider, stopTracing := tracing.Start(ctx, "ocidex-api")
+	defer stopTracing()
+	meterProvider, stopMetrics := setupMetrics(ctx, cfg, pool, bgPool, natsClient)
+	defer stopMetrics()
+
+	handler := api.NewHandler(sbomSvc, searchSvc, authSvc, registrySvc, namespaceSvc, sourceSvc, jobSvc, enrichJobSvc, watchSvc, clusterSvc, pool, scanSubmitter, cfg).
+		WithMeterProvider(meterProvider).
+		WithTracerProvider(tracerProvider)
 	router := api.NewRouter(handler, cfg.CORSAllowedOrigins, cfg.FrontendURL, cfg.APIBaseURL)
 
 	extCtx, extCancel := context.WithCancel(context.Background())
@@ -260,6 +270,7 @@ func openPool(ctx context.Context, url string, maxConns int32) (*pgxpool.Pool, e
 	if err != nil {
 		return nil, fmt.Errorf("parsing database config: %w", err)
 	}
+	poolCfg.ConnConfig.Tracer = tracing.PoolTracer()
 	if maxConns > 0 {
 		poolCfg.MaxConns = maxConns
 	}
@@ -392,6 +403,34 @@ func setupScannerExt(cfg *config.Config, _ *pgxpool.Pool, _ *event.Bus, _ *exten
 		return nil
 	}
 	return scanner.NewNATSSubmitter(natsClient, cfg.NATSStreamName, jobSvc)
+}
+
+// setupMetrics builds the API's MeterProvider, instruments both DB pools and,
+// when there is one, the NATS client, and serves /metrics on METRICS_ADDR
+// (ADR-0054). An empty METRICS_ADDR turns off only the listener, so
+// OTEL_METRICS_EXPORTER=otlp can still push. When setup fails it returns a
+// no-op provider. The returned func stops the listener and flushes the provider.
+func setupMetrics(ctx context.Context, cfg *config.Config, pool, bgPool *pgxpool.Pool, natsClient *natspkg.Client) (metric.MeterProvider, func()) {
+	mp, handler, stop := metrics.Start(ctx, "ocidex-api")
+	metrics.WatchPool(mp, metrics.PoolMain, pool)
+	metrics.WatchPool(mp, metrics.PoolBackground, bgPool)
+	if natsClient != nil {
+		natsClient.WithMetrics(mp)
+	}
+	if handler == nil || cfg.MetricsAddr == "" {
+		slog.Info("metrics listener off", "metrics_addr", cfg.MetricsAddr, "prometheus_export", handler != nil)
+		return mp, stop
+	}
+	srv := metrics.NewServer(cfg.MetricsAddr, handler, slog.Default())
+	srv.Start()
+	return mp, func() {
+		stopCtx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+		defer cancel()
+		if err := srv.Stop(stopCtx); err != nil {
+			slog.Error("metrics server shutdown", "err", err)
+		}
+		stop()
+	}
 }
 
 func runSessionCleaner(ctx context.Context, authSvc service.AuthService) {

@@ -648,7 +648,7 @@ func (h *Handler) TestRegistryConnection(ctx context.Context, in *TestRegistryCo
 	}
 	target := fmt.Sprintf("%s://%s/v2/", scheme, in.Body.URL)
 
-	c := &http.Client{Timeout: 5 * time.Second, Transport: h.egress().Transport()}
+	c := &http.Client{Timeout: 5 * time.Second, Transport: h.egress().RoundTripper()}
 	req, err := http.NewRequestWithContext(ctx, http.MethodGet, target, nil)
 	if err != nil {
 		out := &TestRegistryConnectionOutput{}

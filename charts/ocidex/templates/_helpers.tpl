@@ -85,6 +85,20 @@ Usage: {{ include "ocidex.image" (dict "root" . "name" "api") }}
 EGRESS_* for the processes that dial user-supplied registries: the API, the
 scanner worker and the enrichers (internal/netguard).
 */}}
+{{- define "ocidex.metricsEnv" -}}
+{{- with .Values.monitoring.resourceAttributes }}
+- name: OTEL_RESOURCE_ATTRIBUTES
+  value: {{ . | quote }}
+{{- end }}
+{{- $otel := .Values.monitoring.otel }}
+{{- range $name, $value := dict "OTEL_TRACES_EXPORTER" $otel.tracesExporter "OTEL_METRICS_EXPORTER" $otel.metricsExporter "OTEL_EXPORTER_OTLP_ENDPOINT" $otel.endpoint "OTEL_EXPORTER_OTLP_PROTOCOL" $otel.protocol "OTEL_TRACES_SAMPLER" $otel.sampler "OTEL_TRACES_SAMPLER_ARG" $otel.samplerArg }}
+{{- if $value }}
+- name: {{ $name }}
+  value: {{ $value | quote }}
+{{- end }}
+{{- end }}
+{{- end }}
+
 {{- define "ocidex.egressGuardEnv" -}}
 - name: EGRESS_ALLOW_PRIVATE
   value: {{ .Values.egressGuard.allowPrivate | quote }}

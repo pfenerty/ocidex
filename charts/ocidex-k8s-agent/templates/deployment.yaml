@@ -67,6 +67,20 @@ spec:
               value: {{ .Values.reportInterval | quote }}
             - name: HEALTH_ADDR
               value: ":9090"
+            {{- $otel := .Values.monitoring.otel }}
+            {{- range $name, $value := dict "OTEL_TRACES_EXPORTER" $otel.tracesExporter "OTEL_METRICS_EXPORTER" $otel.metricsExporter "OTEL_EXPORTER_OTLP_ENDPOINT" $otel.endpoint "OTEL_EXPORTER_OTLP_PROTOCOL" $otel.protocol "OTEL_TRACES_SAMPLER" $otel.sampler "OTEL_TRACES_SAMPLER_ARG" $otel.samplerArg "OTEL_RESOURCE_ATTRIBUTES" $otel.resourceAttributes }}
+            {{- if $value }}
+            - name: {{ $name }}
+              value: {{ $value | quote }}
+            {{- end }}
+            {{- end }}
+            {{- with $otel.headersSecret.name }}
+            - name: OTEL_EXPORTER_OTLP_HEADERS
+              valueFrom:
+                secretKeyRef:
+                  name: {{ . }}
+                  key: {{ $otel.headersSecret.key | default "OTEL_EXPORTER_OTLP_HEADERS" }}
+            {{- end }}
             - name: LOG_LEVEL
               value: {{ .Values.logLevel | quote }}
             - name: ENVIRONMENT

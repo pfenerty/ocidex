@@ -425,7 +425,7 @@ def seed_vulns(db_url: str) -> None:
             stmts.append(
                 f"INSERT INTO package_vulnerability (purl, vulnerability_id, fixed_version) "
                 f"VALUES ('{sql_str(purl)}', '{vid}', {fx}) "
-                f"ON CONFLICT (purl, vulnerability_id) DO UPDATE "
+                f"ON CONFLICT (purl, go_symbol_set_id, vulnerability_id) DO UPDATE "
                 f"SET fixed_version = EXCLUDED.fixed_version;")
     stmts.append("UPDATE vuln_refresh_state SET last_refreshed_at = now() WHERE id;")
     # The vulnerability list reads affected counts from vuln_rollup, never from

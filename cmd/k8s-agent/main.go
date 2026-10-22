@@ -29,6 +29,8 @@ import (
 
 	"github.com/pfenerty/ocidex/internal/config"
 	"github.com/pfenerty/ocidex/internal/health"
+	"github.com/pfenerty/ocidex/internal/metrics"
+	"github.com/pfenerty/ocidex/internal/tracing"
 	"github.com/pfenerty/ocidex/pkg/client"
 )
 
@@ -52,7 +54,7 @@ func run() error {
 		return err
 	}
 
-	slog.SetDefault(slog.New(slog.NewJSONHandler(os.Stdout, &slog.HandlerOptions{Level: cfg.SlogLevel()})))
+	slog.SetDefault(slog.New(tracing.LogHandler(slog.NewJSONHandler(os.Stdout, &slog.HandlerOptions{Level: cfg.SlogLevel()}))))
 	slog.Info("starting k8s-agent",
 		"environment", cfg.Environment,
 		"once", *once,
@@ -88,7 +90,11 @@ func run() error {
 		return nil
 	}
 
-	healthSrv := health.New(cfg.HealthAddr, nil, nil, slog.Default())
+	_, stopTracing := tracing.Start(ctx, "ocidex-k8s-agent")
+	defer stopTracing()
+	_, metricsHandler, stopMetrics := metrics.Start(ctx, "ocidex-k8s-agent")
+	defer stopMetrics()
+	healthSrv := health.New(cfg.HealthAddr, nil, nil, slog.Default()).WithMetrics(metricsHandler)
 	healthSrv.Start()
 	defer healthSrv.Stop()
 

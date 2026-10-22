@@ -18,10 +18,81 @@ Runbook for production incidents involving the scanner pipeline. Pair with `docs
 | `GET /ready` (8080) | API | DB ping. |
 | `GET /healthz` (9090) | scanner-worker, enricher workers | Process up. |
 | `GET /readyz` (9090) | scanner-worker, enricher workers | NATS Connected + DB Ping <1s. |
+| `GET /metrics` (9090) | API, every worker, k8s-agent | Prometheus metrics; see [Metrics](#metrics). Never routed through the ingress. |
 | `GET /api/v1/admin/status` | API (admin-only) | Counts from `scan_jobs` by state, DB latency. The counts are trivially correct — there is no second source. |
 | `POST /api/v1/admin/jobs/{id}/retry` | API (admin-only) | Resets a `failed` row to `queued`. |
 
 Worker pods log NATS disconnect / reconnect / closed at WARN — grep for these to see connection flaps.
+
+## Metrics
+
+Every component serves Prometheus metrics at `/metrics` on `:9090` (ADR-0054): the API on its
+`metrics` port, the workers on their `health` port. With the chart, `monitoring.enabled: true`
+creates a PodMonitor per component (the `ocidex-k8s-agent` chart has its own
+`monitoring.enabled`). Turning on `networkPolicy` also requires listing your
+scraper in `networkPolicy.ingress.metricsFrom`. Each series carries the Prometheus `job` and `pod`
+labels. `target_info` carries `service_name` (`ocidex-api`, `ocidex-scanner-worker`,
+`ocidex-enricher-<name>`, ...) and anything set in `monitoring.resourceAttributes`.
+
+| Series | What it tells you |
+|---|---|
+| `http_server_request_duration_seconds{http_request_method,http_route,http_response_status_code}` | API latency per route pattern. `_count` is the request count; `http_route="unmatched"` is every path no route serves. |
+| `ocidex_jobs{queue,state}` | Queue depth: `queued` and `running` rows per queue (`scan`, or an enricher name). Every replica of a worker reports the same value, so aggregate with `max`. |
+| `ocidex_jobs_processed_total{queue,outcome}` | Finished jobs: `success`, `retry` (requeued), `permanent_failure` (row is now `failed`). |
+| `ocidex_job_duration_seconds{queue}` | Time per job, any outcome. |
+| `ocidex_db_pool_connections{pool,state}` | Pool `acquired` / `idle` / `total` / `max` connections. The API has `main` and `background` pools. |
+| `ocidex_db_pool_acquires_total{pool,outcome}`, `ocidex_db_pool_acquire_wait_seconds_total{pool}` | Acquires that `waited` for a connection, and the total time spent waiting. |
+| `ocidex_nats_publishes_total{subject_class,outcome}` | JetStream publishes: `ok`, `duplicate` (dedup window hit), `error`. Hints that fail are recovered by the poll loop, so errors mean latency, not loss. |
+| `ocidex_registry_tags_selected`, `ocidex_registry_tags_skipped_limit` | Per-registry walk window (ADR-0053), once ocidex-5y0r.7 lands. |
+| `go_*`, `process_*` | Go runtime and process stats. |
+
+### Tracing and OTLP export
+
+Tracing is off by default (ADR-0055). Turn it on in the chart with
+`monitoring.otel.tracesExporter: otlp` and `monitoring.otel.endpoint` pointing at a collector
+(for example Grafana Alloy or the OpenTelemetry Collector, feeding Tempo or Jaeger). The
+k8s-agent chart takes the same `monitoring.otel` values. Put collector auth
+(`OTEL_EXPORTER_OTLP_HEADERS`) in `existingSecret`, or in the agent's `monitoring.otel.headersSecret`,
+never in values. With `networkPolicy.enabled`, list the collector in `monitoring.otel.egress`:
+an in-cluster collector is otherwise blocked. `metricsExporter: prometheus,otlp` also pushes
+metrics.
+
+The default sampler keeps 10% of new traces. A trace is kept or dropped whole, so one sampled
+upload shows its request, its queries, the jobs it queued and every enricher that ran,
+including jobs a worker picked up from its poll loop after a lost NATS hint. Log lines inside a
+sampled span carry `trace_id`, which links a log line to its trace.
+
+### Suggested alerts
+
+```yaml
+groups:
+  - name: ocidex
+    rules:
+      # Incident 1: the queue is growing and nothing drains it.
+      - alert: OcidexQueueGrowing
+        expr: |
+          max by (queue) (ocidex_jobs{state="queued"}) > 0
+            and max by (queue) (deriv(ocidex_jobs{state="queued"}[15m])) > 0
+        for: 15m
+      # Incident 4: jobs are failing for good.
+      - alert: OcidexJobPermanentFailures
+        expr: |
+          sum by (queue) (rate(ocidex_jobs_processed_total{outcome="permanent_failure"}[15m]))
+            / sum by (queue) (rate(ocidex_jobs_processed_total[15m])) > 0.1
+        for: 15m
+      # Matches slowRequestThreshold (internal/api/middleware.go), where requests start
+      # logging at WARN.
+      - alert: OcidexSlowRoute
+        expr: |
+          histogram_quantile(0.95,
+            sum by (le, http_route) (rate(http_server_request_duration_seconds_bucket[5m]))) > 5
+        for: 10m
+      # Requests queue for a database connection: raise DATABASE_MAX_CONNECTIONS or find the
+      # query holding them.
+      - alert: OcidexDBPoolSaturated
+        expr: sum by (pool, pod) (rate(ocidex_db_pool_acquire_wait_seconds_total[5m])) > 0.5
+        for: 10m
+```
 
 ## Common incidents
 

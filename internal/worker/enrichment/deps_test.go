@@ -56,7 +56,7 @@ type fakeHintPublisher struct {
 	count int
 }
 
-func (f *fakeHintPublisher) PublishMsgAsync(_ *nats.Msg, _ ...jetstream.PublishOpt) (jetstream.PubAckFuture, error) {
+func (f *fakeHintPublisher) PublishMsgAsync(_ context.Context, _ *nats.Msg, _ ...jetstream.PublishOpt) (jetstream.PubAckFuture, error) {
 	f.mu.Lock()
 	defer f.mu.Unlock()
 	f.count++

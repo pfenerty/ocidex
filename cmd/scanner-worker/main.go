@@ -25,10 +25,12 @@ import (
 	"github.com/pfenerty/ocidex/internal/extension"
 	"github.com/pfenerty/ocidex/internal/health"
 	"github.com/pfenerty/ocidex/internal/jobqueue"
+	"github.com/pfenerty/ocidex/internal/metrics"
 	natspkg "github.com/pfenerty/ocidex/internal/nats"
 	"github.com/pfenerty/ocidex/internal/scanner"
 	"github.com/pfenerty/ocidex/internal/scanner/engine"
 	"github.com/pfenerty/ocidex/internal/service"
+	"github.com/pfenerty/ocidex/internal/tracing"
 )
 
 // scanTimeout bounds a single Syft scan. The stuck-running sweep uses a
@@ -53,9 +55,9 @@ func run() error {
 	// Before anything clones the default transport: syft's pulls do, per scan.
 	engine.GuardDefaultTransport(cfg.EgressPolicy)
 
-	slog.SetDefault(slog.New(slog.NewJSONHandler(os.Stdout, &slog.HandlerOptions{
+	slog.SetDefault(slog.New(tracing.LogHandler(slog.NewJSONHandler(os.Stdout, &slog.HandlerOptions{
 		Level: cfg.SlogLevel(),
-	})))
+	}))))
 	slog.Info("starting scanner-worker",
 		"environment", cfg.Environment,
 		"log_level", cfg.LogLevel,
@@ -67,6 +69,7 @@ func run() error {
 	if err != nil {
 		return fmt.Errorf("parsing database config: %w", err)
 	}
+	poolCfg.ConnConfig.Tracer = tracing.PoolTracer()
 	if cfg.DatabaseMaxConns > 0 {
 		poolCfg.MaxConns = int32(cfg.DatabaseMaxConns) //nolint:gosec // G115: value is a configured pool size
 	}
@@ -120,6 +123,13 @@ func run() error {
 	enrichJobSvc := service.NewEnrichJobService(pool, "")
 	registry.Register(enrichment.NewNATSSubmitter(natsClient, cfg.NATSStreamName, enrichJobSvc, logger))
 
+	tracerProvider, stopTracing := tracing.Start(ctx, "ocidex-scanner-worker")
+	defer stopTracing()
+	meterProvider, metricsHandler, stopMetrics := metrics.Start(ctx, "ocidex-scanner-worker")
+	defer stopMetrics()
+	metrics.WatchPool(meterProvider, metrics.PoolMain, pool)
+	natsClient.WithMetrics(meterProvider)
+
 	workerID, _ := os.Hostname()
 	scanProcessor := func(ctx context.Context, claim service.ScanJobClaim) error {
 		req := scanner.ScanRequestFromClaim(claim)
@@ -146,7 +156,7 @@ func run() error {
 			HintDurable:       scanner.ScannerHintDurable,
 		},
 		logger,
-	))
+	).WithMetrics(meterProvider, "scan").WithTracing(tracerProvider, "scan job"))
 
 	// Wire catalog walk consumer: receives catalog.walk.requested from the API server poller
 	// and performs the OCI catalog walk here in the scanner-worker.
@@ -167,7 +177,7 @@ func run() error {
 		return fmt.Errorf("starting extensions: %w", err)
 	}
 
-	healthSrv := health.New(":9090", pool, natsClient, slog.Default())
+	healthSrv := health.New(":9090", pool, natsClient, slog.Default()).WithMetrics(metricsHandler)
 	healthSrv.Start()
 	defer healthSrv.Stop()
 

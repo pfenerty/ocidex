@@ -1,11 +1,12 @@
 -- name: InsertEnrichmentJob :one
-INSERT INTO enrichment_jobs (sbom_id, idempotency_key, architecture, build_date, enricher_name)
+INSERT INTO enrichment_jobs (sbom_id, idempotency_key, architecture, build_date, enricher_name, trace_context)
 VALUES (
     @sbom_id::uuid,
     sqlc.narg('idempotency_key'),
     sqlc.narg('architecture'),
     sqlc.narg('build_date'),
-    @enricher_name::text
+    @enricher_name::text,
+sqlc.narg('trace_context')
 )
 RETURNING *;
 
@@ -19,7 +20,7 @@ WITH claimed AS (
         attempts        = attempts + 1
     WHERE id = @id::uuid
       AND state = 'queued'
-    RETURNING id, sbom_id, attempts, architecture, build_date
+    RETURNING id, sbom_id, attempts, architecture, build_date, trace_context
 )
 SELECT
     c.id,
@@ -33,7 +34,8 @@ SELECT
     COALESCE(a.type, '')::text                AS artifact_type,
     COALESCE(a.name, '')::text                AS artifact_name,
     s.source_id                               AS source_id,
-    COALESCE(src.kind, '')::text              AS source_kind
+    COALESCE(src.kind, '')::text              AS source_kind,
+    COALESCE(c.trace_context, '')::text       AS trace_context
 FROM claimed c
 JOIN sbom s ON s.id = c.sbom_id
 JOIN artifact a ON a.id = s.artifact_id
@@ -56,7 +58,7 @@ claimed AS (
         worker_id       = @worker_id::text,
         attempts        = attempts + 1
     WHERE id IN (SELECT id FROM next_id)
-    RETURNING id, sbom_id, attempts, architecture, build_date, enricher_name
+    RETURNING id, sbom_id, attempts, architecture, build_date, enricher_name, trace_context
 )
 SELECT
     c.id,
@@ -71,7 +73,8 @@ SELECT
     COALESCE(a.type, '')::text                AS artifact_type,
     COALESCE(a.name, '')::text                AS artifact_name,
     s.source_id                               AS source_id,
-    COALESCE(src.kind, '')::text              AS source_kind
+    COALESCE(src.kind, '')::text              AS source_kind,
+    COALESCE(c.trace_context, '')::text       AS trace_context
 FROM claimed c
 JOIN sbom s ON s.id = c.sbom_id
 JOIN artifact a ON a.id = s.artifact_id
@@ -229,3 +232,16 @@ SET state           = 'queued',
 WHERE sbom_id = @sbom_id::uuid
   AND enricher_name = @enricher_name::text
   AND state IN ('succeeded', 'failed');
+
+-- name: CountActiveEnrichmentJobs :many
+-- Queue depth of one enricher's partition for the ocidex.jobs gauge
+-- (ADR-0054). One branch per state so each can use its partial index
+-- (idx_enrichment_jobs_enricher_queued, idx_enrichment_jobs_running); an IN
+-- over both states matches neither index's predicate.
+SELECT 'queued'::text AS state, count(*)::bigint AS jobs
+FROM enrichment_jobs
+WHERE enricher_name = sqlc.arg(enricher_name)::text AND state = 'queued'
+UNION ALL
+SELECT 'running'::text AS state, count(*)::bigint AS jobs
+FROM enrichment_jobs
+WHERE enricher_name = sqlc.arg(enricher_name)::text AND state = 'running';
