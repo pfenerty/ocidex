@@ -44,6 +44,7 @@ labels. `target_info` carries `service_name` (`ocidex-api`, `ocidex-scanner-work
 | `ocidex_db_pool_acquires_total{pool,outcome}`, `ocidex_db_pool_acquire_wait_seconds_total{pool}` | Acquires that `waited` for a connection, and the total time spent waiting. |
 | `ocidex_nats_publishes_total{subject_class,outcome}` | JetStream publishes: `ok`, `duplicate` (dedup window hit), `error`. Hints that fail are recovered by the poll loop, so errors mean latency, not loss. |
 | `ocidex_registry_tags_selected{registry}`, `ocidex_registry_tags_skipped_limit{registry}` | Each registry's last walk (ADR-0053): tags inside the window and tags `tag_limit` left out; the same numbers as the Sources page's Last walk column. Reported by the API; a registry whose last walk failed is absent. |
+| `ocidex_retention_pruned_total{class}`, `ocidex_retention_sweep_duration_seconds` | SBOMs the retention sweep deleted (ADR-0056): `window` for registry SBOMs out of their scan window, `newest` for other SBOMs past `RETENTION_KEEP_LAST` or `RETENTION_MAX_AGE`. Reported only by the API replica that holds the sweep; a dry run counts nothing. |
 | `go_*`, `process_*` | Go runtime and process stats. |
 
 ### Tracing and OTLP export
@@ -189,6 +190,40 @@ kubectl get ociregistries -n <ns> \
 The namespace drains within seconds of the last finalizer clearing.
 
 ## Routine maintenance
+
+### SBOM retention
+
+Nothing deletes stored SBOMs unless retention is on ([ADR-0056](adr/0056-sbom-retention.md)).
+Its settings are in [CONFIGURATION.md § SBOM Retention](CONFIGURATION.md#sbom-retention).
+Through the chart they're `api.env.retention.*`.
+
+**What it deletes.**
+* **Registry SBOMs** go once their tag has left the registry's scan window (`tag_limit`,
+  `max_tag_age_days`) at its last successful walk. To store less from a registry, lower
+  `tag_limit`. Raising it again brings the tags back: the next walk scans them again.
+* **Other SBOMs** (uploads, auto-ingested images, direct scans) keep the newest
+  `RETENTION_KEEP_LAST` versions per artifact and flavor in each namespace, and optionally
+  nothing older than `RETENTION_MAX_AGE`.
+
+**What it never deletes.**
+* The newest version of each artifact, and its highest semver version.
+* Anything running in a registered cluster.
+* Anything ingested in the last 24 hours or with an enrichment job queued or running.
+
+**Turning it on.**
+1. Set `RETENTION_MODE=dry-run`. Each sweep logs a `retention sweep` line with `window` and
+   `newest` counts, and writes a `retention.swept` audit entry. It deletes nothing.
+2. When the counts look right, set `RETENTION_MODE=on`. The first sweep works through the
+   backlog in batches of `RETENTION_BATCH`, with a short pause between them.
+   `ocidex_retention_pruned_total` shows its progress.
+
+**Disk.** Postgres reuses the space deleted rows leave, but doesn't return it to the
+filesystem. After a large first sweep, reclaim it in a maintenance window with
+`VACUUM FULL` (it locks each table while it rewrites it), or with `pg_repack` online.
+
+**Around a sweep.** List pages catch up at the next rollup refresh, within 15 minutes.
+Vulnerabilities only the pruned SBOMs had are dropped at the end of the vuln-worker's next
+pass. A pruned SBOM's URL returns 404, and the changelog diffs across the gap.
 
 ### Retargeting or uninstalling the operator
 

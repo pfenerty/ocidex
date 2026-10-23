@@ -178,6 +178,8 @@ func run() error {
 		slog.Info("provenance reverifier disabled")
 	}
 
+	startRetention(extCtx, cfg, pool, bgPool, bus, meterProvider, logger)
+
 	go runSessionCleaner(extCtx, authSvc)
 
 	// The dashboard aggregates take longer than any request timeout allows, so
@@ -364,6 +366,33 @@ func buildIdentityProviders(ctx context.Context, cfg *config.Config) ([]auth.Pro
 	slog.Info("identity providers configured", "providers", names)
 
 	return providers, nil
+}
+
+// startRetention leader-elects the SBOM retention sweep (ADR-0056) when
+// RETENTION_MODE is dry-run or on. Like the poller, it holds its lock on the
+// request pool; its deletes run on the background pool, as the rollup refresher's
+// passes do, so a long sweep never holds a connection the request path needs.
+func startRetention(ctx context.Context, cfg *config.Config, pool, bgPool *pgxpool.Pool, bus event.Publisher, mp metric.MeterProvider, logger *slog.Logger) {
+	if cfg.RetentionMode == config.RetentionOff {
+		slog.Info("sbom retention off")
+		return
+	}
+	policy := service.RetentionPolicy{
+		KeepLast:       cfg.RetentionKeepLast,
+		MaxAge:         cfg.RetentionMaxAge,
+		RegistryWindow: cfg.RetentionRegistryWindow,
+	}
+	sweeper := service.NewRetentionSweeper(service.NewRetentionService(bgPool), policy,
+		cfg.RetentionMode == config.RetentionDryRun, cfg.RetentionInterval, cfg.RetentionBatch, logger).
+		WithPublisher(bus).
+		WithMetrics(mp)
+	h := fnv.New64a()
+	h.Write([]byte(service.RetentionLockName))
+	key := int64(h.Sum64()) //nolint:gosec // G115: an advisory lock key is an opaque 64-bit token
+	go service.LeaderElect(ctx, pool, key, sweeper.Run)
+	slog.Info("sbom retention election started", "lock_key", key, "mode", cfg.RetentionMode,
+		"keep_last", cfg.RetentionKeepLast, "max_age", cfg.RetentionMaxAge,
+		"registry_window", cfg.RetentionRegistryWindow, "interval", cfg.RetentionInterval)
 }
 
 func warnUnpolledRegistries(ctx context.Context, registrySvc service.RegistryService) {

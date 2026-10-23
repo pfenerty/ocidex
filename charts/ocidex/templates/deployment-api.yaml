@@ -96,6 +96,22 @@ spec:
               value: {{ .Values.api.env.scannerEnabled | quote }}
             - name: REGISTRY_POLLER_ENABLED
               value: {{ .Values.api.env.registryPollerEnabled | quote }}
+            {{- with .Values.api.env.retention }}
+            - name: RETENTION_MODE
+              value: {{ .mode | quote }}
+            - name: RETENTION_KEEP_LAST
+              value: {{ .keepLast | quote }}
+            {{- if .maxAge }}
+            - name: RETENTION_MAX_AGE
+              value: {{ .maxAge | quote }}
+            {{- end }}
+            - name: RETENTION_REGISTRY_WINDOW
+              value: {{ .registryWindow | quote }}
+            - name: RETENTION_INTERVAL
+              value: {{ .interval | quote }}
+            - name: RETENTION_BATCH
+              value: {{ .batch | quote }}
+            {{- end }}
           livenessProbe:
             httpGet:
               path: /health

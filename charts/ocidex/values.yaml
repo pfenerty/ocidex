@@ -88,6 +88,15 @@ api:
     scannerEnabled: "true"
     registryPollerEnabled: "true"
     natsStreamReplicas: "1"
+    # SBOM retention (ADR-0056, docs/OPERATIONS.md "SBOM retention"). Off by
+    # default; run "dry-run" first, which logs what a sweep would delete.
+    retention:
+      mode: "off"           # off | dry-run | on
+      keepLast: "20"        # versions per series for non-registry SBOMs; "0" turns that off
+      maxAge: ""            # optional Go duration, e.g. "2160h"
+      registryWindow: "true" # prune registry SBOMs whose tag left the scan window
+      interval: "6h"
+      batch: "50"
   resources:
     requests:
       cpu: "50m"

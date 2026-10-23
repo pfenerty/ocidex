@@ -33,6 +33,7 @@ func (e *Extension) Init(bus *event.Bus) error {
 	bus.Subscribe(event.ArtifactDeleted, e.handleArtifactDeleted)
 	bus.Subscribe(event.UserLoggedIn, e.handleUserLoggedIn)
 	bus.Subscribe(event.UserLoggedOut, e.handleUserLoggedOut)
+	bus.Subscribe(event.RetentionSwept, e.handleRetentionSwept)
 	return nil
 }
 
@@ -73,6 +74,15 @@ func (e *Extension) handleArtifactDeleted(ctx context.Context, ev event.Event) {
 		return
 	}
 	e.record(ctx, string(event.ArtifactDeleted), "artifact", data.ArtifactID, data)
+}
+
+func (e *Extension) handleRetentionSwept(ctx context.Context, ev event.Event) {
+	data, ok := ev.Data.(event.RetentionSweptData)
+	if !ok {
+		e.logger.Error("audit: unexpected data type for retention.swept")
+		return
+	}
+	e.record(ctx, string(event.RetentionSwept), "sbom", pgtype.UUID{}, data)
 }
 
 func (e *Extension) handleUserLoggedIn(ctx context.Context, ev event.Event) {

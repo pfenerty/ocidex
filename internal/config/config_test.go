@@ -50,6 +50,61 @@ func TestLoad(t *testing.T) {
 			},
 		},
 		{
+			name: "retention defaults: off, keep 20, window on",
+			env: map[string]string{
+				"DATABASE_URL": "postgres://localhost/test",
+				"NATS_URL":     "nats://localhost:4222",
+			},
+			check: func(is *is.I, cfg *config.Config) {
+				is.Equal(cfg.RetentionMode, config.RetentionOff)
+				is.Equal(cfg.RetentionKeepLast, 20)
+				is.Equal(cfg.RetentionMaxAge, time.Duration(0))
+				is.True(cfg.RetentionRegistryWindow)
+				is.Equal(cfg.RetentionInterval, 6*time.Hour)
+				is.Equal(cfg.RetentionBatch, 50)
+			},
+		},
+		{
+			name: "retention dry-run with max age",
+			env: map[string]string{
+				"DATABASE_URL":      "postgres://localhost/test",
+				"NATS_URL":          "nats://localhost:4222",
+				"RETENTION_MODE":    "dry-run",
+				"RETENTION_MAX_AGE": "2160h",
+			},
+			check: func(is *is.I, cfg *config.Config) {
+				is.Equal(cfg.RetentionMode, config.RetentionDryRun)
+				is.Equal(cfg.RetentionMaxAge, 2160*time.Hour)
+			},
+		},
+		{
+			name: "retention mode must be known",
+			env: map[string]string{
+				"DATABASE_URL":   "postgres://localhost/test",
+				"NATS_URL":       "nats://localhost:4222",
+				"RETENTION_MODE": "yes",
+			},
+			wantErr: true,
+		},
+		{
+			name: "retention keep_last 1 is below the floor",
+			env: map[string]string{
+				"DATABASE_URL":        "postgres://localhost/test",
+				"NATS_URL":            "nats://localhost:4222",
+				"RETENTION_KEEP_LAST": "1",
+			},
+			wantErr: true,
+		},
+		{
+			name: "retention batch must be positive",
+			env: map[string]string{
+				"DATABASE_URL":    "postgres://localhost/test",
+				"NATS_URL":        "nats://localhost:4222",
+				"RETENTION_BATCH": "0",
+			},
+			wantErr: true,
+		},
+		{
 			name: "session cookie SameSite defaults to lax",
 			env: map[string]string{
 				"DATABASE_URL": "postgres://localhost/test",

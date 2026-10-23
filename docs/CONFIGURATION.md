@@ -218,6 +218,21 @@ the artifact) is detected without a new push. Runs on the API process via leader
 | `PROVENANCE_MAX_LAYER_BYTES` | `16777216` (16MiB) | Read budget for one manifest's signature layers, and separately for one manifest's attestation layers. The layers are registry-controlled and read whole into memory — a bare cosign signature is a few KB, an attestation carrying a full SBOM is megabytes — and reading one unbounded is what OOMKilled the worker. It is a budget shared across a manifest's layers, not a per-layer cap: a `.sig` manifest holds one layer per signature and every one is read, so a per-layer cap would multiply the ceiling by the layer count. A manifest listing more than 32 layers is rejected outright. Exceeding either fails that job with a diagnosable error, not the pod. Raise the worker's memory limit alongside this. |
 | `GIT_MAX_RESPONSE_BYTES` | `4194304` (4MiB) | Largest GitHub API response body the git enricher will read. Same reasoning as `PROVENANCE_MAX_LAYER_BYTES`: a remote-controlled body read whole into memory puts the worker's memory limit in someone else's hands. A successful response over the cap fails that job; an oversized *error* body is truncated into the message so the status code is not lost. |
 
+### SBOM Retention
+
+Deletes stored SBOMs on a schedule ([ADR-0056](adr/0056-sbom-retention.md)). The API process
+runs the sweep, leader-elected, so multiple replicas are safe. It's off by default. Operating
+it is covered in [OPERATIONS.md § SBOM retention](OPERATIONS.md#sbom-retention).
+
+| Variable | Default | Description |
+|----------|---------|-------------|
+| `RETENTION_MODE` | `off` | `off`, `dry-run` or `on`. `dry-run` logs what each sweep would delete and deletes nothing. |
+| `RETENTION_KEEP_LAST` | `20` | For SBOMs that don't come from a registry walk (uploads, auto-ingested and direct scans): versions kept per artifact and flavor in each namespace. `0` turns this class off; any other value must be at least `2`. |
+| `RETENTION_MAX_AGE` | — | Optional, same SBOMs: also prune versions ingested longer ago than this Go duration (`2160h` is 90 days). |
+| `RETENTION_REGISTRY_WINDOW` | `true` | Prune registry SBOMs whose tag has left the registry's scan window (`tag_limit`, `max_tag_age_days`) at its last successful walk. |
+| `RETENTION_INTERVAL` | `6h` | Gap between sweeps. |
+| `RETENTION_BATCH` | `50` | SBOMs deleted per transaction. Each SBOM cascades into its components and their children, so keep this small. |
+
 ### NATS JetStream
 
 Required by every process — the API and both workers fail to start without `NATS_URL`.

@@ -1,7 +1,10 @@
 package tests
 
 import (
+	"context"
+	"fmt"
 	"slices"
+	"sync/atomic"
 	"testing"
 	"time"
 
@@ -303,4 +306,50 @@ func TestRetentionRegistryWindow(t *testing.T) {
 	is.NoErr(err)
 	is.Equal(counts.Window, int64(1))
 	is.Equal(remainingSBOMs(t, f.pool, all...), sorted(inWindow, platform, fresh, newest, uncovered))
+}
+
+// TestRetentionSweepIsLeaderElected covers ADR-0056 R6: two sweepers against
+// one database contend for the retention lock, only one of them sweeps, and the
+// sweep it runs deletes the backlog.
+func TestRetentionSweepIsLeaderElected(t *testing.T) {
+	if testing.Short() {
+		t.Skip("skipping integration test in short mode")
+	}
+	is := is.New(t)
+	f, cleanup := newRetentionFixture(t)
+	defer cleanup()
+
+	app := seedRetentionArtifact(t, f.pool, "app")
+	ids := make([]string, 0, 5)
+	for i := range 5 {
+		ids = append(ids, seedRetentionSBOM(t, f.pool, retentionSeed{
+			ns: f.ns, source: f.upload, artifact: app,
+			version: fmt.Sprintf("v1.%d.0", i), digest: fmt.Sprintf("sha256:e%d", i), age: time.Duration(10-i) * day,
+		}))
+	}
+
+	ctx, cancel := context.WithCancel(t.Context())
+	var started atomic.Int32
+	swept := make(chan struct{}, 2)
+	const key = int64(0x0c1de5)
+	for range 2 {
+		sweeper := service.NewRetentionSweeper(service.NewRetentionService(f.pool),
+			service.RetentionPolicy{KeepLast: 2}, false, time.Hour, 50, nil)
+		go service.LeaderElect(ctx, f.pool, key, func(ctx context.Context) {
+			started.Add(1)
+			_, _ = sweeper.Sweep(ctx)
+			swept <- struct{}{}
+			<-ctx.Done()
+		})
+	}
+
+	select {
+	case <-swept:
+	case <-time.After(30 * time.Second):
+		t.Fatal("no sweeper ran")
+	}
+	time.Sleep(time.Second) // the loser has had its try at the lock by now
+	is.Equal(started.Load(), int32(1))
+	is.Equal(remainingSBOMs(t, f.pool, ids...), sorted(ids[3], ids[4]))
+	cancel()
 }
