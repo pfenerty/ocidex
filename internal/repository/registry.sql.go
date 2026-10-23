@@ -185,6 +185,16 @@ func (q *Queries) DeleteRegistry(ctx context.Context, id pgtype.UUID) (int64, er
 	return result.RowsAffected(), nil
 }
 
+const deleteRegistryWindow = `-- name: DeleteRegistryWindow :exec
+DELETE FROM registry_window WHERE registry_id = $1
+`
+
+// A successful walk replaces its registry's window (ADR-0056 R2).
+func (q *Queries) DeleteRegistryWindow(ctx context.Context, registryID pgtype.UUID) error {
+	_, err := q.db.Exec(ctx, deleteRegistryWindow, registryID)
+	return err
+}
+
 const getRegistry = `-- name: GetRegistry :one
 SELECT r.id, r.type, r.url, r.insecure, r.webhook_secret, r.enabled, r.created_at, r.updated_at, r.repository_patterns, r.tag_patterns, r.scan_mode, r.poll_interval_minutes, r.last_polled_at, r.repositories, r.auth_username, r.auth_token, r.include_untagged, r.verification_mode, r.trust_public_key, r.trust_identity, r.trust_issuer, r.managed_by, r.managed_ref, r.tag_limit, r.tag_order, r.max_tag_age_days, r.last_walk_stats, src.name, n.id AS namespace_id, n.visibility
 FROM registry r
@@ -295,6 +305,28 @@ func (q *Queries) GetRegistryByName(ctx context.Context, name string) (GetRegist
 		&i.Visibility,
 	)
 	return i, err
+}
+
+const insertRegistryWindow = `-- name: InsertRegistryWindow :exec
+INSERT INTO registry_window (registry_id, repository, digests, walked_at)
+VALUES ($1, $2, $3::text[], $4)
+`
+
+type InsertRegistryWindowParams struct {
+	RegistryID pgtype.UUID        `json:"registry_id"`
+	Repository string             `json:"repository"`
+	Digests    []string           `json:"digests"`
+	WalkedAt   pgtype.Timestamptz `json:"walked_at"`
+}
+
+func (q *Queries) InsertRegistryWindow(ctx context.Context, arg InsertRegistryWindowParams) error {
+	_, err := q.db.Exec(ctx, insertRegistryWindow,
+		arg.RegistryID,
+		arg.Repository,
+		arg.Digests,
+		arg.WalkedAt,
+	)
+	return err
 }
 
 const listPollableRegistries = `-- name: ListPollableRegistries :many

@@ -781,8 +781,51 @@ func (s *registryService) RecordWalkStats(ctx context.Context, id string, stats 
 	if err != nil {
 		return fmt.Errorf("encoding walk stats: %w", err)
 	}
-	if err := s.repo.RecordRegistryWalkStats(ctx, repository.RecordRegistryWalkStatsParams{ID: uid, Stats: b}); err != nil {
+	if stats.Error != "" || s.pool == nil {
+		// A failed walk keeps the last successful walk's window (ADR-0056 R2).
+		if err := s.repo.RecordRegistryWalkStats(ctx, repository.RecordRegistryWalkStatsParams{ID: uid, Stats: b}); err != nil {
+			return fmt.Errorf("recording walk stats: %w", err)
+		}
+		return nil
+	}
+
+	tx, err := s.pool.Begin(ctx)
+	if err != nil {
+		return fmt.Errorf("beginning transaction: %w", err)
+	}
+	defer tx.Rollback(ctx) //nolint:errcheck // rollback on committed tx is a no-op
+	q := repository.New(tx)
+	if err := q.RecordRegistryWalkStats(ctx, repository.RecordRegistryWalkStatsParams{ID: uid, Stats: b}); err != nil {
 		return fmt.Errorf("recording walk stats: %w", err)
+	}
+	if err := replaceRegistryWindow(ctx, q, uid, stats); err != nil {
+		return err
+	}
+	if err := tx.Commit(ctx); err != nil {
+		return fmt.Errorf("committing transaction: %w", err)
+	}
+	return nil
+}
+
+// replaceRegistryWindow stores a successful walk's per-repository selection,
+// replacing the previous walk's.
+func replaceRegistryWindow(ctx context.Context, q *repository.Queries, registryID pgtype.UUID, stats WalkStats) error {
+	if err := q.DeleteRegistryWindow(ctx, registryID); err != nil {
+		return fmt.Errorf("clearing registry window: %w", err)
+	}
+	walkedAt := pgtype.Timestamptz{Time: stats.At, Valid: !stats.At.IsZero()}
+	if !walkedAt.Valid {
+		walkedAt = pgtype.Timestamptz{Time: time.Now().UTC(), Valid: true}
+	}
+	for repo, digests := range stats.Windows {
+		if err := q.InsertRegistryWindow(ctx, repository.InsertRegistryWindowParams{
+			RegistryID: registryID,
+			Repository: repo,
+			Digests:    digests,
+			WalkedAt:   walkedAt,
+		}); err != nil {
+			return fmt.Errorf("storing registry window for %s: %w", repo, err)
+		}
 	}
 	return nil
 }

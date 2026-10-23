@@ -65,6 +65,13 @@ type WalkStats struct {
 	SkippedByAge   int       `json:"skipped_by_age" doc:"Matching tags older than max_tag_age_days"`
 	Queued         int       `json:"queued" doc:"Scan jobs the walk submitted (already-ingested digests are not)"`
 	Error          string    `json:"error,omitempty" doc:"Why the walk failed, if it did"`
+
+	// Windows maps each repository the walk fully resolved to the top-level
+	// digests its window selected: a manifest's own digest, or an index's.
+	// Retention prunes a registry SBOM only from a repository listed here
+	// (ADR-0056 R2), so a repository with a selected tag that failed to resolve
+	// is left out. Stored apart from the stats, as registry_window rows.
+	Windows map[string][]string `json:"-"`
 }
 
 // TagWindow is the outcome of applying a registry's selection window to one

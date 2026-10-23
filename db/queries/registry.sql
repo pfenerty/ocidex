@@ -253,3 +253,11 @@ UPDATE registry SET last_walk_stats = @stats::jsonb WHERE id = @id;
 -- Every registry's latest walk, for the ocidex.registry.tags.* gauges
 -- (ADR-0054 M5). A full scan of registry, a small, admin-curated table.
 SELECT id, last_walk_stats FROM registry WHERE last_walk_stats IS NOT NULL;
+
+-- name: DeleteRegistryWindow :exec
+-- A successful walk replaces its registry's window (ADR-0056 R2).
+DELETE FROM registry_window WHERE registry_id = @registry_id;
+
+-- name: InsertRegistryWindow :exec
+INSERT INTO registry_window (registry_id, repository, digests, walked_at)
+VALUES (@registry_id, @repository, @digests::text[], @walked_at);

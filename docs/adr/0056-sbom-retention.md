@@ -73,22 +73,24 @@ series is still covered by P1.
 
 ### Rule R2: class W, out of window (registry SBOMs)
 
-An SBOM is a **registry SBOM** when its source is `oci_registry` and a `scan_jobs` row links it
-to a registry (`registry_id`). It is pruned when **all** of these hold:
+An SBOM is a **registry SBOM** when its source is `oci_registry`. Its repository comes from the
+`scan_jobs` row that links it to the registry. One with no such row can't be placed in a
+repository, and is never pruned. A registry SBOM is pruned when **all** of these hold:
 
-1. The registry's most recent **successful** walk covered the SBOM's repository. A failed or
-   partial walk never prunes. A repository that has left the filter (removed from
-   `repositories`, or no longer matching the patterns) isn't covered, so its SBOMs are left
-   alone.
+1. The registry's most recent **successful** walk covered the SBOM's repository. A failed walk
+   never prunes. A repository the walk couldn't fully resolve isn't covered: its tag list
+   failed, or one of its selected tags couldn't be resolved to a digest. A repository that has
+   left the filter (removed from `repositories`, or no longer matching the patterns) isn't
+   covered either. SBOMs in an uncovered repository are left alone.
 2. That walk did not select the SBOM's digest. "Selected" means the walk's window (ADR-0053 S1)
    resolved to it, matched on `coalesce(sbom.index_digest, sbom.digest)` so every platform of
    a selected index stays.
 3. No protected class (R4) applies.
 
-This needs the window to be stored. Each successful walk records its selected
-`(repository, tag, digest)` set per registry, replacing the previous walk's set. The poller,
-the ad-hoc walk and the preview already call one selection function (S1), so the walk writes
-the set from there.
+This needs the window to be stored. Each successful walk records, per covered repository, the
+top-level digests its window selected (`registry_window`), replacing the previous walk's rows.
+A failed walk leaves them alone. The poller and the ad-hoc walk both record it, and the preview
+doesn't.
 
 There is no tombstone (ADR-0053 S6). Raising `tag_limit` brings the tags back into the window,
 and the next walk scans them again.
