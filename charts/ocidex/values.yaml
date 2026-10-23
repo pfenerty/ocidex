@@ -223,7 +223,10 @@ vulnWorker:
       memory: "128Mi"
     limits:
       cpu: "1"
-      memory: "512Mi"
+      # The worker's own heap is ~150Mi; the rest is page cache for the grype DB, which
+      # counts against this limit. At 512Mi a match pass slowed from ~2s to ~9s per SBOM
+      # as the cache was squeezed; at 2Gi it held ~2s (ocidex-cecc.2).
+      memory: "2Gi"
 
 # --- Web frontend ------------------------------------------------------------
 web:
