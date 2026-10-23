@@ -3,6 +3,8 @@ package grypematch
 import (
 	"context"
 	"errors"
+	"fmt"
+	"slices"
 	"sort"
 	"strings"
 	"testing"
@@ -17,31 +19,43 @@ import (
 	"github.com/pfenerty/ocidex/internal/vuln"
 )
 
-// fakeStore is an in-memory Store.
+// fakeStore is an in-memory Store. Rows and mappings carry the build they were
+// written in, merged within a build the way the SQL merges them (severity: the
+// higher label wins; mappings: the first fixed version wins).
 type fakeStore struct {
 	docs        []vuln.SBOMDoc
 	matched     map[pgtype.UUID]time.Time
 	builtStored *time.Time
-	purls       []string
 	vulns       map[string]vuln.Row
+	vulnBuilt   map[string]time.Time
 	mappings    map[string][]vuln.PackageVulnRef
-	fullWrites  int // ReplacePackageVulns calls
+	mapBuilt    map[string]time.Time // purl/set/vuln → build
+	// visited records the SBOMs matched, in order (one SBOMGoSymbols call each).
+	visited []pgtype.UUID
+	// failMark makes MarkSBOMMatched fail for this SBOM once, to interrupt a pass.
+	failMark     *pgtype.UUID
+	staleDeletes int
 }
 
 func newFakeStore(docs ...vuln.SBOMDoc) *fakeStore {
 	return &fakeStore{
 		docs: docs, matched: map[pgtype.UUID]time.Time{},
-		vulns: map[string]vuln.Row{}, mappings: map[string][]vuln.PackageVulnRef{},
+		vulns: map[string]vuln.Row{}, vulnBuilt: map[string]time.Time{},
+		mappings: map[string][]vuln.PackageVulnRef{}, mapBuilt: map[string]time.Time{},
 	}
 }
 
-func (s *fakeStore) ListSBOMsToMatch(_ context.Context, built time.Time, all bool, after pgtype.UUID, limit int32) ([]vuln.SBOMDoc, error) {
+func mapKey(purl string, r vuln.PackageVulnRef) string {
+	return fmt.Sprintf("%s|%d|%s", purl, r.GoSymbolSetID, r.VulnerabilityID)
+}
+
+func (s *fakeStore) ListSBOMsToMatch(_ context.Context, built time.Time, after pgtype.UUID, limit int32) ([]vuln.SBOMDoc, error) {
 	var out []vuln.SBOMDoc
 	for _, d := range s.docs {
 		if string(d.ID.Bytes[:]) <= string(after.Bytes[:]) {
 			continue
 		}
-		if b, ok := s.matched[d.ID]; !all && ok && b.Equal(built) {
+		if b, ok := s.matched[d.ID]; ok && b.Equal(built) {
 			continue
 		}
 		out = append(out, d)
@@ -52,6 +66,10 @@ func (s *fakeStore) ListSBOMsToMatch(_ context.Context, built time.Time, all boo
 	return out, nil
 }
 func (s *fakeStore) MarkSBOMMatched(_ context.Context, id pgtype.UUID, built time.Time) error {
+	if s.failMark != nil && *s.failMark == id {
+		s.failMark = nil
+		return errors.New("connection reset")
+	}
 	s.matched[id] = built
 	return nil
 }
@@ -65,37 +83,50 @@ func (s *fakeStore) SetMatchedDBBuilt(_ context.Context, b time.Time) error {
 	s.builtStored = &b
 	return nil
 }
-func (s *fakeStore) ListDistinctComponentPurls(context.Context) ([]string, error) {
-	return s.purls, nil
-}
-func (s *fakeStore) UpsertVulnerability(_ context.Context, v vuln.Row) error {
-	s.vulns[v.ID] = v
-	return nil
-}
-func (s *fakeStore) InsertVulnerabilityIfAbsent(_ context.Context, v vuln.Row) (bool, error) {
-	if _, ok := s.vulns[v.ID]; ok {
-		return false, nil
+func (s *fakeStore) MergeVulnerability(_ context.Context, v vuln.Row, built time.Time) error {
+	rank := map[string]int{vuln.SeverityLow: 1, vuln.SeverityMedium: 2, vuln.SeverityHigh: 3, vuln.SeverityCritical: 4}
+	if old, ok := s.vulns[v.ID]; ok && s.vulnBuilt[v.ID].Equal(built) && rank[old.Severity] >= rank[v.Severity] {
+		v.Severity = old.Severity
 	}
-	s.vulns[v.ID] = v
-	return true, nil
-}
-func (s *fakeStore) ReplaceVulnerabilityRefs(context.Context, string, []vuln.Reference) error {
+	s.vulns[v.ID], s.vulnBuilt[v.ID] = v, built
 	return nil
 }
-func (s *fakeStore) ReplacePackageVulns(_ context.Context, purl string, refs []vuln.PackageVulnRef) error {
-	s.fullWrites++
-	if len(refs) == 0 {
-		delete(s.mappings, purl)
-		return nil
+func (s *fakeStore) MergePackageVulns(_ context.Context, purl string, refs []vuln.PackageVulnRef, built time.Time) error {
+	for _, r := range refs {
+		k := mapKey(purl, r)
+		i := slices.IndexFunc(s.mappings[purl], func(o vuln.PackageVulnRef) bool { return mapKey(purl, o) == k })
+		switch {
+		case i < 0:
+			s.mappings[purl] = append(s.mappings[purl], r)
+		case !s.mapBuilt[k].Equal(built) || s.mappings[purl][i].FixedVersion == "":
+			s.mappings[purl][i] = r
+		}
+		s.mapBuilt[k] = built
 	}
-	s.mappings[purl] = refs
 	return nil
 }
-func (s *fakeStore) AddPackageVulns(_ context.Context, purl string, refs []vuln.PackageVulnRef) error {
-	s.mappings[purl] = append(s.mappings[purl], refs...)
-	return nil
+func (s *fakeStore) DeleteStaleMatches(_ context.Context, built time.Time) (int64, error) {
+	s.staleDeletes++
+	var n int64
+	for purl, refs := range s.mappings {
+		kept := refs[:0]
+		for _, r := range refs {
+			if s.mapBuilt[mapKey(purl, r)].Equal(built) {
+				kept = append(kept, r)
+			} else {
+				n++
+			}
+		}
+		if len(kept) == 0 {
+			delete(s.mappings, purl)
+		} else {
+			s.mappings[purl] = kept
+		}
+	}
+	return n, nil
 }
-func (s *fakeStore) SBOMGoSymbols(context.Context, pgtype.UUID) (map[vuln.GoSymbolKey]vuln.GoSymbolSet, error) {
+func (s *fakeStore) SBOMGoSymbols(_ context.Context, id pgtype.UUID) (map[vuln.GoSymbolKey]vuln.GoSymbolSet, error) {
+	s.visited = append(s.visited, id)
 	return nil, nil
 }
 func (s *fakeStore) PruneOrphanGoSymbolSets(context.Context) (int64, error) { return 0, nil }
@@ -165,8 +196,8 @@ func TestRefresherFullRematch(t *testing.T) {
 	is := is.New(t)
 	day1 := time.Date(2026, 10, 10, 0, 0, 0, 0, time.UTC)
 	store := newFakeStore(requestsDoc(t, 1, "2.31.0"), requestsDoc(t, 2, "2.32.0"))
-	store.purls = []string{"pkg:pypi/requests@2.31.0", "pkg:pypi/requests@2.32.0", "pkg:pypi/stale@1"}
-	// A mapping and row left over from the OSV era, for a purl that no longer matches.
+	// A mapping and row left over from before build stamping, for a purl that no
+	// longer matches.
 	store.mappings["pkg:pypi/stale@1"] = []vuln.PackageVulnRef{{VulnerabilityID: "PYSEC-OLD"}}
 	store.vulns["PYSEC-OLD"] = vuln.Row{ID: "PYSEC-OLD"}
 
@@ -181,10 +212,41 @@ func TestRefresherFullRematch(t *testing.T) {
 	is.True(store.builtStored != nil && store.builtStored.Equal(day1))
 	is.Equal(len(store.matched), 2)
 
-	// Same build again: nothing pending, so no full rebuild.
-	writes := store.fullWrites
+	// Same build again: nothing pending, nothing matched, no cleanup.
+	visited, deletes := len(store.visited), store.staleDeletes
 	is.NoErr(r.Step(context.Background()))
-	is.Equal(store.fullWrites, writes)
+	is.Equal(len(store.visited), visited)
+	is.Equal(store.staleDeletes, deletes)
+}
+
+// An interrupted pass has already published what it matched, keeps the previous
+// build's rows until the pass completes, and resumes where it stopped.
+func TestRefresherResumesInterruptedPass(t *testing.T) {
+	is := is.New(t)
+	day1 := time.Date(2026, 10, 10, 0, 0, 0, 0, time.UTC)
+	store := newFakeStore(requestsDoc(t, 1, "2.31.0"), requestsDoc(t, 2, "2.30.0"), requestsDoc(t, 3, "2.29.0"))
+	store.mappings["pkg:pypi/stale@1"] = []vuln.PackageVulnRef{{VulnerabilityID: "PYSEC-OLD"}}
+	store.vulns["PYSEC-OLD"] = vuln.Row{ID: "PYSEC-OLD"}
+	fail := uuidN(2)
+	store.failMark = &fail
+
+	db := &fakeDB{m: NewMatcher(mock.VulnerabilityProvider(requestsVuln)), built: day1}
+	r := newRefresher(db, store, time.Hour, nil)
+	is.True(r.Step(context.Background()) != nil) // interrupted at SBOM 2
+
+	is.Equal(keys(store.mappings), []string{ // SBOM 1 and 2 visible already, old row kept
+		"pkg:pypi/requests@2.30.0", "pkg:pypi/requests@2.31.0", "pkg:pypi/stale@1",
+	})
+	is.True(store.builtStored == nil) // not finalized
+	is.Equal(store.staleDeletes, 0)
+
+	store.visited = nil
+	is.NoErr(r.Step(context.Background()))
+	is.Equal(store.visited, []pgtype.UUID{uuidN(2), uuidN(3)}) // SBOM 1 not re-matched
+	is.Equal(keys(store.mappings), []string{
+		"pkg:pypi/requests@2.29.0", "pkg:pypi/requests@2.30.0", "pkg:pypi/requests@2.31.0",
+	})
+	is.True(store.builtStored.Equal(day1))
 }
 
 func TestRefresherIncrementalAddsNewSBOMOnly(t *testing.T) {
@@ -193,17 +255,19 @@ func TestRefresherIncrementalAddsNewSBOMOnly(t *testing.T) {
 	store := newFakeStore(requestsDoc(t, 1, "2.32.0"))
 	db := &fakeDB{m: NewMatcher(mock.VulnerabilityProvider(requestsVuln)), built: day1}
 	r := newRefresher(db, store, time.Hour, nil)
-	is.NoErr(r.Step(context.Background())) // full re-match: nothing vulnerable
+	is.NoErr(r.Step(context.Background())) // full pass: nothing vulnerable
 	is.Equal(len(store.mappings), 0)
 
+	// A row this build already wrote, more severe than the new SBOM's view of it.
 	store.vulns["GHSA-9wx4-h78v-vm56"] = vuln.Row{ID: "GHSA-9wx4-h78v-vm56", Severity: vuln.SeverityCritical}
+	store.vulnBuilt["GHSA-9wx4-h78v-vm56"] = day1
 	store.docs = append(store.docs, requestsDoc(t, 2, "2.31.0")) // newly ingested
-	writes := store.fullWrites
+	store.visited = nil
 	is.NoErr(r.Step(context.Background()))
 
-	is.Equal(store.fullWrites, writes) // incremental: no replace-all
+	is.Equal(store.visited, []pgtype.UUID{uuidN(2)})
+	is.Equal(store.staleDeletes, 1) // only the first pass cleaned up
 	is.Equal(keys(store.mappings), []string{"pkg:pypi/requests@2.31.0"})
-	// The existing row (derived by a full re-match) is not overwritten by one SBOM's view.
 	is.Equal(store.vulns["GHSA-9wx4-h78v-vm56"].Severity, vuln.SeverityCritical)
 	is.Equal(store.matched[uuidN(2)], day1)
 }
@@ -222,6 +286,35 @@ func TestRefresherNewBuildTriggersFullRematch(t *testing.T) {
 	is.NoErr(r.Step(context.Background()))
 	is.Equal(keys(store.mappings), []string{"pkg:pypi/requests@2.31.0"})
 	is.True(store.builtStored.Equal(db.built))
+
+	// And the build after withdraws it: the mapping goes, and the orphaned row.
+	db.m, db.built = NewMatcher(mock.VulnerabilityProvider()), day1.Add(48*time.Hour)
+	is.NoErr(r.Step(context.Background()))
+	is.Equal(len(store.mappings), 0)
+	is.Equal(len(store.vulns), 0)
+}
+
+// A build that changes while a pass is unfinished restarts the pass for the new
+// build; rows the old pass wrote are kept until the new one completes.
+func TestRefresherNewBuildMidPass(t *testing.T) {
+	is := is.New(t)
+	day1 := time.Date(2026, 10, 10, 0, 0, 0, 0, time.UTC)
+	store := newFakeStore(requestsDoc(t, 1, "2.31.0"), requestsDoc(t, 2, "2.31.0"))
+	fail := uuidN(2)
+	store.failMark = &fail
+	db := &fakeDB{m: NewMatcher(mock.VulnerabilityProvider(requestsVuln)), built: day1}
+	r := newRefresher(db, store, time.Hour, nil)
+	is.True(r.Step(context.Background()) != nil)
+	is.Equal(keys(store.mappings), []string{"pkg:pypi/requests@2.31.0"})
+
+	day2 := day1.Add(24 * time.Hour)
+	db.built = day2
+	store.visited = nil
+	is.NoErr(r.Step(context.Background()))
+	is.Equal(store.visited, []pgtype.UUID{uuidN(1), uuidN(2)}) // both re-matched for day2
+	is.Equal(keys(store.mappings), []string{"pkg:pypi/requests@2.31.0"})
+	is.True(store.mapBuilt[mapKey("pkg:pypi/requests@2.31.0", store.mappings["pkg:pypi/requests@2.31.0"][0])].Equal(day2))
+	is.True(store.builtStored.Equal(day2))
 }
 
 func TestRefresherDBCheckBackoff(t *testing.T) {

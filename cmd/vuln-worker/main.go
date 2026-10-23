@@ -2,12 +2,13 @@
 // stored SBOMs against the grype vulnerability database (ADR-049). The leader
 // (a Postgres advisory lock, so one replica writes at a time) checks for a newer
 // database every VULN_REFRESH_INTERVAL and re-matches every SBOM when the build
-// changes; between builds it matches newly ingested SBOMs within a minute.
+// changes, writing each SBOM's matches as it goes so a restart resumes the pass;
+// between builds it matches newly ingested SBOMs within a minute.
 // Per-SBOM vulnerability status is derived by joining component.purl at read
 // time, so a newly disclosed CVE reaches every affected SBOM without re-ingesting.
 //
-// Pass --once to run a single step (database check, then a full or incremental
-// match) and exit (K8s Job / manual invocation).
+// Pass --once to run a single step (database check, then matching every SBOM not
+// yet matched against the build) and exit (K8s Job / manual invocation).
 package main
 
 import (

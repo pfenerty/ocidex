@@ -258,6 +258,7 @@ type PackageVulnerability struct {
 	UpdatedAt       pgtype.Timestamptz `json:"updated_at"`
 	FixState        pgtype.Text        `json:"fix_state"`
 	GoSymbolSetID   int64              `json:"go_symbol_set_id"`
+	DbBuiltAt       pgtype.Timestamptz `json:"db_built_at"`
 }
 
 type ProvenanceDriftEvent struct {
@@ -428,10 +429,12 @@ type Vulnerability struct {
 	RefreshedAt pgtype.Timestamptz `json:"refreshed_at"`
 	CanonicalID string             `json:"canonical_id"`
 	CvssVector  pgtype.Text        `json:"cvss_vector"`
+	DbBuiltAt   pgtype.Timestamptz `json:"db_built_at"`
 }
 
 type VulnerabilityReference struct {
-	VulnerabilityID string `json:"vulnerability_id"`
-	Type            string `json:"type"`
-	Url             string `json:"url"`
+	VulnerabilityID string             `json:"vulnerability_id"`
+	Type            string             `json:"type"`
+	Url             string             `json:"url"`
+	DbBuiltAt       pgtype.Timestamptz `json:"db_built_at"`
 }

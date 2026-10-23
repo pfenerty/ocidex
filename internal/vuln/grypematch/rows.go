@@ -20,8 +20,8 @@ const summaryMaxRunes = 200
 // can arrive from several namespaces (a CVE matched against both a Debian and an
 // Ubuntu package, each with NVD as a related record) and from many SBOMs; the row
 // takes the most severe of the matched sources' own assessments (see rowAcc.row).
-// A full re-match feeds every SBOM's findings into one set, so a row's severity
-// is derived from everything that matched it, independent of SBOM order.
+// The refresher builds one set per SBOM; rows from different SBOMs are merged in
+// the store (vuln.PGStore.MergeVulnerability).
 type RowSet struct {
 	byID map[string]*rowAcc
 }
@@ -63,7 +63,7 @@ func Rows(findings []Finding) []vuln.Row {
 }
 
 // MappingSet accumulates findings into the per-purl mapping rows
-// ReplacePackageVulns writes, one per (purl, Go symbol set, vulnerability). When the same pair
+// the store writes, one per (purl, Go symbol set, vulnerability). When the same pair
 // arrives twice (two matchers, two namespaces, or two SBOMs sharing a package),
 // the first carrying a fixed version wins, with its fix state.
 type MappingSet struct {
