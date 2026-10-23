@@ -256,6 +256,8 @@ The API, the job workers and `vuln-worker` also report their database pools,
 `ocidex_db_pool_acquire_wait_seconds_total{pool}` (`pool` is `main`, or `background` for the API's
 out-of-band pool), and binaries that publish to NATS count
 `ocidex_nats_publishes_total{subject_class,outcome}` (`ok`, `duplicate`, `error`).
+The API also reports each registry's last walk window as `ocidex_registry_tags_selected{registry}` and
+`ocidex_registry_tags_skipped_limit{registry}`.
 
 ---
 

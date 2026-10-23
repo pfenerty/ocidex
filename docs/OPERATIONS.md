@@ -43,7 +43,7 @@ labels. `target_info` carries `service_name` (`ocidex-api`, `ocidex-scanner-work
 | `ocidex_db_pool_connections{pool,state}` | Pool `acquired` / `idle` / `total` / `max` connections. The API has `main` and `background` pools. |
 | `ocidex_db_pool_acquires_total{pool,outcome}`, `ocidex_db_pool_acquire_wait_seconds_total{pool}` | Acquires that `waited` for a connection, and the total time spent waiting. |
 | `ocidex_nats_publishes_total{subject_class,outcome}` | JetStream publishes: `ok`, `duplicate` (dedup window hit), `error`. Hints that fail are recovered by the poll loop, so errors mean latency, not loss. |
-| `ocidex_registry_tags_selected`, `ocidex_registry_tags_skipped_limit` | Per-registry walk window (ADR-0053), once ocidex-5y0r.7 lands. |
+| `ocidex_registry_tags_selected{registry}`, `ocidex_registry_tags_skipped_limit{registry}` | Each registry's last walk (ADR-0053): tags inside the window and tags `tag_limit` left out; the same numbers as the Sources page's Last walk column. Reported by the API; a registry whose last walk failed is absent. |
 | `go_*`, `process_*` | Go runtime and process stats. |
 
 ### Tracing and OTLP export

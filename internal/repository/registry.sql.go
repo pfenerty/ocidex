@@ -697,6 +697,37 @@ func (q *Queries) ListRegistryTrustSummary(ctx context.Context, arg ListRegistry
 	return items, nil
 }
 
+const listRegistryWalkStats = `-- name: ListRegistryWalkStats :many
+SELECT id, last_walk_stats FROM registry WHERE last_walk_stats IS NOT NULL
+`
+
+type ListRegistryWalkStatsRow struct {
+	ID            pgtype.UUID `json:"id"`
+	LastWalkStats []byte      `json:"last_walk_stats"`
+}
+
+// Every registry's latest walk, for the ocidex.registry.tags.* gauges
+// (ADR-0054 M5). A full scan of registry, a small, admin-curated table.
+func (q *Queries) ListRegistryWalkStats(ctx context.Context) ([]ListRegistryWalkStatsRow, error) {
+	rows, err := q.db.Query(ctx, listRegistryWalkStats)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	items := []ListRegistryWalkStatsRow{}
+	for rows.Next() {
+		var i ListRegistryWalkStatsRow
+		if err := rows.Scan(&i.ID, &i.LastWalkStats); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
 const recordRegistryWalkStats = `-- name: RecordRegistryWalkStats :exec
 UPDATE registry SET last_walk_stats = $1::jsonb WHERE id = $2
 `

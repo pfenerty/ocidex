@@ -141,7 +141,7 @@ func run() error {
 	clusterSvc := service.NewClusterService(pool, cfg.SecretBox)
 	tracerProvider, stopTracing := tracing.Start(ctx, "ocidex-api")
 	defer stopTracing()
-	meterProvider, stopMetrics := setupMetrics(ctx, cfg, pool, bgPool, natsClient)
+	meterProvider, stopMetrics := setupMetrics(ctx, cfg, pool, bgPool, natsClient, registrySvc)
 	defer stopMetrics()
 
 	handler := api.NewHandler(sbomSvc, searchSvc, authSvc, registrySvc, namespaceSvc, sourceSvc, jobSvc, enrichJobSvc, watchSvc, clusterSvc, pool, scanSubmitter, cfg).
@@ -405,17 +405,21 @@ func setupScannerExt(cfg *config.Config, _ *pgxpool.Pool, _ *event.Bus, _ *exten
 	return scanner.NewNATSSubmitter(natsClient, cfg.NATSStreamName, jobSvc)
 }
 
-// setupMetrics builds the API's MeterProvider, instruments both DB pools and,
-// when there is one, the NATS client, and serves /metrics on METRICS_ADDR
+// setupMetrics builds the API's MeterProvider, instruments both DB pools, the
+// NATS client when there is one, and every registry's last walk window, and
+// serves /metrics on METRICS_ADDR
 // (ADR-0054). An empty METRICS_ADDR turns off only the listener, so
 // OTEL_METRICS_EXPORTER=otlp can still push. When setup fails it returns a
 // no-op provider. The returned func stops the listener and flushes the provider.
-func setupMetrics(ctx context.Context, cfg *config.Config, pool, bgPool *pgxpool.Pool, natsClient *natspkg.Client) (metric.MeterProvider, func()) {
+func setupMetrics(ctx context.Context, cfg *config.Config, pool, bgPool *pgxpool.Pool, natsClient *natspkg.Client, walks scanner.LastWalkLister) (metric.MeterProvider, func()) {
 	mp, handler, stop := metrics.Start(ctx, "ocidex-api")
 	metrics.WatchPool(mp, metrics.PoolMain, pool)
 	metrics.WatchPool(mp, metrics.PoolBackground, bgPool)
 	if natsClient != nil {
 		natsClient.WithMetrics(mp)
+	}
+	if _, err := scanner.ObserveWalkStats(mp, walks, slog.Default()); err != nil {
+		slog.Error("registry walk metrics disabled", "err", err)
 	}
 	if handler == nil || cfg.MetricsAddr == "" {
 		slog.Info("metrics listener off", "metrics_addr", cfg.MetricsAddr, "prometheus_export", handler != nil)

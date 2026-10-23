@@ -130,6 +130,10 @@ func (f *fakeRegistryRepo) RecordRegistryWalkStats(_ context.Context, _ reposito
 	return nil
 }
 
+func (f *fakeRegistryRepo) ListRegistryWalkStats(context.Context) ([]repository.ListRegistryWalkStatsRow, error) {
+	return nil, nil
+}
+
 func (f *fakeRegistryRepo) ListRegistryTrustSummary(ctx context.Context, arg repository.ListRegistryTrustSummaryParams) ([]repository.ListRegistryTrustSummaryRow, error) {
 	if f.trustSummaryFn != nil {
 		return f.trustSummaryFn(ctx, arg)
@@ -733,6 +737,10 @@ func (f *fakeListRegistryService) MarkPolled(_ context.Context, _ string) (Regis
 
 func (f *fakeListRegistryService) RecordWalkStats(_ context.Context, _ string, _ WalkStats) error {
 	return nil
+}
+
+func (f *fakeListRegistryService) LastWalks(context.Context) (map[string]WalkStats, error) {
+	return nil, nil
 }
 
 func (f *fakeListRegistryService) TrustSummary(_ context.Context, _ VisibilityFilter) ([]RegistryTrustCount, error) {

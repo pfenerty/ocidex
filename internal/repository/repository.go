@@ -172,6 +172,7 @@ type RegistryRepository interface {
 	ListPollableRegistries(ctx context.Context) ([]ListPollableRegistriesRow, error)
 	UpdateRegistryLastPolled(ctx context.Context, id pgtype.UUID) (Registry, error)
 	RecordRegistryWalkStats(ctx context.Context, arg RecordRegistryWalkStatsParams) error
+	ListRegistryWalkStats(ctx context.Context) ([]ListRegistryWalkStatsRow, error)
 	ListRegistryTrustSummary(ctx context.Context, arg ListRegistryTrustSummaryParams) ([]ListRegistryTrustSummaryRow, error)
 
 	// Creating a registry into a named namespace needs these two: the namespace

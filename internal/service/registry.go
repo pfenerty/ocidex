@@ -406,6 +406,9 @@ type RegistryService interface {
 	MarkPolled(ctx context.Context, id string) (Registry, error)
 	// RecordWalkStats stores what the registry's latest walk selected.
 	RecordWalkStats(ctx context.Context, id string, stats WalkStats) error
+	// LastWalks returns each walked registry's latest stats, keyed by registry
+	// ID. Registries never walked are absent.
+	LastWalks(ctx context.Context) (map[string]WalkStats, error)
 	// TrustSummary is visibility-filtered so a namespace owner can read the
 	// signing posture of their own artifacts without the admin role.
 	TrustSummary(ctx context.Context, vis VisibilityFilter) ([]RegistryTrustCount, error)
@@ -752,6 +755,21 @@ func (s *registryService) MarkPolled(ctx context.Context, id string) (Registry, 
 		return Registry{}, fmt.Errorf("marking registry polled: %w", err)
 	}
 	return s.Get(ctx, id)
+}
+
+func (s *registryService) LastWalks(ctx context.Context) (map[string]WalkStats, error) {
+	rows, err := s.repo.ListRegistryWalkStats(ctx)
+	if err != nil {
+		return nil, fmt.Errorf("listing walk stats: %w", err)
+	}
+	out := make(map[string]WalkStats, len(rows))
+	for _, r := range rows {
+		var w WalkStats
+		if json.Unmarshal(r.LastWalkStats, &w) == nil {
+			out[uuidToStr(r.ID)] = w
+		}
+	}
+	return out, nil
 }
 
 func (s *registryService) RecordWalkStats(ctx context.Context, id string, stats WalkStats) error {

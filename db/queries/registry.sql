@@ -248,3 +248,8 @@ WHERE id = @id
 -- name: RecordRegistryWalkStats :exec
 -- Leaves updated_at alone: a walk is not a configuration change.
 UPDATE registry SET last_walk_stats = @stats::jsonb WHERE id = @id;
+
+-- name: ListRegistryWalkStats :many
+-- Every registry's latest walk, for the ocidex.registry.tags.* gauges
+-- (ADR-0054 M5). A full scan of registry, a small, admin-curated table.
+SELECT id, last_walk_stats FROM registry WHERE last_walk_stats IS NOT NULL;
