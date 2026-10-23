@@ -29,18 +29,10 @@ type SBOMDoc struct {
 	SubjectVersion string
 }
 
-// ListDistinctComponentPurls returns every purl present in any SBOM, plus derived
-// source purls.
-func (s *PGStore) ListDistinctComponentPurls(ctx context.Context) ([]string, error) {
-	return s.q.ListDistinctComponentPurls(ctx)
-}
-
 // ListSBOMsToMatch returns up to limit SBOMs, ordered by ID after afterID, that
-// have not been matched against the grype build built — or every SBOM when all
-// is set.
-func (s *PGStore) ListSBOMsToMatch(ctx context.Context, built time.Time, all bool, afterID pgtype.UUID, limit int32) ([]SBOMDoc, error) {
+// have not been matched against the grype build built.
+func (s *PGStore) ListSBOMsToMatch(ctx context.Context, built time.Time, afterID pgtype.UUID, limit int32) ([]SBOMDoc, error) {
 	rows, err := s.q.ListSBOMsToMatch(ctx, repository.ListSBOMsToMatchParams{
-		MatchAll:  all,
 		DbBuiltAt: timestamptz(built),
 		AfterID:   afterID,
 		RowLimit:  limit,
@@ -63,8 +55,8 @@ func (s *PGStore) MarkSBOMMatched(ctx context.Context, sbomID pgtype.UUID, built
 	})
 }
 
-// MatchedDBBuilt returns the grype build package_vulnerability was last fully
-// rebuilt from (ok=false if never).
+// MatchedDBBuilt returns the grype build the last completed match pass was
+// against (ok=false if none has completed).
 func (s *PGStore) MatchedDBBuilt(ctx context.Context) (time.Time, bool, error) {
 	ts, err := s.q.GetVulnMatchedDBBuilt(ctx)
 	if err != nil {
@@ -73,7 +65,7 @@ func (s *PGStore) MatchedDBBuilt(ctx context.Context) (time.Time, bool, error) {
 	return ts.Time, ts.Valid, nil
 }
 
-// SetMatchedDBBuilt records a completed full re-match against build built, and
+// SetMatchedDBBuilt records a completed match pass against build built, and
 // stamps the refresh time.
 func (s *PGStore) SetMatchedDBBuilt(ctx context.Context, built time.Time) error {
 	return s.q.SetVulnMatchedDBBuilt(ctx, timestamptz(built))
@@ -84,11 +76,43 @@ func (s *PGStore) UpsertVulnerability(ctx context.Context, v Row) error {
 	return s.q.UpsertVulnerability(ctx, vulnParams(v))
 }
 
-// InsertVulnerabilityIfAbsent inserts a vulnerability record unless its ID
-// already exists, reporting whether it inserted.
-func (s *PGStore) InsertVulnerabilityIfAbsent(ctx context.Context, v Row) (bool, error) {
-	n, err := s.q.InsertVulnerabilityIfAbsent(ctx, repository.InsertVulnerabilityIfAbsentParams(vulnParams(v)))
-	return n > 0, err
+// MergeVulnerability writes one SBOM's view of a vulnerability and its
+// references during a match pass against build built: replacing what another
+// build wrote, merging with what this build already wrote (see the
+// MergeVulnerability query).
+func (s *PGStore) MergeVulnerability(ctx context.Context, v Row, built time.Time) error {
+	p := vulnParams(v)
+	b := timestamptz(built)
+	if err := s.q.MergeVulnerability(ctx, repository.MergeVulnerabilityParams{
+		ID:          p.ID,
+		Aliases:     p.Aliases,
+		CanonicalID: p.CanonicalID,
+		Summary:     p.Summary,
+		Details:     p.Details,
+		Severity:    p.Severity,
+		CvssScore:   p.CvssScore,
+		PublishedAt: p.PublishedAt,
+		ModifiedAt:  p.ModifiedAt,
+		Raw:         p.Raw,
+		CvssVector:  p.CvssVector,
+		DbBuiltAt:   b,
+	}); err != nil {
+		return err
+	}
+	for _, ref := range v.References {
+		if ref.URL == "" {
+			continue
+		}
+		if err := s.q.MergeVulnerabilityRef(ctx, repository.MergeVulnerabilityRefParams{
+			VulnerabilityID: v.ID,
+			Type:            ref.Type,
+			Url:             ref.URL,
+			DbBuiltAt:       b,
+		}); err != nil {
+			return fmt.Errorf("merge ref: %w", err)
+		}
+	}
+	return nil
 }
 
 func vulnParams(v Row) repository.UpsertVulnerabilityParams {
@@ -163,16 +187,45 @@ func (s *PGStore) ReplacePackageVulns(ctx context.Context, purl string, refs []P
 	return tx.Commit(ctx)
 }
 
-// AddPackageVulns upserts mappings for a purl without removing existing ones —
-// the incremental path, where one new SBOM can only add to what the last full
-// re-match established.
-func (s *PGStore) AddPackageVulns(ctx context.Context, purl string, refs []PackageVulnRef) error {
+// MergePackageVulns writes mappings for a purl during a match pass against
+// build built, without removing any: DeleteStaleMatches does that once the pass
+// completes.
+func (s *PGStore) MergePackageVulns(ctx context.Context, purl string, refs []PackageVulnRef, built time.Time) error {
 	for _, ref := range refs {
-		if err := s.q.UpsertPackageVuln(ctx, packageVulnParams(purl, ref)); err != nil {
-			return fmt.Errorf("upsert mapping: %w", err)
+		p := packageVulnParams(purl, ref)
+		if err := s.q.MergePackageVuln(ctx, repository.MergePackageVulnParams{
+			Purl:            p.Purl,
+			GoSymbolSetID:   p.GoSymbolSetID,
+			VulnerabilityID: p.VulnerabilityID,
+			FixedVersion:    p.FixedVersion,
+			FixState:        p.FixState,
+			DbBuiltAt:       timestamptz(built),
+		}); err != nil {
+			return fmt.Errorf("merge mapping: %w", err)
 		}
 	}
 	return nil
+}
+
+// DeleteStaleMatches deletes the mappings and references any build other than
+// built wrote, in one transaction, returning how many mappings it removed. Call
+// it only once every SBOM has been matched against built.
+func (s *PGStore) DeleteStaleMatches(ctx context.Context, built time.Time) (int64, error) {
+	tx, err := s.pool.Begin(ctx)
+	if err != nil {
+		return 0, fmt.Errorf("begin tx: %w", err)
+	}
+	defer func() { _ = tx.Rollback(ctx) }()
+
+	qtx := s.q.WithTx(tx)
+	n, err := qtx.DeleteStalePackageVulns(ctx, timestamptz(built))
+	if err != nil {
+		return 0, fmt.Errorf("delete stale mappings: %w", err)
+	}
+	if _, err := qtx.DeleteStaleVulnerabilityRefs(ctx, timestamptz(built)); err != nil {
+		return 0, fmt.Errorf("delete stale refs: %w", err)
+	}
+	return n, tx.Commit(ctx)
 }
 
 func packageVulnParams(purl string, ref PackageVulnRef) repository.UpsertPackageVulnParams {

@@ -1209,3 +1209,103 @@ func TestVulnListRepresentativeIsAMatchedRecord(t *testing.T) {
 	is.Equal(row["id"], "UBUNTU-matched")
 	is.Equal(row["severity"], "MEDIUM")
 }
+
+// TestVulnMergeWithinBuild covers the store side of a resumable match pass: two
+// SBOMs' views of one vulnerability merge the same way in either order within a
+// build, a later build replaces them, and completing a pass deletes only what
+// other builds (or pre-stamping writes) left behind.
+func TestVulnMergeWithinBuild(t *testing.T) {
+	if testing.Short() {
+		t.Skip("skipping integration test in short mode")
+	}
+	requireTestInfra(t)
+
+	pool, cleanup := setupTestDB(t)
+	defer cleanup()
+	is := is.New(t)
+	ctx := t.Context()
+	store := vuln.NewPGStore(pool)
+	day1 := time.Date(2026, 10, 10, 0, 0, 0, 0, time.UTC)
+	day2 := day1.Add(24 * time.Hour)
+
+	low, high := float32(3.1), float32(8.8)
+	debianView := vuln.Row{
+		ID: "GO-2026-0001", Aliases: []string{"GHSA-aaaa-bbbb-cccc"}, CanonicalID: "GHSA-aaaa-bbbb-cccc",
+		Summary: "debian summary", Severity: vuln.SeverityLow, CVSSScore: &low, CVSSVector: "low-vector",
+		Raw: []byte("[]"), References: []vuln.Reference{{Type: "ADVISORY", URL: "https://a.example"}},
+	}
+	goView := vuln.Row{
+		ID: "GO-2026-0001", Aliases: []string{"CVE-2026-0001"}, CanonicalID: "CVE-2026-0001",
+		Summary: "go summary", Severity: vuln.SeverityHigh, CVSSScore: &high, CVSSVector: "high-vector",
+		Raw: []byte("[]"), References: []vuln.Reference{{Type: "WEB", URL: "https://b.example"}},
+	}
+	type stored struct {
+		aliases                  []string
+		canonical, severity, vec string
+		score                    float32
+		summary                  string
+		refs                     int
+	}
+	read := func() stored {
+		t.Helper()
+		var s stored
+		is.NoErr(pool.QueryRow(ctx, `SELECT aliases, canonical_id, severity, cvss_vector, cvss_score, summary,
+			(SELECT count(*) FROM vulnerability_reference r WHERE r.vulnerability_id = v.id)
+			FROM vulnerability v WHERE id = 'GO-2026-0001'`).
+			Scan(&s.aliases, &s.canonical, &s.severity, &s.vec, &s.score, &s.summary, &s.refs))
+		return s
+	}
+
+	for _, order := range [][]vuln.Row{{debianView, goView}, {goView, debianView}} {
+		_, err := pool.Exec(ctx, "DELETE FROM vulnerability WHERE id = 'GO-2026-0001'")
+		is.NoErr(err)
+		for _, r := range order {
+			is.NoErr(store.MergeVulnerability(ctx, r, day1))
+		}
+		got := read()
+		slices.Sort(got.aliases)
+		is.Equal(got.aliases, []string{"CVE-2026-0001", "GHSA-aaaa-bbbb-cccc"})
+		is.Equal(got.canonical, "CVE-2026-0001")
+		is.Equal(got.severity, vuln.SeverityHigh)
+		is.Equal(got.vec, "high-vector")
+		is.Equal(got.score, high)
+		is.Equal(got.summary, order[0].Summary) // the first non-empty text stays
+		is.Equal(got.refs, 2)
+	}
+
+	// A later build replaces rather than merges.
+	is.NoErr(store.MergeVulnerability(ctx, debianView, day2))
+	got := read()
+	is.Equal(got.severity, vuln.SeverityLow)
+	is.Equal(got.canonical, "GHSA-aaaa-bbbb-cccc")
+	is.Equal(got.aliases, []string{"GHSA-aaaa-bbbb-cccc"})
+
+	// Mappings: within a build the first fixed version wins; completing day2's
+	// pass removes day1's and pre-stamping mappings but not day2's.
+	is.NoErr(store.ReplacePackageVulns(ctx, "pkg:golang/legacy@1", []vuln.PackageVulnRef{{VulnerabilityID: "GO-2026-0001"}}))
+	is.NoErr(store.MergePackageVulns(ctx, "pkg:golang/old@1", []vuln.PackageVulnRef{{VulnerabilityID: "GO-2026-0001"}}, day1))
+	is.NoErr(store.MergePackageVulns(ctx, "pkg:golang/stdlib@1.27.1", []vuln.PackageVulnRef{
+		{GoSymbolSetID: 0, VulnerabilityID: "GO-2026-0001", FixState: "unknown"},
+	}, day2))
+	is.NoErr(store.MergePackageVulns(ctx, "pkg:golang/stdlib@1.27.1", []vuln.PackageVulnRef{
+		{GoSymbolSetID: 0, VulnerabilityID: "GO-2026-0001", FixedVersion: "1.27.2", FixState: "fixed"},
+	}, day2))
+	is.NoErr(store.MergePackageVulns(ctx, "pkg:golang/stdlib@1.27.1", []vuln.PackageVulnRef{
+		{GoSymbolSetID: 0, VulnerabilityID: "GO-2026-0001", FixedVersion: "1.28.0", FixState: "fixed"},
+	}, day2))
+
+	n, err := store.DeleteStaleMatches(ctx, day2)
+	is.NoErr(err)
+	is.Equal(n, int64(2)) // legacy (unstamped) and old (day1)
+	var purls []string
+	rows, err := pool.Query(ctx, "SELECT purl || ' ' || COALESCE(fixed_version, '') FROM package_vulnerability ORDER BY purl")
+	is.NoErr(err)
+	for rows.Next() {
+		var p string
+		is.NoErr(rows.Scan(&p))
+		purls = append(purls, p)
+	}
+	is.NoErr(rows.Err())
+	is.Equal(purls, []string{"pkg:golang/stdlib@1.27.1 1.27.2"})
+	is.Equal(read().refs, 1) // only the day2 write's reference survives
+}
