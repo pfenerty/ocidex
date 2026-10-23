@@ -118,6 +118,18 @@ spec:
         TAG=$(echo "$TAG" | sed 's|^refs/tags/||')
         VERSION=$(echo "$TAG" | sed 's|^v||')
 
+        # scripts/release.sh sets each chart's `version` to the tag, and main builds are
+        # versioned from the patch after it (helm-publish/publish.sh). A tag pushed without
+        # that commit publishes a release that outranks every later main build, and dev stops
+        # following main (ocidex-cecc.3). Refuse it before anything is pushed.
+        for chart in charts/ocidex charts/ocidex-operator charts/ocidex-k8s-agent; do
+          chart_version=$(awk '/^version:/ { print $2; exit }' "$chart/Chart.yaml")
+          if [ "$chart_version" != "$VERSION" ]; then
+            echo "ERROR: $chart/Chart.yaml version is $chart_version, tag is $TAG; cut releases with scripts/release.sh" >&2
+            exit 1
+          fi
+        done
+
         # --- Fetch crane (alpine/helm image has no digest tool) ----------------------
         CRANE_VERSION="v0.20.2"
         case "$(uname -m)" in
