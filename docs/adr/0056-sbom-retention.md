@@ -232,10 +232,12 @@ out-of-window tag is already absent from history.
 ### One keep-newest-N rule for every SBOM, with a tombstone for registry prunes
 
 * Good, because there is one rule to explain.
-* Bad, because it fights the walker. With `tag_limit` 50 and N 20, the walker re-queues the 30
-  tags retention deleted, unless each one is tombstoned.
-* Bad, because tombstones make `tag_limit` misleading. Raising it no longer brings anything
-  back without a `force` walk.
+* Bad, because it fights the walker. With `tag_limit` 50 and N 20, retention deletes 30
+  in-window SBOMs, the next walk re-queues them, and the next sweep deletes them again.
+* Bad, because the only way to stop that loop is a tombstone per deleted tag, which leaves 30
+  tags permanently in the window but skipped. That stores exactly what `tag_limit` 20 would,
+  with more machinery, and raising `tag_limit` no longer brings anything back without a
+  `force` walk. For registry SBOMs, `tag_limit` is already the retention count.
 
 ### An age limit only
 
