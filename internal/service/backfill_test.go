@@ -43,6 +43,7 @@ type fakeBackfillRepo struct {
 	sboms      []*fakeBackfillSBOM
 	components []*fakeBackfillComponent
 	listCalls  int
+	purlPages  int
 }
 
 func (f *fakeBackfillRepo) ListSBOMsWithoutFlavorPage(_ context.Context, arg repository.ListSBOMsWithoutFlavorPageParams) ([]repository.ListSBOMsWithoutFlavorPageRow, error) {
@@ -67,6 +68,7 @@ func (f *fakeBackfillRepo) UpdateSBOMFlavor(_ context.Context, arg repository.Up
 
 func (f *fakeBackfillRepo) ListComponentsWithUnversionedPurlPage(_ context.Context, arg repository.ListComponentsWithUnversionedPurlPageParams) ([]repository.ListComponentsWithUnversionedPurlPageRow, error) {
 	f.listCalls++
+	f.purlPages++
 	var out []repository.ListComponentsWithUnversionedPurlPageRow
 	for _, c := range f.components {
 		if after(c.id, arg.After) && c.version != "" && !bytes.Contains([]byte(c.purl), []byte("@")) && len(out) < int(arg.RowLimit) {
@@ -159,7 +161,7 @@ func TestBackfill(t *testing.T) {
 		},
 	}
 
-	res, err := Backfill(context.Background(), repo, 2)
+	res, err := Backfill(context.Background(), repo, BackfillBatches{SBOMs: 2, Components: 2})
 	is.NoErr(err)
 
 	// Flavor: SBOMs 1 and 2 detected; SBOM 4's raw_bom does not decode. SBOM 3
@@ -182,7 +184,7 @@ func TestBackfill(t *testing.T) {
 	is.Equal(repo.components[2].filePath.String, "/usr/bin/svc")
 
 	// Re-running only re-selects the rows no rule can fill.
-	again, err := Backfill(context.Background(), repo, 2)
+	again, err := Backfill(context.Background(), repo, BackfillBatches{SBOMs: 2, Components: 2})
 	is.NoErr(err)
 	is.Equal(again.Flavor, BackfillCounts{Errored: 1})
 	is.Equal(again.Purl, BackfillCounts{Skipped: 1})
@@ -199,10 +201,34 @@ func TestBackfill_Pages(t *testing.T) {
 		})
 	}
 
-	res, err := Backfill(context.Background(), repo, 2)
+	res, err := Backfill(context.Background(), repo, BackfillBatches{SBOMs: 2, Components: 2})
 	is.NoErr(err)
 	is.Equal(res.Purl.Updated, 5)
 	// Purl pages of 2, 2 and 1, plus one call each for the empty flavor and
 	// provenance steps.
 	is.Equal(repo.listCalls, 5)
+}
+
+// TestBackfillPurlPagesByComponentBatch covers ocidex-ah9z: the purl step
+// pages by the component batch, not the SBOM batch, so a table needing
+// thousands of fixes is read in a few pages rather than one per 50 rows.
+func TestBackfillPurlPagesByComponentBatch(t *testing.T) {
+	is := is.New(t)
+	repo := &fakeBackfillRepo{}
+	for i := range 250 {
+		repo.components = append(repo.components, &fakeBackfillComponent{
+			id: seqUUID16(uint16(1000 + i)), purl: "pkg:golang/github.com/example/svc", version: "v1.5.0",
+		})
+	}
+	res, err := Backfill(context.Background(), repo, BackfillBatches{SBOMs: 2, Components: 100})
+	is.NoErr(err)
+	is.Equal(res.Purl, BackfillCounts{Updated: 250})
+	is.Equal(repo.purlPages, 3) // 100 + 100 + 50
+}
+
+// seqUUID16 is seqUUID for more than 255 ids.
+func seqUUID16(n uint16) pgtype.UUID {
+	u := pgtype.UUID{Valid: true}
+	u.Bytes[14], u.Bytes[15] = byte(n>>8), byte(n)
+	return u
 }

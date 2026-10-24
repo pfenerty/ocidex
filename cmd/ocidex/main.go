@@ -593,9 +593,12 @@ func runEncryptSecrets(ctx context.Context, dbURL string, args []string) error {
 	return nil
 }
 
-// backfillBatch is how many rows (or SBOMs, with their raw_bom) a backfill
-// step reads at once.
-const backfillBatch = 50
+// backfillBatches is how much a backfill step reads at once: 50 SBOMs with
+// their raw_bom, or 10,000 component rows. The purl step's page is large
+// because each page scans the component table (ocidex-ah9z): on ocidex-dev's
+// 52M components a page took 10-15s, so 50-row pages turned 3,339 rows into
+// ~17 minutes.
+var backfillBatches = service.BackfillBatches{SBOMs: 50, Components: 10_000}
 
 // runBackfill is `ocidex migrate backfill`: it derives the columns ingest now
 // writes for rows stored before it did (service.Backfill). It reads every
@@ -608,7 +611,7 @@ func runBackfill(ctx context.Context, dbURL string) error {
 	}
 	defer pool.Close()
 
-	res, err := service.Backfill(ctx, repository.New(pool), backfillBatch)
+	res, err := service.Backfill(ctx, repository.New(pool), backfillBatches)
 	for _, step := range []struct {
 		name string
 		c    service.BackfillCounts

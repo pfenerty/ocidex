@@ -42,22 +42,34 @@ type BackfillResult struct {
 	Provenance BackfillCounts // component provenance columns and file_path (pre-00072)
 }
 
+// BackfillBatches sizes each backfill step's pages.
+//
+// The steps cost different things per page. SBOMs bounds the raw_bom read at
+// once by the flavor and provenance steps. Components is the purl step's page,
+// whose rows are three short columns: its predicate has no index, so every
+// page is a scan of the component table, and a small page multiplies that
+// scan by the number of pages (ocidex-ah9z).
+type BackfillBatches struct {
+	SBOMs      int32
+	Components int32
+}
+
 // Backfill derives the columns that ingest now writes for rows stored before
 // it did: an SBOM's flavor, a component's versioned purl and its provenance
 // (ADR-034, ADR-048). Each value is re-derived from data already in the row
 // or its SBOM's raw_bom, so the pass is idempotent and safe to re-run; a fresh
 // install has nothing to do. A row that cannot be decoded or written is
-// logged and counted, not fatal. batchSize bounds the raw_bom read at once.
-func Backfill(ctx context.Context, repo BackfillRepository, batchSize int32) (BackfillResult, error) {
+// logged and counted, not fatal.
+func Backfill(ctx context.Context, repo BackfillRepository, batches BackfillBatches) (BackfillResult, error) {
 	var res BackfillResult
 	var err error
-	if res.Flavor, err = backfillFlavor(ctx, repo, batchSize); err != nil {
+	if res.Flavor, err = backfillFlavor(ctx, repo, batches.SBOMs); err != nil {
 		return res, err
 	}
-	if res.Purl, err = backfillPurl(ctx, repo, batchSize); err != nil {
+	if res.Purl, err = backfillPurl(ctx, repo, batches.Components); err != nil {
 		return res, err
 	}
-	res.Provenance, err = backfillProvenance(ctx, repo, batchSize)
+	res.Provenance, err = backfillProvenance(ctx, repo, batches.SBOMs)
 	return res, err
 }
 

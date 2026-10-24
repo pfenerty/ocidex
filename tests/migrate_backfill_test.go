@@ -66,7 +66,7 @@ func TestMigrateBackfill(t *testing.T) {
 		is.NoErr(err)
 	}
 
-	res, err := service.Backfill(ctx, repository.New(pool), 2)
+	res, err := service.Backfill(ctx, repository.New(pool), service.BackfillBatches{SBOMs: 2, Components: 2})
 	is.NoErr(err)
 	is.Equal(res.Flavor, service.BackfillCounts{Updated: 3})
 	is.Equal(res.Purl, service.BackfillCounts{Updated: 3})
@@ -86,7 +86,7 @@ func TestMigrateBackfill(t *testing.T) {
 
 	// A second run writes nothing: only the unlocated components are
 	// re-selected, and the rule leaves them as they are.
-	again, err := service.Backfill(ctx, repository.New(pool), 2)
+	again, err := service.Backfill(ctx, repository.New(pool), service.BackfillBatches{SBOMs: 2, Components: 2})
 	is.NoErr(err)
 	is.Equal(again, service.BackfillResult{Provenance: service.BackfillCounts{Skipped: 3}})
 }
