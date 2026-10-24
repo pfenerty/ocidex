@@ -18,6 +18,17 @@ spec:
     spec:
       serviceAccountName: {{ include "ocidex.fullname" . }}
       terminationGracePeriodSeconds: 40
+      {{- with .Values.api.topologySpread }}
+      {{- if .enabled }}
+      topologySpreadConstraints:
+        - maxSkew: 1
+          topologyKey: {{ .topologyKey }}
+          whenUnsatisfiable: {{ .whenUnsatisfiable }}
+          labelSelector:
+            matchLabels:
+              {{- include "ocidex.selectorLabels" (dict "root" $ "component" "api") | nindent 14 }}
+      {{- end }}
+      {{- end }}
       {{- with .Values.podSecurityContext }}
       securityContext:
         {{- toYaml . | nindent 8 }}

@@ -50,7 +50,21 @@ egressGuard:
 
 # --- API server --------------------------------------------------------------
 api:
-  replicas: 1
+  # Two replicas by default: every background loop in the API is either
+  # leader-elected or safe to run on each replica (docs/DEPLOYMENT.md "API
+  # high availability").
+  replicas: 2
+  # A PodDisruptionBudget keeps one API pod through node drains. Rendered only
+  # when replicas > 1, since minAvailable 1 of 1 would block every drain.
+  podDisruptionBudget:
+    enabled: true
+    minAvailable: 1
+  # Spread replicas across nodes when there are nodes to spread across.
+  # ScheduleAnyway keeps a single-node cluster schedulable.
+  topologySpread:
+    enabled: true
+    topologyKey: kubernetes.io/hostname
+    whenUnsatisfiable: ScheduleAnyway
   env:
     environment: production
     logLevel: info
