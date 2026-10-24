@@ -204,15 +204,16 @@ var authRules = map[string]AuthRule{
 	"delete-artifact":           {Class: ClassCapability, Cap: authz.CapDeleteArtifact, Write: true, Notes: "RequireCapability(delete_artifact) middleware on the artifact's namespace."},
 
 	// --- Components & licenses ---------------------------------------------
-	"search-components":          {Class: ClassPublic, Notes: noteVisFilter},
-	"search-distinct-components": {Class: ClassPublic, Notes: noteVisFilter},
-	"list-component-purl-types":  {Class: ClassPublic, Notes: noteVisFilter},
-	"get-component-versions":     {Class: ClassPublic, Notes: noteVisFilter},
-	"get-component":              {Class: ClassPublic, Notes: noteVisFilter},
-	"get-component-vulns":        {Class: ClassPublic, Notes: noteVisFilter},
-	"list-licenses":              {Class: ClassPublic, Notes: noteVisFilter},
-	"lookup-license":             {Class: ClassPublic, Notes: noteVisFilter},
-	"list-components-by-license": {Class: ClassPublic, Notes: noteVisFilter},
+	"search-components":                {Class: ClassPublic, Notes: noteVisFilter},
+	"search-distinct-components":       {Class: ClassPublic, Notes: noteVisFilter},
+	"list-component-purl-types":        {Class: ClassPublic, Notes: noteVisFilter},
+	"get-component-versions":           {Class: ClassPublic, Notes: noteVisFilter},
+	"list-component-version-summaries": {Class: ClassPublic, Notes: noteVisFilter},
+	"get-component":                    {Class: ClassPublic, Notes: noteVisFilter},
+	"get-component-vulns":              {Class: ClassPublic, Notes: noteVisFilter},
+	"list-licenses":                    {Class: ClassPublic, Notes: noteVisFilter},
+	"lookup-license":                   {Class: ClassPublic, Notes: noteVisFilter},
+	"list-components-by-license":       {Class: ClassPublic, Notes: noteVisFilter},
 
 	// --- Vulnerabilities ----------------------------------------------------
 	"list-top-vulnerabilities": {Class: ClassPublic, Notes: noteVisFilter},

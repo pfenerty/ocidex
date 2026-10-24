@@ -398,6 +398,16 @@ func registerComponentOps(api huma.API, h *Handler) {
 	}, h.GetComponentVersions)
 
 	huma.Register(api, huma.Operation{
+		OperationID: "list-component-version-summaries",
+		Method:      http.MethodGet,
+		Path:        "/api/v1/components/version-summaries",
+		Summary:     "List a component's distinct versions",
+		Description: "One row per distinct version with its SBOM and artifact counts, paginated by version.",
+		Tags:        []string{tagComponents},
+		Middlewares: huma.Middlewares{h.heavyLimit.Huma(api)},
+	}, h.ListComponentVersionSummaries)
+
+	huma.Register(api, huma.Operation{
 		OperationID: "get-component",
 		Method:      http.MethodGet,
 		Path:        "/api/v1/components/{id}",

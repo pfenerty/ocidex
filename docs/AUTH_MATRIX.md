@@ -127,6 +127,7 @@ cookies carry no ceiling and are unaffected.
 | GET | `/api/v1/components` | `search-components` | `public` | — |  | VisibilityFilter. |
 | GET | `/api/v1/components/distinct` | `search-distinct-components` | `public` | — |  | VisibilityFilter. |
 | GET | `/api/v1/components/purl-types` | `list-component-purl-types` | `public` | — |  | VisibilityFilter. |
+| GET | `/api/v1/components/version-summaries` | `list-component-version-summaries` | `public` | — |  | VisibilityFilter. |
 | GET | `/api/v1/components/versions` | `get-component-versions` | `public` | — |  | VisibilityFilter. |
 | GET | `/api/v1/components/{id}` | `get-component` | `public` | — |  | VisibilityFilter. |
 | GET | `/api/v1/components/{id}/vulns` | `get-component-vulns` | `public` | — |  | VisibilityFilter. |

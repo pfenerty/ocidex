@@ -660,6 +660,26 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/v1/components/version-summaries": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * List a component's distinct versions
+         * @description One row per distinct version with its SBOM and artifact counts, paginated by version.
+         */
+        get: operations["list-component-version-summaries"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/v1/components/versions": {
         parameters: {
             query?: never;
@@ -2164,6 +2184,28 @@ export interface components {
             /** Format: int64 */
             vulnCount: number;
         };
+        ComponentVersionSummary: {
+            /** Format: int64 */
+            artifactCount: number;
+            /** Format: int64 */
+            criticalCount?: number;
+            /** Format: int64 */
+            highCount?: number;
+            /** Format: int64 */
+            lowCount?: number;
+            maxSeverity?: string;
+            /** Format: int64 */
+            mediumCount?: number;
+            purl?: string;
+            /** Format: int64 */
+            sbomCount: number;
+            type: string;
+            /** Format: int64 */
+            unknownCount?: number;
+            version?: string;
+            /** Format: int64 */
+            vulnCount: number;
+        };
         ComponentVulnEntry: {
             canonicalId: string;
             /** Format: float */
@@ -2704,6 +2746,11 @@ export interface components {
             pagination: components["schemas"]["PaginationMeta"];
             /**
              * Format: int64
+             * @description Distinct SBOMs containing this component, across every page. Pagination.total counts occurrences, and one SBOM can hold several.
+             */
+            sbomCount: number;
+            /**
+             * Format: int64
              * @description Distinct versions under this identity, across every page
              */
             versionCount: number;
@@ -3042,6 +3089,26 @@ export interface components {
              */
             readonly $schema?: string;
             types: string[] | null;
+        };
+        ListComponentVersionSummariesOutputBody: {
+            /**
+             * Format: uri
+             * @description A URL to the JSON Schema for this object.
+             * @example https://example.com/schemas/ListComponentVersionSummariesOutputBody.json
+             */
+            readonly $schema?: string;
+            /**
+             * Format: int64
+             * @description Distinct artifacts whose SBOMs contain this component, across every page
+             */
+            artifactCount: number;
+            pagination: components["schemas"]["PaginationMeta"];
+            /**
+             * Format: int64
+             * @description Distinct SBOMs containing this component, across every page
+             */
+            sbomCount: number;
+            versions: components["schemas"]["ComponentVersionSummary"][] | null;
         };
         ListComponentsByLicenseOutputBody: {
             /**
@@ -5773,6 +5840,46 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["ListComponentPurlTypesOutputBody"];
+                };
+            };
+            /** @description Error */
+            default: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["ErrorModel"];
+                };
+            };
+        };
+    };
+    "list-component-version-summaries": {
+        parameters: {
+            query: {
+                /** @description Maximum number of results per page */
+                limit?: number;
+                /** @description Number of results to skip */
+                offset?: number;
+                /** @description Component name */
+                name: string;
+                /** @description Filter by component group */
+                group?: string;
+                /** @description Filter by component type */
+                type?: string;
+            };
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description OK */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ListComponentVersionSummariesOutputBody"];
                 };
             };
             /** @description Error */

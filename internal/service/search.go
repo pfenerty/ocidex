@@ -17,6 +17,7 @@ type SearchService interface {
 	SearchComponents(ctx context.Context, filter ComponentFilter) (PagedResult[ComponentSummary], error)
 	SearchDistinctComponents(ctx context.Context, filter ComponentFilter) (PagedResult[DistinctComponentSummary], error)
 	GetComponentVersions(ctx context.Context, filter ComponentVersionFilter) (ComponentVersionsPage, error)
+	ListComponentVersionSummaries(ctx context.Context, filter ComponentVersionFilter) (ComponentVersionSummaryPage, error)
 	GetComponent(ctx context.Context, id pgtype.UUID, vis VisibilityFilter) (ComponentDetail, error)
 	ListLicenses(ctx context.Context, filter LicenseFilter) (PagedResult[LicenseCount], error)
 	ListComponentsByLicense(ctx context.Context, licenseID pgtype.UUID, limit, offset int32, vis VisibilityFilter) (PagedResult[ComponentSummary], error)
@@ -403,6 +404,18 @@ type ComponentVersionsPage struct {
 	VersionCount int64
 	// ArtifactCount is the number of distinct artifacts whose SBOMs contain
 	// this component, across every page.
+	ArtifactCount int64
+	// SbomCount is the number of distinct SBOMs containing this component.
+	// Total counts occurrences, and one SBOM can hold many (stdlib).
+	SbomCount int64
+}
+
+// ComponentVersionSummaryPage is a page of distinct versions of one component,
+// paginated by version: Total is the version count. SbomCount and
+// ArtifactCount describe the whole result set.
+type ComponentVersionSummaryPage struct {
+	PagedResult[ComponentVersionSummary]
+	SbomCount     int64
 	ArtifactCount int64
 }
 
@@ -817,6 +830,24 @@ type ComponentVersionEntry struct {
 	MediumCount    int     `json:"mediumCount,omitempty"`
 	LowCount       int     `json:"lowCount,omitempty"`
 	UnknownCount   int     `json:"unknownCount,omitempty"`
+}
+
+// ComponentVersionSummary is one distinct version of a component with the
+// number of SBOMs and artifacts that carry it. Vulnerability counts are a
+// property of the (name, version) pair, matched by purl.
+type ComponentVersionSummary struct {
+	Version       *string `json:"version,omitempty"`
+	Type          string  `json:"type"`
+	Purl          *string `json:"purl,omitempty"`
+	SbomCount     int64   `json:"sbomCount"`
+	ArtifactCount int64   `json:"artifactCount"`
+	VulnCount     int     `json:"vulnCount"`
+	MaxSeverity   string  `json:"maxSeverity,omitempty"`
+	CriticalCount int     `json:"criticalCount,omitempty"`
+	HighCount     int     `json:"highCount,omitempty"`
+	MediumCount   int     `json:"mediumCount,omitempty"`
+	LowCount      int     `json:"lowCount,omitempty"`
+	UnknownCount  int     `json:"unknownCount,omitempty"`
 }
 
 // DependencyGraph represents the dependency structure of an SBOM.

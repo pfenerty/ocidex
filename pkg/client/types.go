@@ -1965,6 +1965,22 @@ type ComponentVersionEntry struct {
 	VulnCount      int64   `json:"vulnCount"`
 }
 
+// ComponentVersionSummary defines model for ComponentVersionSummary.
+type ComponentVersionSummary struct {
+	ArtifactCount int64   `json:"artifactCount"`
+	CriticalCount *int64  `json:"criticalCount,omitempty"`
+	HighCount     *int64  `json:"highCount,omitempty"`
+	LowCount      *int64  `json:"lowCount,omitempty"`
+	MaxSeverity   *string `json:"maxSeverity,omitempty"`
+	MediumCount   *int64  `json:"mediumCount,omitempty"`
+	Purl          *string `json:"purl,omitempty"`
+	SbomCount     int64   `json:"sbomCount"`
+	Type          string  `json:"type"`
+	UnknownCount  *int64  `json:"unknownCount,omitempty"`
+	Version       *string `json:"version,omitempty"`
+	VulnCount     int64   `json:"vulnCount"`
+}
+
 // ComponentVulnEntry defines model for ComponentVulnEntry.
 type ComponentVulnEntry struct {
 	CanonicalId      string   `json:"canonicalId"`
@@ -2498,6 +2514,9 @@ type GetComponentVersionsOutputBody struct {
 	ArtifactCount int64          `json:"artifactCount"`
 	Pagination    PaginationMeta `json:"pagination"`
 
+	// SbomCount Distinct SBOMs containing this component, across every page. Pagination.total counts occurrences, and one SBOM can hold several.
+	SbomCount int64 `json:"sbomCount"`
+
 	// VersionCount Distinct versions under this identity, across every page
 	VersionCount int64                    `json:"versionCount"`
 	Versions     *[]ComponentVersionEntry `json:"versions"`
@@ -2790,6 +2809,20 @@ type ListComponentPurlTypesOutputBody struct {
 	// Schema A URL to the JSON Schema for this object.
 	Schema *string   `json:"$schema,omitempty"`
 	Types  *[]string `json:"types"`
+}
+
+// ListComponentVersionSummariesOutputBody defines model for ListComponentVersionSummariesOutputBody.
+type ListComponentVersionSummariesOutputBody struct {
+	// Schema A URL to the JSON Schema for this object.
+	Schema *string `json:"$schema,omitempty"`
+
+	// ArtifactCount Distinct artifacts whose SBOMs contain this component, across every page
+	ArtifactCount int64          `json:"artifactCount"`
+	Pagination    PaginationMeta `json:"pagination"`
+
+	// SbomCount Distinct SBOMs containing this component, across every page
+	SbomCount int64                      `json:"sbomCount"`
+	Versions  *[]ComponentVersionSummary `json:"versions"`
 }
 
 // ListComponentsByLicenseOutputBody defines model for ListComponentsByLicenseOutputBody.
@@ -4317,6 +4350,24 @@ type SearchDistinctComponentsParams struct {
 
 	// SortDir Sort direction (asc or desc)
 	SortDir *string `form:"sort_dir,omitempty" json:"sort_dir,omitempty"`
+}
+
+// ListComponentVersionSummariesParams defines parameters for ListComponentVersionSummaries.
+type ListComponentVersionSummariesParams struct {
+	// Limit Maximum number of results per page
+	Limit *int32 `form:"limit,omitempty" json:"limit,omitempty"`
+
+	// Offset Number of results to skip
+	Offset *int32 `form:"offset,omitempty" json:"offset,omitempty"`
+
+	// Name Component name
+	Name string `form:"name" json:"name"`
+
+	// Group Filter by component group
+	Group *string `form:"group,omitempty" json:"group,omitempty"`
+
+	// Type Filter by component type
+	Type *string `form:"type,omitempty" json:"type,omitempty"`
 }
 
 // GetComponentVersionsParams defines parameters for GetComponentVersions.

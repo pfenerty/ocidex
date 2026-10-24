@@ -468,7 +468,42 @@ WITH matched AS MATERIALIZED (
 )
 SELECT COUNT(*) AS total,
        COUNT(DISTINCT m.version) AS version_count,
-       COUNT(DISTINCT s.artifact_id) AS artifact_count
+       COUNT(DISTINCT s.artifact_id) AS artifact_count,
+       -- total counts occurrences: stdlib appears many times in one Go image's
+       -- SBOM. "Found in N SBOMs" is this figure, not that one (ocidex-nps9.2).
+       COUNT(DISTINCT m.sbom_id) AS sbom_count
 FROM matched m
 JOIN sbom s ON s.id = m.sbom_id
 WHERE s.namespace_id IN (SELECT visible_namespace_ids(sqlc.narg('user_id')::uuid, sqlc.narg('is_admin')::boolean));
+
+-- name: ListComponentVersionSummaries :many
+-- One row per distinct version of a component, for /components/overview.
+-- GetComponentVersions returns one row per (version, SBOM) occurrence, so a page
+-- of 20 occurrences grouped by version showed one or two versions of stdlib and
+-- a pager of 375 (ocidex-nps9.2). Paging here is by version; the total is
+-- CountComponentVersions' version_count over the same filters.
+--
+-- MATERIALIZED for the same join-order reason as CountComponentVersions. The
+-- version_* columns are a function of the version string, so MAX just names
+-- the one value each group has.
+WITH matched AS MATERIALIZED (
+    SELECT c.sbom_id, c.type, c.version, c.purl, c.version_major, c.version_minor, c.version_patch
+    FROM component c
+    WHERE c.name = @name
+      AND (sqlc.narg('group_name')::text IS NULL OR c.group_name = sqlc.narg('group_name'))
+      AND (sqlc.narg('type')::text IS NULL OR c.type = sqlc.narg('type'))
+)
+SELECT m.version,
+       MIN(m.type)::text AS type,
+       COALESCE(MIN(m.purl), '')::text AS purl,
+       COUNT(DISTINCT m.sbom_id) AS sbom_count,
+       COUNT(DISTINCT s.artifact_id) AS artifact_count
+FROM matched m
+JOIN sbom s ON s.id = m.sbom_id
+WHERE s.namespace_id IN (SELECT visible_namespace_ids(sqlc.narg('user_id')::uuid, sqlc.narg('is_admin')::boolean))
+GROUP BY m.version
+ORDER BY MAX(m.version_major) DESC NULLS LAST,
+         MAX(m.version_minor) DESC NULLS LAST,
+         MAX(m.version_patch) DESC NULLS LAST,
+         m.version DESC NULLS LAST
+LIMIT @row_limit OFFSET @row_offset;

@@ -109,6 +109,8 @@ export type DistinctComponentSummary =
     components["schemas"]["DistinctComponentSummary"];
 export type ComponentVersionEntry =
     components["schemas"]["ComponentVersionEntry"];
+export type ComponentVersionSummary =
+    components["schemas"]["ComponentVersionSummary"];
 export type LicenseCount = components["schemas"]["LicenseCount"];
 export type LicenseSummary = components["schemas"]["LicenseSummary"];
 export type DependencyGraph = components["schemas"]["DependencyGraph"];

@@ -2,7 +2,7 @@ export { useArtifacts, useArtifactsInfinite, useArtifact, useArtifactSBOMs, useA
 export type { ArtifactVulnQueryParams, ArtifactVulnSortKey } from "./artifacts";
 export { useSBOMs, useSBOM, useSBOMComponents, sbomComponents, useSBOMDependencies, useSBOMDriftHistory, useSBOMVulns } from "./sboms";
 export type { SBOMVulnQueryParams, SBOMVulnSortKey } from "./sboms";
-export { useDistinctComponents, useComponentPurlTypes, useComponentVersions, useComponent, useComponentVulns, useComponentsByPurl } from "./components";
+export { useDistinctComponents, useComponentPurlTypes, useComponentVersions, useComponentVersionSummaries, useComponent, useComponentVulns, useComponentsByPurl } from "./components";
 export { useLicenses, useLicenseComponents } from "./licenses";
 export { useDiff, useDiffTree } from "./diff";
 export { useDashboardStats } from "./stats";

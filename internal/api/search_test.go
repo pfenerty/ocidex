@@ -169,6 +169,20 @@ func (f *fakeSearchService) GetComponentVersions(_ context.Context, filter servi
 	}, nil
 }
 
+func (f *fakeSearchService) ListComponentVersionSummaries(_ context.Context, filter service.ComponentVersionFilter) (service.ComponentVersionSummaryPage, error) {
+	v := "1.0.0"
+	return service.ComponentVersionSummaryPage{
+		PagedResult: service.PagedResult[service.ComponentVersionSummary]{
+			Data:   []service.ComponentVersionSummary{{Version: &v, SbomCount: 2, ArtifactCount: 1}},
+			Total:  81,
+			Limit:  filter.Limit,
+			Offset: filter.Offset,
+		},
+		SbomCount:     4286,
+		ArtifactCount: 20,
+	}, nil
+}
+
 func (f *fakeSearchService) ListSBOMComponents(_ context.Context, _ pgtype.UUID, _ service.VisibilityFilter) ([]service.ComponentSummary, error) {
 	return []service.ComponentSummary{
 		{ID: "comp1", SbomID: "sbom1", Name: "test-lib", Type: "library"},
@@ -479,6 +493,34 @@ func (f *capturingVersionsService) GetComponentVersions(_ context.Context, filte
 // (ocidex-ag4q.7). Paginating it is only useful if the window reaches the
 // service and the total comes back out — a page with no total leaves the UI
 // unable to say there is a second one.
+// The overview pages by distinct version (ocidex-nps9.2): the total is the
+// version count, and the SBOM figure is distinct SBOMs, not occurrences.
+func TestListComponentVersionSummaries(t *testing.T) {
+	is := is.New(t)
+	router := newTestRouter(&fakeSBOMService{}, &fakeSearchService{})
+
+	r := httptest.NewRequest(http.MethodGet, "/api/v1/components/version-summaries?name=stdlib&limit=20", nil)
+	w := httptest.NewRecorder()
+	router.ServeHTTP(w, r)
+
+	is.Equal(w.Code, http.StatusOK)
+	var body struct {
+		Versions   []service.ComponentVersionSummary `json:"versions"`
+		Pagination struct {
+			Total int64 `json:"total"`
+			Limit int32 `json:"limit"`
+		} `json:"pagination"`
+		SbomCount     int64 `json:"sbomCount"`
+		ArtifactCount int64 `json:"artifactCount"`
+	}
+	is.NoErr(json.Unmarshal(w.Body.Bytes(), &body))
+	is.Equal(len(body.Versions), 1)
+	is.Equal(body.Pagination.Total, int64(81))
+	is.Equal(body.Pagination.Limit, int32(20))
+	is.Equal(body.SbomCount, int64(4286))
+	is.Equal(body.ArtifactCount, int64(20))
+}
+
 func TestGetComponentVersionsPaginates(t *testing.T) {
 	is := is.New(t)
 	search := &capturingVersionsService{}

@@ -196,25 +196,130 @@ func (s *searchService) GetComponentVersions(ctx context.Context, filter Compone
 		},
 		VersionCount:  counts.VersionCount,
 		ArtifactCount: counts.ArtifactCount,
+		SbomCount:     counts.SbomCount,
 	}, nil
 }
 
+// ListComponentVersionSummaries returns one page of a component's distinct
+// versions, each with its SBOM and artifact counts. Unlike
+// GetComponentVersions it pages by version, so a component found thousands of
+// times shows a page of versions rather than a page of occurrences.
+func (s *searchService) ListComponentVersionSummaries(ctx context.Context, filter ComponentVersionFilter) (ComponentVersionSummaryPage, error) {
+	q := repository.New(s.db)
+
+	counts, err := q.CountComponentVersions(ctx, repository.CountComponentVersionsParams{
+		Name:      filter.Name,
+		GroupName: textOrNull(filter.Group),
+		Type:      textOrNull(filter.Type),
+		UserID:    filter.Visibility.UserID,
+		IsAdmin:   visAdminBool(filter.Visibility),
+	})
+	if err != nil {
+		return ComponentVersionSummaryPage{}, fmt.Errorf("counting component versions: %w", err)
+	}
+
+	rows, err := q.ListComponentVersionSummaries(ctx, repository.ListComponentVersionSummariesParams{
+		Name:      filter.Name,
+		GroupName: textOrNull(filter.Group),
+		Type:      textOrNull(filter.Type),
+		UserID:    filter.Visibility.UserID,
+		IsAdmin:   visAdminBool(filter.Visibility),
+		RowLimit:  filter.Limit,
+		RowOffset: filter.Offset,
+	})
+	if err != nil {
+		return ComponentVersionSummaryPage{}, fmt.Errorf("listing component version summaries: %w", err)
+	}
+
+	items := make([]ComponentVersionSummary, len(rows))
+	var purls []string
+	for i, row := range rows {
+		items[i] = ComponentVersionSummary{
+			Version:       textToPtr(row.Version),
+			Type:          row.Type,
+			SbomCount:     row.SbomCount,
+			ArtifactCount: row.ArtifactCount,
+		}
+		if row.Purl != "" {
+			purl := row.Purl
+			items[i].Purl = &purl
+			purls = append(purls, purl)
+		}
+	}
+
+	if len(purls) > 0 {
+		byPurl, err := vulnCountsByPurl(ctx, q, purls)
+		if err != nil {
+			return ComponentVersionSummaryPage{}, err
+		}
+		for i := range items {
+			if items[i].Purl == nil {
+				continue
+			}
+			if a := byPurl[*items[i].Purl]; a != nil {
+				items[i].VulnCount = a.count
+				items[i].MaxSeverity = a.maxSeverity
+				items[i].CriticalCount = a.critical
+				items[i].HighCount = a.high
+				items[i].MediumCount = a.medium
+				items[i].LowCount = a.low
+				items[i].UnknownCount = a.unknown
+			}
+		}
+	}
+
+	return ComponentVersionSummaryPage{
+		PagedResult: PagedResult[ComponentVersionSummary]{
+			Data:   items,
+			Total:  counts.VersionCount,
+			Limit:  filter.Limit,
+			Offset: filter.Offset,
+		},
+		SbomCount:     counts.SbomCount,
+		ArtifactCount: counts.ArtifactCount,
+	}, nil
+}
+
+// purlVulnCounts is one purl's distinct findings, by canonical id.
+type purlVulnCounts struct {
+	count                                int
+	maxSeverity                          string
+	critical, high, medium, low, unknown int
+	seen                                 map[string]struct{}
+}
+
 func decorateVersionVulns(ctx context.Context, q *repository.Queries, purls []string, items []ComponentVersionEntry) error {
+	byPurl, err := vulnCountsByPurl(ctx, q, purls)
+	if err != nil {
+		return err
+	}
+	for i := range items {
+		if items[i].Purl == nil {
+			continue
+		}
+		if a := byPurl[*items[i].Purl]; a != nil {
+			items[i].VulnCount = a.count
+			items[i].MaxSeverity = a.maxSeverity
+			items[i].CriticalCount = a.critical
+			items[i].HighCount = a.high
+			items[i].MediumCount = a.medium
+			items[i].LowCount = a.low
+			items[i].UnknownCount = a.unknown
+		}
+	}
+	return nil
+}
+
+func vulnCountsByPurl(ctx context.Context, q *repository.Queries, purls []string) (map[string]*purlVulnCounts, error) {
 	vulnRows, err := q.ListVulnsByPurls(ctx, purls)
 	if err != nil {
-		return fmt.Errorf("listing vulns by purls: %w", err)
+		return nil, fmt.Errorf("listing vulns by purls: %w", err)
 	}
-	type agg struct {
-		count                                int
-		maxSeverity                          string
-		critical, high, medium, low, unknown int
-		seen                                 map[string]struct{}
-	}
-	byPurl := make(map[string]*agg, len(purls))
+	byPurl := make(map[string]*purlVulnCounts, len(purls))
 	for _, r := range vulnRows {
 		a := byPurl[r.Purl]
 		if a == nil {
-			a = &agg{seen: make(map[string]struct{})}
+			a = &purlVulnCounts{seen: make(map[string]struct{})}
 			byPurl[r.Purl] = a
 		}
 		canonicalID := r.CanonicalID
@@ -242,21 +347,7 @@ func decorateVersionVulns(ctx context.Context, q *repository.Queries, purls []st
 			a.unknown++
 		}
 	}
-	for i := range items {
-		if items[i].Purl == nil {
-			continue
-		}
-		if a := byPurl[*items[i].Purl]; a != nil {
-			items[i].VulnCount = a.count
-			items[i].MaxSeverity = a.maxSeverity
-			items[i].CriticalCount = a.critical
-			items[i].HighCount = a.high
-			items[i].MediumCount = a.medium
-			items[i].LowCount = a.low
-			items[i].UnknownCount = a.unknown
-		}
-	}
-	return nil
+	return byPurl, nil
 }
 
 func (s *searchService) GetComponent(ctx context.Context, id pgtype.UUID, vis VisibilityFilter) (ComponentDetail, error) {

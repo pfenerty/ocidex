@@ -56,6 +56,28 @@ func (h *Handler) GetComponentVersions(ctx context.Context, input *GetComponentV
 	out.Body.Pagination = paginationMeta(result.PagedResult)
 	out.Body.VersionCount = result.VersionCount
 	out.Body.ArtifactCount = result.ArtifactCount
+	out.Body.SbomCount = result.SbomCount
+	return out, nil
+}
+
+// ListComponentVersionSummaries handles GET /api/v1/components/version-summaries.
+func (h *Handler) ListComponentVersionSummaries(ctx context.Context, input *ListComponentVersionSummariesInput) (*ListComponentVersionSummariesOutput, error) {
+	result, err := h.searchService.ListComponentVersionSummaries(ctx, service.ComponentVersionFilter{
+		Name:       input.Name,
+		Group:      input.Group,
+		Type:       input.Type,
+		Limit:      input.Limit,
+		Offset:     input.Offset,
+		Visibility: visibilityFilterFromContext(ctx),
+	})
+	if err != nil {
+		return nil, mapServiceError(err)
+	}
+	out := &ListComponentVersionSummariesOutput{}
+	out.Body.Versions = result.Data
+	out.Body.Pagination = paginationMeta(result.PagedResult)
+	out.Body.SbomCount = result.SbomCount
+	out.Body.ArtifactCount = result.ArtifactCount
 	return out, nil
 }
 

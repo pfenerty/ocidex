@@ -1,7 +1,7 @@
 import { Show, createMemo, createSignal, createEffect, on } from "solid-js";
 import { A, useSearchParams } from "@solidjs/router";
 import { Breadcrumb, Button, ButtonGroup, PageHeader, QueryBoundary, type Crumb } from "~/components/ui";
-import { useComponent, useComponentVersions, useComponentVulns } from "~/api/queries";
+import { useComponent, useComponentVersions, useComponentVersionSummaries, useComponentVulns } from "~/api/queries";
 import { DEFAULT_PAGE_SIZE } from "~/api/client";
 import { EmptyState } from "~/components/Feedback";
 import Pagination from "~/components/Pagination";
@@ -9,7 +9,7 @@ import { SkeletonHeader } from "~/components/Skeleton";
 import ComponentMetadata from "~/components/ComponentMetadata";
 import { purlToRegistryUrl, purlTypeLabel } from "~/utils/purl";
 import { plural, hasText } from "~/utils/format";
-import { groupByArtifact, groupByVersion, type ArtifactGroup, type VersionGroup } from "./grouping";
+import { groupByArtifact, type ArtifactGroup } from "./grouping";
 import { ArtifactUsageTable } from "./ArtifactUsageTable";
 import { VersionListTable } from "./VersionListTable";
 
@@ -19,6 +19,10 @@ export default function ComponentOverview() {
 
     const hasVersion = () => params.version !== undefined && params.version !== "";
 
+    // With a version pinned the page lists that version's SBOM occurrences;
+    // without one it lists distinct versions, paged by version. Paging the
+    // occurrences and grouping them by version showed one or two versions a
+    // page of stdlib's 81 (ocidex-nps9.2).
     const query = useComponentVersions(
         () =>
             params.name !== undefined
@@ -30,8 +34,37 @@ export default function ComponentOverview() {
                       offset: offset(),
                   }
                 : undefined,
-        { enabled: () => params.name !== undefined },
+        { enabled: () => params.name !== undefined && hasVersion() },
     );
+
+    const summaryQuery = useComponentVersionSummaries(
+        () =>
+            params.name !== undefined
+                ? {
+                      name: params.name,
+                      group: params.group !== "" ? params.group : undefined,
+                      limit: DEFAULT_PAGE_SIZE,
+                      offset: offset(),
+                  }
+                : undefined,
+        { enabled: () => params.name !== undefined && !hasVersion() },
+    );
+
+    /** activeQuery is whichever of the two the page is showing. */
+    const activeQuery = {
+        get isLoading() {
+            return hasVersion() ? query.isLoading : summaryQuery.isLoading;
+        },
+        get isError() {
+            return hasVersion() ? query.isError : summaryQuery.isError;
+        },
+        get error() {
+            return hasVersion() ? query.error : summaryQuery.error;
+        },
+        get data() {
+            return hasVersion() ? query.data : summaryQuery.data;
+        },
+    };
 
     // A different component (or a drill-down into one version) is a different
     // result set, so the window has to go back to the top.
@@ -43,7 +76,7 @@ export default function ComponentOverview() {
         ),
     );
 
-    const pagination = () => query.data?.pagination;
+    const pagination = () => activeQuery.data?.pagination;
 
     const firstVersionId = () => query.data?.versions[0]?.id ?? "";
     const firstVersionPurl = () =>
@@ -65,22 +98,17 @@ export default function ComponentOverview() {
             : params.name;
     };
 
-    // The two groupings are mutually exclusive: without a version the page is a
-    // version list, with one it is the artifacts carrying that version.
-    const grouped = createMemo<VersionGroup[]>(() =>
-        hasVersion() ? [] : groupByVersion(query.data?.versions ?? []),
-    );
     const artifactGroups = createMemo<ArtifactGroup[]>(() =>
         hasVersion() ? groupByArtifact(query.data?.versions ?? []) : [],
     );
 
-    const componentType = () => query.data?.versions[0]?.type ?? "library";
+    const componentType = () => activeQuery.data?.versions[0]?.type ?? "library";
 
-    const totalRows = () => pagination()?.total ?? query.data?.versions.length ?? 0;
+    const totalRows = () => pagination()?.total ?? activeQuery.data?.versions.length ?? 0;
     // One page of results needs no controls and no "on this page" hedging.
     const isPaged = () => totalRows() > DEFAULT_PAGE_SIZE;
 
-    const firstPurl = () => query.data?.versions.find((v) => v.purl !== undefined)?.purl;
+    const firstPurl = () => activeQuery.data?.versions.find((v) => v.purl !== undefined)?.purl;
 
     const allVersionsHref = () => {
         const base = `/components/overview?name=${encodeURIComponent(params.name ?? "")}`;
@@ -119,7 +147,7 @@ export default function ComponentOverview() {
 
             <Show when={params.name !== undefined}>
                 <QueryBoundary
-                    query={query}
+                    query={activeQuery}
                     breadcrumb={<Breadcrumb items={crumbs()} />}
                     loading={<SkeletonHeader />}
                     when={(d) => d.versions.length > 0}
@@ -130,7 +158,7 @@ export default function ComponentOverview() {
                         />
                     }
                 >
-                    {(qd) => (
+                    {() => (
                                 <>
                                 <PageHeader
                                     breadcrumb={<Breadcrumb items={crumbs()} />}
@@ -143,29 +171,19 @@ export default function ComponentOverview() {
                                     subtitle={
                                         <>
                                             <span class="badge">{componentType()}</span>{" "}
-                                            {/* These count the rows on screen, and the
-                                                list is paginated, so they are qualified
-                                                the moment there is more than one page.
-                                                The total is SBOM occurrences, which is
-                                                what the endpoint counts; distinct
-                                                versions across all pages is not a figure
-                                                the API reports, so it is never claimed. */}
+                                            {/* Without a version these are whole-corpus
+                                                figures, the same ones the Components list
+                                                shows. With one, the list is that version's
+                                                SBOM occurrences, so the artifact count is
+                                                qualified once there is more than a page. */}
                                             <Show
                                                 when={hasVersion()}
                                                 fallback={
-                                                    <Show
-                                                        when={isPaged()}
-                                                        fallback={
-                                                            <>
-                                                                {plural(grouped().length, "version")} across{" "}
-                                                                {plural(qd().versions.length, "SBOM")}
-                                                            </>
-                                                        }
-                                                    >
-                                                        {plural(grouped().length, "version")} on this page
-                                                        {" · "}
-                                                        {plural(totalRows(), "SBOM")} in total
-                                                    </Show>
+                                                    <>
+                                                        {plural(summaryQuery.data?.pagination.total ?? 0, "version")} in{" "}
+                                                        {plural(summaryQuery.data?.sbomCount ?? 0, "SBOM")} ·{" "}
+                                                        {plural(summaryQuery.data?.artifactCount ?? 0, "artifact")}
+                                                    </>
                                                 }
                                             >
                                                 <Show
@@ -174,7 +192,7 @@ export default function ComponentOverview() {
                                                 >
                                                     {plural(artifactGroups().length, "artifact")} on this page
                                                     {" · "}
-                                                    {plural(totalRows(), "SBOM")} in total
+                                                    {plural(query.data?.sbomCount ?? totalRows(), "SBOM")} in total
                                                 </Show>
                                             </Show>
                                         </>
@@ -222,7 +240,10 @@ export default function ComponentOverview() {
 
                                     {/* ── Summary: compact version list ── */}
                                     <Show when={!hasVersion()}>
-                                        <VersionListTable groups={grouped()} versionHref={versionHref} />
+                                        <VersionListTable
+                                            versions={summaryQuery.data?.versions ?? []}
+                                            versionHref={versionHref}
+                                        />
                                     </Show>
 
                                     <Show when={isPaged() ? pagination() : undefined}>

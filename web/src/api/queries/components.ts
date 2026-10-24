@@ -183,3 +183,44 @@ export function useComponentVersions(
         };
     });
 }
+
+/**
+ * List a component's distinct versions, one row per version with its SBOM and
+ * artifact counts, paginated by version (pagination.total is the version
+ * count). useComponentVersions is one row per SBOM occurrence instead.
+ */
+export function useComponentVersionSummaries(
+    params: Accessor<Omit<ComponentVersionParams, "version"> | undefined>,
+    options?: { enabled?: Accessor<boolean> },
+) {
+    return createQuery(() => {
+        const p = params();
+        return {
+            queryKey: [
+                "component-version-summaries",
+                p?.name,
+                p?.group,
+                p?.type,
+                p?.limit,
+                p?.offset,
+            ] as const,
+            queryFn: () =>
+                unwrap(
+                    client.GET("/api/v1/components/version-summaries", {
+                        params: {
+                            query: {
+                                name: p?.name ?? "",
+                                group: p?.group !== "" ? p?.group : undefined,
+                                type: p?.type !== "" ? p?.type : undefined,
+                                limit: p?.limit ?? DEFAULT_PAGE_SIZE,
+                                offset: p?.offset ?? 0,
+                            },
+                        },
+                    }),
+                ),
+            enabled: options?.enabled?.() ?? p?.name !== undefined,
+            keepPreviousData: true,
+            select: (resp) => ({ ...resp, versions: resp.versions ?? [] }),
+        };
+    });
+}
