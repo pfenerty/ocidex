@@ -27,16 +27,18 @@ claimed AS (
         worker_id       = $1::text,
         attempts        = attempts + 1
     WHERE id IN (SELECT id FROM next_id)
-    RETURNING id, registry_id, repository, digest, index_digest, tag, attempts, trace_context
+    RETURNING id, registry_id, cluster_id, registry_host, repository, digest, index_digest, tag, attempts, trace_context
 )
 SELECT
     c.id,
     COALESCE(c.registry_id::text, '')::text     AS registry_id,
+    COALESCE(c.cluster_id::text, '')::text      AS cluster_id,
     c.repository,
     c.digest,
     COALESCE(c.index_digest, '')::text          AS index_digest,
     COALESCE(c.tag, '')::text                   AS tag,
-    COALESCE(r.url, '')::text                   AS registry_url,
+    -- An anonymous job (ADR-0044 K10) has no registry row; it pulls over HTTPS.
+    COALESCE(r.url, 'https://' || c.registry_host, '')::text AS registry_url,
     COALESCE(r.insecure, false)::bool           AS insecure,
     COALESCE(r.auth_username, '')::text         AS auth_username,
     COALESCE(r.auth_token, '')::text            AS auth_token,
@@ -49,6 +51,7 @@ LEFT JOIN registry r ON r.id = c.registry_id
 type ClaimNextQueuedJobRow struct {
 	ID           pgtype.UUID `json:"id"`
 	RegistryID   string      `json:"registry_id"`
+	ClusterID    string      `json:"cluster_id"`
 	Repository   string      `json:"repository"`
 	Digest       string      `json:"digest"`
 	IndexDigest  string      `json:"index_digest"`
@@ -67,6 +70,7 @@ func (q *Queries) ClaimNextQueuedJob(ctx context.Context, workerID string) (Clai
 	err := row.Scan(
 		&i.ID,
 		&i.RegistryID,
+		&i.ClusterID,
 		&i.Repository,
 		&i.Digest,
 		&i.IndexDigest,
@@ -92,16 +96,18 @@ WITH claimed AS (
         attempts        = attempts + 1
     WHERE id = $2::uuid
       AND state = 'queued'
-    RETURNING id, registry_id, repository, digest, index_digest, tag, attempts, trace_context
+    RETURNING id, registry_id, cluster_id, registry_host, repository, digest, index_digest, tag, attempts, trace_context
 )
 SELECT
     c.id,
     COALESCE(c.registry_id::text, '')::text     AS registry_id,
+    COALESCE(c.cluster_id::text, '')::text      AS cluster_id,
     c.repository,
     c.digest,
     COALESCE(c.index_digest, '')::text          AS index_digest,
     COALESCE(c.tag, '')::text                   AS tag,
-    COALESCE(r.url, '')::text                   AS registry_url,
+    -- An anonymous job (ADR-0044 K10) has no registry row; it pulls over HTTPS.
+    COALESCE(r.url, 'https://' || c.registry_host, '')::text AS registry_url,
     COALESCE(r.insecure, false)::bool           AS insecure,
     COALESCE(r.auth_username, '')::text         AS auth_username,
     COALESCE(r.auth_token, '')::text            AS auth_token,
@@ -119,6 +125,7 @@ type ClaimScanJobByIDParams struct {
 type ClaimScanJobByIDRow struct {
 	ID           pgtype.UUID `json:"id"`
 	RegistryID   string      `json:"registry_id"`
+	ClusterID    string      `json:"cluster_id"`
 	Repository   string      `json:"repository"`
 	Digest       string      `json:"digest"`
 	IndexDigest  string      `json:"index_digest"`
@@ -145,6 +152,7 @@ func (q *Queries) ClaimScanJobByID(ctx context.Context, arg ClaimScanJobByIDPara
 	err := row.Scan(
 		&i.ID,
 		&i.RegistryID,
+		&i.ClusterID,
 		&i.Repository,
 		&i.Digest,
 		&i.IndexDigest,
@@ -201,7 +209,7 @@ WHERE ($1::text IS NULL OR j.state = $1::text)
     COALESCE($2::boolean, false)
     OR EXISTS (
         SELECT 1 FROM source src
-        WHERE src.id = j.registry_id
+        WHERE src.id = COALESCE(j.cluster_id, j.registry_id)
           AND src.namespace_id IN (
               SELECT visible_namespace_ids($3::uuid, $2::boolean))
     )
@@ -236,6 +244,23 @@ func (q *Queries) CountScanJobsSince(ctx context.Context, arg CountScanJobsSince
 	var count int64
 	err := row.Scan(&count)
 	return count, err
+}
+
+const deleteFailedScanJobs = `-- name: DeleteFailedScanJobs :execrows
+DELETE FROM scan_jobs
+WHERE state = 'failed'
+  AND id = ANY ($1::uuid[])
+`
+
+// An explicit Ingest of a cluster row is the retry for its failed jobs
+// (ADR-0044 K10): they are dropped so the run asks the host again and records
+// the new outcome. Pruned jobs are never touched.
+func (q *Queries) DeleteFailedScanJobs(ctx context.Context, ids []pgtype.UUID) (int64, error) {
+	result, err := q.db.Exec(ctx, deleteFailedScanJobs, ids)
+	if err != nil {
+		return 0, err
+	}
+	return result.RowsAffected(), nil
 }
 
 const failOrRequeueScanJobByID = `-- name: FailOrRequeueScanJobByID :one
@@ -319,13 +344,13 @@ func (q *Queries) FinishScanJobByID(ctx context.Context, arg FinishScanJobByIDPa
 }
 
 const getScanJob = `-- name: GetScanJob :one
-SELECT j.id, j.registry_id, j.repository, j.digest, j.tag, j.state, j.attempts, j.last_error, j.nats_msg_id, j.sbom_id, j.created_at, j.started_at, j.finished_at, j.last_attempt_at, j.worker_id, j.index_digest, j.trace_context FROM scan_jobs j
+SELECT j.id, j.registry_id, j.repository, j.digest, j.tag, j.state, j.attempts, j.last_error, j.nats_msg_id, j.sbom_id, j.created_at, j.started_at, j.finished_at, j.last_attempt_at, j.worker_id, j.index_digest, j.trace_context, j.cluster_id, j.registry_host FROM scan_jobs j
 WHERE j.id = $1
   AND (
     COALESCE($2::boolean, false)
     OR EXISTS (
         SELECT 1 FROM source src
-        WHERE src.id = j.registry_id
+        WHERE src.id = COALESCE(j.cluster_id, j.registry_id)
           AND src.namespace_id IN (
               SELECT visible_namespace_ids($3::uuid, $2::boolean))
     )
@@ -361,31 +386,35 @@ func (q *Queries) GetScanJob(ctx context.Context, arg GetScanJobParams) (ScanJob
 		&i.WorkerID,
 		&i.IndexDigest,
 		&i.TraceContext,
+		&i.ClusterID,
+		&i.RegistryHost,
 	)
 	return i, err
 }
 
 const insertScanJob = `-- name: InsertScanJob :one
-INSERT INTO scan_jobs (registry_id, repository, digest, index_digest, tag, nats_msg_id, trace_context)
-VALUES ($1::uuid, $2, $3, $4, $5, $6, $7)
+INSERT INTO scan_jobs (registry_id, cluster_id, registry_host, repository, digest, index_digest, tag, nats_msg_id, trace_context)
+VALUES ($1::uuid, $2::uuid, $3, $4, $5, $6, $7, $8, $9)
 ON CONFLICT (nats_msg_id) DO UPDATE
-    SET state           = CASE WHEN scan_jobs.state = 'succeeded' OR (scan_jobs.state = 'pruned' AND $8::boolean) THEN 'queued'::text ELSE scan_jobs.state END,
-        attempts        = CASE WHEN scan_jobs.state = 'succeeded' OR (scan_jobs.state = 'pruned' AND $8::boolean) THEN 0 ELSE scan_jobs.attempts END,
+    SET state           = CASE WHEN scan_jobs.state = 'succeeded' OR (scan_jobs.state = 'pruned' AND $10::boolean) THEN 'queued'::text ELSE scan_jobs.state END,
+        attempts        = CASE WHEN scan_jobs.state = 'succeeded' OR (scan_jobs.state = 'pruned' AND $10::boolean) THEN 0 ELSE scan_jobs.attempts END,
         last_error      = CASE WHEN scan_jobs.state = 'succeeded' THEN NULL           ELSE scan_jobs.last_error      END,
         finished_at     = CASE WHEN scan_jobs.state = 'succeeded' THEN NULL           ELSE scan_jobs.finished_at     END,
         started_at      = CASE WHEN scan_jobs.state = 'succeeded' THEN NULL           ELSE scan_jobs.started_at      END,
-        last_attempt_at = CASE WHEN scan_jobs.state = 'succeeded' OR (scan_jobs.state = 'pruned' AND $8::boolean) THEN NULL ELSE scan_jobs.last_attempt_at END,
+        last_attempt_at = CASE WHEN scan_jobs.state = 'succeeded' OR (scan_jobs.state = 'pruned' AND $10::boolean) THEN NULL ELSE scan_jobs.last_attempt_at END,
         sbom_id         = CASE WHEN scan_jobs.state = 'succeeded' THEN NULL           ELSE scan_jobs.sbom_id         END,
         index_digest    = EXCLUDED.index_digest,
         tag             = EXCLUDED.tag,
         -- A row this upsert re-queues is a new run, so it joins the caller's trace
         -- (ADR-0055 T3); an active row keeps the trace that queued it.
-        trace_context   = CASE WHEN scan_jobs.state = 'succeeded' OR (scan_jobs.state = 'pruned' AND $8::boolean) THEN EXCLUDED.trace_context ELSE scan_jobs.trace_context END
-RETURNING id, registry_id, repository, digest, tag, state, attempts, last_error, nats_msg_id, sbom_id, created_at, started_at, finished_at, last_attempt_at, worker_id, index_digest, trace_context
+        trace_context   = CASE WHEN scan_jobs.state = 'succeeded' OR (scan_jobs.state = 'pruned' AND $10::boolean) THEN EXCLUDED.trace_context ELSE scan_jobs.trace_context END
+RETURNING id, registry_id, repository, digest, tag, state, attempts, last_error, nats_msg_id, sbom_id, created_at, started_at, finished_at, last_attempt_at, worker_id, index_digest, trace_context, cluster_id, registry_host
 `
 
 type InsertScanJobParams struct {
 	RegistryID   pgtype.UUID `json:"registry_id"`
+	ClusterID    pgtype.UUID `json:"cluster_id"`
+	RegistryHost pgtype.Text `json:"registry_host"`
 	Repository   string      `json:"repository"`
 	Digest       string      `json:"digest"`
 	IndexDigest  pgtype.Text `json:"index_digest"`
@@ -421,6 +450,8 @@ type InsertScanJobParams struct {
 func (q *Queries) InsertScanJob(ctx context.Context, arg InsertScanJobParams) (ScanJob, error) {
 	row := q.db.QueryRow(ctx, insertScanJob,
 		arg.RegistryID,
+		arg.ClusterID,
+		arg.RegistryHost,
 		arg.Repository,
 		arg.Digest,
 		arg.IndexDigest,
@@ -448,19 +479,21 @@ func (q *Queries) InsertScanJob(ctx context.Context, arg InsertScanJobParams) (S
 		&i.WorkerID,
 		&i.IndexDigest,
 		&i.TraceContext,
+		&i.ClusterID,
+		&i.RegistryHost,
 	)
 	return i, err
 }
 
 const listScanJobs = `-- name: ListScanJobs :many
 
-SELECT j.id, j.registry_id, j.repository, j.digest, j.tag, j.state, j.attempts, j.last_error, j.nats_msg_id, j.sbom_id, j.created_at, j.started_at, j.finished_at, j.last_attempt_at, j.worker_id, j.index_digest, j.trace_context FROM scan_jobs j
+SELECT j.id, j.registry_id, j.repository, j.digest, j.tag, j.state, j.attempts, j.last_error, j.nats_msg_id, j.sbom_id, j.created_at, j.started_at, j.finished_at, j.last_attempt_at, j.worker_id, j.index_digest, j.trace_context, j.cluster_id, j.registry_host FROM scan_jobs j
 WHERE ($1::text IS NULL OR j.state = $1::text)
   AND (
     COALESCE($2::boolean, false)
     OR EXISTS (
         SELECT 1 FROM source src
-        WHERE src.id = j.registry_id
+        WHERE src.id = COALESCE(j.cluster_id, j.registry_id)
           AND src.namespace_id IN (
               SELECT visible_namespace_ids($3::uuid, $2::boolean))
     )
@@ -487,9 +520,10 @@ type ListScanJobsParams struct {
 	Limit   int32       `json:"limit_"`
 }
 
-// Scan jobs hang off a registry, and a registry inherits its visibility from the
-// namespace above it (ADR-039). scan_jobs.registry_id is nullable — a row whose
-// registry has been deleted belongs to no namespace, so it is admin-only. The
+// Scan jobs hang off a source, and a source inherits its visibility from the
+// namespace above it (ADR-039). The source is the cluster when cluster_id is
+// set (ADR-0044 K10), otherwise the registry. A row with neither belongs to no
+// namespace, so it is admin-only. The
 // state bucket in ORDER BY is mutable, which is why these stay OFFSET-paginated
 // rather than keyset (ADR-043 rule 1).
 func (q *Queries) ListScanJobs(ctx context.Context, arg ListScanJobsParams) ([]ScanJob, error) {
@@ -525,6 +559,56 @@ func (q *Queries) ListScanJobs(ctx context.Context, arg ListScanJobsParams) ([]S
 			&i.WorkerID,
 			&i.IndexDigest,
 			&i.TraceContext,
+			&i.ClusterID,
+			&i.RegistryHost,
+		); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
+const listScanJobsForDigests = `-- name: ListScanJobsForDigests :many
+SELECT id, registry_id, cluster_id, digest, index_digest, state, last_error
+FROM scan_jobs
+WHERE digest = ANY ($1::text[])
+   OR index_digest = ANY ($1::text[])
+`
+
+type ListScanJobsForDigestsRow struct {
+	ID          pgtype.UUID `json:"id"`
+	RegistryID  pgtype.UUID `json:"registry_id"`
+	ClusterID   pgtype.UUID `json:"cluster_id"`
+	Digest      string      `json:"digest"`
+	IndexDigest pgtype.Text `json:"index_digest"`
+	State       string      `json:"state"`
+	LastError   pgtype.Text `json:"last_error"`
+}
+
+// Every job for the digests a cluster reports, matched on the platform digest
+// or on the index it was expanded from (ADR-0044 K10). The caller picks the
+// ones under the attribution it would use.
+func (q *Queries) ListScanJobsForDigests(ctx context.Context, digests []string) ([]ListScanJobsForDigestsRow, error) {
+	rows, err := q.db.Query(ctx, listScanJobsForDigests, digests)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	items := []ListScanJobsForDigestsRow{}
+	for rows.Next() {
+		var i ListScanJobsForDigestsRow
+		if err := rows.Scan(
+			&i.ID,
+			&i.RegistryID,
+			&i.ClusterID,
+			&i.Digest,
+			&i.IndexDigest,
+			&i.State,
+			&i.LastError,
 		); err != nil {
 			return nil, err
 		}
@@ -541,7 +625,7 @@ UPDATE scan_jobs j
 SET state = 'pruned', finished_at = now()
 FROM sbom s
 WHERE s.artifact_id = $1
-  AND j.registry_id = s.source_id
+  AND COALESCE(j.cluster_id, j.registry_id) = s.source_id
   AND j.digest = s.digest
   AND j.state = 'succeeded'
 `
@@ -560,7 +644,7 @@ UPDATE scan_jobs j
 SET state = 'pruned', finished_at = now()
 FROM sbom s
 WHERE s.id = $1
-  AND j.registry_id = s.source_id
+  AND COALESCE(j.cluster_id, j.registry_id) = s.source_id
   AND j.digest = s.digest
   AND j.state = 'succeeded'
 `
@@ -575,6 +659,42 @@ func (q *Queries) PruneScanJobsForSBOM(ctx context.Context, sbomID pgtype.UUID) 
 		return 0, err
 	}
 	return result.RowsAffected(), nil
+}
+
+const recordRefusedScanJob = `-- name: RecordRefusedScanJob :exec
+INSERT INTO scan_jobs (registry_id, cluster_id, registry_host, repository, digest, tag, nats_msg_id,
+                       state, last_error, finished_at)
+VALUES ($1::uuid, $2::uuid, $3, $4, $5, $6, $7,
+        'failed', $8, now())
+ON CONFLICT (nats_msg_id) DO NOTHING
+`
+
+type RecordRefusedScanJobParams struct {
+	RegistryID   pgtype.UUID `json:"registry_id"`
+	ClusterID    pgtype.UUID `json:"cluster_id"`
+	RegistryHost pgtype.Text `json:"registry_host"`
+	Repository   string      `json:"repository"`
+	Digest       string      `json:"digest"`
+	Tag          pgtype.Text `json:"tag"`
+	NatsMsgID    pgtype.Text `json:"nats_msg_id"`
+	LastError    pgtype.Text `json:"last_error"`
+}
+
+// ADR-0044 K10: a running image the host refused is recorded as a failed job
+// with its classified error, so later snapshots count it instead of asking the
+// host again. Nothing is queued. A job already under the key is left alone.
+func (q *Queries) RecordRefusedScanJob(ctx context.Context, arg RecordRefusedScanJobParams) error {
+	_, err := q.db.Exec(ctx, recordRefusedScanJob,
+		arg.RegistryID,
+		arg.ClusterID,
+		arg.RegistryHost,
+		arg.Repository,
+		arg.Digest,
+		arg.Tag,
+		arg.NatsMsgID,
+		arg.LastError,
+	)
+	return err
 }
 
 const requeueStuckRunning = `-- name: RequeueStuckRunning :exec

@@ -28,6 +28,16 @@ function remedyFor(host: UnknownHost, namespace: string): { label: string; href:
     switch (host.reason) {
         case "registry_disabled":
             return { label: `Enable ${host.registry_name ?? "registry"}`, href: `/admin/sources?registry=${host.registry_id ?? ""}` };
+        case "unauthorized":
+            // A registry that matched and was still refused has the wrong
+            // credentials; one that never matched needs adding.
+            if (host.registry_id !== undefined) {
+                return { label: `Fix ${host.registry_name ?? "registry"} credentials`, href: `/admin/sources?registry=${host.registry_id}` };
+            }
+            return {
+                label: "Add registry",
+                href: addRegistryHref(host.host, repos, namespace, host.scope),
+            };
         case "pattern_excluded":
             return { label: `Widen ${host.registry_name ?? "registry"} patterns`, href: `/admin/sources?registry=${host.registry_id ?? ""}` };
         default:

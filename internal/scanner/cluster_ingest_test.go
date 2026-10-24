@@ -2,9 +2,14 @@ package scanner
 
 import (
 	"encoding/json"
+	"errors"
+	"net/http"
+	"net/http/httptest"
 	"testing"
 
 	"github.com/matryer/is"
+
+	"github.com/pfenerty/ocidex/internal/netguard"
 
 	"github.com/pfenerty/ocidex/internal/service"
 )
@@ -31,7 +36,7 @@ func TestSubmitForRunningImage_SingleArch(t *testing.T) {
 
 	sub := &fakeSubmitter{}
 	reg := service.Registry{URL: srv.URL, Enabled: true, ID: "reg-1"}
-	queued, err := SubmitForRunningImage(t.Context(), reg, "myrepo", "sha256:image-digest", "v1.2", sub, testEgress, discardLogger())
+	queued, err := SubmitForRunningImage(t.Context(), service.RunningImageTarget{Registry: &reg}, "myrepo", "sha256:image-digest", "v1.2", sub, testEgress, discardLogger())
 
 	is.NoErr(err)
 	is.Equal(queued, 1)
@@ -89,7 +94,7 @@ func TestSubmitForRunningImage_IndexExpands(t *testing.T) {
 
 	sub := &fakeSubmitter{}
 	reg := service.Registry{URL: srv.URL, Enabled: true}
-	queued, err := SubmitForRunningImage(t.Context(), reg, "myrepo", "sha256:index-digest", "v1.2", sub, testEgress, discardLogger())
+	queued, err := SubmitForRunningImage(t.Context(), service.RunningImageTarget{Registry: &reg}, "myrepo", "sha256:index-digest", "v1.2", sub, testEgress, discardLogger())
 
 	is.NoErr(err)
 	is.Equal(queued, 2)
@@ -142,10 +147,89 @@ func TestSubmitForRunningImage_RegistryDeclines(t *testing.T) {
 			sub := &fakeSubmitter{}
 			// The URL points at a closed port: reaching the registry at all
 			// would fail the test with an error rather than a silent zero.
-			queued, err := SubmitForRunningImage(t.Context(), tt.reg, tt.repo, "sha256:whatever", "", sub, testEgress, discardLogger())
+			queued, err := SubmitForRunningImage(t.Context(), service.RunningImageTarget{Registry: &tt.reg}, tt.repo, "sha256:whatever", "", sub, testEgress, discardLogger())
 			is.NoErr(err)
 			is.Equal(queued, 0)
 			is.Equal(len(sub.submitted()), 0)
 		})
 	}
+}
+
+// TestSubmitForRunningImage_ClusterJobIgnoresPatterns covers ADR-0044 K10: a
+// job attributed to the cluster uses the registry's credentials for a
+// repository its patterns exclude, and carries the cluster as its attribution.
+func TestSubmitForRunningImage_ClusterJobIgnoresPatterns(t *testing.T) {
+	is := is.New(t)
+	srv := newFakeOCIRegistry(t, ociRegistryConfig{
+		manifests: map[string]fakeManifest{
+			"other/app:sha256:image-digest": {
+				digest:    "sha256:image-digest",
+				mediaType: "application/vnd.oci.image.manifest.v1+json",
+				body:      singleArchManifest("sha256:config-1"),
+			},
+		},
+		blobs: map[string][]byte{"sha256:config-1": []byte(`{"architecture":"amd64"}`)},
+	})
+	defer srv.Close()
+
+	sub := &fakeSubmitter{}
+	reg := service.Registry{ID: "reg-1", URL: srv.URL, Enabled: true, RepositoryPatterns: []string{"team/**"}}
+	queued, err := SubmitForRunningImage(t.Context(), service.RunningImageTarget{Registry: &reg, ClusterID: "cl-1"},
+		"other/app", "sha256:image-digest", "", sub, testEgress, discardLogger())
+	is.NoErr(err)
+	is.Equal(queued, 1)
+	got := sub.submitted()
+	is.Equal(got[0].RegistryID, "reg-1")
+	is.Equal(got[0].ClusterID, "cl-1")
+}
+
+// TestSubmitForRunningImage_ClassifiesRefusals pins the failures cluster ingest
+// records instead of retrying (ADR-0044 K10) to their reasons, and leaves a
+// transient failure unclassified.
+func TestSubmitForRunningImage_ClassifiesRefusals(t *testing.T) {
+	tests := []struct {
+		status int
+		want   string // "" means not a refusal
+	}{
+		{http.StatusUnauthorized, service.IngestReasonUnauthorized},
+		{http.StatusForbidden, service.IngestReasonUnauthorized},
+		{http.StatusNotFound, service.IngestRefusalNotFound},
+		{http.StatusTooManyRequests, ""},
+		{http.StatusBadGateway, ""},
+	}
+	for _, tt := range tests {
+		t.Run(http.StatusText(tt.status), func(t *testing.T) {
+			is := is.New(t)
+			srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
+				w.WriteHeader(tt.status)
+			}))
+			defer srv.Close()
+			reg := service.Registry{URL: srv.URL, Enabled: true}
+			_, err := SubmitForRunningImage(t.Context(), service.RunningImageTarget{Registry: &reg, ClusterID: "cl-1"},
+				"app", "sha256:d", "", &fakeSubmitter{}, testEgress, discardLogger())
+			is.True(err != nil)
+			var refused *service.IngestRefusedError
+			if tt.want == "" {
+				is.True(!errors.As(err, &refused))
+				return
+			}
+			is.True(errors.As(err, &refused))
+			is.Equal(refused.Reason, tt.want)
+		})
+	}
+}
+
+// TestSubmitForRunningImage_AnonymousPullIsEgressGuarded covers the SSRF half
+// of ADR-0044 K10: a host no registry serves is pulled anonymously, through the
+// same egress policy, so a cluster reporting a loopback reference is refused
+// and recorded rather than dialed.
+func TestSubmitForRunningImage_AnonymousPullIsEgressGuarded(t *testing.T) {
+	is := is.New(t)
+	sub := &fakeSubmitter{}
+	_, err := SubmitForRunningImage(t.Context(), service.RunningImageTarget{Host: "127.0.0.1:5000", ClusterID: "cl-1"},
+		"app", "sha256:d", "", sub, netguard.Policy{}, discardLogger())
+	var refused *service.IngestRefusedError
+	is.True(errors.As(err, &refused))
+	is.Equal(refused.Reason, service.IngestReasonEgressDenied)
+	is.Equal(len(sub.submitted()), 0)
 }

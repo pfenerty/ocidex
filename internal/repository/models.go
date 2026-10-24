@@ -396,6 +396,8 @@ type ScanJob struct {
 	WorkerID      pgtype.Text        `json:"worker_id"`
 	IndexDigest   pgtype.Text        `json:"index_digest"`
 	TraceContext  pgtype.Text        `json:"trace_context"`
+	ClusterID     pgtype.UUID        `json:"cluster_id"`
+	RegistryHost  pgtype.Text        `json:"registry_host"`
 }
 
 type Session struct {
@@ -406,7 +408,7 @@ type Session struct {
 	CreatedAt pgtype.Timestamptz `json:"created_at"`
 }
 
-// How an SBOM reached OCIDex. kind is the subtype discriminator; an oci_registry source has a matching registry row, an upload source has none.
+// How an SBOM reached OCIDex. kind is the subtype discriminator; an oci_registry source has a matching registry row, a cluster source a matching cluster row (same id), an upload source neither.
 type Source struct {
 	ID          pgtype.UUID `json:"id"`
 	NamespaceID pgtype.UUID `json:"namespace_id"`

@@ -257,7 +257,9 @@ that free. K10 contacts hosts that may refuse it, so "free" would no longer hold
 with no credentials would be HEAD-ed every two minutes, forever. Instead:
 
 * Submission skips any digest that already has a job under its key (`registry@digest` or
-  `cluster@digest`), in any state. A repeat snapshot makes **no** network call for it.
+  `cluster@digest`), matched on the platform digest or the index it was expanded from, in any
+  state but `succeeded`. A repeat snapshot makes **no** network call for it. A succeeded job whose
+  SBOM is gone, as retention leaves it, does not count, so that image is scanned again.
 * A submission that fails for a permanent reason writes a `failed` job with its classified
   error and queues nothing. The reasons are 401 or 403 after the anonymous token exchange
   (`unauthorized`), a netguard refusal (`egress_denied`), or a manifest that is not there

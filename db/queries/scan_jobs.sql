@@ -22,8 +22,8 @@
 -- budget of SCANNER_MAX_ATTEMPTS to ride out a blip, so what this gives up is
 -- automatic recovery from an outage longer than the budget — in exchange for a
 -- failed row that is still there to be read.
-INSERT INTO scan_jobs (registry_id, repository, digest, index_digest, tag, nats_msg_id, trace_context)
-VALUES (sqlc.narg('registry_id')::uuid, @repository, @digest, sqlc.narg('index_digest'), sqlc.narg('tag'), sqlc.narg('nats_msg_id'), sqlc.narg('trace_context'))
+INSERT INTO scan_jobs (registry_id, cluster_id, registry_host, repository, digest, index_digest, tag, nats_msg_id, trace_context)
+VALUES (sqlc.narg('registry_id')::uuid, sqlc.narg('cluster_id')::uuid, sqlc.narg('registry_host'), @repository, @digest, sqlc.narg('index_digest'), sqlc.narg('tag'), sqlc.narg('nats_msg_id'), sqlc.narg('trace_context'))
 ON CONFLICT (nats_msg_id) DO UPDATE
     SET state           = CASE WHEN scan_jobs.state = 'succeeded' OR (scan_jobs.state = 'pruned' AND @force::boolean) THEN 'queued'::text ELSE scan_jobs.state END,
         attempts        = CASE WHEN scan_jobs.state = 'succeeded' OR (scan_jobs.state = 'pruned' AND @force::boolean) THEN 0 ELSE scan_jobs.attempts END,
@@ -59,9 +59,10 @@ UPDATE scan_jobs
 SET state = 'failed', finished_at = now(), last_error = sqlc.narg('last_error')
 WHERE nats_msg_id = @nats_msg_id;
 
--- Scan jobs hang off a registry, and a registry inherits its visibility from the
--- namespace above it (ADR-039). scan_jobs.registry_id is nullable — a row whose
--- registry has been deleted belongs to no namespace, so it is admin-only. The
+-- Scan jobs hang off a source, and a source inherits its visibility from the
+-- namespace above it (ADR-039). The source is the cluster when cluster_id is
+-- set (ADR-0044 K10), otherwise the registry. A row with neither belongs to no
+-- namespace, so it is admin-only. The
 -- state bucket in ORDER BY is mutable, which is why these stay OFFSET-paginated
 -- rather than keyset (ADR-043 rule 1).
 
@@ -72,7 +73,7 @@ WHERE (sqlc.narg('state')::text IS NULL OR j.state = sqlc.narg('state')::text)
     COALESCE(sqlc.narg('is_admin')::boolean, false)
     OR EXISTS (
         SELECT 1 FROM source src
-        WHERE src.id = j.registry_id
+        WHERE src.id = COALESCE(j.cluster_id, j.registry_id)
           AND src.namespace_id IN (
               SELECT visible_namespace_ids(sqlc.narg('user_id')::uuid, sqlc.narg('is_admin')::boolean))
     )
@@ -97,7 +98,7 @@ WHERE (sqlc.narg('state')::text IS NULL OR j.state = sqlc.narg('state')::text)
     COALESCE(sqlc.narg('is_admin')::boolean, false)
     OR EXISTS (
         SELECT 1 FROM source src
-        WHERE src.id = j.registry_id
+        WHERE src.id = COALESCE(j.cluster_id, j.registry_id)
           AND src.namespace_id IN (
               SELECT visible_namespace_ids(sqlc.narg('user_id')::uuid, sqlc.narg('is_admin')::boolean))
     )
@@ -116,7 +117,7 @@ WHERE j.id = @id
     COALESCE(sqlc.narg('is_admin')::boolean, false)
     OR EXISTS (
         SELECT 1 FROM source src
-        WHERE src.id = j.registry_id
+        WHERE src.id = COALESCE(j.cluster_id, j.registry_id)
           AND src.namespace_id IN (
               SELECT visible_namespace_ids(sqlc.narg('user_id')::uuid, sqlc.narg('is_admin')::boolean))
     )
@@ -148,16 +149,18 @@ WITH claimed AS (
         attempts        = attempts + 1
     WHERE id = @id::uuid
       AND state = 'queued'
-    RETURNING id, registry_id, repository, digest, index_digest, tag, attempts, trace_context
+    RETURNING id, registry_id, cluster_id, registry_host, repository, digest, index_digest, tag, attempts, trace_context
 )
 SELECT
     c.id,
     COALESCE(c.registry_id::text, '')::text     AS registry_id,
+    COALESCE(c.cluster_id::text, '')::text      AS cluster_id,
     c.repository,
     c.digest,
     COALESCE(c.index_digest, '')::text          AS index_digest,
     COALESCE(c.tag, '')::text                   AS tag,
-    COALESCE(r.url, '')::text                   AS registry_url,
+    -- An anonymous job (ADR-0044 K10) has no registry row; it pulls over HTTPS.
+    COALESCE(r.url, 'https://' || c.registry_host, '')::text AS registry_url,
     COALESCE(r.insecure, false)::bool           AS insecure,
     COALESCE(r.auth_username, '')::text         AS auth_username,
     COALESCE(r.auth_token, '')::text            AS auth_token,
@@ -182,16 +185,18 @@ claimed AS (
         worker_id       = @worker_id::text,
         attempts        = attempts + 1
     WHERE id IN (SELECT id FROM next_id)
-    RETURNING id, registry_id, repository, digest, index_digest, tag, attempts, trace_context
+    RETURNING id, registry_id, cluster_id, registry_host, repository, digest, index_digest, tag, attempts, trace_context
 )
 SELECT
     c.id,
     COALESCE(c.registry_id::text, '')::text     AS registry_id,
+    COALESCE(c.cluster_id::text, '')::text      AS cluster_id,
     c.repository,
     c.digest,
     COALESCE(c.index_digest, '')::text          AS index_digest,
     COALESCE(c.tag, '')::text                   AS tag,
-    COALESCE(r.url, '')::text                   AS registry_url,
+    -- An anonymous job (ADR-0044 K10) has no registry row; it pulls over HTTPS.
+    COALESCE(r.url, 'https://' || c.registry_host, '')::text AS registry_url,
     COALESCE(r.insecure, false)::bool           AS insecure,
     COALESCE(r.auth_username, '')::text         AS auth_username,
     COALESCE(r.auth_token, '')::text            AS auth_token,
@@ -287,7 +292,7 @@ UPDATE scan_jobs j
 SET state = 'pruned', finished_at = now()
 FROM sbom s
 WHERE s.id = @sbom_id
-  AND j.registry_id = s.source_id
+  AND COALESCE(j.cluster_id, j.registry_id) = s.source_id
   AND j.digest = s.digest
   AND j.state = 'succeeded';
 
@@ -297,7 +302,7 @@ UPDATE scan_jobs j
 SET state = 'pruned', finished_at = now()
 FROM sbom s
 WHERE s.artifact_id = @artifact_id
-  AND j.registry_id = s.source_id
+  AND COALESCE(j.cluster_id, j.registry_id) = s.source_id
   AND j.digest = s.digest
   AND j.state = 'succeeded';
 
@@ -309,3 +314,30 @@ SELECT state, count(*)::bigint AS jobs
 FROM scan_jobs
 WHERE state IN ('queued', 'running')
 GROUP BY state;
+
+-- name: ListScanJobsForDigests :many
+-- Every job for the digests a cluster reports, matched on the platform digest
+-- or on the index it was expanded from (ADR-0044 K10). The caller picks the
+-- ones under the attribution it would use.
+SELECT id, registry_id, cluster_id, digest, index_digest, state, last_error
+FROM scan_jobs
+WHERE digest = ANY (@digests::text[])
+   OR index_digest = ANY (@digests::text[]);
+
+-- name: RecordRefusedScanJob :exec
+-- ADR-0044 K10: a running image the host refused is recorded as a failed job
+-- with its classified error, so later snapshots count it instead of asking the
+-- host again. Nothing is queued. A job already under the key is left alone.
+INSERT INTO scan_jobs (registry_id, cluster_id, registry_host, repository, digest, tag, nats_msg_id,
+                       state, last_error, finished_at)
+VALUES (sqlc.narg('registry_id')::uuid, sqlc.narg('cluster_id')::uuid, sqlc.narg('registry_host'), @repository, @digest, sqlc.narg('tag'), @nats_msg_id,
+        'failed', @last_error, now())
+ON CONFLICT (nats_msg_id) DO NOTHING;
+
+-- name: DeleteFailedScanJobs :execrows
+-- An explicit Ingest of a cluster row is the retry for its failed jobs
+-- (ADR-0044 K10): they are dropped so the run asks the host again and records
+-- the new outcome. Pruned jobs are never touched.
+DELETE FROM scan_jobs
+WHERE state = 'failed'
+  AND id = ANY (@ids::uuid[]);

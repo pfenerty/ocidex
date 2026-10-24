@@ -213,7 +213,7 @@ function unknownHost(overrides: Record<string, unknown> = {}) {
         // Single-tenant by default: the server only splits hosts it knows are
         // multi-tenant, so scope === host is the common shape.
         scope: host,
-        reason: "no_registry",
+        reason: "unauthorized",
         image_count: 3,
         pod_count: 9,
         workload_count: 4,
@@ -225,7 +225,11 @@ function unknownHost(overrides: Record<string, unknown> = {}) {
 
 const NO_REASONS = {
     ready: 0,
-    no_registry: 0,
+    scanning: 0,
+    unauthorized: 0,
+    egress_denied: 0,
+    failed: 0,
+    deleted: 0,
     registry_disabled: 0,
     pattern_excluded: 0,
     unparseable_ref: 0,
@@ -946,14 +950,14 @@ describe("ClusterDetail", () => {
         searchParams = { tab: "gaps" };
         unknownImages = [
             unknownImage({ image_ref: "ghcr.io/a:v1", reason: "ready", registry_id: "r-1", registry_name: "ghcr" }),
-            unknownImage({ image_ref: "gcr.io/b:v1", reason: "no_registry", registry_host: "gcr.io" }),
+            unknownImage({ image_ref: "gcr.io/b:v1", reason: "unauthorized", registry_host: "gcr.io" }),
             unknownImage({ image_ref: "quay.io/c:v1", reason: "registry_disabled", registry_id: "r-2", registry_name: "quay" }),
             unknownImage({ image_ref: "quay.io/d:v1", reason: "pattern_excluded", registry_id: "r-2", registry_name: "quay" }),
         ];
         const { container } = renderPage([workload({ match_state: "unknown" })], GAPPY);
 
         expect(container.textContent).toContain("ready to ingest");
-        expect(container.textContent).toContain("no registry");
+        expect(container.textContent).toContain("pull refused");
         expect(container.textContent).toContain("gcr.io");
         // "switched off" and "never configured" are different problems, so the
         // matched registry is named rather than reported as absent.
@@ -969,7 +973,7 @@ describe("ClusterDetail", () => {
         // ghcr.io/quay.io registry opens unusable, since neither supports
         // catalog discovery and both require an explicit list.
         const addRegistry = [...container.querySelectorAll("a")].find(
-            (a) => a.textContent === "add a registry",
+            (a) => a.textContent === "add a registry with credentials",
         );
         expect(addRegistry?.getAttribute("href")).toBe(
             "/admin/sources?add=1&host=gcr.io&repos=pfenerty%2Fapi&ns=acme",
@@ -986,8 +990,8 @@ describe("ClusterDetail", () => {
         searchParams = { tab: "gaps" };
         unknownImages = [
             unknownImage({ image_ref: "ghcr.io/a:v1", reason: "ready" }),
-            unknownImage({ image_ref: "gcr.io/b:v1", reason: "no_registry" }),
-            unknownImage({ image_ref: "gcr.io/c:v1", reason: "no_registry" }),
+            unknownImage({ image_ref: "gcr.io/b:v1", reason: "unauthorized" }),
+            unknownImage({ image_ref: "gcr.io/c:v1", reason: "unauthorized" }),
         ];
         const { container } = renderPage([workload({ match_state: "unknown" })], GAPPY);
 
@@ -1002,7 +1006,7 @@ describe("ClusterDetail", () => {
         unknownImages = [
             unknownImage({ image_ref: "ghcr.io/a:v1", reason: "ready" }),
             unknownImage({ image_ref: "ghcr.io/b:v1", reason: "ready" }),
-            unknownImage({ image_ref: "gcr.io/c:v1", reason: "no_registry" }),
+            unknownImage({ image_ref: "gcr.io/c:v1", reason: "unauthorized" }),
         ];
         const { container } = renderPage([workload({ match_state: "unknown" })], GAPPY);
 
@@ -1040,7 +1044,7 @@ describe("ClusterDetail", () => {
     // out.
     it("rolls the gap up into the registries that would close it", () => {
         searchParams = { tab: "gaps" };
-        unknownImages = [unknownImage({ reason: "no_registry" })];
+        unknownImages = [unknownImage({ reason: "unauthorized" })];
         unknownHosts = [
             unknownHost({ host: "gcr.io", image_count: 12, pod_count: 30 }),
             unknownHost({
@@ -1086,7 +1090,7 @@ describe("ClusterDetail", () => {
     // called the same thing.
     it("labels a split multi-tenant host by its scope, and names the registry after it", () => {
         searchParams = { tab: "gaps" };
-        unknownImages = [unknownImage({ reason: "no_registry" })];
+        unknownImages = [unknownImage({ reason: "unauthorized" })];
         unknownHosts = [
             unknownHost({
                 host: "ghcr.io",
@@ -1126,7 +1130,7 @@ describe("ClusterDetail", () => {
         searchParams = { tab: "gaps" };
         unknownImages = [
             unknownImage({
-                reason: "no_registry",
+                reason: "unauthorized",
                 registry_host: "ghcr.io",
                 repository: "orgA/api",
             }),
@@ -1137,7 +1141,7 @@ describe("ClusterDetail", () => {
         const { container } = renderPage([workload({ match_state: "unknown" })], GAPPY);
 
         const rowLink = [...container.querySelectorAll("a")].find(
-            (a) => a.textContent === "add a registry",
+            (a) => a.textContent === "add a registry with credentials",
         );
         expect(rowLink?.getAttribute("href")).toBe(
             "/admin/sources?add=1&host=ghcr.io&repos=orgA%2Fapi&ns=acme&name=ghcr.io%2ForgA",
@@ -1167,9 +1171,9 @@ describe("ClusterDetail", () => {
 
     // A row that cannot be ingested must not offer a button that would do
     // nothing — the reason is the remedy there, not the action.
-    it("offers no row action for an image no registry can serve", () => {
+    it("offers no row action for an image whose registry is switched off", () => {
         searchParams = { tab: "gaps" };
-        unknownImages = [unknownImage({ reason: "no_registry" })];
+        unknownImages = [unknownImage({ reason: "registry_disabled" })];
         const { container } = renderPage([workload({ match_state: "unknown" })], GAPPY);
 
         const rowButtons = [...container.querySelectorAll("button")].filter(
@@ -1186,7 +1190,9 @@ describe("ClusterDetail", () => {
         ingestResult = {
             considered: 3,
             queued: 1,
-            skipped_no_registry: 1,
+            skipped_existing: 0,
+            unauthorized: 1,
+            egress_denied: 0,
             skipped_registry_disabled: 0,
             skipped_pattern_excluded: 1,
             skipped_unparseable_ref: 0,
@@ -1195,7 +1201,7 @@ describe("ClusterDetail", () => {
         const { container } = renderPage([workload({ match_state: "unknown" })], GAPPY);
 
         expect(container.textContent).toContain("Queued 1 scan job");
-        expect(container.textContent).toContain("1 skipped: no registry configured");
+        expect(container.textContent).toContain("1 skipped: pull refused by the host");
         expect(container.textContent).toContain("1 skipped: excluded by registry patterns");
         expect(container.textContent).not.toContain("registry disabled");
         expect(container.textContent).toContain("in the background");
@@ -1206,7 +1212,7 @@ describe("ClusterDetail", () => {
     it("states on the overview whether auto-ingest is closing the gap", () => {
         unknownImages = [
             unknownImage({ image_ref: "ghcr.io/a:v1", reason: "ready" }),
-            unknownImage({ image_ref: "gcr.io/b:v1", reason: "no_registry" }),
+            unknownImage({ image_ref: "gcr.io/b:v1", reason: "unauthorized" }),
         ];
         const { container } = renderPage([workload({ match_state: "unknown" })], GAPPY);
 
@@ -1222,7 +1228,7 @@ describe("ClusterDetail", () => {
     it("describes the whole gap rather than the page it was handed", () => {
         searchParams = { tab: "gaps" };
         unknownImages = [unknownImage({ image_ref: "ghcr.io/a:v1", reason: "ready" })];
-        unknownGap = { total: 412, reasons: { ...NO_REASONS, ready: 300, no_registry: 112 } };
+        unknownGap = { total: 412, reasons: { ...NO_REASONS, ready: 300, unauthorized: 112 } };
         const { container } = renderPage([workload({ match_state: "unknown" })], GAPPY);
 
         expect(container.textContent).toContain("300 of 412 images can be ingested");
@@ -1250,7 +1256,7 @@ describe("ClusterDetail", () => {
     // whatever page the shared query happened to hold.
     it("counts the overview's ready and blocked images across the whole gap", () => {
         unknownImages = [unknownImage({ reason: "ready" })];
-        unknownGap = { total: 412, reasons: { ...NO_REASONS, ready: 300, no_registry: 112 } };
+        unknownGap = { total: 412, reasons: { ...NO_REASONS, ready: 300, unauthorized: 112 } };
         const { container } = renderPage([workload({ match_state: "unknown" })], GAPPY);
 
         expect(container.textContent).toContain("300 images can be ingested now");

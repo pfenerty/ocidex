@@ -51,8 +51,11 @@ type ScanJob struct {
 // claiming a queued row. It includes the registry credentials joined in so
 // the worker does not need a second query.
 type ScanJobClaim struct {
-	ID           string
-	RegistryID   string
+	ID         string
+	RegistryID string
+	// ClusterID is set when the job's SBOM is attributed to the cluster that
+	// reported the image rather than to RegistryID (ADR-0044 K10).
+	ClusterID    string
 	Repository   string
 	Digest       string
 	IndexDigest  string
@@ -73,11 +76,34 @@ func (c ScanJobClaim) JobTraceContext() string { return c.TraceContext }
 func (c ScanJobClaim) JobID() string      { return c.ID }
 func (c ScanJobClaim) JobAttempts() int32 { return c.Attempts }
 
+// ScanJobKey is a scan job's idempotency key: the source its SBOM will be
+// attributed to, and the digest. Catalog walks attribute to the registry, and
+// cluster ingest to the registry or the cluster (ADR-0044 K10).
+func ScanJobKey(sourceID, digest string) string { return sourceID + "@" + digest }
+
+// EnqueueParams describes one scan job. RegistryID is whose credentials the
+// pull uses, empty for an anonymous pull from RegistryHost. ClusterID, when
+// set, attributes the SBOM to that cluster instead of the registry.
+type EnqueueParams struct {
+	RegistryID   string
+	ClusterID    string
+	RegistryHost string
+	Repository   string
+	Digest       string
+	IndexDigest  string
+	Tag          string
+	MsgID        string
+	// Force re-queues a pruned job, whose SBOM was deleted on purpose and
+	// which a plain walk leaves alone.
+	Force bool
+}
+
 // JobService manages the lifecycle of scan pipeline jobs.
 type JobService interface {
-	// Enqueue upserts the job for msgID. force re-queues a pruned job, whose
-	// SBOM was deleted on purpose and which a plain walk leaves alone.
+	// Enqueue upserts a registry-attributed job for msgID; see EnqueueJob.
 	Enqueue(ctx context.Context, registryID, repo, digest, indexDigest, tag, msgID string, force bool) (ScanJob, error)
+	// EnqueueJob upserts the job for params.MsgID.
+	EnqueueJob(ctx context.Context, params EnqueueParams) (ScanJob, error)
 	Start(ctx context.Context, msgID, workerID string) error
 	Finish(ctx context.Context, msgID string, sbomID pgtype.UUID) error
 	Fail(ctx context.Context, msgID, lastError string) error
@@ -130,18 +156,23 @@ func NewJobService(pool *pgxpool.Pool, box *secretbox.Box) JobService {
 }
 
 func (s *jobService) Enqueue(ctx context.Context, registryID, repo, digest, indexDigest, tag, msgID string, force bool) (ScanJob, error) {
-	var regID pgtype.UUID
-	if registryID != "" {
-		_ = regID.Scan(registryID)
-	}
+	return s.EnqueueJob(ctx, EnqueueParams{
+		RegistryID: registryID, Repository: repo, Digest: digest, IndexDigest: indexDigest,
+		Tag: tag, MsgID: msgID, Force: force,
+	})
+}
+
+func (s *jobService) EnqueueJob(ctx context.Context, p EnqueueParams) (ScanJob, error) {
 	row, err := s.repo.InsertScanJob(ctx, repository.InsertScanJobParams{
-		RegistryID:  regID,
-		Repository:  repo,
-		Digest:      digest,
-		IndexDigest: toNullText(nullStr(indexDigest)),
-		Tag:         toNullText(nullStr(tag)),
-		NatsMsgID:   toNullText(nullStr(msgID)),
-		Force:       force,
+		RegistryID:   optionalUUID(p.RegistryID),
+		ClusterID:    optionalUUID(p.ClusterID),
+		RegistryHost: toNullText(nullStr(p.RegistryHost)),
+		Repository:   p.Repository,
+		Digest:       p.Digest,
+		IndexDigest:  toNullText(nullStr(p.IndexDigest)),
+		Tag:          toNullText(nullStr(p.Tag)),
+		NatsMsgID:    toNullText(nullStr(p.MsgID)),
+		Force:        p.Force,
 		// The caller's trace, so the worker's job span joins it (ADR-0055 T3).
 		TraceContext: toNullText(nullStr(tracing.Inject(ctx))),
 	})
@@ -315,7 +346,7 @@ func (s *jobService) ClaimByID(ctx context.Context, id, workerID string) (ScanJo
 	if err != nil {
 		return ScanJobClaim{}, false, err
 	}
-	return claimFromRow(row.ID, row.RegistryID, row.Repository, row.Digest, row.IndexDigest,
+	return claimFromRow(row.ID, row.RegistryID, row.ClusterID, row.Repository, row.Digest, row.IndexDigest,
 		row.Tag, row.RegistryUrl, row.Insecure, row.AuthUsername, authToken, row.Attempts, row.TraceContext), true, nil
 }
 
@@ -331,7 +362,7 @@ func (s *jobService) ClaimNext(ctx context.Context, workerID string) (ScanJobCla
 	if err != nil {
 		return ScanJobClaim{}, false, err
 	}
-	return claimFromRow(row.ID, row.RegistryID, row.Repository, row.Digest, row.IndexDigest,
+	return claimFromRow(row.ID, row.RegistryID, row.ClusterID, row.Repository, row.Digest, row.IndexDigest,
 		row.Tag, row.RegistryUrl, row.Insecure, row.AuthUsername, authToken, row.Attempts, row.TraceContext), true, nil
 }
 
@@ -408,10 +439,11 @@ func (s *jobService) openAuthToken(registryID, stored string) (string, error) {
 	return openCredential(s.box, colAuthToken, registryID, stored)
 }
 
-func claimFromRow(id pgtype.UUID, registryID, repo, digest, indexDigest, tag, registryURL string, insecure bool, authUser, authToken string, attempts int32, traceContext string) ScanJobClaim {
+func claimFromRow(id pgtype.UUID, registryID, clusterID, repo, digest, indexDigest, tag, registryURL string, insecure bool, authUser, authToken string, attempts int32, traceContext string) ScanJobClaim {
 	return ScanJobClaim{
 		ID:           uuidToStr(id),
 		RegistryID:   registryID,
+		ClusterID:    clusterID,
 		Repository:   repo,
 		Digest:       digest,
 		IndexDigest:  indexDigest,
@@ -430,4 +462,13 @@ func nullStr(s string) *string {
 		return nil
 	}
 	return &s
+}
+
+// optionalUUID parses id, mapping "" (or anything unparseable) to NULL.
+func optionalUUID(id string) pgtype.UUID {
+	var u pgtype.UUID
+	if id != "" {
+		_ = u.Scan(id) //nolint:errcheck // invalid UUID → NULL, as before
+	}
+	return u
 }

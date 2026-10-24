@@ -4,6 +4,7 @@ import (
 	"context"
 	"encoding/json"
 	"log/slog"
+	"strings"
 	"time"
 
 	"github.com/nats-io/nats.go"
@@ -59,9 +60,27 @@ func (s *NATSSubmitter) Submit(ctx context.Context, req ScanRequest) error {
 	// same registry+digest pair collapse to one row. The column name is a
 	// historical artifact from the dual-write era; the value still serves the
 	// same purpose at the row level.
-	idempotencyKey := req.RegistryID + "@" + req.Digest
-
-	job, err := s.jobSvc.Enqueue(ctx, req.RegistryID, req.Repository, req.Digest, req.IndexDigest, req.Tag, idempotencyKey, req.Force)
+	// The key is the job's attribution, so a cluster-attributed job never
+	// collapses into the registry's walk job for the same digest.
+	attribution := req.RegistryID
+	if req.ClusterID != "" {
+		attribution = req.ClusterID
+	}
+	params := service.EnqueueParams{
+		RegistryID:  req.RegistryID,
+		ClusterID:   req.ClusterID,
+		Repository:  req.Repository,
+		Digest:      req.Digest,
+		IndexDigest: req.IndexDigest,
+		Tag:         req.Tag,
+		MsgID:       service.ScanJobKey(attribution, req.Digest),
+		Force:       req.Force,
+	}
+	if req.RegistryID == "" {
+		// An anonymous pull has no registry row to read its URL from.
+		params.RegistryHost = registryHostOf(req.RegistryURL)
+	}
+	job, err := s.jobSvc.EnqueueJob(ctx, params)
 	if err != nil {
 		return err
 	}
@@ -98,5 +117,14 @@ func ScanRequestFromClaim(c service.ScanJobClaim) ScanRequest {
 		AuthUsername: c.AuthUsername,
 		AuthToken:    c.AuthToken,
 		RegistryID:   c.RegistryID,
+		ClusterID:    c.ClusterID,
 	}
+}
+
+// registryHostOf reduces a registry URL to the host an anonymous job records.
+func registryHostOf(registryURL string) string {
+	if i := strings.Index(registryURL, "://"); i != -1 {
+		registryURL = registryURL[i+3:]
+	}
+	return strings.TrimSuffix(registryURL, "/")
 }

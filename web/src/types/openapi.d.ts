@@ -2824,7 +2824,12 @@ export interface components {
             considered: number;
             /**
              * Format: int64
-             * @description Submission errored against a reachable registry — transient, unlike the skips
+             * @description The host is in an address range the egress policy refuses; not retried
+             */
+            egress_denied: number;
+            /**
+             * Format: int64
+             * @description Submission errored: a manifest that is not there, or a transient registry or queue problem
              */
             failed: number;
             /**
@@ -2834,9 +2839,9 @@ export interface components {
             queued: number;
             /**
              * Format: int64
-             * @description No registry in this cluster's namespace is configured for the image's host
+             * @description Already has a scan job: scanning, failed, or deleted on purpose. A repeat snapshot lands here.
              */
-            skipped_no_registry: number;
+            skipped_existing: number;
             /**
              * Format: int64
              * @description The registry's repository patterns exclude this repository
@@ -2852,6 +2857,11 @@ export interface components {
              * @description The reported reference carries no host to resolve against
              */
             skipped_unparseable_ref: number;
+            /**
+             * Format: int64
+             * @description The host refused the pull, in this run or a recorded earlier one; not retried
+             */
+            unauthorized: number;
         };
         InventoryWorkload: {
             container_name: string;
@@ -3905,7 +3915,7 @@ export interface components {
              * @description Ingest channel kind
              * @enum {string}
              */
-            kind: "oci_registry" | "upload";
+            kind: "oci_registry" | "upload" | "cluster";
             name: string;
             namespace_id: string;
             /** @description Owning namespace name; populated on list responses */
@@ -3996,10 +4006,10 @@ export interface components {
             /** Format: int64 */
             pod_count: number;
             /**
-             * @description The worst remedy seen for this group; ready and unparseable_ref name no registry to configure and are not grouped here
+             * @description The worst remedy seen for this group: a registry to add, switch on, or widen. Other states name no registry to configure and are not grouped here
              * @enum {string}
              */
-            reason: "no_registry" | "registry_disabled" | "pattern_excluded";
+            reason: "unauthorized" | "registry_disabled" | "pattern_excluded";
             /** @description Registry that serves this group, when one was matched at all */
             registry_id?: string;
             registry_name?: string;
@@ -4018,9 +4028,19 @@ export interface components {
         UnknownImageReasonCounts: {
             /**
              * Format: int64
-             * @description No registry in the namespace is configured for the image's host
+             * @description Its SBOM was deleted on purpose; cluster ingest does not bring it back
              */
-            no_registry: number;
+            deleted: number;
+            /**
+             * Format: int64
+             * @description The host is in an address range the egress policy refuses
+             */
+            egress_denied: number;
+            /**
+             * Format: int64
+             * @description The manifest was not there, or the scan used up its attempts; ingesting the row retries it
+             */
+            failed: number;
             /**
              * Format: int64
              * @description The registry's repository patterns exclude this repository
@@ -4028,7 +4048,7 @@ export interface components {
             pattern_excluded: number;
             /**
              * Format: int64
-             * @description A registry in the namespace serves the image and accepts its repository
+             * @description Will be queued next run, with a registry's credentials or anonymously
              */
             ready: number;
             /**
@@ -4036,6 +4056,16 @@ export interface components {
              * @description The host matches a registry that is switched off
              */
             registry_disabled: number;
+            /**
+             * Format: int64
+             * @description A scan job is queued or running
+             */
+            scanning: number;
+            /**
+             * Format: int64
+             * @description The host refused the pull; a registry with credentials for it is the remedy
+             */
+            unauthorized: number;
             /**
              * Format: int64
              * @description The reported reference carries no host to resolve against
@@ -4048,13 +4078,13 @@ export interface components {
             /** Format: int64 */
             pod_count: number;
             /**
-             * @description Why this image can or cannot be ingested
+             * @description Where this image stands: ready to queue, already has a job, or why it cannot be ingested (ADR-0044 K10)
              * @enum {string}
              */
-            reason: "ready" | "no_registry" | "registry_disabled" | "pattern_excluded" | "unparseable_ref";
+            reason: "ready" | "scanning" | "unauthorized" | "egress_denied" | "failed" | "deleted" | "registry_disabled" | "pattern_excluded" | "unparseable_ref";
             /** @description Host parsed out of image_ref; empty when the reference carries none */
             registry_host?: string;
-            /** @description Registry that serves this group, when one was matched at all */
+            /** @description Registry whose credentials pull this image, when one was matched at all; absent on a ready image means an anonymous pull */
             registry_id?: string;
             registry_name?: string;
             repository?: string;

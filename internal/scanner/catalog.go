@@ -789,13 +789,22 @@ func ociHeadManifest(ctx context.Context, c *http.Client, baseURL, repo, tag str
 	}
 	defer resp.Body.Close()
 	if resp.StatusCode != http.StatusOK {
-		return manifestInfo{}, fmt.Errorf("manifest HEAD returned HTTP %d", resp.StatusCode)
+		return manifestInfo{}, &httpStatusError{op: "manifest HEAD", code: resp.StatusCode}
 	}
 	return manifestInfo{
 		digest:    resp.Header.Get("Docker-Content-Digest"),
 		mediaType: strings.Split(resp.Header.Get("Content-Type"), ";")[0],
 	}, nil
 }
+
+// httpStatusError is a registry response other than the one expected, kept
+// typed so a caller can tell a refusal from a missing manifest.
+type httpStatusError struct {
+	op   string
+	code int
+}
+
+func (e *httpStatusError) Error() string { return fmt.Sprintf("%s returned HTTP %d", e.op, e.code) }
 
 func isIndexMediaType(mt string) bool {
 	return mt == mediaTypeOCIIndex ||

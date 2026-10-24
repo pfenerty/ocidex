@@ -196,7 +196,9 @@ func (h *Handler) autoIngestAfterSnapshot(ctx context.Context, clusterID string)
 			"cluster", cluster.Name,
 			"considered", res.Considered,
 			"queued", res.Queued,
-			"no_registry", res.SkippedNoRegistry,
+			"existing", res.SkippedExisting,
+			"unauthorized", res.Unauthorized,
+			"egress_denied", res.EgressDenied,
 			"registry_disabled", res.SkippedRegistryDisabled,
 			"pattern_excluded", res.SkippedPatternExcluded,
 			"unparseable_ref", res.SkippedUnparseableRef,
@@ -208,7 +210,7 @@ func (h *Handler) autoIngestAfterSnapshot(ctx context.Context, clusterID string)
 // waits for the answer.
 //
 // The synchronous twin of the push trigger: a button that reports "queued 4,
-// 2 have no registry" is worth waiting for, where an agent's push is not.
+// 2 refused" is worth waiting for, where an agent's push is not.
 // Ownership rather than visibility is required — this spends registry
 // credentials and enqueues work, which reading a cluster does not.
 func (h *Handler) IngestUnknown(ctx context.Context, in *IngestUnknownInput) (*IngestUnknownOutput, error) {
@@ -227,7 +229,9 @@ func (h *Handler) IngestUnknown(ctx context.Context, in *IngestUnknownInput) (*I
 	out := &IngestUnknownOutput{}
 	out.Body.Considered = res.Considered
 	out.Body.Queued = res.Queued
-	out.Body.SkippedNoRegistry = res.SkippedNoRegistry
+	out.Body.SkippedExisting = res.SkippedExisting
+	out.Body.Unauthorized = res.Unauthorized
+	out.Body.EgressDenied = res.EgressDenied
 	out.Body.SkippedRegistryDisabled = res.SkippedRegistryDisabled
 	out.Body.SkippedPatternExcluded = res.SkippedPatternExcluded
 	out.Body.SkippedUnparseableRef = res.SkippedUnparseableRef
@@ -412,7 +416,11 @@ func (h *Handler) ListClusterUnknownImages(ctx context.Context, in *ListClusterU
 	}
 	out.Body.Reasons = UnknownImageReasonCounts{
 		Ready:            page.Reasons[service.IngestReasonReady],
-		NoRegistry:       page.Reasons[service.IngestReasonNoRegistry],
+		Scanning:         page.Reasons[service.IngestReasonScanning],
+		Unauthorized:     page.Reasons[service.IngestReasonUnauthorized],
+		EgressDenied:     page.Reasons[service.IngestReasonEgressDenied],
+		Failed:           page.Reasons[service.IngestReasonFailed],
+		Deleted:          page.Reasons[service.IngestReasonDeleted],
 		RegistryDisabled: page.Reasons[service.IngestReasonRegistryDisabled],
 		PatternExcluded:  page.Reasons[service.IngestReasonPatternExcluded],
 		UnparseableRef:   page.Reasons[service.IngestReasonUnparseableRef],
