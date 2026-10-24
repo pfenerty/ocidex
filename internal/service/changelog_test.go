@@ -1238,6 +1238,59 @@ func TestClassifyDirection(t *testing.T) {
 			want: dirUpgraded,
 		},
 		{
+			// Branch-sha tags compare commit hashes, which have no order. Both
+			// directions must say "modified", not one upgrade and one downgrade.
+			name: "branch-sha versions are a modification, forward",
+			diff: ComponentDiff{
+				Type:            dirModified,
+				Purl:            str("pkg:golang/github.com/pfenerty/ocidex@main-bf2bab70"),
+				PreviousVersion: str("main-d4bd093c"),
+				Version:         str("main-bf2bab70"),
+			},
+			want: dirModified,
+		},
+		{
+			name: "branch-sha versions are a modification, reversed",
+			diff: ComponentDiff{
+				Type:            dirModified,
+				Purl:            str("pkg:golang/github.com/pfenerty/ocidex@main-d4bd093c"),
+				PreviousVersion: str("main-bf2bab70"),
+				Version:         str("main-d4bd093c"),
+			},
+			want: dirModified,
+		},
+		{
+			name: "semver against a branch-sha is a modification",
+			diff: ComponentDiff{
+				Type:            dirModified,
+				Purl:            str("pkg:golang/x@main-bf2bab70"),
+				PreviousVersion: str("v1.0.0"),
+				Version:         str("main-bf2bab70"),
+			},
+			want: dirModified,
+		},
+		{
+			// Go pseudo-versions parse as semver, and their timestamp orders them.
+			name: "go pseudo-versions order by timestamp",
+			diff: ComponentDiff{
+				Type:            dirModified,
+				Purl:            str("pkg:golang/x@v0.0.0-20251002000000-bbbbbbbbbbbb"),
+				PreviousVersion: str("v0.0.0-20250901000000-aaaaaaaaaaaa"),
+				Version:         str("v0.0.0-20251002000000-bbbbbbbbbbbb"),
+			},
+			want: dirUpgraded,
+		},
+		{
+			name: "plain numeric versions still order",
+			diff: ComponentDiff{
+				Type:            dirModified,
+				Purl:            str("pkg:generic/thing@1.2.3.10"),
+				PreviousVersion: str("1.2.3.9"),
+				Version:         str("1.2.3.10"),
+			},
+			want: dirUpgraded,
+		},
+		{
 			name: "added passes through untouched",
 			diff: ComponentDiff{Type: dirAdded, Version: str("1.0.0")},
 			want: dirAdded,
