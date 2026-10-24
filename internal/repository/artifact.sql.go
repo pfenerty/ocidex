@@ -184,6 +184,33 @@ func (q *Queries) GetArtifact(ctx context.Context, id pgtype.UUID) (GetArtifactR
 	return i, err
 }
 
+const getArtifactByIdentity = `-- name: GetArtifactByIdentity :one
+SELECT id, purl, cpe FROM artifact
+WHERE type = $1 AND name = $2 AND COALESCE(group_name, '') = COALESCE($3::text, '')
+`
+
+type GetArtifactByIdentityParams struct {
+	Type      string      `json:"type"`
+	Name      string      `json:"name"`
+	GroupName pgtype.Text `json:"group_name"`
+}
+
+type GetArtifactByIdentityRow struct {
+	ID   pgtype.UUID `json:"id"`
+	Purl pgtype.Text `json:"purl"`
+	Cpe  pgtype.Text `json:"cpe"`
+}
+
+// Ingest's lock-free read before UpsertArtifact (ocidex-q1ni). An ON CONFLICT
+// DO UPDATE row-locks the artifact until the ingest commits, even when it
+// changes nothing, so concurrent ingests of one image would queue on it.
+func (q *Queries) GetArtifactByIdentity(ctx context.Context, arg GetArtifactByIdentityParams) (GetArtifactByIdentityRow, error) {
+	row := q.db.QueryRow(ctx, getArtifactByIdentity, arg.Type, arg.Name, arg.GroupName)
+	var i GetArtifactByIdentityRow
+	err := row.Scan(&i.ID, &i.Purl, &i.Cpe)
+	return i, err
+}
+
 const getArtifactNamespaceID = `-- name: GetArtifactNamespaceID :one
 SELECT an.namespace_id
 FROM artifact_namespace an

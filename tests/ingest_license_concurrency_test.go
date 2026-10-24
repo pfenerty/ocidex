@@ -1,10 +1,12 @@
 package tests
 
 import (
+	"context"
 	"encoding/json"
 	"fmt"
 	"sync"
 	"testing"
+	"time"
 
 	cdx "github.com/CycloneDX/cyclonedx-go"
 	"github.com/jackc/pgx/v5/pgtype"
@@ -93,4 +95,57 @@ func TestConcurrentIngestLicenseOrder(t *testing.T) {
 	is.NoErr(pool.QueryRow(t.Context(), `SELECT count(*) FROM component_license`).Scan(&joins))
 	is.Equal(licenses, len(forward))
 	is.Equal(joins, rounds*perRound*len(forward))
+}
+
+// TestIngestDoesNotWaitOnArtifactOrLicenseLocks covers ocidex-q1ni: while
+// another transaction has upserted the same artifact and license and not yet
+// committed, as a concurrent ingest of the same image does, an ingest of a new
+// version must finish without waiting for it.
+func TestIngestDoesNotWaitOnArtifactOrLicenseLocks(t *testing.T) {
+	if testing.Short() {
+		t.Skip("skipping integration test in short mode")
+	}
+	requireTestInfra(t)
+	is := is.New(t)
+	pool, cleanDB := setupTestDB(t)
+	defer cleanDB()
+
+	owner := seedUser(t, pool, 5151, "artifact-lock", "member")
+	ns := seedNamespace(t, pool, "artifact-lock", owner, "public")
+	var source pgtype.UUID
+	is.NoErr(source.Scan(seedSource(t, pool, ns, "upload", "ci")))
+	svc := service.NewSBOMService(pool, nil, nil)
+	params := service.IngestParams{SourceID: source, Architecture: "amd64", BuildDate: "2026-01-01T00:00:00Z"}
+
+	// The same image name for every ingest: one artifact, as a multi-arch push.
+	sbom := func(n int) (*cdx.BOM, []byte) {
+		bom, _ := licenseOrderSBOM(t, n, []string{"MIT"})
+		bom.Metadata.Component.Name = fmt.Sprintf("registry.test/one-image@sha256:%064d", n)
+		raw, err := json.Marshal(bom)
+		is.NoErr(err)
+		return bom, raw
+	}
+	bom, raw := sbom(1)
+	_, err := svc.Ingest(t.Context(), bom, raw, params)
+	is.NoErr(err)
+
+	// An ingest in flight: it has upserted the artifact and the license, and
+	// holds their row locks until it commits.
+	tx, err := pool.Begin(t.Context())
+	is.NoErr(err)
+	defer tx.Rollback(context.Background()) //nolint:errcheck // test cleanup
+	_, err = tx.Exec(t.Context(), `
+		INSERT INTO artifact (type, name) VALUES ('container', 'registry.test/one-image')
+		ON CONFLICT (type, name, COALESCE(group_name, '')) DO UPDATE SET purl = artifact.purl`)
+	is.NoErr(err)
+	_, err = tx.Exec(t.Context(), `
+		INSERT INTO license (spdx_id, name) VALUES ('MIT', 'MIT')
+		ON CONFLICT (spdx_id) WHERE spdx_id IS NOT NULL DO UPDATE SET name = EXCLUDED.name`)
+	is.NoErr(err)
+
+	ctx, cancel := context.WithTimeout(t.Context(), 5*time.Second)
+	defer cancel()
+	bom, raw = sbom(2)
+	_, err = svc.Ingest(ctx, bom, raw, params)
+	is.NoErr(err) // did not wait for the other transaction's locks
 }

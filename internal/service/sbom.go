@@ -189,7 +189,7 @@ func resolveArtifact(ctx context.Context, q *repository.Queries, bom *cdx.BOM, p
 		}
 	}
 
-	artifactID, err := q.UpsertArtifact(ctx, repository.UpsertArtifactParams{
+	artifactID, err := ensureArtifact(ctx, q, repository.UpsertArtifactParams{
 		Type:      subj.typ,
 		Name:      name,
 		GroupName: textOrNull(subj.group),
@@ -197,7 +197,7 @@ func resolveArtifact(ctx context.Context, q *repository.Queries, bom *cdx.BOM, p
 		Cpe:       textOrNull(subj.cpe),
 	})
 	if err != nil {
-		return artifactInfo{}, fmt.Errorf("upserting artifact: %w", err)
+		return artifactInfo{}, err
 	}
 
 	return artifactInfo{
@@ -206,6 +206,35 @@ func resolveArtifact(ctx context.Context, q *repository.Queries, bom *cdx.BOM, p
 		digest:         digest,
 		subjectType:    subj.typ,
 	}, nil
+}
+
+// ensureArtifact returns the artifact's id, writing only when it is new or the
+// ingest would change its purl or cpe. UpsertArtifact row-locks the artifact
+// until the ingest commits even when it changes nothing, so concurrent ingests
+// of one image (a multi-arch push) would queue behind each other on it
+// (ocidex-q1ni). The read takes no lock; the upsert stays the fallback, and
+// handles a concurrent first insert.
+func ensureArtifact(ctx context.Context, q *repository.Queries, p repository.UpsertArtifactParams) (pgtype.UUID, error) {
+	row, err := q.GetArtifactByIdentity(ctx, repository.GetArtifactByIdentityParams{
+		Type: p.Type, Name: p.Name, GroupName: p.GroupName,
+	})
+	switch {
+	case err == nil && unchanged(p.Purl, row.Purl) && unchanged(p.Cpe, row.Cpe):
+		return row.ID, nil
+	case err != nil && !errors.Is(err, pgx.ErrNoRows):
+		return pgtype.UUID{}, fmt.Errorf("looking up artifact: %w", err)
+	}
+	id, err := q.UpsertArtifact(ctx, p)
+	if err != nil {
+		return pgtype.UUID{}, fmt.Errorf("upserting artifact: %w", err)
+	}
+	return id, nil
+}
+
+// unchanged reports whether a COALESCE(new, stored) update would leave stored
+// as it is.
+func unchanged(next, stored pgtype.Text) bool {
+	return !next.Valid || (stored.Valid && next.String == stored.String)
 }
 
 // Ingest decomposes a CycloneDX BOM and persists it in a single transaction.

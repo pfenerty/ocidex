@@ -6,6 +6,7 @@ package service
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"maps"
 	"slices"
@@ -356,11 +357,22 @@ func licenseKey(spdxID, displayName string) string {
 	return "name:" + displayName
 }
 
-// upsertLicense resolves a license to its ID, inserting it if new.
+// upsertLicense resolves a license to its ID, inserting it if new. It reads
+// first and writes only when the license is new or the upsert would change it:
+// an upsert row-locks the license until the ingest commits, so every concurrent
+// ingest would otherwise queue on a common license like MIT (ocidex-q1ni).
 func upsertLicense(ctx context.Context, q *repository.Queries, spdxID, displayName, url string) (pgtype.UUID, error) {
 	if spdxID != "" {
+		spdx := pgtype.Text{String: spdxID, Valid: true}
+		row, err := q.GetLicenseBySPDX(ctx, spdx)
+		switch {
+		case err == nil && row.Name == displayName:
+			return row.ID, nil
+		case err != nil && !errors.Is(err, pgx.ErrNoRows):
+			return pgtype.UUID{}, fmt.Errorf("looking up license: %w", err)
+		}
 		id, err := q.UpsertLicenseBySPDX(ctx, repository.UpsertLicenseBySPDXParams{
-			SpdxID: pgtype.Text{String: spdxID, Valid: true},
+			SpdxID: spdx,
 			Name:   displayName,
 			Url:    textOrNull(url),
 		})
@@ -368,6 +380,13 @@ func upsertLicense(ctx context.Context, q *repository.Queries, spdxID, displayNa
 			return pgtype.UUID{}, fmt.Errorf("upserting license: %w", err)
 		}
 		return id, nil
+	}
+	row, err := q.GetLicenseByName(ctx, displayName)
+	switch {
+	case err == nil && unchanged(textOrNull(url), row.Url):
+		return row.ID, nil
+	case err != nil && !errors.Is(err, pgx.ErrNoRows):
+		return pgtype.UUID{}, fmt.Errorf("looking up license: %w", err)
 	}
 	id, err := q.UpsertLicenseByName(ctx, repository.UpsertLicenseByNameParams{
 		Name: displayName,
