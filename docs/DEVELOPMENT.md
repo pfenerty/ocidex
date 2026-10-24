@@ -415,6 +415,39 @@ func (f *fakeArtifactRepo) InsertArtifact(ctx context.Context, params repository
 
 No mock generation tools. If an interface is too large to fake by hand, it's too large — split it.
 
+## Synthetic corpus
+
+`cmd/loadgen` generates a CycloneDX corpus for scale testing (ocidex-xxee.4): `-artifacts`
+container images, each with `-versions` versions of `-components` components. Its shape:
+
+* **Shared base images.** Artifacts are spread over `-base-images` base images. Each base
+  image's OS packages (`apk` or `deb`) make up `-base-share` of every SBOM built on it, so
+  artifacts share components the way real images do.
+* **Real advisories.** Each base image and language (Go, npm or PyPI) starts with real package
+  names at versions that have published advisories, so vulnerability matching finds something.
+  The rest are synthetic names.
+* **Churn.** Between consecutive versions, a `-churn` fraction of components change version,
+  so changelog diffs have work to do.
+* **Graph and licenses.** Every application library depends on one to three earlier
+  components, and every component carries an SPDX license.
+
+The same `-seed` always produces the same bytes.
+
+```bash
+# Write files: <out>/<artifact>/<version>.cdx.json
+flox activate -- go run ./cmd/loadgen -out /tmp/corpus -seed 1
+
+# Ingest into a running instance (needs an API key with `ingest` and an upload source)
+flox activate -- go run ./cmd/loadgen -url http://localhost:8080 \
+  -api-key "$OCIDEX_API_KEY" -source <source-id> \
+  -seed 1 -artifacts 50 -versions 100 -components 500 -concurrency 4
+```
+
+Ingest backs off and retries when the API answers 429. Its per-key ingest limit
+(`API_RATE_LIMIT_INGEST`, 120 a minute) dominates a large run, so set it to `0` on a test
+instance. The image names carry no digest: the digest goes in the ingest call's `digest`
+parameter, so ingest doesn't try to verify it against the synthetic registry host.
+
 ## Accepting a govulncheck finding
 
 `govulncheck-scan` (`.tektonic/jobs/go-vulncheck/spec.ts`) is the only Go vulnerability gate,

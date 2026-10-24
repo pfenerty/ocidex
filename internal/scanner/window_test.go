@@ -188,6 +188,37 @@ func TestDirectWalkerRecordsStats(t *testing.T) {
 	is.True(!s.At.IsZero())
 }
 
+// TestWalkRecordsWindow covers ADR-0056 R2: a walk records, per repository, the
+// digest each selected tag resolved to, including digests already ingested. A
+// repository where a selected tag could not be resolved is left out, so
+// retention never treats a registry error as a tag leaving the window.
+func TestWalkRecordsWindow(t *testing.T) {
+	is := is.New(t)
+	cfg := ociRegistryConfig{tags: map[string][]string{}}
+	for i := range 4 {
+		addImage(&cfg, fmt.Sprintf("1.%d.0", i), fmt.Sprintf("sha256:w%02d", i), "")
+	}
+	srv := newFakeOCIRegistry(t, cfg)
+	defer srv.Close()
+
+	reg := service.Registry{URL: srv.URL, Repositories: []string{"app"}, TagPatterns: []string{"semver"}, TagLimit: 2}
+	stats, err := WalkRegistryStats(t.Context(), reg, &fakeSubmitter{}, map[string]bool{"sha256:w03": true}, testEgress, discardLogger())
+	is.NoErr(err)
+	got := stats.Windows["app"]
+	slices.Sort(got)
+	is.Equal(got, []string{"sha256:w02", "sha256:w03"})
+
+	// A selected tag whose manifest HEAD fails: the repository is not covered.
+	cfg.tags["app"] = append(cfg.tags["app"], "1.9.0")
+	srv2 := newFakeOCIRegistry(t, cfg)
+	defer srv2.Close()
+	reg.URL = srv2.URL
+	stats, err = WalkRegistryStats(t.Context(), reg, &fakeSubmitter{}, nil, testEgress, discardLogger())
+	is.NoErr(err)
+	_, covered := stats.Windows["app"]
+	is.True(!covered)
+}
+
 type knownDigestLister map[string]bool
 
 func (k knownDigestLister) ListDigestsBySource(context.Context, string) (map[string]bool, error) {

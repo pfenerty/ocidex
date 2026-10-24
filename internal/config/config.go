@@ -211,6 +211,20 @@ type Config struct {
 	// disable (e.g. in a test/staging environment without registry access).
 	ProvenanceReverifierEnabled bool `env:"PROVENANCE_REVERIFIER_ENABLED" envDefault:"true"`
 
+	// SBOM retention (ADR-0056 R5), swept by the API behind leader election.
+	// RETENTION_MODE is off, dry-run (report what would go, delete nothing) or
+	// on. RETENTION_KEEP_LAST is versions kept per series for SBOMs that don't
+	// come from a registry walk (0 turns that class off, otherwise at least 2);
+	// RETENTION_MAX_AGE optionally prunes those older too.
+	// RETENTION_REGISTRY_WINDOW prunes registry SBOMs whose tag has left the
+	// registry's scan window.
+	RetentionMode           string        `env:"RETENTION_MODE"            envDefault:"off"`
+	RetentionKeepLast       int           `env:"RETENTION_KEEP_LAST"       envDefault:"20"`
+	RetentionMaxAge         time.Duration `env:"RETENTION_MAX_AGE"`
+	RetentionRegistryWindow bool          `env:"RETENTION_REGISTRY_WINDOW" envDefault:"true"`
+	RetentionInterval       time.Duration `env:"RETENTION_INTERVAL"        envDefault:"6h"`
+	RetentionBatch          int           `env:"RETENTION_BATCH"           envDefault:"50"`
+
 	// Egress policy for dials to user-supplied hosts (registries), shared by the
 	// API, scanner worker and enrichers. Loopback, link-local (cloud metadata)
 	// and multicast are always refused unless EGRESS_ALLOW_CIDRS names them;
@@ -563,6 +577,9 @@ func (c *Config) validate() error {
 	if err := c.validatePerimeter(); err != nil {
 		return err
 	}
+	if err := c.validateRetention(); err != nil {
+		return err
+	}
 	// Half-configured OIDC is worse than none: the login button would exist
 	// and fail. Discovery itself is validated at startup in cmd/ocidex.
 	if c.OIDCIssuerURL != "" && c.OIDCClientID == "" {
@@ -570,6 +587,34 @@ func (c *Config) validate() error {
 	}
 	if c.OIDCIssuerURL == "" && c.OIDCClientID != "" {
 		return fmt.Errorf("OIDC_ISSUER_URL is required when OIDC_CLIENT_ID is set")
+	}
+	return nil
+}
+
+// RETENTION_MODE values (ADR-0056 R5).
+const (
+	RetentionOff    = "off"
+	RetentionDryRun = "dry-run"
+	RetentionOn     = "on"
+)
+
+// validateRetention rejects a retention configuration ADR-0056 doesn't allow,
+// whatever the mode, so turning retention on later can't surface a bad value.
+func (c *Config) validateRetention() error {
+	switch c.RetentionMode {
+	case RetentionOff, RetentionDryRun, RetentionOn:
+	default:
+		return fmt.Errorf("RETENTION_MODE must be %q, %q or %q, got %q", RetentionOff, RetentionDryRun, RetentionOn, c.RetentionMode)
+	}
+	switch {
+	case c.RetentionKeepLast < 0 || c.RetentionKeepLast == 1:
+		return fmt.Errorf("RETENTION_KEEP_LAST must be 0 (off) or at least 2, got %d", c.RetentionKeepLast)
+	case c.RetentionMaxAge < 0:
+		return fmt.Errorf("RETENTION_MAX_AGE must not be negative, got %s", c.RetentionMaxAge)
+	case c.RetentionInterval <= 0:
+		return fmt.Errorf("RETENTION_INTERVAL must be positive, got %s", c.RetentionInterval)
+	case c.RetentionBatch <= 0:
+		return fmt.Errorf("RETENTION_BATCH must be positive, got %d", c.RetentionBatch)
 	}
 	return nil
 }

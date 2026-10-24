@@ -84,7 +84,7 @@ The values below are the chart defaults as overridden by the homelab
 HelmRelease, i.e. what is actually running. `charts/ocidex/values.yaml` is the
 authoritative default set.
 
-### API (`ocidex-dev-api`, `api.replicas: 1`)
+### API (`ocidex-dev-api`, `api.replicas: 2`)
 
 | Variable | Source | Deployed value |
 |---|---|---|
@@ -132,6 +132,30 @@ HTTPRoute arranges — a build with `VITE_API_URL` pointing elsewhere must add t
 origin. **HSTS is not sent by either**: both listen on plain http behind the TLS
 terminator, so set `Strict-Transport-Security` there (the ingress/Gateway, or
 Cloudflare's HSTS setting).
+
+**API high availability.** The chart runs two API replicas by default
+(`api.replicas`). It adds a PodDisruptionBudget (`api.podDisruptionBudget`,
+`minAvailable: 1`), so a node drain keeps one up, and spreads the replicas across
+nodes (`api.topologySpread`). `whenUnsatisfiable: ScheduleAnyway` keeps a single-node
+cluster schedulable, and `DoNotSchedule` makes the spread strict. The PDB is only
+rendered when `api.replicas` is more than 1. Readiness uses `/ready`, which checks the
+database, so a replica that loses Postgres stops receiving traffic.
+
+Every background loop in the API process is safe at two or more replicas:
+
+| Loop | Why it's safe |
+|---|---|
+| Registry poller, provenance reverifier, retention sweep | Leader-elected: each holds a session advisory lock (`service.LeaderElect`), and the other replicas wait for it. |
+| Rollup refresher | Every replica tries each pass. A transaction-scoped advisory lock lets one run it, and the rest skip. |
+| Dashboard stats warmer | Per-process cache, so each replica warms its own. Two replicas run the stats queries twice per interval, on each one's background pool. |
+| Session cleaner | An hourly `DELETE ... WHERE expires_at <= now()`. Running it on every replica is idempotent. |
+| NATS event relay | Each replica relays the events its own requests publish, so nothing is relayed twice. |
+
+Sessions live in Postgres, and the OAuth state cookie is signed with `SESSION_SECRET`,
+so a sign-in can start on one replica and finish on another. Migrations run in the
+`migrate` Job, never at API startup. **Rate limits are per replica:**
+`AUTH_RATE_LIMIT`, `API_RATE_LIMIT_INGEST` and `API_RATE_LIMIT_HEAVY` count in
+process memory, so the effective limit is the configured value times the replica count.
 
 **Hardening a private installation.** The defaults suit a public, open
 instance: anyone your identity provider vouches for — any GitHub account, with

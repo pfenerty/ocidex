@@ -188,6 +188,8 @@ func walkRepo(ctx context.Context, client *http.Client, baseURL, repo string, re
 		logger.Warn("listing tags for repo", "repo", repo, "err", err)
 		return
 	}
+	covered := true
+	selected := make([]string, 0, len(window.Selected))
 	stats.Matched += matched
 	stats.Selected += len(window.Selected)
 	stats.SkippedByLimit += window.SkippedByLimit
@@ -197,12 +199,27 @@ func walkRepo(ctx context.Context, client *http.Client, baseURL, repo string, re
 			"skipped_by_limit", window.SkippedByLimit, "skipped_by_age", window.SkippedByAge)
 	}
 	for _, tag := range window.Selected {
-		queued += scanTag(ctx, client, baseURL, repo, tag, reg, sub, scannedDigests, logger)
+		n, digest := scanTag(ctx, client, baseURL, repo, tag, reg, sub, scannedDigests, logger)
+		queued += n
+		if digest == "" {
+			covered = false
+			continue
+		}
+		selected = append(selected, digest)
 	}
 	if reg.IncludeUntagged {
-		queued += discoverUntagged(ctx, client, baseURL, repo, reg, sub, scannedDigests, logger)
+		n, digests, ok := discoverUntagged(ctx, client, baseURL, repo, reg, sub, scannedDigests, logger)
+		queued += n
+		covered = covered && ok
+		selected = append(selected, digests...)
 	}
 	stats.Queued += queued
+	if covered {
+		if stats.Windows == nil {
+			stats.Windows = map[string][]string{}
+		}
+		stats.Windows[repo] = selected
+	}
 }
 
 // selectRepoTags lists a repository's tags and applies the registry's window:
@@ -231,32 +248,34 @@ func selectRepoTags(ctx context.Context, client *http.Client, baseURL, repo stri
 	return reg.SelectTags(candidates, tagCreatedFunc(ctx, client, baseURL, repo), time.Now()), len(candidates), nil
 }
 
-// scanTag resolves a single tag to one or more scan requests.
-func scanTag(ctx context.Context, client *http.Client, baseURL, repo, tag string, reg service.Registry, sub Submitter, scannedDigests map[string]bool, logger *slog.Logger) int {
+// scanTag resolves a single tag to one or more scan requests. It returns how
+// many it queued and the digest the tag resolved to, which is empty only when
+// the tag could not be resolved.
+func scanTag(ctx context.Context, client *http.Client, baseURL, repo, tag string, reg service.Registry, sub Submitter, scannedDigests map[string]bool, logger *slog.Logger) (int, string) {
 	info, err := ociHeadManifest(ctx, client, baseURL, repo, tag)
 	if err != nil {
 		logger.Warn("manifest HEAD failed", "repo", repo, "tag", tag, "err", err)
-		return 0
+		return 0, ""
 	}
 	if info.digest == "" {
 		logger.Warn("manifest HEAD returned no digest", "repo", repo, "tag", tag)
-		return 0
+		return 0, ""
 	}
 	if scannedDigests[info.digest] {
-		return 0
+		return 0, info.digest
 	}
 	scannedDigests[info.digest] = true
 	if isIndexMediaType(info.mediaType) {
-		return scanIndex(ctx, client, baseURL, repo, tag, info.digest, reg, sub, scannedDigests, logger)
+		return scanIndex(ctx, client, baseURL, repo, tag, info.digest, reg, sub, scannedDigests, logger), info.digest
 	}
 	if !isImageManifestType(info.mediaType) {
 		logger.Debug("skipping unsupported manifest type", "repo", repo, "tag", tag, "mediaType", info.mediaType)
-		return 0
+		return 0, info.digest
 	}
 	meta := ociGetImageMetadata(ctx, client, baseURL, repo, info.digest)
 	if meta.attachedArtifact {
 		logger.Debug("skipping attached artifact", "repo", repo, "tag", tag, "digest", info.digest, "reason", "signature/attestation media type")
-		return 0
+		return 0, info.digest
 	}
 	if err := sub.Submit(ctx, ScanRequest{
 		RegistryURL:  reg.URL,
@@ -272,9 +291,9 @@ func scanTag(ctx context.Context, client *http.Client, baseURL, repo, tag string
 		RegistryID:   reg.ID,
 	}); err != nil {
 		logger.Warn("scan submit failed", "repo", repo, "digest", info.digest, "err", err)
-		return 0
+		return 0, info.digest
 	}
-	return 1
+	return 1, info.digest
 }
 
 // scanIndex expands a multi-arch image index and submits one request per platform.
@@ -322,12 +341,13 @@ func scanIndex(ctx context.Context, client *http.Client, baseURL, repo, tag, ind
 }
 
 // discoverUntagged uses a registry-type-specific discoverer to find and submit
-// manifests not already covered by tag-based scanning.
-func discoverUntagged(ctx context.Context, client *http.Client, baseURL, repo string, reg service.Registry, sub Submitter, scannedDigests map[string]bool, logger *slog.Logger) int {
+// manifests not already covered by tag-based scanning. It also returns the
+// digests its window selected, and false when discovery failed.
+func discoverUntagged(ctx context.Context, client *http.Client, baseURL, repo string, reg service.Registry, sub Submitter, scannedDigests map[string]bool, logger *slog.Logger) (int, []string, bool) {
 	window, untagged, err := selectUntagged(ctx, client, baseURL, repo, reg)
 	if err != nil {
 		logger.Warn("discovering untagged manifests", "repo", repo, "err", err)
-		return 0
+		return 0, nil, false
 	}
 
 	queued := 0
@@ -369,7 +389,7 @@ func discoverUntagged(ctx context.Context, client *http.Client, baseURL, repo st
 		}
 		queued++
 	}
-	return queued
+	return queued, window.Selected, true
 }
 
 // selectUntagged discovers a repository's untagged manifests and applies the

@@ -1,0 +1,15 @@
+{{- if and .Values.api.podDisruptionBudget.enabled (gt (int .Values.api.replicas) 1) }}
+apiVersion: policy/v1
+kind: PodDisruptionBudget
+metadata:
+  name: {{ include "ocidex.fullname" . }}-api
+  namespace: {{ .Release.Namespace }}
+  labels:
+    {{- include "ocidex.labels" . | nindent 4 }}
+    app.kubernetes.io/component: api
+spec:
+  minAvailable: {{ .Values.api.podDisruptionBudget.minAvailable }}
+  selector:
+    matchLabels:
+      {{- include "ocidex.selectorLabels" (dict "root" . "component" "api") | nindent 6 }}
+{{- end }}

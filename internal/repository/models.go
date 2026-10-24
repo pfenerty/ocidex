@@ -313,6 +313,13 @@ type Registry struct {
 	LastWalkStats       []byte             `json:"last_walk_stats"`
 }
 
+type RegistryWindow struct {
+	RegistryID pgtype.UUID        `json:"registry_id"`
+	Repository string             `json:"repository"`
+	Digests    []string           `json:"digests"`
+	WalkedAt   pgtype.Timestamptz `json:"walked_at"`
+}
+
 type Sbom struct {
 	ID                   pgtype.UUID        `json:"id"`
 	SerialNumber         pgtype.Text        `json:"serial_number"`
@@ -333,6 +340,10 @@ type Sbom struct {
 	VersionMajor pgtype.Int4 `json:"version_major"`
 	VersionMinor pgtype.Int4 `json:"version_minor"`
 	VersionPatch pgtype.Int4 `json:"version_patch"`
+}
+
+type SbomRetentionProtected struct {
+	ID pgtype.UUID `json:"id"`
 }
 
 type SbomVulnMatch struct {

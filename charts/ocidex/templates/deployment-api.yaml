@@ -18,6 +18,17 @@ spec:
     spec:
       serviceAccountName: {{ include "ocidex.fullname" . }}
       terminationGracePeriodSeconds: 40
+      {{- with .Values.api.topologySpread }}
+      {{- if .enabled }}
+      topologySpreadConstraints:
+        - maxSkew: 1
+          topologyKey: {{ .topologyKey }}
+          whenUnsatisfiable: {{ .whenUnsatisfiable }}
+          labelSelector:
+            matchLabels:
+              {{- include "ocidex.selectorLabels" (dict "root" $ "component" "api") | nindent 14 }}
+      {{- end }}
+      {{- end }}
       {{- with .Values.podSecurityContext }}
       securityContext:
         {{- toYaml . | nindent 8 }}
@@ -96,6 +107,22 @@ spec:
               value: {{ .Values.api.env.scannerEnabled | quote }}
             - name: REGISTRY_POLLER_ENABLED
               value: {{ .Values.api.env.registryPollerEnabled | quote }}
+            {{- with .Values.api.env.retention }}
+            - name: RETENTION_MODE
+              value: {{ .mode | quote }}
+            - name: RETENTION_KEEP_LAST
+              value: {{ .keepLast | quote }}
+            {{- if .maxAge }}
+            - name: RETENTION_MAX_AGE
+              value: {{ .maxAge | quote }}
+            {{- end }}
+            - name: RETENTION_REGISTRY_WINDOW
+              value: {{ .registryWindow | quote }}
+            - name: RETENTION_INTERVAL
+              value: {{ .interval | quote }}
+            - name: RETENTION_BATCH
+              value: {{ .batch | quote }}
+            {{- end }}
           livenessProbe:
             httpGet:
               path: /health

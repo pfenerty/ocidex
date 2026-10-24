@@ -15,6 +15,7 @@ const (
 	ArtifactDeleted Type = "artifact.deleted"
 	UserLoggedIn    Type = "user.logged_in"
 	UserLoggedOut   Type = "user.logged_out"
+	RetentionSwept  Type = "retention.swept"
 )
 
 // Event is the envelope passed to handlers.
@@ -52,4 +53,13 @@ type UserLoggedInData struct {
 // UserLoggedOutData is published after a session is deleted.
 type UserLoggedOutData struct {
 	UserID pgtype.UUID
+}
+
+// RetentionSweptData is published once per retention sweep (ADR-0056 R6), in
+// place of an sbom.deleted per SBOM. DryRun sweeps report what they would have
+// deleted.
+type RetentionSweptData struct {
+	DryRun bool
+	Window int64 // class W: registry SBOMs out of their window
+	Newest int64 // class N: past the newest N versions or max age
 }
