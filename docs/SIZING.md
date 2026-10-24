@@ -45,19 +45,21 @@ measured routes fit in the OS page cache of a 16 GB machine.
 
 ## Ingest throughput
 
-One API process, `-concurrency 1`, `API_RATE_LIMIT_INGEST=0`:
+One API process, `API_RATE_LIMIT_INGEST=0`:
 
-| SBOMs ingested | Time | Rate |
-|---|---:|---:|
-| First 5,000 (into an empty database) | 7m15s | 11.5/s |
-| 10,000 (into an empty database) | 29m48s | 5.6/s overall |
+| SBOMs ingested | Concurrency | Time | Rate |
+|---|---:|---:|---:|
+| First 5,000 (into an empty database) | 1 | 7m15s | 11.5/s |
+| First 5,000 (into an empty database) | 8 | 6m23s | 13.1/s |
+| 10,000 (into an empty database) | 1 | 29m48s | 5.6/s overall |
 
 Ingest slows as the tables grow: the second 5,000 took about three times as long as the
 first. Two limits apply in practice:
 * **Rate limit.** The default per-key ingest limit (`API_RATE_LIMIT_INGEST`, 120 a minute, so
   2 a second) is far below what the API sustains, so it decides the rate for a single CI key.
-* **Concurrency.** Ingests deadlock on the license upsert when run concurrently (ocidex-5prp),
-  so one ingest stream per key is the safe setting until that's fixed.
+* **Concurrency.** Parallel ingest streams barely help (13.1/s at 8 against 11.5/s at 1): the
+  work is in Postgres, not the API. Concurrent ingests used to deadlock on the license upsert;
+  that's fixed (ocidex-5prp).
 
 Registry scanning isn't measured here: its throughput is the scanner worker's image pull and
 Syft time, which this corpus doesn't exercise.
