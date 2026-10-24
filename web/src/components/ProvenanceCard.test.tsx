@@ -112,3 +112,31 @@ describe("ProvenanceCard verification reason", () => {
         expect(fieldValue(container, "Reason")).toBeNull();
     });
 });
+
+// ocidex-nps9.6: a signed SBOM whose source has no trust configuration carried
+// neither a verdict nor a reason, so the panel said nothing about why it was
+// not verified.
+describe("ProvenanceCard verification not attempted", () => {
+    it("says verification was not attempted and why", () => {
+        const { container } = renderCard(makeProvenance({}), "signed");
+        expect(fieldValue(container, "Verification")).toBe("Not attempted");
+        expect(fieldValue(container, "Reason")).toContain("no trusted key");
+    });
+
+    it("stays quiet about verification when nothing is signed", () => {
+        const { container } = renderCard(
+            makeProvenance({ signaturePresent: false, attestationPresent: false }),
+            "unsigned",
+        );
+        expect(fieldValue(container, "Verification")).toBeNull();
+    });
+
+    it("keeps the recorded reason when verification could not run", () => {
+        const { container } = renderCard(
+            makeProvenance({ verificationError: "trust public key: bad PEM" }),
+            "signed",
+        );
+        expect(fieldValue(container, "Verification")).toBe("Could not verify");
+        expect(fieldValue(container, "Reason")).toContain("bad PEM");
+    });
+});
