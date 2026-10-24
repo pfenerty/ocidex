@@ -70,6 +70,37 @@ func TestConfigurationDocMatchesStructs(t *testing.T) {
 	}
 }
 
+// TestHardeningChecklistNamesDocumentedVariables covers ocidex-vvw6.4: every
+// variable DEPLOYMENT.md's production hardening checklist names is one
+// CONFIGURATION.md documents, so the checklist cannot recommend a setting
+// that does not exist or has been renamed.
+func TestHardeningChecklistNamesDocumentedVariables(t *testing.T) {
+	cfg, err := os.ReadFile("../../docs/CONFIGURATION.md")
+	if err != nil {
+		t.Fatal(err)
+	}
+	deploy, err := os.ReadFile("../../docs/DEPLOYMENT.md")
+	if err != nil {
+		t.Fatal(err)
+	}
+	_, section, ok := strings.Cut(string(deploy), "\n## Production hardening checklist\n")
+	if !ok {
+		t.Fatal("DEPLOYMENT.md has no \"## Production hardening checklist\" section")
+	}
+	section, _, _ = strings.Cut(section, "\n## ")
+
+	documented := documentedVariables(string(cfg))
+	named := documentedVariables(section)
+	if len(named) < 15 {
+		t.Fatalf("the checklist names only %d variables; the parse is broken", len(named))
+	}
+	for _, name := range sortedKeys(named) {
+		if !documented[name] {
+			t.Errorf("the hardening checklist names %s, which docs/CONFIGURATION.md does not document", name)
+		}
+	}
+}
+
 // collectEnvTags adds every env tag in typ, descending into nested structs.
 func collectEnvTags(typ reflect.Type, into map[string]bool) {
 	for f := range typ.Fields() {

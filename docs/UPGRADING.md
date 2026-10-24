@@ -19,6 +19,10 @@ version**. A mixed-version deployment is only supported for the duration of a ro
 
 ## Before every upgrade
 
+Upgrading is a good moment to re-check the
+[production hardening checklist](DEPLOYMENT.md#production-hardening-checklist), since new
+releases add settings to it.
+
 1. **Read this release's section** under [Per-version notes](#per-version-notes). Do any
    step marked *before upgrading* first. Some of them stop the new version from starting if
    they are skipped.

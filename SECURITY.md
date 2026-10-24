@@ -11,6 +11,9 @@ with the 1.0 support scope when it is decided.
 | Latest minor (currently `0.0.x`) | Yes |
 | Anything older | No — upgrade |
 
+Running OCIDex safely is covered by the
+[production hardening checklist](docs/DEPLOYMENT.md#production-hardening-checklist).
+
 ## Reporting a vulnerability
 
 **Do not open a public issue, discussion or pull request for a security problem.**
