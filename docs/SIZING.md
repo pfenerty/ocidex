@@ -39,7 +39,8 @@ measured routes fit in the OS page cache of a 16 GB machine.
 
 **Background work that grows with the corpus:**
 * **Rollup refresh** (every 15 minutes, and after ingests): **85.5s** at 10k SBOMs. It runs on
-  the API's background pool, behind an advisory lock, so it never blocks a request.
+  the API's background pool, behind an advisory lock, so it never blocks a request. The
+  `license_component_rollup` added for ocidex-zbe5 costs about 15s of each pass at 8k SBOMs.
 * **Retention queries** (ADR-0056): about 130 ms each on ocidex-dev at 4.2k SBOMs, dominated by
   the semver parse over every version.
 
@@ -153,12 +154,13 @@ sequential, from the same machine, with an admin key. The budget is the server's
 and `/jobs/{id}` returns 404 because the corpus has no scan jobs. Their timings are only the
 error path.
 
-**Over budget:** `/licenses/{id}/components`, p95 9.6s: ocidex-zbe5. Its cost grows with how
-many components carry the license, not with the page size. Every other route's p95 is under
-1s.
+**Over budget at the time:** `/licenses/{id}/components`, p95 9.6s (ocidex-zbe5). Its cost grew
+with how many components carried the license, not with the page size. Every other route's p95
+was under 1s. The server's `http_server_request_duration_seconds` agreed: that route's mean
+over the run was 8.7s.
 
-The server's `http_server_request_duration_seconds` agrees: that route's mean over the run was
-8.7s.
+**After ocidex-zbe5** the route reads `license_component_rollup`. On an 8.1k-SBOM corpus
+(4M components, 707k carrying the measured license), its p95 went from 6.24s to **36 ms**.
 
 ## Recommendations
 

@@ -34,6 +34,7 @@ var rollupTargets = []struct {
 	{"component_rollup", componentRollupAggregate},
 	{"component_version_rollup", componentVersionRollupAggregate},
 	{"license_rollup", licenseRollupAggregate},
+	{"license_component_rollup", licenseComponentRollupAggregate},
 	{"vuln_rollup", vulnRollupAggregate},
 	{"sbom_vuln_rollup", sbomVulnRollupAggregate},
 }
@@ -144,6 +145,19 @@ SELECT DISTINCT cl.license_id, s.namespace_id,
 FROM component_license cl
 JOIN component c ON c.id = cl.component_id
 JOIN sbom s ON s.id = c.sbom_id`
+
+// One row per (license, namespace, distinct component), carrying the
+// lowest-id component as its representative: the rows GET
+// /api/v1/licenses/{id}/components pages through (ocidex-zbe5). Seeded by
+// db/migrations/00087_license_component_rollup.sql.
+const licenseComponentRollupAggregate = `
+SELECT DISTINCT ON (cl.license_id, s.namespace_id, c.name, COALESCE(c.group_name, ''), COALESCE(c.version, ''), c.type)
+       cl.license_id, s.namespace_id, c.id AS component_id, c.sbom_id, c.type, c.name, c.group_name, c.version, c.purl,
+       c.version_major, c.version_minor, c.version_patch
+FROM component_license cl
+JOIN component c ON c.id = cl.component_id
+JOIN sbom s ON s.id = c.sbom_id
+ORDER BY cl.license_id, s.namespace_id, c.name, COALESCE(c.group_name, ''), COALESCE(c.version, ''), c.type, c.id`
 
 // One row per (canonical vulnerability, namespace). purls is a set because the
 // same package can be affected in several namespaces and the list reports a
