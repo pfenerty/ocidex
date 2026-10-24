@@ -64,6 +64,7 @@ func TestResolveIngestTarget(t *testing.T) {
 		registries   []Registry
 		wantReason   string
 		wantRegistry string // "" means none named
+		wantCluster  bool   // attributed to the cluster rather than the registry
 	}{
 		{
 			name:       "enabled registry serving the host",
@@ -87,12 +88,13 @@ func TestResolveIngestTarget(t *testing.T) {
 			wantReason: IngestReasonReady, wantRegistry: "r-ghcr",
 		},
 		{
-			// Nothing is broken here: the exclusion is deliberate, and saying
-			// so stops it being read as a failure to fix.
+			// ADR-0044 K10: patterns scope the catalog walk, not a running
+			// image. The registry's credentials pull it; the SBOM is the
+			// cluster's, since the registry's walk would not have found it.
 			name:       "repository excluded by the registry's patterns",
 			ref:        "quay.io/other/app:v1",
 			registries: []Registry{narrow},
-			wantReason: IngestReasonPatternExcluded, wantRegistry: "r-narrow",
+			wantReason: IngestReasonReady, wantRegistry: "r-narrow", wantCluster: true,
 		},
 		{
 			name:       "repository accepted by the registry's patterns",
@@ -111,7 +113,14 @@ func TestResolveIngestTarget(t *testing.T) {
 			name:       "another org's repository is not claimed",
 			ref:        "ghcr.io/thirdparty/agent:v1",
 			registries: []Registry{otherCorp},
-			wantReason: IngestReasonPatternExcluded, wantRegistry: "r-othercorp",
+			wantReason: IngestReasonReady, wantRegistry: "r-othercorp", wantCluster: true,
+		},
+		{
+			// Credentials that work beat a switched-off registry.
+			name:       "an excluding registry outranks a disabled one",
+			ref:        "quay.io/other/app:v1",
+			registries: []Registry{{ID: "r-quay-off", URL: "quay.io"}, narrow},
+			wantReason: IngestReasonReady, wantRegistry: "r-narrow", wantCluster: true,
 		},
 		{
 			name:       "the org's own registry wins on a shared host",
@@ -120,10 +129,12 @@ func TestResolveIngestTarget(t *testing.T) {
 			wantReason: IngestReasonReady, wantRegistry: "r-thirdparty",
 		},
 		{
+			// ADR-0044 K10: no registry is no longer a reason to skip. The
+			// image is pulled anonymously and belongs to the cluster.
 			name:       "no registry configured for the host",
 			ref:        "gcr.io/some/app:v1",
 			registries: []Registry{enabled, narrow},
-			wantReason: IngestReasonNoRegistry, wantRegistry: "",
+			wantReason: IngestReasonReady, wantRegistry: "", wantCluster: true,
 		},
 		{
 			// The K3 gap seen from the ingest side: a reference with no host
@@ -139,13 +150,22 @@ func TestResolveIngestTarget(t *testing.T) {
 		t.Run(tt.name, func(t *testing.T) {
 			host, repo := SplitImageRef(tt.ref)
 			img := UnknownImage{ImageRef: tt.ref, RegistryHost: host, Repository: repo}
-			resolveIngestTarget(&img, tt.registries)
+			resolveIngestTarget(&img, tt.registries, "c-1")
 
 			if img.Reason != tt.wantReason {
 				t.Errorf("reason = %q, want %q", img.Reason, tt.wantReason)
 			}
 			if img.Ingestable() != (tt.wantReason == IngestReasonReady) {
 				t.Errorf("Ingestable() = %v for reason %q", img.Ingestable(), img.Reason)
+			}
+			if img.Ingestable() {
+				want := tt.wantRegistry
+				if tt.wantCluster {
+					want = "c-1"
+				}
+				if img.attribution != want {
+					t.Errorf("attribution = %q, want %q", img.attribution, want)
+				}
 			}
 			switch {
 			case tt.wantRegistry == "":
@@ -184,23 +204,27 @@ func TestImageRefTag(t *testing.T) {
 	}
 }
 
-// TestIngestResultCountSkip pins every non-ready reason to its own counter. A
-// reason that fell through the switch would be counted as considered and not
+// TestIngestResultCountSkip pins every non-ready reason to exactly one counter.
+// A reason that fell through the switch would be counted as considered and not
 // skipped, which reads as a silent success — precisely the collapse ADR-044 K5
 // forbids.
 func TestIngestResultCountSkip(t *testing.T) {
 	reasons := []string{
-		IngestReasonNoRegistry,
+		IngestReasonScanning,
+		IngestReasonUnauthorized,
+		IngestReasonEgressDenied,
+		IngestReasonFailed,
+		IngestReasonDeleted,
 		IngestReasonRegistryDisabled,
-		IngestReasonPatternExcluded,
 		IngestReasonUnparseableRef,
 	}
 	for _, reason := range reasons {
 		t.Run(reason, func(t *testing.T) {
 			var res IngestResult
 			res.countSkip(reason)
-			total := res.SkippedNoRegistry + res.SkippedRegistryDisabled +
-				res.SkippedPatternExcluded + res.SkippedUnparseableRef
+			total := res.SkippedExisting + res.SkippedRegistryDisabled +
+				res.SkippedUnparseableRef +
+				res.Unauthorized + res.EgressDenied + res.Failed
 			if total != 1 {
 				t.Errorf("countSkip(%q) filed %d skips, want exactly 1", reason, total)
 			}
@@ -225,12 +249,12 @@ func TestRollUpHosts(t *testing.T) {
 	hosts := rollUpHosts([]UnknownImage{
 		// Two ghcr rows, one of them already ingestable. `ready` names no
 		// registry to configure, so it must not inflate the host's counts.
-		img("ghcr.io", "org/a", IngestReasonNoRegistry, 4, 2, ""),
-		img("ghcr.io", "org/b", IngestReasonNoRegistry, 5, 3, ""),
+		img("ghcr.io", "org/a", IngestReasonUnauthorized, 4, 2, ""),
+		img("ghcr.io", "org/b", IngestReasonUnauthorized, 5, 3, ""),
 		img("ghcr.io", "org/c", IngestReasonReady, 90, 90, "r-ok"),
 		// A reference with no host has nowhere to send the reader.
 		img("", "", IngestReasonUnparseableRef, 70, 70, ""),
-		img("quay.io", "team/x", IngestReasonPatternExcluded, 1, 1, "r-quay"),
+		img("quay.io", "team/x", IngestReasonRegistryDisabled, 1, 1, "r-quay"),
 	})
 
 	if len(hosts) != 2 {
@@ -262,10 +286,9 @@ func TestRollUpHostsReportsWorstReason(t *testing.T) {
 		reasons []string
 		want    string
 	}{
-		{"excluded alone", []string{IngestReasonPatternExcluded}, IngestReasonPatternExcluded},
-		{"disabled outranks excluded", []string{IngestReasonPatternExcluded, IngestReasonRegistryDisabled}, IngestReasonRegistryDisabled},
-		{"missing outranks both", []string{IngestReasonRegistryDisabled, IngestReasonNoRegistry, IngestReasonPatternExcluded}, IngestReasonNoRegistry},
-		{"order of arrival does not matter", []string{IngestReasonNoRegistry, IngestReasonPatternExcluded}, IngestReasonNoRegistry},
+		{"disabled alone", []string{IngestReasonRegistryDisabled}, IngestReasonRegistryDisabled},
+		{"refused outranks disabled", []string{IngestReasonRegistryDisabled, IngestReasonUnauthorized}, IngestReasonUnauthorized},
+		{"order of arrival does not matter", []string{IngestReasonUnauthorized, IngestReasonRegistryDisabled}, IngestReasonUnauthorized},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
@@ -289,9 +312,9 @@ func TestRollUpHostsRepositories(t *testing.T) {
 	// Repositories field, where a duplicate is noise and an arbitrary order
 	// makes two reads of the same gap look like different gaps.
 	got := rollUpHosts([]UnknownImage{
-		img("ghcr.io", "org/z", IngestReasonNoRegistry, 1, 1, ""),
-		img("ghcr.io", "org/a", IngestReasonNoRegistry, 1, 1, ""),
-		img("ghcr.io", "org/z", IngestReasonNoRegistry, 1, 1, ""),
+		img("ghcr.io", "org/z", IngestReasonUnauthorized, 1, 1, ""),
+		img("ghcr.io", "org/a", IngestReasonUnauthorized, 1, 1, ""),
+		img("ghcr.io", "org/z", IngestReasonUnauthorized, 1, 1, ""),
 	})
 	if len(got) != 1 {
 		t.Fatalf("want 1 host, got %d", len(got))
@@ -310,7 +333,7 @@ func TestRollUpHostsRepositories(t *testing.T) {
 func TestRollUpHostsCapsRepositoriesWithoutHidingTheTotal(t *testing.T) {
 	rows := make([]UnknownImage, 0, maxHostRepositories+20)
 	for i := 0; i < maxHostRepositories+20; i++ {
-		rows = append(rows, img("ghcr.io", fmt.Sprintf("org/repo-%03d", i), IngestReasonNoRegistry, 1, 1, ""))
+		rows = append(rows, img("ghcr.io", fmt.Sprintf("org/repo-%03d", i), IngestReasonUnauthorized, 1, 1, ""))
 	}
 	got := rollUpHosts(rows)[0]
 	if len(got.Repositories) != maxHostRepositories {
@@ -410,9 +433,9 @@ func TestRegistryScopeLeavesAnImageBehind(t *testing.T) {
 // authenticate to half its repositories.
 func TestRollUpHostsSplitsAMultiTenantHost(t *testing.T) {
 	got := rollUpHosts([]UnknownImage{
-		img("ghcr.io", "orgA/api", IngestReasonNoRegistry, 3, 1, ""),
-		img("ghcr.io", "orgA/web", IngestReasonNoRegistry, 2, 1, ""),
-		img("ghcr.io", "orgB/tool", IngestReasonNoRegistry, 1, 1, ""),
+		img("ghcr.io", "orgA/api", IngestReasonUnauthorized, 3, 1, ""),
+		img("ghcr.io", "orgA/web", IngestReasonUnauthorized, 2, 1, ""),
+		img("ghcr.io", "orgB/tool", IngestReasonUnauthorized, 1, 1, ""),
 	})
 	if len(got) != 2 {
 		t.Fatalf("want 2 groups, got %d: %+v", len(got), got)
@@ -437,10 +460,10 @@ func TestRollUpHostsSplitsAMultiTenantHost(t *testing.T) {
 // public registry into a row per project, each with catalog discovery off.
 func TestRollUpHostsKeepsASingleTenantHostWhole(t *testing.T) {
 	got := rollUpHosts([]UnknownImage{
-		img("registry.k8s.io", "coredns/coredns", IngestReasonNoRegistry, 2, 1, ""),
-		img("registry.k8s.io", "etcd/etcd", IngestReasonNoRegistry, 1, 1, ""),
-		img("internal-registry.acme.corp", "team-a/api", IngestReasonNoRegistry, 1, 1, ""),
-		img("internal-registry.acme.corp", "team-b/web", IngestReasonNoRegistry, 1, 1, ""),
+		img("registry.k8s.io", "coredns/coredns", IngestReasonUnauthorized, 2, 1, ""),
+		img("registry.k8s.io", "etcd/etcd", IngestReasonUnauthorized, 1, 1, ""),
+		img("internal-registry.acme.corp", "team-a/api", IngestReasonUnauthorized, 1, 1, ""),
+		img("internal-registry.acme.corp", "team-b/web", IngestReasonUnauthorized, 1, 1, ""),
 	})
 	if len(got) != 2 {
 		t.Fatalf("want 2 groups, got %d: %+v", len(got), got)
@@ -459,12 +482,12 @@ func TestRollUpHostsKeepsASingleTenantHostWhole(t *testing.T) {
 // configuring next even when a smaller sibling shares its host.
 func TestRollUpHostsOrdersGroupsByImageCount(t *testing.T) {
 	got := rollUpHosts([]UnknownImage{
-		img("ghcr.io", "small/a", IngestReasonNoRegistry, 1, 1, ""),
-		img("quay.io", "mid/a", IngestReasonNoRegistry, 1, 1, ""),
-		img("quay.io", "mid/b", IngestReasonNoRegistry, 1, 1, ""),
-		img("ghcr.io", "big/a", IngestReasonNoRegistry, 1, 1, ""),
-		img("ghcr.io", "big/b", IngestReasonNoRegistry, 1, 1, ""),
-		img("ghcr.io", "big/c", IngestReasonNoRegistry, 1, 1, ""),
+		img("ghcr.io", "small/a", IngestReasonUnauthorized, 1, 1, ""),
+		img("quay.io", "mid/a", IngestReasonUnauthorized, 1, 1, ""),
+		img("quay.io", "mid/b", IngestReasonUnauthorized, 1, 1, ""),
+		img("ghcr.io", "big/a", IngestReasonUnauthorized, 1, 1, ""),
+		img("ghcr.io", "big/b", IngestReasonUnauthorized, 1, 1, ""),
+		img("ghcr.io", "big/c", IngestReasonUnauthorized, 1, 1, ""),
 	})
 	scopes := make([]string, 0, len(got))
 	for _, g := range got {

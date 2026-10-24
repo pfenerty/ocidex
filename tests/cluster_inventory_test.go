@@ -1057,8 +1057,15 @@ type fakeRunningImageSubmitter struct {
 	calls []string
 }
 
-func (f *fakeRunningImageSubmitter) SubmitForRunningImage(_ context.Context, reg service.Registry, repo, dgst, _ string) (int, error) {
-	f.calls = append(f.calls, reg.URL+"/"+repo+"@"+dgst)
+func (f *fakeRunningImageSubmitter) SubmitForRunningImage(_ context.Context, target service.RunningImageTarget, repo, dgst, _ string) (int, error) {
+	from := "anonymous:" + target.Host
+	if target.Registry != nil {
+		from = target.Registry.URL
+	}
+	if target.ClusterID != "" {
+		from = "cluster:" + from
+	}
+	f.calls = append(f.calls, from+"/"+repo+"@"+dgst)
 	return 1, nil
 }
 
@@ -1137,14 +1144,19 @@ func TestClusterIngestUnknown(t *testing.T) {
 	// The ingested image and the digest-less workload are both absent from the
 	// gap: one has nothing to do, the other has nothing ingest can do.
 	is.Equal(res.Considered, 4)
-	is.Equal(res.Queued, 1)
+	is.Equal(res.Queued, 3)
 	is.Equal(res.SkippedRegistryDisabled, 1) // quay.io is switched off
-	is.Equal(res.SkippedPatternExcluded, 1)  // other/** is not team/**
-	is.Equal(res.SkippedNoRegistry, 1)       // docker.io registry is another namespace's
 	is.Equal(res.Failed, 0)
 
-	is.Equal(len(sub.calls), 1)
-	is.Equal(sub.calls[0], "ghcr.io/team/api@"+digest('b'))
+	// ADR-0044 K10: other/** is outside the narrow registry's team/**, so its
+	// credentials pull it for the cluster. docker.io's registry is another
+	// namespace's, so its credentials are not used: that image is pulled
+	// anonymously, also for the cluster.
+	is.Equal(sub.calls, []string{
+		"ghcr.io/team/api@" + digest('b'),
+		"cluster:anonymous:registry-1.docker.io/library/nginx@" + digest('e'),
+		"cluster:registry.example.com/other/tools@" + digest('d'),
+	})
 
 	// The listing the Gaps tab renders must agree with what ingest did, since
 	// they share a resolver: same four images, same four reasons.
@@ -1152,10 +1164,8 @@ func TestClusterIngestUnknown(t *testing.T) {
 	is.NoErr(err)
 	is.Equal(len(page.Images.Data), 4)
 	is.Equal(page.Images.Total, int64(4))
-	is.Equal(page.Reasons[service.IngestReasonReady], int64(1))
+	is.Equal(page.Reasons[service.IngestReasonReady], int64(3))
 	is.Equal(page.Reasons[service.IngestReasonRegistryDisabled], int64(1))
-	is.Equal(page.Reasons[service.IngestReasonPatternExcluded], int64(1))
-	is.Equal(page.Reasons[service.IngestReasonNoRegistry], int64(1))
 
 	// A short page must not shorten the story it tells about the gap. The total
 	// and the reason tally describe all four images while only two are

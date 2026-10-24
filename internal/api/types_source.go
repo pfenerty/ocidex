@@ -11,7 +11,7 @@ type SourceResponse struct {
 	ID            string `json:"id"`
 	NamespaceID   string `json:"namespace_id"`
 	NamespaceName string `json:"namespace_name,omitempty" doc:"Owning namespace name; populated on list responses"`
-	Kind          string `json:"kind" enum:"oci_registry,upload" doc:"Ingest channel kind"`
+	Kind          string `json:"kind" enum:"oci_registry,upload,cluster" doc:"Ingest channel kind"`
 	Name          string `json:"name"`
 	CreatedAt     string `json:"created_at"`
 	UpdatedAt     string `json:"updated_at"`

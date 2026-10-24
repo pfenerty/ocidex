@@ -156,6 +156,11 @@ type ClusterRepository interface {
 	ListWorkloadsForVulnerability(ctx context.Context, arg ListWorkloadsForVulnerabilityParams) ([]ListWorkloadsForVulnerabilityRow, error)
 	ListClusterUnknownImages(ctx context.Context, arg ListClusterUnknownImagesParams) ([]ListClusterUnknownImagesRow, error)
 	ListRegistriesByNamespace(ctx context.Context, namespaceID pgtype.UUID) ([]ListRegistriesByNamespaceRow, error)
+
+	// Cluster ingest's job bookkeeping (ADR-0044 K10).
+	ListScanJobsForDigests(ctx context.Context, digests []string) ([]ListScanJobsForDigestsRow, error)
+	RecordRefusedScanJob(ctx context.Context, arg RecordRefusedScanJobParams) error
+	DeleteFailedScanJobs(ctx context.Context, ids []pgtype.UUID) (int64, error)
 }
 
 // RegistryRepository defines data access methods for registry management.

@@ -39,7 +39,10 @@ type ScanRequest struct {
 	ImageVersion string // org.opencontainers.image.version from manifest annotations or config labels
 	AuthUsername string // registry auth username; empty = anonymous
 	AuthToken    string // registry auth token/PAT; empty = no auth
-	RegistryID   string // UUID of the source registry; empty = unknown
+	RegistryID   string // UUID of the registry whose credentials pull; empty = anonymous or unknown
+	// ClusterID attributes the SBOM to the cluster that reported the image
+	// instead of RegistryID (ADR-0044 K10). Empty for a catalog walk.
+	ClusterID string
 	// Force re-queues a job whose SBOM was deleted on purpose (scan_jobs state
 	// 'pruned', ADR-0053 S6). Only a forced ad-hoc walk sets it.
 	Force bool

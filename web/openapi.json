@@ -2935,8 +2935,13 @@
             "format": "int64",
             "type": "integer"
           },
+          "egress_denied": {
+            "description": "The host is in an address range the egress policy refuses; not retried",
+            "format": "int64",
+            "type": "integer"
+          },
           "failed": {
-            "description": "Submission errored against a reachable registry — transient, unlike the skips",
+            "description": "Submission errored: a manifest that is not there, or a transient registry or queue problem",
             "format": "int64",
             "type": "integer"
           },
@@ -2945,13 +2950,8 @@
             "format": "int64",
             "type": "integer"
           },
-          "skipped_no_registry": {
-            "description": "No registry in this cluster's namespace is configured for the image's host",
-            "format": "int64",
-            "type": "integer"
-          },
-          "skipped_pattern_excluded": {
-            "description": "The registry's repository patterns exclude this repository",
+          "skipped_existing": {
+            "description": "Already has a scan job: scanning, failed, or deleted on purpose. A repeat snapshot lands here.",
             "format": "int64",
             "type": "integer"
           },
@@ -2964,14 +2964,20 @@
             "description": "The reported reference carries no host to resolve against",
             "format": "int64",
             "type": "integer"
+          },
+          "unauthorized": {
+            "description": "The host refused the pull, in this run or a recorded earlier one; not retried",
+            "format": "int64",
+            "type": "integer"
           }
         },
         "required": [
           "considered",
           "queued",
-          "skipped_no_registry",
+          "skipped_existing",
+          "unauthorized",
+          "egress_denied",
           "skipped_registry_disabled",
-          "skipped_pattern_excluded",
           "skipped_unparseable_ref",
           "failed"
         ],
@@ -5851,7 +5857,8 @@
             "description": "Ingest channel kind",
             "enum": [
               "oci_registry",
-              "upload"
+              "upload",
+              "cluster"
             ],
             "type": "string"
           },
@@ -6091,11 +6098,10 @@
             "type": "integer"
           },
           "reason": {
-            "description": "The worst remedy seen for this group; ready and unparseable_ref name no registry to configure and are not grouped here",
+            "description": "The worst remedy seen for this group: a registry to add or fix credentials for, or one to switch on. Other states name no registry to configure and are not grouped here",
             "enum": [
-              "no_registry",
-              "registry_disabled",
-              "pattern_excluded"
+              "unauthorized",
+              "registry_disabled"
             ],
             "type": "string"
           },
@@ -6145,23 +6151,38 @@
       "UnknownImageReasonCounts": {
         "additionalProperties": false,
         "properties": {
-          "no_registry": {
-            "description": "No registry in the namespace is configured for the image's host",
+          "deleted": {
+            "description": "Its SBOM was deleted on purpose; cluster ingest does not bring it back",
             "format": "int64",
             "type": "integer"
           },
-          "pattern_excluded": {
-            "description": "The registry's repository patterns exclude this repository",
+          "egress_denied": {
+            "description": "The host is in an address range the egress policy refuses",
+            "format": "int64",
+            "type": "integer"
+          },
+          "failed": {
+            "description": "The manifest was not there, or the scan used up its attempts; ingesting the row retries it",
             "format": "int64",
             "type": "integer"
           },
           "ready": {
-            "description": "A registry in the namespace serves the image and accepts its repository",
+            "description": "Will be queued next run, with a registry's credentials or anonymously",
             "format": "int64",
             "type": "integer"
           },
           "registry_disabled": {
             "description": "The host matches a registry that is switched off",
+            "format": "int64",
+            "type": "integer"
+          },
+          "scanning": {
+            "description": "A scan job is queued or running",
+            "format": "int64",
+            "type": "integer"
+          },
+          "unauthorized": {
+            "description": "The host refused the pull; a registry with credentials for it is the remedy",
             "format": "int64",
             "type": "integer"
           },
@@ -6173,9 +6194,12 @@
         },
         "required": [
           "ready",
-          "no_registry",
+          "scanning",
+          "unauthorized",
+          "egress_denied",
+          "failed",
+          "deleted",
           "registry_disabled",
-          "pattern_excluded",
           "unparseable_ref"
         ],
         "type": "object"
@@ -6194,12 +6218,15 @@
             "type": "integer"
           },
           "reason": {
-            "description": "Why this image can or cannot be ingested",
+            "description": "Where this image stands: ready to queue, already has a job, or why it cannot be ingested (ADR-0044 K10)",
             "enum": [
               "ready",
-              "no_registry",
+              "scanning",
+              "unauthorized",
+              "egress_denied",
+              "failed",
+              "deleted",
               "registry_disabled",
-              "pattern_excluded",
               "unparseable_ref"
             ],
             "type": "string"
@@ -6209,7 +6236,7 @@
             "type": "string"
           },
           "registry_id": {
-            "description": "Registry that serves this group, when one was matched at all",
+            "description": "Registry whose credentials pull this image, or the disabled one blocking it; absent on a ready image means an anonymous pull",
             "type": "string"
           },
           "registry_name": {

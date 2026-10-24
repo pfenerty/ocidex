@@ -15,33 +15,29 @@ import { useClusterWorkloads, useClusterUnknownImages, useIngestUnknown } from "
 import { ImageCell, workloadColumns } from "./WorkloadsTab";
 import { RegistryGaps } from "./RegistryGaps";
 
-/**
- * How each ingest reason is presented. Every one of them is a different thing
- * to do — add a registry, switch one on, widen its patterns, fix the node —
- * so a single "cannot ingest" would send everyone to the wrong remedy.
- */
 /** Rows per page in both tables. Small enough that the pager is visible on the
  *  first screen, which is the point of having one. */
 const PAGE_SIZE = 50;
 
+/**
+ * How each ingest reason is presented. Every one of them is a different thing
+ * to do — add credentials, switch a registry on, fix the node — so a single
+ * "cannot ingest" would send everyone to the wrong remedy.
+ */
 export const REASON_PRESENTATION: Record<
     IngestReason,
     { label: string; variant: "success" | "warning" | "danger" }
 > = {
     ready: { label: "ready to ingest", variant: "success" },
-    no_registry: { label: "no registry", variant: "danger" },
+    scanning: { label: "scanning", variant: "success" },
+    unauthorized: { label: "pull refused", variant: "danger" },
+    egress_denied: { label: "address refused", variant: "danger" },
+    failed: { label: "scan failed", variant: "danger" },
+    deleted: { label: "SBOM deleted", variant: "warning" },
     registry_disabled: { label: "registry disabled", variant: "warning" },
-    pattern_excluded: { label: "excluded by patterns", variant: "warning" },
     unparseable_ref: { label: "no host in reference", variant: "warning" },
 };
 
-/**
- * IngestTargetCell says what stands between this image and an SBOM.
- *
- * The registry is named whenever one was matched at all, including when it is
- * switched off or excludes the repository: "ghcr is disabled" is only
- * actionable if you know it is ghcr.
- */
 /**
  * The add-registry deep link.
  *
@@ -92,6 +88,16 @@ export function scopeForImage(hosts: UnknownHost[], host: string, repository: st
     return best;
 }
 
+/** Reasons a click on the row's button can change: queue it, or ask again. */
+const RETRYABLE: ReadonlySet<IngestReason> = new Set(["unauthorized", "egress_denied", "failed"]);
+
+/**
+ * IngestTargetCell says what stands between this image and an SBOM.
+ *
+ * The registry is named whenever one was matched at all: the one whose
+ * credentials pull the image, or the disabled one blocking it. "ghcr is
+ * disabled" is only actionable if you know it is ghcr.
+ */
 function IngestTargetCell(props: {
     image: UnknownImage;
     hosts: UnknownHost[];
@@ -103,14 +109,17 @@ function IngestTargetCell(props: {
     return (
         <div class="ingest-target">
             <StatusPill variant={reason().variant}>{reason().label}</StatusPill>
-            <Show when={props.image.reason === "ready"}>
+            <Show when={props.image.reason === "ready" || RETRYABLE.has(props.image.reason)}>
                 <Button
                     size="sm"
                     disabled={props.pending}
                     onClick={() => props.onIngest(props.image.image_digest)}
                 >
-                    {props.pending ? "Queueing…" : "Ingest"}
+                    {props.pending ? "Queueing…" : props.image.reason === "ready" ? "Ingest" : "Retry"}
                 </Button>
+            </Show>
+            <Show when={props.image.reason === "ready" && props.image.registry_id === undefined}>
+                <span class="text-muted text-sm">anonymous pull</span>
             </Show>
             {/* Registries are managed on the Sources tab. These used to point at
                 a top-level /registries route that has never existed, so both
@@ -123,10 +132,9 @@ function IngestTargetCell(props: {
                     </A>
                 )}
             </Show>
-            <Show when={props.image.reason === "no_registry"}>
+            <Show when={props.image.reason === "unauthorized"}>
                 <span class="text-muted text-sm">
-                    nothing configured for{" "}
-                    <span class="font-mono">{props.image.registry_host}</span> —{" "}
+                    <span class="font-mono">{props.image.registry_host}</span> refused the pull —{" "}
                     <A
                         href={addRegistryHref(
                             props.image.registry_host ?? "",
@@ -141,8 +149,20 @@ function IngestTargetCell(props: {
                             ),
                         )}
                     >
-                        add a registry
+                        add a registry with credentials
                     </A>
+                    , then retry
+                </span>
+            </Show>
+            <Show when={props.image.reason === "egress_denied"}>
+                <span class="text-muted text-sm">
+                    <span class="font-mono">{props.image.registry_host}</span> resolves to an
+                    address the egress policy refuses
+                </span>
+            </Show>
+            <Show when={props.image.reason === "deleted"}>
+                <span class="text-muted text-sm">
+                    its SBOM was deleted on purpose; rescan it from the image's page
                 </span>
             </Show>
             <Show when={props.image.reason === "unparseable_ref"}>
@@ -227,11 +247,12 @@ function unknownImageColumns(
 function ingestSummary(res: IngestResult): string {
     const parts: string[] = [`Queued ${plural(res.queued, "scan job")}`];
     const skips: [number, string][] = [
-        [res.skipped_no_registry, "no registry configured"],
+        [res.skipped_existing, "already scanning, failed or deleted"],
+        [res.unauthorized, "pull refused by the host"],
+        [res.egress_denied, "address refused by the egress policy"],
         [res.skipped_registry_disabled, "registry disabled"],
-        [res.skipped_pattern_excluded, "excluded by registry patterns"],
         [res.skipped_unparseable_ref, "no host in the reference"],
-        [res.failed, "registry unreachable"],
+        [res.failed, "submission failed"],
     ];
     for (const [n, label] of skips) {
         if (n > 0) parts.push(`${n.toLocaleString()} skipped: ${label}`);
@@ -332,7 +353,7 @@ export function GapsTab(props: {
                     <Show when={gapTotal() > 0}>
                         {" "}
                         {readyCount().toLocaleString()} of {plural(gapTotal(), "image")} can be
-                        ingested with the registries this namespace already has.
+                        ingested now, with this namespace's registries or anonymously.
                     </Show>
                 </p>
                 <Show when={ingest.data}>

@@ -89,14 +89,17 @@ are one thing to ingest. Each row says what stands between it and an SBOM:
 
 | Row state | Meaning | Remedy |
 |---|---|---|
-| `ready to ingest` | A registry in this namespace serves this host | Press **Ingest** (or let auto-ingest do it) |
-| `no registry` | Nothing in this namespace is configured for that host | Add a registry — the link opens the add dialog with the host filled in |
+| `ready to ingest` | Will be queued next run: with the credentials of a registry in this namespace that serves the host, or anonymously (`anonymous pull`) when none does | Press **Ingest** (or let auto-ingest do it) |
+| `scanning` | A scan job is queued or running | Wait |
+| `pull refused` | The host answered 401/403, so the image is private and OCIDex has no credentials that work | Add a registry with credentials — the link opens the add dialog with the host filled in — then press **Retry** |
+| `address refused` | The host resolves to an address the egress policy refuses | Allow it in the egress policy, then **Retry** |
+| `scan failed` | The manifest was not there, or the scan used up its attempts | **Retry** |
+| `SBOM deleted` | Its SBOM was deleted on purpose | Rescan it from the image's page; cluster ingest does not bring it back |
 | `registry disabled` | The matching registry is switched off | Enable it |
-| `excluded by patterns` | The registry's repository patterns exclude this repo, or it lists explicit repositories and this is not one of them (a registry for one org on a shared host such as ghcr.io does not claim other orgs) | Widen them, or add the repository, if that is intended |
 | `no host in reference` | The reported reference names no registry at all | Node runtime issue; see below |
 
-Both link into **Sources**, where registries are managed: `no registry` opens the add dialog
-prefilled with the registry that has none, and a named registry opens its editor. You do not need to
+Both link into **Sources**, where registries are managed: `pull refused` opens the add dialog
+prefilled with the host that refused, and a named registry opens its editor. You do not need to
 be an administrator — owning the cluster's namespace is enough, and the Sources entry appears in the
 nav for anyone signed in.
 
@@ -136,17 +139,28 @@ will actually queue.
 ## Auto-ingest
 
 Registered clusters have **auto-ingest on by default**. Every accepted snapshot queues a scan for
-each `ready to ingest` image, so the gap closes on its own wherever OCIDex already has a registry.
+each `ready to ingest` image, so every image the cluster runs gets an SBOM unless its host refuses
+the pull (ADR-0044 K10).
 
-- **Scoped to the cluster's own namespace.** A registry in a different namespace is never used,
-  even when its host matches — that would pull with credentials this cluster was never granted.
-  Such an image is reported as `no registry`.
-- **Repeat pushes are free.** Scan jobs are unique per `(registry, digest)`, so reporting the same
-  unscanned images every two minutes creates one job for them, ever.
+- **Credentials come from the cluster's own namespace.** A registry in a different namespace is
+  never used, even when its host matches — that would pull with credentials this cluster was never
+  granted. Such an image, and any image from a host no registry serves, is pulled anonymously.
+- **Anonymous pulls are guarded.** They go through the same egress policy as registry traffic and
+  always use HTTPS; a plain-HTTP registry needs a configured registry with `insecure` set.
+- **Patterns scope the catalog walk, not running images.** A registry for the host pulls a running
+  image with its credentials even when its repository patterns, or its explicit repositories list,
+  exclude the repository.
+- **Attribution.** An image a registry's patterns select is that registry's SBOM, exactly as if its
+  catalog walk had found it. Anything else belongs to the cluster: each cluster has a source of
+  kind `cluster` in its namespace, and retention keeps the newest versions of those SBOMs per
+  series once the image stops running.
+- **Repeat pushes are free.** An image that already has a scan job, in any state but succeeded, is
+  skipped before any network call, so reporting the same images every two minutes contacts no host.
 - **Multi-arch images expand.** containerd reports the *index* digest, so OCIDex queues one scan
   per platform rather than one job that would match nothing.
-- **Unmatched hosts are reported, not retried.** Nothing about a missing registry changes between
-  snapshots.
+- **Refusals are recorded, not retried.** A 401/403, an egress refusal or a missing manifest is
+  stored as a failed job and counted on every later run. Pressing **Retry** on the row is what asks
+  the host again.
 
 Turn it off per cluster from the **Auto-ingest** column on the Clusters page (Edit → Save). Editing
 a cluster's name never changes the setting.

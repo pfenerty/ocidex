@@ -611,6 +611,7 @@ func (e SetNamespaceMemberInputBodyRole) Valid() bool {
 
 // Defines values for SourceResponseKind.
 const (
+	Cluster     SourceResponseKind = "cluster"
 	OciRegistry SourceResponseKind = "oci_registry"
 	Upload      SourceResponseKind = "upload"
 )
@@ -618,6 +619,8 @@ const (
 // Valid indicates whether the value is a known member of the SourceResponseKind enum.
 func (e SourceResponseKind) Valid() bool {
 	switch e {
+	case Cluster:
+		return true
 	case OciRegistry:
 		return true
 	case Upload:
@@ -629,19 +632,16 @@ func (e SourceResponseKind) Valid() bool {
 
 // Defines values for UnknownHostResponseReason.
 const (
-	UnknownHostResponseReasonNoRegistry       UnknownHostResponseReason = "no_registry"
-	UnknownHostResponseReasonPatternExcluded  UnknownHostResponseReason = "pattern_excluded"
 	UnknownHostResponseReasonRegistryDisabled UnknownHostResponseReason = "registry_disabled"
+	UnknownHostResponseReasonUnauthorized     UnknownHostResponseReason = "unauthorized"
 )
 
 // Valid indicates whether the value is a known member of the UnknownHostResponseReason enum.
 func (e UnknownHostResponseReason) Valid() bool {
 	switch e {
-	case UnknownHostResponseReasonNoRegistry:
-		return true
-	case UnknownHostResponseReasonPatternExcluded:
-		return true
 	case UnknownHostResponseReasonRegistryDisabled:
+		return true
+	case UnknownHostResponseReasonUnauthorized:
 		return true
 	default:
 		return false
@@ -650,23 +650,32 @@ func (e UnknownHostResponseReason) Valid() bool {
 
 // Defines values for UnknownImageResponseReason.
 const (
-	UnknownImageResponseReasonNoRegistry       UnknownImageResponseReason = "no_registry"
-	UnknownImageResponseReasonPatternExcluded  UnknownImageResponseReason = "pattern_excluded"
+	UnknownImageResponseReasonDeleted          UnknownImageResponseReason = "deleted"
+	UnknownImageResponseReasonEgressDenied     UnknownImageResponseReason = "egress_denied"
+	UnknownImageResponseReasonFailed           UnknownImageResponseReason = "failed"
 	UnknownImageResponseReasonReady            UnknownImageResponseReason = "ready"
 	UnknownImageResponseReasonRegistryDisabled UnknownImageResponseReason = "registry_disabled"
+	UnknownImageResponseReasonScanning         UnknownImageResponseReason = "scanning"
+	UnknownImageResponseReasonUnauthorized     UnknownImageResponseReason = "unauthorized"
 	UnknownImageResponseReasonUnparseableRef   UnknownImageResponseReason = "unparseable_ref"
 )
 
 // Valid indicates whether the value is a known member of the UnknownImageResponseReason enum.
 func (e UnknownImageResponseReason) Valid() bool {
 	switch e {
-	case UnknownImageResponseReasonNoRegistry:
+	case UnknownImageResponseReasonDeleted:
 		return true
-	case UnknownImageResponseReasonPatternExcluded:
+	case UnknownImageResponseReasonEgressDenied:
+		return true
+	case UnknownImageResponseReasonFailed:
 		return true
 	case UnknownImageResponseReasonReady:
 		return true
 	case UnknownImageResponseReasonRegistryDisabled:
+		return true
+	case UnknownImageResponseReasonScanning:
+		return true
+	case UnknownImageResponseReasonUnauthorized:
 		return true
 	case UnknownImageResponseReasonUnparseableRef:
 		return true
@@ -2595,23 +2604,26 @@ type IngestUnknownOutputBody struct {
 	// Considered Unknown images looked at; the counts below account for all of them
 	Considered int64 `json:"considered"`
 
-	// Failed Submission errored against a reachable registry — transient, unlike the skips
+	// EgressDenied The host is in an address range the egress policy refuses; not retried
+	EgressDenied int64 `json:"egress_denied"`
+
+	// Failed Submission errored: a manifest that is not there, or a transient registry or queue problem
 	Failed int64 `json:"failed"`
 
 	// Queued Scan jobs enqueued. A multi-arch image expands into one job per platform, so this can exceed the image count.
 	Queued int64 `json:"queued"`
 
-	// SkippedNoRegistry No registry in this cluster's namespace is configured for the image's host
-	SkippedNoRegistry int64 `json:"skipped_no_registry"`
-
-	// SkippedPatternExcluded The registry's repository patterns exclude this repository
-	SkippedPatternExcluded int64 `json:"skipped_pattern_excluded"`
+	// SkippedExisting Already has a scan job: scanning, failed, or deleted on purpose. A repeat snapshot lands here.
+	SkippedExisting int64 `json:"skipped_existing"`
 
 	// SkippedRegistryDisabled The host matches a registry that is switched off
 	SkippedRegistryDisabled int64 `json:"skipped_registry_disabled"`
 
 	// SkippedUnparseableRef The reported reference carries no host to resolve against
 	SkippedUnparseableRef int64 `json:"skipped_unparseable_ref"`
+
+	// Unauthorized The host refused the pull, in this run or a recorded earlier one; not retried
+	Unauthorized int64 `json:"unauthorized"`
 }
 
 // InventoryWorkload defines model for InventoryWorkload.
@@ -3663,7 +3675,7 @@ type UnknownHostResponse struct {
 	ImageCount int64  `json:"image_count"`
 	PodCount   int64  `json:"pod_count"`
 
-	// Reason The worst remedy seen for this group; ready and unparseable_ref name no registry to configure and are not grouped here
+	// Reason The worst remedy seen for this group: a registry to add or fix credentials for, or one to switch on. Other states name no registry to configure and are not grouped here
 	Reason UnknownHostResponseReason `json:"reason"`
 
 	// RegistryId Registry that serves this group, when one was matched at all
@@ -3681,22 +3693,31 @@ type UnknownHostResponse struct {
 	WorkloadCount int64  `json:"workload_count"`
 }
 
-// UnknownHostResponseReason The worst remedy seen for this group; ready and unparseable_ref name no registry to configure and are not grouped here
+// UnknownHostResponseReason The worst remedy seen for this group: a registry to add or fix credentials for, or one to switch on. Other states name no registry to configure and are not grouped here
 type UnknownHostResponseReason string
 
 // UnknownImageReasonCounts defines model for UnknownImageReasonCounts.
 type UnknownImageReasonCounts struct {
-	// NoRegistry No registry in the namespace is configured for the image's host
-	NoRegistry int64 `json:"no_registry"`
+	// Deleted Its SBOM was deleted on purpose; cluster ingest does not bring it back
+	Deleted int64 `json:"deleted"`
 
-	// PatternExcluded The registry's repository patterns exclude this repository
-	PatternExcluded int64 `json:"pattern_excluded"`
+	// EgressDenied The host is in an address range the egress policy refuses
+	EgressDenied int64 `json:"egress_denied"`
 
-	// Ready A registry in the namespace serves the image and accepts its repository
+	// Failed The manifest was not there, or the scan used up its attempts; ingesting the row retries it
+	Failed int64 `json:"failed"`
+
+	// Ready Will be queued next run, with a registry's credentials or anonymously
 	Ready int64 `json:"ready"`
 
 	// RegistryDisabled The host matches a registry that is switched off
 	RegistryDisabled int64 `json:"registry_disabled"`
+
+	// Scanning A scan job is queued or running
+	Scanning int64 `json:"scanning"`
+
+	// Unauthorized The host refused the pull; a registry with credentials for it is the remedy
+	Unauthorized int64 `json:"unauthorized"`
 
 	// UnparseableRef The reported reference carries no host to resolve against
 	UnparseableRef int64 `json:"unparseable_ref"`
@@ -3708,13 +3729,13 @@ type UnknownImageResponse struct {
 	ImageRef    string `json:"image_ref"`
 	PodCount    int64  `json:"pod_count"`
 
-	// Reason Why this image can or cannot be ingested
+	// Reason Where this image stands: ready to queue, already has a job, or why it cannot be ingested (ADR-0044 K10)
 	Reason UnknownImageResponseReason `json:"reason"`
 
 	// RegistryHost Host parsed out of image_ref; empty when the reference carries none
 	RegistryHost *string `json:"registry_host,omitempty"`
 
-	// RegistryId Registry that serves this group, when one was matched at all
+	// RegistryId Registry whose credentials pull this image, or the disabled one blocking it; absent on a ready image means an anonymous pull
 	RegistryId         *string `json:"registry_id,omitempty"`
 	RegistryName       *string `json:"registry_name,omitempty"`
 	Repository         *string `json:"repository,omitempty"`
@@ -3725,7 +3746,7 @@ type UnknownImageResponse struct {
 	WorkloadCount int64 `json:"workload_count"`
 }
 
-// UnknownImageResponseReason Why this image can or cannot be ingested
+// UnknownImageResponseReason Where this image stands: ready to queue, already has a job, or why it cannot be ingested (ADR-0044 K10)
 type UnknownImageResponseReason string
 
 // UpdateClusterInputBody defines model for UpdateClusterInputBody.

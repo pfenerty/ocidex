@@ -82,9 +82,15 @@ func (d *Dispatcher) ProcessOne(ctx context.Context, req scanner.ScanRequest) (p
 	if req.ImageVersion != "" {
 		version = req.ImageVersion
 	}
-	var registryID pgtype.UUID
-	if req.RegistryID != "" {
-		_ = registryID.Scan(req.RegistryID) //nolint:errcheck // invalid UUID → zero-value, harmless
+	// The SBOM's source is the cluster when the job is attributed to one
+	// (ADR-0044 K10), otherwise the registry whose walk found it.
+	sourceRef := req.RegistryID
+	if req.ClusterID != "" {
+		sourceRef = req.ClusterID
+	}
+	var sourceID pgtype.UUID
+	if sourceRef != "" {
+		_ = sourceID.Scan(sourceRef) //nolint:errcheck // invalid UUID → zero-value, harmless
 	}
 	sbomID, err := d.sbomSvc.Ingest(ctx, bom, res.SBOM, service.IngestParams{
 		Version:      version,
@@ -93,7 +99,7 @@ func (d *Dispatcher) ProcessOne(ctx context.Context, req scanner.ScanRequest) (p
 		// A registry shares its id with its source row; the namespace it belongs
 		// to is a different row whenever the registry was created inside an
 		// existing namespace, so Ingest resolves it from the source (ADR-039).
-		SourceID:    registryID,
+		SourceID:    sourceID,
 		IndexDigest: req.IndexDigest,
 		GoSymbols:   res.GoSymbols,
 	})

@@ -210,6 +210,118 @@ a `PATCH`-omission field, so editing a cluster's name cannot switch ingest off a
 Ownership, not visibility, gates the endpoint — it spends the namespace's registry credentials and
 enqueues work, so it carries the same `ClassOwner` + `Write` gate as the inventory push (K8).
 
+### Rule K10 — Every running image is ingested, registry or not
+
+*Amendment, epic `ocidex-ve0f`. K9 closed the gaps OCIDex already had a registry for. In
+practice that left most of the gap open: in the homelab cluster, every `cgr.dev` image and every
+`ghcr.io` repository outside a registry's `repositories` list was reported and never scanned. K10
+makes coverage the default. A registry stops being a precondition for an SBOM and goes back to
+being two things: what the catalog walk polls, and where credentials come from.*
+
+**Credentials and attribution are decided separately.** K9 used one registry for both, so an image
+needed a registry before it could have either. K10 splits them:
+
+* **Credentials** come from the first enabled registry in the cluster's namespace whose host
+  matches the image. Its repository and tag patterns are **not** consulted. Patterns choose what
+  the catalog walk polls (ADR-0053); a running image is already chosen, by the cluster. When no
+  registry in the namespace matches the host, the pull is **anonymous**. Resolution still never
+  crosses a namespace boundary (K9): a registry for the same host in another namespace is ignored,
+  and its credentials are never used.
+* **Attribution** (the SBOM's source, and so its namespace) is the registry when that registry's
+  scope claims the repository, which is exactly K9's `ready` case. The resulting job is
+  indistinguishable from one the walk produced, and it shares the walk's `registry@digest` key.
+  Otherwise the SBOM is attributed to the **cluster**. Every cluster gets a source row of a new
+  kind `cluster`. It shares the cluster's id, as an `oci_registry` source shares its registry's id
+  (ADR-039), and it lives in the cluster's namespace. Its key is `cluster@digest`.
+
+An image the walk would not have picked is therefore never counted as the registry's. That
+matters for retention (below) and for reading the Sources page: a registry's SBOMs stay what its
+patterns selected.
+
+**A disabled registry still stops ingest.** `registry_disabled` is kept. Switching a registry off
+is an explicit instruction from the namespace owner. Falling back to an anonymous pull would
+quietly overrule it, and fail anyway for a private host.
+
+**Anonymous pulls go through the same egress policy as everything else.** Image references
+reported by a cluster are attacker-influenced input. Anyone holding the agent's `read-write` key
+can report any reference (K8). So the HEAD, the index expansion and the scanner worker's pull all
+use the same `netguard.Policy` as registry traffic (ocidex-avsz). Loopback, link-local, metadata
+and, by default, private ranges are refused. An anonymous pull is always HTTPS: a plain-HTTP
+registry needs a configured registry with `insecure` set. The residual exposure is that such a key
+can make the scanner fetch from any public host. A user who can create a registry can already do
+that.
+
+**Each outcome is persisted as the scan job, and repeat runs skip anything that already has
+one.** K9 re-resolved the whole gap on every snapshot and relied on the queue's uniqueness to make
+that free. K10 contacts hosts that may refuse it, so "free" would no longer hold: a private image
+with no credentials would be HEAD-ed every two minutes, forever. Instead:
+
+* Submission skips any digest that already has a job under its key (`registry@digest` or
+  `cluster@digest`), matched on the platform digest or the index it was expanded from, in any
+  state but `succeeded`. A repeat snapshot makes **no** network call for it. A succeeded job whose
+  SBOM is gone, as retention leaves it, does not count, so that image is scanned again.
+* A submission that fails for a permanent reason writes a `failed` job with its classified
+  error and queues nothing. The reasons are 401 or 403 after the anonymous token exchange
+  (`unauthorized`), a netguard refusal (`egress_denied`), or a manifest that is not there
+  (`not_found`). A failed job is not requeued automatically (ADR-024's retry contract), so a
+  refused host is **counted, not retried**.
+* An explicit `POST /clusters/{id}/ingest-unknown` for given digests requeues their `failed`
+  jobs, because a human pressing Ingest on a row is the retry. It never requeues a `pruned` job.
+  An explicit delete stays deleted (ADR-0053 S6) until someone rescans it from the SBOM's own
+  page.
+
+**Row states and counters.** The gap list resolves each row's state from its job when one exists,
+and from configuration when none does. K5 applies: each state names its own remedy.
+
+| State | Meaning | Remedy |
+|---|---|---|
+| `ready` | will be queued next run, with a registry's credentials or anonymously (`registry_id` null) | none |
+| `scanning` | a job is queued or running | wait |
+| `unauthorized` | the host refused the pull | add a registry with credentials for this host, then Ingest the row |
+| `egress_denied` | the host is in a refused address range | allow it in the egress policy, or don't run it |
+| `failed` | `not_found`, or a transient error that used up its attempts | Ingest the row to retry |
+| `deleted` | its SBOM was deleted on purpose (`pruned`) | rescan from the SBOM page |
+| `registry_disabled` | unchanged from K9 | enable the registry |
+| `unparseable_ref` | unchanged from K9 | fix the node runtime |
+
+`no_registry` and `pattern_excluded` are removed. Neither is a reason an image goes unscanned any
+more. `IngestResult` loses `SkippedNoRegistry` and `SkippedPatternExcluded`. It gains `Unauthorized`,
+`EgressDenied` and `SkippedExisting` (already has a job), and keeps `Queued`, `Failed`,
+`SkippedRegistryDisabled` and `SkippedUnparseableRef`. The host rollup in the Gaps tab keeps its
+shape. It is now built from `unauthorized` rows (a registry to add) and `registry_disabled` rows (a
+registry to switch on), ranked in that order.
+
+**Rate limits are left to the existing retry budget.** No special limiter is added for anonymous
+hosts. Docker Hub's anonymous limit is per source IP and counts manifest `GET`s, not `HEAD`s, so
+the submit-time check is free against it. The cost is one pull per platform per digest, once ever,
+because of the skip rule above. A `429` is transient. It is retried within
+`SCANNER_MAX_ATTEMPTS`, then lands as `failed`. The remedy for a cluster that runs enough Hub
+images to hit the limit is the one that already exists: add a `docker.io` registry with
+credentials, which also gives those images a known owner.
+
+**Retention.** ADR-0056 P2 protects every digest running in any cluster, whatever its source.
+After an image stops running:
+
+* A registry-attributed SBOM falls under class W like any other walk result.
+* A cluster-attributed SBOM is not from a registry, so it falls under class N: the newest
+  `RETENTION_KEEP_LAST` versions per series.
+
+Retention never writes a `pruned` tombstone, so an image pruned by retention that starts running
+again is simply scanned again. Deleting a cluster deletes its source. Its SBOMs keep their
+namespace (`sbom.source_id` is `ON DELETE SET NULL`), and class N applies to them.
+
+**Schema.** `scan_jobs` gains a nullable `cluster_id` (FK to `cluster`, `ON DELETE SET NULL`).
+`registry_id` keeps meaning *whose credentials*, and is null for an anonymous pull. The job's
+attribution is `cluster_id` when it is set, otherwise `registry_id`, and the worker passes it to
+ingest as `SourceID`. `source.kind` gains `'cluster'`, and a migration creates the row for every
+existing cluster. Cluster create and delete keep it in step. An anonymous job's claim has no
+registry row to read a URL from, so `scan_jobs` also gains a nullable `registry_host`. It is set
+only when `registry_id` is null.
+
+`cluster.auto_ingest` still switches the whole mechanism off per cluster. No separate switch for
+anonymous pulls is added. A namespace that wants credentialed ingest only can turn auto-ingest off
+and use the per-row Ingest button.
+
 ### Consequences
 
 * Good, because a cluster can be inventoried without CRDs, without inbound network access, and
@@ -235,6 +347,13 @@ enqueues work, so it carries the same `ClassOwner` + `Write` gate as the invento
 * Bad, because K9 makes an accepted snapshot spend the namespace's registry credentials without a
   human in the loop. Bounded by the namespace scope, the enabled-registry check, and each
   registry's repository patterns; a namespace that wants none of it sets `auto_ingest` to false.
+* Bad, because K10 lifts the last two of those bounds. A cluster key can make the scanner pull from
+  any public host, and can make OCIDex use a registry's credentials for repositories its patterns
+  exclude. The egress policy, the namespace scope and `registry_disabled` still hold, and a refused
+  pull is recorded once and never repeated.
+* Good, because under K10 a registered cluster's coverage no longer depends on anyone predicting
+  which hosts it pulls from. The gap that remains is images OCIDex was refused, and each is
+  reported with what would fix it.
 
 ### Confirmation
 
@@ -250,6 +369,12 @@ enqueues work, so it carries the same `ClassOwner` + `Write` gate as the invento
   reason (enabled registry, disabled registry, pattern-excluded repository, and a matching registry
   in a *different* namespace) asserting one queued job and three distinctly-counted skips; unit
   tests over index expansion and over every skip reason reaching its own counter.
+* Cluster coverage (K10): `ocidex-ve0f.2` and `ocidex-ve0f.3`. Integration tests cover four cases:
+  an image from a host with no registry is queued anonymously and attributed to the cluster's
+  source; a pattern-excluded image is queued with the registry's credentials and attributed to the
+  cluster; a refused pull is recorded once and a second snapshot makes no network call for it; and
+  a disabled registry still blocks. In ocidex-dev, the homelab cluster's `cgr.dev` images and its
+  `ghcr.io` images outside the registry's repositories list get SBOMs.
 
 ## Pros and Cons of the Options
 

@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"time"
 
+	"github.com/jackc/pgx/v5/pgtype"
 	"github.com/jackc/pgx/v5/pgxpool"
 
 	"github.com/pfenerty/ocidex/internal/repository"
@@ -16,6 +17,10 @@ import (
 const (
 	SourceKindOCIRegistry = "oci_registry"
 	SourceKindUpload      = "upload"
+	// SourceKindCluster is the source of SBOMs a cluster's running images
+	// produced when no registry claims them (ADR-0044 K10). It shares its
+	// cluster's id and follows the cluster; it is never edited on its own.
+	SourceKindCluster = "cluster"
 )
 
 // Source is the channel an SBOM arrived through (ADR-039). It carries no
@@ -24,7 +29,7 @@ type Source struct {
 	ID            string
 	NamespaceID   string
 	NamespaceName string // populated by List; empty elsewhere
-	Kind          string // "oci_registry" | "upload"
+	Kind          string // "oci_registry" | "upload" | "cluster"
 	Name          string
 	CreatedAt     time.Time
 	UpdatedAt     time.Time
@@ -153,6 +158,9 @@ func (s *sourceService) Update(ctx context.Context, params UpdateSourceParams) (
 	if err != nil {
 		return Source{}, ErrNotFound
 	}
+	if err := s.refuseClusterSource(ctx, uid); err != nil {
+		return Source{}, err
+	}
 	src, err := s.repo.UpdateSource(ctx, repository.UpdateSourceParams{
 		ID:   uid,
 		Name: params.Name,
@@ -173,12 +181,28 @@ func (s *sourceService) Delete(ctx context.Context, id string) error {
 	if err != nil {
 		return ErrNotFound
 	}
+	if err := s.refuseClusterSource(ctx, uid); err != nil {
+		return err
+	}
 	n, err := s.repo.DeleteSource(ctx, uid)
 	if err != nil {
 		return fmt.Errorf("deleting source: %w", err)
 	}
 	if n == 0 {
 		return ErrNotFound
+	}
+	return nil
+}
+
+// refuseClusterSource rejects editing a cluster's source directly: it is named
+// after and deleted with its cluster.
+func (s *sourceService) refuseClusterSource(ctx context.Context, id pgtype.UUID) error {
+	src, err := s.repo.GetSource(ctx, id)
+	if err != nil {
+		return nil //nolint:nilerr // a missing source fails the write that follows with its own error
+	}
+	if src.Kind == SourceKindCluster {
+		return &ValidationError{Message: "a cluster's source follows its cluster; rename or delete the cluster instead"}
 	}
 	return nil
 }
