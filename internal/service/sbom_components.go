@@ -7,6 +7,8 @@ package service
 import (
 	"context"
 	"fmt"
+	"maps"
+	"slices"
 	"strings"
 
 	cdx "github.com/CycloneDX/cyclonedx-go"
@@ -282,9 +284,19 @@ func copyComponentExtRefs(ctx context.Context, tx copyFromer, flat []flatCompone
 // copyComponentLicenses resolves each distinct license once (the upsert can't be
 // expressed as a COPY because it needs ON CONFLICT) and then bulk-inserts the
 // component_license join rows.
+//
+// The upserts run in license-key order. Each one row-locks its license until the
+// ingest commits, so two concurrent ingests that met the same licenses in
+// different component orders would each hold one the other wanted and deadlock
+// (ocidex-5prp). Locking in a fixed order rules that cycle out.
 func copyComponentLicenses(ctx context.Context, tx copyFromer, q *repository.Queries, flat []flatComponent) error {
-	licenseIDs := make(map[string]pgtype.UUID)
-	var joinRows [][]any
+	type licenseRef struct{ spdxID, name, url string }
+	refs := make(map[string]licenseRef)
+	type pair struct {
+		componentID pgtype.UUID
+		key         string
+	}
+	var pairs []pair
 
 	for _, fc := range flat {
 		if fc.comp.Licenses == nil {
@@ -298,25 +310,32 @@ func copyComponentLicenses(ctx context.Context, tx copyFromer, q *repository.Que
 			lic := choice.License
 			spdxID, displayName := NormalizeLicense(lic.ID, lic.Name)
 			key := licenseKey(spdxID, displayName)
-
-			licenseID, ok := licenseIDs[key]
-			if !ok {
-				var err error
-				licenseID, err = upsertLicense(ctx, q, spdxID, displayName, lic.URL)
-				if err != nil {
-					return err
-				}
-				licenseIDs[key] = licenseID
+			if _, ok := refs[key]; !ok {
+				refs[key] = licenseRef{spdxID: spdxID, name: displayName, url: lic.URL}
 			}
-
 			// Skip duplicate (component, license) pairs; the join table PK
 			// would otherwise reject them (CopyFrom has no ON CONFLICT).
 			if _, dup := seen[key]; dup {
 				continue
 			}
 			seen[key] = struct{}{}
-			joinRows = append(joinRows, []any{fc.id, licenseID})
+			pairs = append(pairs, pair{componentID: fc.id, key: key})
 		}
+	}
+
+	licenseIDs := make(map[string]pgtype.UUID, len(refs))
+	for _, key := range slices.Sorted(maps.Keys(refs)) {
+		r := refs[key]
+		id, err := upsertLicense(ctx, q, r.spdxID, r.name, r.url)
+		if err != nil {
+			return err
+		}
+		licenseIDs[key] = id
+	}
+
+	joinRows := make([][]any, len(pairs))
+	for i, p := range pairs {
+		joinRows[i] = []any{p.componentID, licenseIDs[p.key]}
 	}
 
 	if len(joinRows) == 0 {
