@@ -278,7 +278,6 @@ key separately from the database: a backup holding both defeats the encryption.
 
 - **Backups**: see [Backup and restore](#backup-and-restore). Postgres is the only state that needs one.
 - **Tuning concurrency** — `SCANNER_MAX_CONCURRENCY` directly maps to active worker goroutines. Watch pod memory: Syft is the cost. There is no longer a `SCANNER_MAX_ACK_PENDING` to tune in lockstep.
-- **DLQ table cleanup** — `scan_job_failures` is the legacy DLQ-via-NATS audit table. It is no longer written to. `SCAN_DLQ_RETENTION_DAYS` (default 30) controls how long old rows linger before the purge sweep deletes them. The table itself is scheduled for removal in a follow-up migration (`ocidex-ujj.74.6`).
 
 ### Backup and restore
 

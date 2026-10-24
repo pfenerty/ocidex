@@ -372,6 +372,48 @@ plaintext, encrypt, commit only the encrypted file.
 
 ---
 
+## Production hardening checklist
+
+Each row is a setting to decide before an installation faces real users, with the value to
+start from. The chart defaults already cover some of them (`ENVIRONMENT=production` in particular),
+so treat this as the list to check, not a list of changes. Variables are described in full in
+[CONFIGURATION.md](CONFIGURATION.md). Upgrade-specific changes are in [UPGRADING.md](UPGRADING.md).
+How to report a vulnerability, and which versions get fixes, is in
+[SECURITY.md](../SECURITY.md).
+
+**Identity and access**
+
+| Setting | Chart value | Recommended | Why |
+|---|---|---|---|
+| `ENVIRONMENT` | `api.env.environment` | `production` (the chart default) | Turns on the production-only checks below: encryption keys required, strict CORS, an https OIDC issuer, the exact post-login redirect. Never run a reachable install as `development`. |
+| `SESSION_SECRET` | Secret | `openssl rand -hex 32` | Signs session and OAuth state cookies. Back it up separately from the database. |
+| `BOOTSTRAP_ADMINS` | `api.env.bootstrapAdmins` | One or two named identities | A fresh install has no admin. List only the people who should be one, by stable subject id, never by email. |
+| `SIGNUP_MODE` | `api.env.signupMode` | `existing` for a private install | `open` gives an account to anyone your identity provider vouches for, which with GitHub is anyone. |
+| `SELF_SERVICE_NAMESPACES` | `api.env.selfServiceNamespaces` | `"false"` for a private install | Stops a global viewer from creating namespaces, or registries that mint one. |
+| `OIDC_ISSUER_URL` | Secret | An `https://` issuer | Required to be https in production. An issuer that vouches only for your own people is the simplest way to keep sign-up open safely. |
+
+**Browser and perimeter**
+
+| Setting | Chart value | Recommended | Why |
+|---|---|---|---|
+| `FRONTEND_URL` | `api.env.frontendUrl` | The public SPA origin, `https://…` | In production the post-login redirect is exactly this URL. |
+| `CORS_ALLOWED_ORIGINS` | `api.env.corsAllowedOrigins` | The SPA origin only | Also decides which origins may send cookie-authenticated writes. `*` fails startup in production. |
+| `SESSION_COOKIE_SAMESITE` | `api.env.sessionCookieSameSite` | `lax` | Use `none` only when the SPA and API are on different registrable domains. |
+| `TRUSTED_PROXY_CIDRS`, `TRUSTED_PROXY_HOPS`, `CLIENT_IP_HEADER` | `api.env.trustedProxyCidrs`, `api.env.trustedProxyHops`, `api.env.clientIpHeader` | The ingress range if it is fixed, else `trustedProxyHops: "1"` | Without one of them, every visitor shares the ingress's rate-limit budget. Read the trust caveat in [CONFIGURATION.md](CONFIGURATION.md#client-ip-behind-proxies) before using the hop count or a header. |
+| `AUTH_RATE_LIMIT`, `API_RATE_LIMIT_INGEST`, `API_RATE_LIMIT_HEAVY` | `api.env.authRateLimit`, `api.env.apiRateLimitIngest`, `api.env.apiRateLimitHeavy` | Keep the defaults (`30`, `120`, `120`) | Counted per replica, so the effective limit is the value times `api.replicas`. Raise the ingest limit for a CI key, not to `0`. |
+| HSTS | ingress or Gateway | `Strict-Transport-Security` at the TLS terminator | Neither the API nor the web tier sends it; both listen on plain http behind TLS. |
+
+**Data and network**
+
+| Setting | Chart value | Recommended | Why |
+|---|---|---|---|
+| `DATA_ENCRYPTION_KEYS`, `DATA_ENCRYPTION_ACTIVE_KEY` | Secret | `k1:$(openssl rand -base64 32)`, `k1` | Required in production. Encrypts stored registry credentials and webhook secrets. Back the key up apart from the database. Rotation is in [OPERATIONS.md](OPERATIONS.md#rotating-the-credential-encryption-key). |
+| `EGRESS_ALLOW_PRIVATE` | `egressGuard.allowPrivate` | `false` | User-supplied registry URLs are dialled by the API and workers. Leave private ranges refused. |
+| `EGRESS_ALLOW_CIDRS`, `EGRESS_DENY_CIDRS` | `egressGuard.allowCidrs`, `egressGuard.denyCidrs` | Allow only the in-cluster registry hosts you need; deny the cluster's service CIDR if you must allow private ranges | Narrow exceptions instead of `EGRESS_ALLOW_PRIVATE=true`. |
+| NetworkPolicy | `networkPolicy.enabled` | `true`, with `egress.database` and `ingress.from` set | The network-level backstop to the egress checks in code: default-deny, and internet egress minus private, CGNAT and link-local ranges. See [Network policy](#network-policy-networkpolicyenabled-all-three-charts). |
+| `METRICS_ADDR` | fixed `:9090` | Never routed through the ingress | Metrics are on a separate listener. Scrape it in-cluster (`networkPolicy.ingress.metricsFrom`); don't expose it. |
+| `RETENTION_MODE` | `api.env.retention.mode` | `dry-run` first, then `on` | Bounds database growth ([ADR-0056](adr/0056-sbom-retention.md)). Read a dry run's log before turning it on. |
+
 ## Deploy from scratch
 
 Steps 1–3 are prerequisites; 4–7 are the install. Everything from step 4 onward

@@ -4,31 +4,82 @@ Technical overview of OCIDex's design. For coding patterns and examples, see [DE
 
 ## System Overview
 
-```
-                                    ┌─────────────────────────────────────────────┐
-                                    │                  OCIDex                      │
-                                    │                                             │
-  CycloneDX JSON ──POST /sbom──▶   │  chi router                                 │
-                                    │    │                                         │
-  Browser ──────GET /api/v1/*──▶    │    ▼                                         │
-                                    │  huma handlers (internal/api)                │
-                                    │    │                                         │
-                                    │    ▼                                         │
-                                    │  Service layer (internal/service)            │
-                                    │    │                    │                    │
-                                    │    ▼                    ▼                    │
-                                    │  Repository           Enrichment            │
-                                    │  (internal/repository) Dispatcher           │
-                                    │    │                  (internal/enrichment)  │
-                                    │    ▼                    │                    │
-                                    │  PostgreSQL             │──▶ OCI registries  │
-                                    │    (pgx + sqlc)         │──▶ (future sources)│
-                                    └─────────────────────────────────────────────┘
+OCIDex is a set of processes around one PostgreSQL database. The API is the only process that
+serves users. Every slow or external step runs in a worker that claims jobs from a table in
+Postgres, so nothing waits on a registry, a scan or an advisory feed while a request is open.
 
-  SolidJS SPA (web/) ◀──── static files served via embed.FS or dev server
+```
+Browser, ocidex-cli, ocidex-mcp (stdio), CI, operator (CRDs), k8s-agent
+        │
+        ▼
+ingress ──── everything but /api, /auth, /health, /ready ───▶ web (nginx: the SPA)
+        │
+        ▼
+┌────────────────────────────────────────────────────────────┐
+│ api (cmd/ocidex)                                           │
+│   chi + huma handlers → services → sqlc repository         │
+│   background: rollup refresher, session cleaner,           │
+│   provenance reverifier, retention sweep (one replica)     │
+└────────────────────────────────────────────────────────────┘
+        │ rows (sboms, scan_jobs, enrichment_jobs)        │ hints
+        ▼                                                 ▼
+┌──────────────────────────────────┐    ┌────────────────────────────────┐
+│ PostgreSQL                       │    │ NATS JetStream                 │
+│   the catalog and every job row  │    │   "a job row is waiting"       │
+│   (the source of truth)          │    │   (a lost hint costs a poll)   │
+└──────────────────────────────────┘    └────────────────────────────────┘
+        ▲ claim jobs, write results,       │ wake the scanner and
+        │ ingest SBOMs                     ▼ enricher workers
+┌──────────────────────┐  ┌──────────────────────┐  ┌────────────────────┐
+│ scanner-worker       │  │ enricher workers     │  │ vuln-worker        │
+│   catalog walks,     │  │   one per enricher:  │  │   grype DB refresh │
+│   syft scans, ingest │  │   oci-metadata, git, │  │   and re-match     │
+└──────────────────────┘  │   user, provenance   │  │   (one replica)    │
+                          └──────────────────────┘  └────────────────────┘
+        │                         │
+        ▼                         ▼
+OCI registries            registries, GitHub, Rekor
+(all outbound traffic goes through the egress policy)
+
+migrate Job: `ocidex migrate up`, before the API rolls out (Helm pre-install/upgrade hook)
 ```
 
-Every request flows through the same path: **Router → Handler → Service → Repository → Database**. No layer is skipped, and dependencies only point downward.
+The processes, all built from this repository:
+
+| Process | Binary | What it does |
+|---|---|---|
+| API | `cmd/ocidex` | REST API under `/api/v1`, sign-in under `/auth`. Ingests uploaded SBOMs, cluster inventory and registry webhooks. Runs the rollup refresher, session cleaner, provenance reverifier and, on one replica at a time, the retention sweep (ADR-0056). |
+| Web | `docker/web` (nginx) | Serves the SolidJS SPA (ADR-038). The ingress routes `/api`, `/auth`, `/health` and `/ready` to the API and everything else here. |
+| NATS JetStream | upstream image | Carries hints that a job row exists. The job rows in Postgres are the source of truth (ADR-024). |
+| scanner-worker | `cmd/scanner-worker` | Walks registry catalogs, runs syft on each selected image and ingests the SBOM (ADR-031). |
+| Enricher workers | `cmd/oci-metadata-worker`, `cmd/git-worker`, `cmd/user-enricher-worker`, `cmd/provenance-worker` | One Deployment per enricher, each claiming only the `enrichment_jobs` rows with its `enricher_name` (ADR-033). |
+| vuln-worker | `cmd/vuln-worker` | Keeps the package-keyed vulnerability store current against the grype database (ADR-049). |
+| migrate Job | `cmd/ocidex migrate up` | Applies the embedded goose migrations. The API never migrates on startup. |
+| Operator | `cmd/operator` | Optional, separate chart. Reconciles `OCIRegistry`, `ScanRequest` and `APIKey` CRDs through the API (ADR-030). |
+| k8s-agent | `cmd/k8s-agent` | Runs in each inventoried cluster and pushes what it runs to the API (ADR-044). |
+| MCP server | `cmd/ocidex-mcp` | A local stdio server an agent launches. It calls the API with the user's key and is never deployed (ADR-045). |
+| CLI | `cmd/ocidex-cli` | Ingest, query and key management against the API. |
+
+### Request paths
+
+- **Read.** Browser → web → API → services → repository → Postgres. Every read is filtered by the
+  caller's visibility (ADR-046). Expensive aggregates come from rollup tables that the API's
+  rollup refresher rebuilds in the background, not from joins at request time.
+- **Ingest.** An SBOM arrives by upload (`POST /api/v1/sboms`), from the scanner-worker, or from the
+  CLI or MCP server. Ingest stores it and its components in one transaction, then writes one
+  `enrichment_jobs` row per enricher and publishes a hint for each.
+- **Scan.** A catalog walk (on a schedule, a webhook, a `ScanRequest` or a cluster's running images
+  under ADR-0044 K10) writes `scan_jobs` rows and publishes hints. A scanner-worker claims a row,
+  pulls the image through the egress policy, runs syft, and ingests the result as above.
+- **Enrich.** Each enricher worker claims its rows, reads what it needs from the registry, the git
+  host or Rekor, and stores its result in `enrichment`, keyed by `(sbom_id, enricher_name)`.
+- **Vulnerabilities.** The vuln-worker matches components against the grype database and stores
+  matches keyed by package URL, so a new advisory reaches every affected SBOM without a rescan.
+- **Cluster inventory.** A k8s-agent pushes a full snapshot. The API replaces that cluster's
+  workloads in one transaction, then queues scans for running images with no SBOM (ADR-0044).
+
+Within the API, every request follows the same path: **Router → Handler → Service → Repository →
+Database**. No layer is skipped, and dependencies only point downward.
 
 ## Layered Architecture
 
@@ -58,7 +109,7 @@ Business logic that is independent of HTTP. Each domain area (artifacts, SBOMs, 
 - Orchestrating repository calls (e.g., ingesting an SBOM involves inserting the SBOM, its components, and its dependency edges in a transaction)
 - Domain-specific validation beyond what the API layer checks
 - Computing derived data (changelogs, diffs, license summaries)
-- Submitting enrichment requests after SBOM ingestion
+- Publishing events after SBOM ingestion, which the enrichment submitter turns into job rows
 
 Services accept repository interfaces via constructors, making them testable with fakes.
 
@@ -131,7 +182,7 @@ Components are not deduplicated across SBOMs. The same library appearing in two 
 1. It preserves the exact content of each SBOM as ingested
 2. It makes changelog computation straightforward (diff two component sets)
 3. It avoids complex versioning logic at the data layer
-4. Deduplication for search is handled at query time (`components/distinct` endpoint)
+4. Deduplication for search is handled at query time and in rollup tables the API refreshes in the background
 
 ## API Design
 
@@ -141,7 +192,7 @@ The API spec is generated from Go struct types at startup using [huma v2](https:
 
 - The spec is always accurate — it IS the code
 - Input validation is declared via struct tags and enforced automatically
-- The interactive docs UI at `/docs` is always up to date
+- The interactive docs UI the API serves at `/docs` is always up to date. The chart's ingress routes only `/api`, `/auth`, `/health` and `/ready` to the API, so reach it on the API's Service or a local run
 
 The generated spec is also exported to `web/openapi.json` for frontend type generation (see [Frontend Architecture](#frontend-architecture)).
 
@@ -201,39 +252,54 @@ The query hooks in `src/api/queries/` are the boundary between the API and the U
 
 ## Enrichment Pipeline
 
-The enrichment system runs as background goroutines within the main server process. It is not a separate service.
+Enrichment runs outside the API, in one worker Deployment per enricher (ADR-033). Ingest never
+waits for it.
 
 ### How it works
 
-1. After an SBOM is successfully ingested, the service layer submits a `SubjectRef` to the enrichment `Dispatcher`.
-2. The dispatcher fans the request out to all registered `Enricher` implementations.
-3. Each enricher checks `CanEnrich(ref)` — if the subject is relevant, it performs its work and returns JSON data.
-4. Results are persisted to the `enrichments` table as JSONB, keyed by `(sbom_id, enricher_name)`.
+1. When an SBOM is committed, an extension on the in-process event bus writes one
+   `enrichment_jobs` row per enricher and publishes a NATS hint for each (ADR-024, ADR-033).
+2. Each enricher worker claims rows with its own `enricher_name`, from a hint or from its poll
+   loop. The poll loop is what makes a lost hint cost seconds, not a job.
+3. The enricher checks `CanEnrich(ref)`. If the subject is relevant, it does its work and returns
+   JSON.
+4. The result is upserted into `enrichment` as JSONB, keyed by `(sbom_id, enricher_name)`, and the
+   job row is finished. A failure is retried up to its attempt budget, then left `failed` for the
+   Jobs page and its Retry button.
 
 ```
-Ingest SBOM ──▶ Service ──▶ Dispatcher.Submit(ref)
-                                │
-                          worker pool (N goroutines)
-                                │
-                    ┌───────────┼───────────┐
-                    ▼           ▼           ▼
-               Enricher A  Enricher B  Enricher C
-               (oci-meta)  (future)    (future)
-                    │
-                    ▼
-              Store result as JSONB
+ingest commits ──▶ enrichment_jobs (one row per enricher) ──▶ NATS hint
+                          │
+          ┌───────────────┼────────────────┬──────────────────┐
+          ▼               ▼                ▼                  ▼
+   oci-metadata-worker  git-worker  user-enricher-worker  provenance-worker
+          │               │                │                  │
+          └───────────────┴──── enrichment (JSONB) ───────────┘
 ```
 
-### Built-in enricher: OCI Metadata
+### Enrichers
 
-The `oci-metadata` enricher applies to container image artifacts. It pulls OCI image metadata (labels, architecture, OS, build timestamps, source URLs) directly from container registries using ORAS. This data is displayed on the SBOM detail page as an "Image Metadata" card.
+| Enricher | Worker | Adds |
+|---|---|---|
+| `oci-metadata` | `oci-metadata-worker` | Image labels, architecture, OS, build time and source URLs from the registry. |
+| `git` | `git-worker` | The source commit, fetched from GitHub using the revision and source URL `oci-metadata` found. |
+| `user` | `user-enricher-worker` | Metadata supplied at upload, with no network call. |
+| `provenance` | `provenance-worker` | Signatures and attestations, verified against the configured trust policy. |
+
+Vulnerability matching is not an enricher. The vuln-worker matches components against a package-keyed
+store, so a newly published advisory reaches every affected SBOM without re-enriching it (ADR-049).
 
 ### Design decisions
 
-- **Async, non-blocking**: Enrichment never delays the ingestion response. The API returns `201 Created` immediately; enrichment happens in the background.
-- **Queue with backpressure**: The dispatcher uses a buffered channel. If the queue is full, requests are dropped with a warning log rather than blocking ingestion.
-- **Idempotent**: Results are upserted — re-enriching the same SBOM overwrites the previous result.
-- **Extensible**: Adding a new enricher means implementing the `Enricher` interface (three methods: `Name`, `CanEnrich`, `Enrich`) and registering it with the dispatcher at startup.
+- **Async, non-blocking.** Ingest returns as soon as its transaction commits. Enrichment happens
+  afterwards, in other processes.
+- **The database is the queue.** Job rows are the source of truth, and NATS only says one is
+  waiting. A dropped hint, a restarted worker or a NATS outage delays work and never loses it.
+- **Idempotent.** Results are upserted, so re-enriching an SBOM overwrites its previous result.
+- **Independently scaled.** Each enricher is its own Deployment. KEDA can scale each on its own
+  queue depth.
+- **Extensible.** A new enricher implements the `Enricher` interface (`Name`, `CanEnrich`, `Enrich`)
+  and gets its own worker binary and Deployment.
 
 ## Database
 
@@ -256,22 +322,28 @@ The application uses `pgxpool` for connection pooling. The pool is created once 
 
 ## Deployment
 
-### Docker
+### Images and chart
 
-The `Dockerfile` uses a multi-stage build:
+Each process ships as its own image, built from `docker/Dockerfile` (one target per Go binary) and
+`docker/web/Dockerfile` (nginx and the SPA). The Go images are distroless and the web image is Chainguard
+nginx. All run as non-root and carry their license texts under `/licenses` (ADR-038). The Helm chart in `charts/ocidex` deploys
+the API, web, NATS, scanner-worker, enricher workers and vuln-worker, plus the migrate Job. The
+operator has its own chart. Topology and values are in [DEPLOYMENT.md](DEPLOYMENT.md).
 
-1. **Build stage**: `golang:1.25-alpine` — compiles the Go binary with `CGO_ENABLED=0`
-2. **Runtime stage**: `alpine:latest` — copies the binary, runs as non-root user `ocidex`
-
-The `docker-compose.yml` provides a complete stack: PostgreSQL, the API server, and the frontend dev server.
+`docker-compose.yml` runs the same set locally: PostgreSQL, NATS, the migrate step, the API, the
+scanner-worker, every enricher worker, the vuln-worker and the web tier.
 
 ### Configuration
 
-All configuration is via environment variables, parsed at startup using [caarlos0/env](https://github.com/caarlos0/env). The server fails fast if required variables (like `DATABASE_URL`) are missing — no silent defaults for critical config.
+All configuration is via environment variables, parsed at startup using
+[caarlos0/env](https://github.com/caarlos0/env). The server fails fast if a required variable (like
+`DATABASE_URL`) is missing, with no silent defaults for critical config. Every variable is listed in
+[CONFIGURATION.md](CONFIGURATION.md).
 
 ### Health checks
 
 - `GET /health` — Liveness: returns 200 if the process is running
 - `GET /ready` — Readiness: returns 200 if the database connection is healthy
 
-The Docker healthcheck uses the liveness endpoint. Orchestrators (Kubernetes, etc.) can use both.
+Workers serve `/healthz` and `/readyz` on their metrics port (9090) instead. Kubernetes uses both
+kinds of probe.
