@@ -276,9 +276,105 @@ Configure a new key, then re-enter each registry's auth token and regenerate its
 secret (`POST /api/v1/registries/{id}/webhook-secret`) and update the sender. Back up the
 key separately from the database: a backup holding both defeats the encryption.
 
-- **PVC backups** — back up the Postgres volume. The NATS volume is now no-data: at worst, losing it costs you queue latency until workers' next poll, which is bounded by `SCANNER_POLL_INTERVAL`.
+- **Backups**: see [Backup and restore](#backup-and-restore). Postgres is the only state that needs one.
 - **Tuning concurrency** — `SCANNER_MAX_CONCURRENCY` directly maps to active worker goroutines. Watch pod memory: Syft is the cost. There is no longer a `SCANNER_MAX_ACK_PENDING` to tune in lockstep.
 - **DLQ table cleanup** — `scan_job_failures` is the legacy DLQ-via-NATS audit table. It is no longer written to. `SCAN_DLQ_RETENTION_DAYS` (default 30) controls how long old rows linger before the purge sweep deletes them. The table itself is scheduled for removal in a follow-up migration (`ocidex-ujj.74.6`).
+
+### Backup and restore
+
+**What to back up.**
+
+| Data | Back up? | Why |
+|---|---|---|
+| Postgres database | **Yes** | Everything OCIDex knows: SBOMs, artifacts, users, sessions, API keys, registries, clusters, scan and enrichment state. |
+| `SESSION_SECRET` | **Yes**, separately | Signs session and OAuth state cookies. A restore with a different secret signs everyone out, which is safe but disruptive. |
+| `DATA_ENCRYPTION_KEYS` | **Yes**, separately | Decrypts stored registry credentials ([Rotating the credential encryption key](#rotating-the-credential-encryption-key)). Without it, registries need their tokens re-entered. Never store it with the database backup. |
+| OAuth client secrets (`GITHUB_CLIENT_SECRET`, `OIDC_CLIENT_SECRET`) | **Yes**, separately | Can be reissued by the identity provider, at the cost of an outage. |
+| NATS volume | No | No data: workers claim jobs from Postgres, and a lost hint costs at most one poll interval (`SCANNER_POLL_INTERVAL`). |
+| grype database volume | No | Downloaded again at startup. |
+| Enrichment results | Inside the database | Restored with it. Anything lost can be re-run, since enrichment is derived from the SBOM and the registry. |
+
+**CloudNativePG: continuous backup.** Configure WAL archiving and scheduled base backups on
+the `Cluster`, to S3 or anything S3-compatible (MinIO on a NAS works):
+
+```yaml
+apiVersion: postgresql.cnpg.io/v1
+kind: Cluster
+metadata:
+  name: ocidex-pg
+spec:
+  backup:
+    retentionPolicy: 30d
+    barmanObjectStore:
+      destinationPath: s3://ocidex-backups/ocidex-pg
+      endpointURL: https://minio.example:9000      # omit for AWS S3
+      s3Credentials:
+        accessKeyId: { name: ocidex-pg-backup, key: ACCESS_KEY_ID }
+        secretAccessKey: { name: ocidex-pg-backup, key: SECRET_ACCESS_KEY }
+      wal: { compression: gzip }
+---
+apiVersion: postgresql.cnpg.io/v1
+kind: ScheduledBackup
+metadata:
+  name: ocidex-pg-daily
+spec:
+  schedule: "0 0 3 * * *"   # CNPG's cron has a seconds field
+  backupOwnerReference: self
+  cluster: { name: ocidex-pg }
+```
+
+CNPG 1.26 and later move object-store backups to the Barman Cloud plugin. The fields are the
+same, set on an `ObjectStore` resource instead. Check that backups are completing with
+`kubectl get backups`, and that WAL archiving is healthy with
+`kubectl cnpg status ocidex-pg` ("Continuous Backup status").
+
+**Without CNPG: `pg_dump`.** A nightly logical dump is enough for most installs, since
+OCIDex can tolerate losing a day of ingests:
+
+```bash
+pg_dump "$DATABASE_URL" -Fc --no-owner -f ocidex-$(date +%F).dump
+```
+
+**Restore.**
+1. **Stop writers.** Scale the API, scanner-worker, enricher workers and vuln-worker to 0. If
+   the operator and k8s-agent can't reach the API, they retry on their own.
+   ```bash
+   kubectl scale deploy -n <ns> -l app.kubernetes.io/part-of=ocidex --replicas=0
+   ```
+2. **Restore the database.**
+   * **CNPG:** create a new `Cluster` with `spec.bootstrap.recovery` pointing at the backup,
+     optionally with `recoveryTarget.targetTime` for point-in-time recovery. Then point
+     `DATABASE_URL` at its `-rw` service. Restoring into a new cluster leaves the old one to
+     fall back on.
+   * **`pg_dump`:** into an empty database owned by the application role:
+     ```bash
+     pg_restore -d "$DATABASE_URL" --no-owner --exit-on-error ocidex-YYYY-MM-DD.dump
+     ```
+3. **Check the schema.** `ocidex migrate status` must list every migration as applied. If the
+   backup predates the running version, `ocidex migrate up` (or the chart's `migrate` Job on
+   the next upgrade) brings it forward. Never run an older image against a newer schema.
+4. **Restore secrets.** Use the same `SESSION_SECRET` and `DATA_ENCRYPTION_KEYS` the backup was
+   taken with.
+5. **Start in order.** API first (wait for `/ready`), then the scanner-worker and enricher
+   workers, then the vuln-worker. Jobs that were `running` at backup time are reclaimed once
+   their stuck threshold passes (incident 3).
+6. **Verify.** Compare counts against the last known values, and sign in:
+   ```sql
+   SELECT count(*) AS sboms, count(DISTINCT artifact_id) AS artifacts FROM sbom;
+   SELECT max(created_at) FROM sbom;   -- the newest ingest the backup holds
+   ```
+
+SBOMs ingested after the backup are gone. CI re-ingests on its next build, and registry walks
+re-scan their windows on the next poll.
+
+**Drill (2026-10-23, ocidex-xxee.7).** Postgres 18.6, `pg_dump`/`pg_restore`, 200 SBOMs and
+40k components from `cmd/loadgen`. The dump took 1s and was 5.1 MB; the restore took 4s.
+After the restore:
+* `migrate status` showed all 86 migrations applied.
+* Row counts and an `md5` over every SBOM id and digest were identical.
+* The same API key authenticated, and the API listed all 10 artifacts.
+
+The commands are in the issue's notes.
 
 ### Backfilling rows stored before ingest derived them
 
