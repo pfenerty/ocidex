@@ -113,11 +113,16 @@ export function HomeDiscovery(): JSX.Element {
                                 href="/artifacts"
                                 hrefLabel="all artifacts"
                             >
+                                {/* An artifact nothing ships is not "depended on",
+                                    and a list of "0 uses" rows ranks by version
+                                    count while claiming to rank by use. */}
                                 <For
-                                    each={data().top_artifacts}
+                                    each={data().top_artifacts.filter((a) => a.usageCount > 0)}
                                     fallback={
                                         <li class="landing-list-empty text-muted">
-                                            Nothing indexed yet.
+                                            {data().top_artifacts.length === 0
+                                                ? "Nothing indexed yet."
+                                                : "No tracked artifact ships another one yet."}
                                         </li>
                                     }
                                 >

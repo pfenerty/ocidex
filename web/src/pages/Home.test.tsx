@@ -382,6 +382,28 @@ describe("Home discovery panels", () => {
     // The three states must stay distinguishable at the far end too: a warm
     // snapshot of a genuinely empty catalog says so, and does not look like a
     // page that is still loading.
+    // Ranking artifacts nothing ships as "Most depended on" listed "0 uses"
+    // on every row (ocidex-nps9.5).
+    it("leaves artifacts nothing ships out of Most depended on", () => {
+        const data = populatedDiscovery();
+        data.top_artifacts.push({
+            id: "art-0", type: "application", name: "lonely", usageCount: 0,
+            versionCount: 150, sbomCount: 150, score: 20,
+        });
+        const { container } = renderHome(warmStats, { isError: false, data });
+        expect(container.textContent).toContain("alpine");
+        expect(container.textContent).not.toContain("lonely");
+        expect(container.textContent).not.toContain("0 uses");
+    });
+
+    it("says nothing ships another artifact when every use count is zero", () => {
+        const data = populatedDiscovery();
+        data.top_artifacts[0].usageCount = 0;
+        const { container } = renderHome(warmStats, { isError: false, data });
+        expect(container.textContent).toContain("No tracked artifact ships another one yet.");
+        expect(container.textContent).not.toContain("0 uses");
+    });
+
     it("says a section is empty when a warm snapshot has no rows", () => {
         const { container } = renderHome(warmStats, { isError: false, data: emptyDiscovery });
 
