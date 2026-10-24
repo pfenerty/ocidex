@@ -4,6 +4,7 @@ package engine
 import (
 	"bytes"
 	"context"
+	"errors"
 	"fmt"
 	"log/slog"
 
@@ -78,10 +79,7 @@ func (d *Dispatcher) ProcessOne(ctx context.Context, req scanner.ScanRequest) (p
 		return pgtype.UUID{}, fmt.Errorf("decode sbom: %w", err)
 	}
 
-	version := req.Tag
-	if req.ImageVersion != "" {
-		version = req.ImageVersion
-	}
+	version := subjectVersion(req)
 	// The SBOM's source is the cluster when the job is attributed to one
 	// (ADR-0044 K10), otherwise the registry whose walk found it.
 	sourceRef := req.RegistryID
@@ -104,9 +102,43 @@ func (d *Dispatcher) ProcessOne(ctx context.Context, req scanner.ScanRequest) (p
 		GoSymbols:   res.GoSymbols,
 	})
 	if err != nil {
-		return pgtype.UUID{}, fmt.Errorf("ingest: %w", err)
+		err = fmt.Errorf("ingest: %w", err)
+		// Ingest refused the SBOM itself, and refuses the same BOM on every
+		// retry (ocidex-a7km).
+		var verr *service.ValidationError
+		if errors.As(err, &verr) {
+			return pgtype.UUID{}, jobqueue.Permanent(err)
+		}
+		return pgtype.UUID{}, err
 	}
 
 	d.logger.Info("SBOM ingested from scan", "repo", req.Repository, "digest", req.Digest)
 	return sbomID, nil
+}
+
+// shortDigestLen is "sha256:" plus 12 hex characters, the length image tooling
+// conventionally shortens a digest to.
+const shortDigestLen = len("sha256:") + 12
+
+// subjectVersion is the version an SBOM is stored under: the image's version
+// label, else the tag it was found by, else its short digest (ocidex-a7km). A
+// catalog walk always has a tag, but a running image reported by digest alone
+// may have neither, and ingest refuses a container SBOM with no version. The
+// index digest is used when there is one, so every platform of a multi-arch
+// image shares a version.
+func subjectVersion(req scanner.ScanRequest) string {
+	switch {
+	case req.ImageVersion != "":
+		return req.ImageVersion
+	case req.Tag != "":
+		return req.Tag
+	}
+	digest := req.IndexDigest
+	if digest == "" {
+		digest = req.Digest
+	}
+	if len(digest) > shortDigestLen {
+		digest = digest[:shortDigestLen]
+	}
+	return digest
 }

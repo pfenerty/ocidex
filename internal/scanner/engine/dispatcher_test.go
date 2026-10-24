@@ -228,3 +228,60 @@ func TestProcessOneEgressDeniedIsPermanent(t *testing.T) {
 	is.True(errors.Is(err, netguard.ErrDenied))
 	is.Equal(sc.calls, 0)
 }
+
+// recordingSBOMSvc records the version each ingest was asked to store.
+type recordingSBOMSvc struct {
+	fakeSBOMSvc
+	versions []string
+}
+
+func (r *recordingSBOMSvc) Ingest(ctx context.Context, bom *cdx.BOM, raw []byte, p service.IngestParams) (pgtype.UUID, error) {
+	r.versions = append(r.versions, p.Version)
+	return r.fakeSBOMSvc.Ingest(ctx, bom, raw, p)
+}
+
+// TestProcessOneVersionFallsBackToShortDigest covers ocidex-a7km: a running
+// image reported by digest alone, with no version label, is stored under its
+// short digest rather than refused for having no version; every platform of
+// an index shares the index's.
+func TestProcessOneVersionFallsBackToShortDigest(t *testing.T) {
+	const platform = "sha256:bded7cd82996aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"
+	const index = "sha256:19f02276bf8dbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb"
+	tests := []struct {
+		name string
+		req  scanner.ScanRequest
+		want string
+	}{
+		{"version label wins", scanner.ScanRequest{Tag: "latest", ImageVersion: "1.37.0", Digest: platform}, "1.37.0"},
+		{"then the tag", scanner.ScanRequest{Tag: "latest", Digest: platform}, "latest"},
+		{"then the index's short digest", scanner.ScanRequest{Digest: platform, IndexDigest: index}, "sha256:19f02276bf8d"},
+		{"then the image's own", scanner.ScanRequest{Digest: platform}, "sha256:bded7cd82996"},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			is := is.New(t)
+			svc := &recordingSBOMSvc{}
+			d := NewDispatcher(&fakeScanner{}, svc, 0, netguard.Policy{}, discardLogger())
+			tt.req.Repository = "chainguard/busybox"
+			_, err := d.ProcessOne(context.Background(), tt.req)
+			is.NoErr(err)
+			is.Equal(svc.versions, []string{tt.want})
+		})
+	}
+}
+
+// TestProcessOneIngestValidationErrorIsPermanent covers ocidex-a7km: ingest
+// refusing the SBOM fails the job once instead of spending every attempt.
+func TestProcessOneIngestValidationErrorIsPermanent(t *testing.T) {
+	is := is.New(t)
+	refused := &fakeSBOMSvc{ingestErr: &service.ValidationError{Message: "container SBOM missing required metadata: subject_version"}}
+	d := NewDispatcher(&fakeScanner{}, refused, 0, netguard.Policy{}, discardLogger())
+	_, err := d.ProcessOne(context.Background(), scanner.ScanRequest{Repository: "r", Digest: "sha256:d", Tag: "v1"})
+	is.True(errors.Is(err, jobqueue.ErrPermanent))
+
+	transient := &fakeSBOMSvc{ingestErr: errors.New("connection reset")}
+	d = NewDispatcher(&fakeScanner{}, transient, 0, netguard.Policy{}, discardLogger())
+	_, err = d.ProcessOne(context.Background(), scanner.ScanRequest{Repository: "r", Digest: "sha256:d", Tag: "v1"})
+	is.True(err != nil)
+	is.True(!errors.Is(err, jobqueue.ErrPermanent))
+}
