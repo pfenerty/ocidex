@@ -578,7 +578,7 @@ func (s *searchService) ListArtifactVulns(ctx context.Context, artifactID pgtype
 	}
 
 	return ArtifactVulnPage{
-		PagedResult:   PagedResult[ArtifactVulnEntry]{Data: items, Total: total},
+		PagedResult:   PagedResult[ArtifactVulnEntry]{Data: items, Total: total, Limit: limit, Offset: offset},
 		VersionScope:  scope,
 		TotalVersions: totalVersions,
 	}, nil

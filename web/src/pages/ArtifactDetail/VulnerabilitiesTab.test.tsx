@@ -182,6 +182,17 @@ describe("Artifact VulnerabilitiesTab", () => {
         expect(container.textContent).toContain("1,025 in all");
     });
 
+    it("pages a single page as one page", () => {
+        // The server once omitted limit and offset here, and the pager divided
+        // by zero: "Showing 1–0 of 1", "NaN / Infinity", next/last enabled.
+        const { container, getByLabelText } = renderTab();
+        const pager = container.querySelector(".pagination");
+        expect(pager?.textContent).toContain("Showing 1–1 of 1");
+        expect(pager?.textContent).toContain("1 / 1");
+        expect(getByLabelText("Next page").hasAttribute("disabled")).toBe(true);
+        expect(getByLabelText("Last page").hasAttribute("disabled")).toBe(true);
+    });
+
     it("says so plainly when nothing was left out", () => {
         stubQuery([vuln({})], { versionScope: 20, totalVersions: 3 });
         const { container } = renderTab();
