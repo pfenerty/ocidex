@@ -53,7 +53,9 @@ is required in every case, because it signs the cookies every provider's flow de
 | `AUTH_RATE_LIMIT` | `30` | Requests per minute one client IP may make to `/auth/login*`, `/auth/callback*` and `POST /api/v1/auth/identities`. Over the limit: `429` with `Retry-After`. `0` disables. Counters are per API replica. |
 | `API_RATE_LIMIT_INGEST` | `120` | Requests per minute per principal to `POST /api/v1/sboms`. A principal is the user for an authenticated request (any of their sessions or API keys) and the client IP otherwise. Over the limit: `429` problem document with `Retry-After`. `0` disables. No role is exempt — raise this for an operator or CI key that pushes harder. Per API replica. |
 | `API_RATE_LIMIT_HEAVY` | `120` | Requests per minute per principal, one budget shared across the expensive reads: `/api/v1/artifacts/{id}/changelog`, `/api/v1/artifacts/{id}/vulns`, `/api/v1/artifacts/{id}/contains`, `/api/v1/components/versions`. `0` disables. Per API replica. |
-| `TRUSTED_PROXY_CIDRS` | `""` | Comma-separated CIDRs (or bare IPs) of reverse proxies whose `X-Forwarded-For` is believed when resolving a client IP for rate limiting. Only when the direct peer is inside these is the header read, and then the right-most hop outside them is the client. Empty: the direct peer is the client — behind an ingress, every request then shares the ingress's budget, so set this to the ingress's pod/node range. |
+| `TRUSTED_PROXY_CIDRS` | `""` | Comma-separated CIDRs (or bare IPs) of reverse proxies whose `X-Forwarded-For` is believed when resolving a client IP for rate limiting. Only when the direct peer is inside these is the header read, and then the right-most hop outside them is the client. Empty: the direct peer is the client — behind an ingress, every request then shares the ingress's budget, so set this, `TRUSTED_PROXY_HOPS` or `CLIENT_IP_HEADER`. See [Client IP behind proxies](#client-ip-behind-proxies). |
+| `TRUSTED_PROXY_HOPS` | `0` | How many proxies stand in front of the API. The client is that many `X-Forwarded-For` entries from the right (`1` for a plain ingress). `0` is off. |
+| `CLIENT_IP_HEADER` | `""` | A header the edge overwrites with the client IP, such as `CF-Connecting-IP` or `True-Client-IP`. `X-Forwarded-For` is rejected; use `TRUSTED_PROXY_HOPS` for it. |
 | `SESSION_COOKIE_SAMESITE` | `lax` | Session cookie `SameSite`: `lax`, `strict` or `none`. `none` is accepted only with `ENVIRONMENT=production` (it forces `Secure`). See below. |
 
 `SameSite` is decided by **site**, not origin: two hosts are same-site when they share a
@@ -126,6 +128,27 @@ they are removed from the list.
 Signed-in users can link a second issuer to their account from `/admin/account`. A subject
 already linked to a different account is refused with 409 — OCIDex never merges accounts —
 and so is unlinking an account's last remaining identity.
+
+### Client IP behind proxies
+
+Rate limits key unauthenticated requests by client IP, so behind a proxy OCIDex has to be told how far
+to believe what the proxy reports. Three settings do this, and they apply in this order:
+
+1. **`TRUSTED_PROXY_CIDRS`, when set, gates everything.** A direct peer outside these ranges is the
+   client, whatever headers it sent. It is the strictest option and the only one a client cannot route
+   around.
+2. **`CLIENT_IP_HEADER`, when set, is read next.** Its value is the client. A missing or unparseable
+   value means the request did not pass the edge that sets it, and the peer is the client.
+3. **Otherwise `TRUSTED_PROXY_HOPS`, when set:** the client is the Nth `X-Forwarded-For` entry from the
+   right. A shorter chain gives its left-most entry, and a malformed entry gives the peer.
+4. **Otherwise, with only `TRUSTED_PROXY_CIDRS`,** the chain is walked right to left while it stays
+   inside the trusted ranges.
+
+`CLIENT_IP_HEADER` and `TRUSTED_PROXY_HOPS` describe your topology, not addresses. **They are safe only
+if no path reaches the API without passing through those proxies.** A client that can reach the
+API's Service, a NodePort or the pod directly can send any header it likes, and pick its own rate-limit
+key. Use them when the ingress range is unpinned or changes. Add `TRUSTED_PROXY_CIDRS` on top when you
+can, so the header is believed only from the ingress.
 
 ### Frontend / CORS
 

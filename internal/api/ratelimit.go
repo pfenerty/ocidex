@@ -14,24 +14,44 @@ import (
 	"github.com/pfenerty/ocidex/internal/config"
 )
 
-// ClientIPResolver answers "which client sent this request" for rate limiting
-// (ocidex-mqav.5).
+// ClientIPPolicy says how far to believe what proxies report about the client
+// (ocidex-mqav.5, ocidex-w6st).
 //
-// X-Forwarded-For is a header any client can write, so it is believed only
-// when the direct peer is a trusted proxy, and then only as far as the chain
-// stays inside trusted proxies: the right-most hop that is not one of them is
-// the client. chi's middleware.RealIP is deliberately not used — it believes
-// the header from anyone, which would let a client pick its own rate-limit
-// key.
-type ClientIPResolver struct {
-	trusted []netip.Prefix
+// Precedence, strictest gate first:
+//
+//  1. TrustedProxies, when set, gates everything: a direct peer outside them
+//     is the client, whatever headers it sent.
+//  2. Header, when set, names a header the edge overwrites (CF-Connecting-IP,
+//     True-Client-IP); its value is the client.
+//  3. Otherwise TrustedHops, when set, is how many proxies stand in front of
+//     the API: the client is the TrustedHops-th X-Forwarded-For entry from the
+//     right, Envoy's xff_num_trusted_hops.
+//  4. Otherwise the X-Forwarded-For chain is walked right to left while it
+//     stays inside TrustedProxies.
+//
+// Header and TrustedHops describe topology rather than addresses, so they are
+// only as good as the claim that every path to the API passes through those
+// proxies. TrustedProxies is the one option a client cannot route around.
+type ClientIPPolicy struct {
+	TrustedProxies []netip.Prefix
+	TrustedHops    int
+	Header         string
 }
 
-// NewClientIPResolver returns a resolver that believes X-Forwarded-For only
-// from peers inside trusted. With no trusted prefixes the direct peer is
-// always the client.
-func NewClientIPResolver(trusted []netip.Prefix) *ClientIPResolver {
-	return &ClientIPResolver{trusted: trusted}
+// ClientIPResolver answers "which client sent this request" for rate limiting.
+//
+// X-Forwarded-For is a header any client can write, so it is believed only
+// as far as ClientIPPolicy says. chi's middleware.RealIP is deliberately not
+// used — it believes the header from anyone, which would let a client pick
+// its own rate-limit key.
+type ClientIPResolver struct {
+	policy ClientIPPolicy
+}
+
+// NewClientIPResolver returns a resolver for policy. The zero policy trusts
+// no proxy: the direct peer is always the client.
+func NewClientIPResolver(policy ClientIPPolicy) *ClientIPResolver {
+	return &ClientIPResolver{policy: policy}
 }
 
 // ClientIP returns the request's client IP as a string.
@@ -44,13 +64,65 @@ func (c *ClientIPResolver) ClientIP(r *http.Request) string {
 	if err != nil {
 		return host
 	}
-	client := peer.Unmap()
-	if !c.isTrusted(client) {
-		return client.String()
+	peer = peer.Unmap()
+	if len(c.policy.TrustedProxies) > 0 && !c.isTrusted(peer) {
+		return peer.String()
 	}
+	switch {
+	case c.policy.Header != "":
+		return c.fromHeader(r, peer).String()
+	case c.policy.TrustedHops > 0:
+		return c.fromHops(forwardedFor(r), peer).String()
+	case len(c.policy.TrustedProxies) > 0:
+		return c.fromTrustedChain(forwardedFor(r), peer).String()
+	}
+	return peer.String()
+}
 
-	// Several X-Forwarded-For headers are one list in order (RFC 7230 §3.2.2).
-	hops := strings.Split(strings.Join(r.Header.Values("X-Forwarded-For"), ","), ",")
+// forwardedFor is the X-Forwarded-For chain. Several headers are one list in
+// order (RFC 7230 §3.2.2).
+func forwardedFor(r *http.Request) []string {
+	values := r.Header.Values("X-Forwarded-For")
+	if len(values) == 0 {
+		return nil
+	}
+	return strings.Split(strings.Join(values, ","), ",")
+}
+
+// fromHeader reads the edge's client header. A missing or unparseable value
+// means the request did not come through the edge that sets it, so the peer
+// is the client.
+func (c *ClientIPResolver) fromHeader(r *http.Request, peer netip.Addr) netip.Addr {
+	ip, err := netip.ParseAddr(strings.TrimSpace(r.Header.Get(c.policy.Header)))
+	if err != nil {
+		return peer
+	}
+	return ip.Unmap()
+}
+
+// fromHops picks the TrustedHops-th entry from the right. A chain shorter than
+// that has no entry a client could have prepended beyond what the proxies
+// wrote, so its left-most entry is the client. A hop that does not parse was
+// not written by a proxy, and the peer is the client.
+func (c *ClientIPResolver) fromHops(hops []string, peer netip.Addr) netip.Addr {
+	if len(hops) == 0 {
+		return peer
+	}
+	i := len(hops) - c.policy.TrustedHops
+	if i < 0 {
+		i = 0
+	}
+	ip, err := netip.ParseAddr(strings.TrimSpace(hops[i]))
+	if err != nil {
+		return peer
+	}
+	return ip.Unmap()
+}
+
+// fromTrustedChain walks the chain right to left while it stays inside
+// TrustedProxies: the right-most hop that is not one of them is the client.
+func (c *ClientIPResolver) fromTrustedChain(hops []string, peer netip.Addr) netip.Addr {
+	client := peer
 	for i := len(hops) - 1; i >= 0; i-- {
 		hop, err := netip.ParseAddr(strings.TrimSpace(hops[i]))
 		if err != nil {
@@ -63,11 +135,11 @@ func (c *ClientIPResolver) ClientIP(r *http.Request) string {
 			break
 		}
 	}
-	return client.String()
+	return client
 }
 
 func (c *ClientIPResolver) isTrusted(ip netip.Addr) bool {
-	for _, p := range c.trusted {
+	for _, p := range c.policy.TrustedProxies {
 		if p.Contains(ip) {
 			return true
 		}

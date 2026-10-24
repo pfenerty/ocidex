@@ -184,7 +184,9 @@ Newest first. Each entry names the issue that made the change, so its full conte
   rate-limited per client IP: 30 requests per minute by default (`AUTH_RATE_LIMIT`, chart
   `api.env.authRateLimit`; `0` disables). Set `TRUSTED_PROXY_CIDRS` (chart
   `api.env.trustedProxyCidrs`) to the ingress's address range, or every visitor shares the
-  ingress's budget.
+  ingress's budget. If that range is not fixed, `TRUSTED_PROXY_HOPS` (`1` for a plain ingress)
+  or `CLIENT_IP_HEADER` need no addresses; read their caveat in
+  [CONFIGURATION.md](CONFIGURATION.md#client-ip-behind-proxies) first (ocidex-w6st).
 
 **Behavior changes to check after upgrading:**
 

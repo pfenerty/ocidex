@@ -89,6 +89,16 @@ api:
     # believed when resolving the client IP. Empty keys every request by the
     # direct peer — behind an ingress, that is the ingress itself.
     trustedProxyCidrs: ""
+    # TRUSTED_PROXY_HOPS: how many proxies stand in front of the API (1 for a
+    # plain ingress); the client is that many X-Forwarded-For entries from the
+    # right. Needs no addresses, but trusts that every path to the API goes
+    # through all of them. "0" is off.
+    trustedProxyHops: "0"
+    # CLIENT_IP_HEADER: a header the edge overwrites with the client IP, e.g.
+    # CF-Connecting-IP. Wins over trustedProxyHops. Safe only when nothing
+    # reaches the API without passing that edge. Precedence and caveats:
+    # docs/CONFIGURATION.md.
+    clientIpHeader: ""
     # API_RATE_LIMIT_INGEST / API_RATE_LIMIT_HEAVY: per-principal requests per
     # minute for SBOM ingest and for the expensive artifact/component reads.
     # "0" disables. Admins and the operator key are not exempt; raise these if

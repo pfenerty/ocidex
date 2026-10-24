@@ -2,7 +2,6 @@ package api
 
 import (
 	"context"
-	"net/netip"
 
 	"github.com/danielgtaylor/huma/v2"
 	"github.com/gorilla/securecookie"
@@ -53,10 +52,14 @@ type Handler struct {
 // NewHandler creates a new Handler with the given dependencies.
 func NewHandler(sbomSvc service.SBOMService, searchSvc service.SearchService, authSvc service.AuthService, registrySvc service.RegistryService, namespaceSvc service.NamespaceService, sourceSvc service.SourceService, jobSvc service.JobService, enrichJobSvc service.EnrichJobService, watchSvc service.WatchService, clusterSvc service.ClusterService, db DBPinger, sc ScanSubmitter, cfg *config.Config) *Handler {
 	var sc2 *securecookie.SecureCookie
-	var trustedProxies []netip.Prefix
+	var clientIPs ClientIPPolicy
 	if cfg != nil {
 		sc2 = securecookie.New([]byte(cfg.SessionSecret), nil)
-		trustedProxies = cfg.TrustedProxies
+		clientIPs = ClientIPPolicy{
+			TrustedProxies: cfg.TrustedProxies,
+			TrustedHops:    cfg.TrustedProxyHops,
+			Header:         cfg.ClientIPHeader,
+		}
 	}
 	return &Handler{
 		sbomService:      sbomSvc,
@@ -73,7 +76,7 @@ func NewHandler(sbomSvc service.SBOMService, searchSvc service.SearchService, au
 		scanSubmitter:    sc,
 		cfg:              cfg,
 		stateCookie:      sc2,
-		clientIPs:        NewClientIPResolver(trustedProxies),
+		clientIPs:        NewClientIPResolver(clientIPs),
 		meterProvider:    noop.NewMeterProvider(),
 		tracerProvider:   tracenoop.NewTracerProvider(),
 	}
