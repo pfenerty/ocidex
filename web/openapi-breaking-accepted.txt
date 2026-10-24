@@ -18,3 +18,23 @@ PATCH /api/v1/users/{id}/role removed the required property `github_username` fr
 # ADR-0053 S6: 'pruned' scan jobs, the tombstone an explicit SBOM delete leaves.
 GET /api/v1/jobs added the new `pruned` enum value to the `data/items/state` response property for the response status `200`
 GET /api/v1/jobs/{id} added the new `pruned` enum value to the `state` response property for the response status `200`
+
+# Since v0.2.0 (pre-1.0, minor bump allowed):
+# ADR-0044 K10 (ocidex-ve0f): every running image is ingested. Cluster gap reasons
+# no_registry and pattern_excluded are gone, the job-state reasons are new, and a
+# cluster has its own source kind.
+GET /api/v1/clusters/{id}/unknown-images added the new `deleted` enum value to the `data/items/reason` response property for the response status `200`
+GET /api/v1/clusters/{id}/unknown-images added the new `egress_denied` enum value to the `data/items/reason` response property for the response status `200`
+GET /api/v1/clusters/{id}/unknown-images added the new `failed` enum value to the `data/items/reason` response property for the response status `200`
+GET /api/v1/clusters/{id}/unknown-images added the new `scanning` enum value to the `data/items/reason` response property for the response status `200`
+GET /api/v1/clusters/{id}/unknown-images added the new `unauthorized` enum value to the `data/items/reason` response property for the response status `200`
+GET /api/v1/clusters/{id}/unknown-images added the new `unauthorized` enum value to the `hosts/items/reason` response property for the response status `200`
+GET /api/v1/clusters/{id}/unknown-images removed the required property `reasons/no_registry` from the response with the `200` status
+GET /api/v1/clusters/{id}/unknown-images removed the required property `reasons/pattern_excluded` from the response with the `200` status
+GET /api/v1/sources added the new `cluster` enum value to the `data/items/kind` response property for the response status `200`
+GET /api/v1/sources/{id} added the new `cluster` enum value to the `kind` response property for the response status `200`
+GET /api/v1/users/me/sources added the new `cluster` enum value to the `data/items/kind` response property for the response status `200`
+PATCH /api/v1/sources/{id} added the new `cluster` enum value to the `kind` response property for the response status `200`
+POST /api/v1/clusters/{id}/ingest-unknown removed the required property `skipped_no_registry` from the response with the `200` status
+POST /api/v1/clusters/{id}/ingest-unknown removed the required property `skipped_pattern_excluded` from the response with the `200` status
+POST /api/v1/sources added the new `cluster` enum value to the `kind` response property for the response status `201`

@@ -133,6 +133,20 @@ Newest first. Each entry names the issue that made the change, so its full conte
   second identity. A fresh install now starts with no accounts. If the account was used
   on your install, nothing changes.
 
+- **Every running image in a registered cluster is ingested (ADR-0044 K10, ocidex-ve0f).** An
+  image whose host has no registry in the cluster's namespace is pulled anonymously, and one a
+  registry's patterns exclude is pulled with that registry's credentials. Either SBOM belongs to
+  a new per-cluster source (`source.kind` `cluster`). Expect a burst of scan jobs on the first
+  snapshot after upgrading. API clients that read the cluster gap must handle these changes:
+  - `GET /api/v1/clusters/{id}/unknown-images`: the `no_registry` and `pattern_excluded`
+    reasons and their counts are gone, and `scanning`, `unauthorized`, `egress_denied`, `failed`
+    and `deleted` are new;
+  - `POST /api/v1/clusters/{id}/ingest-unknown`: `skipped_no_registry` and
+    `skipped_pattern_excluded` are gone, and `skipped_existing`, `unauthorized` and
+    `egress_denied` are new;
+  - the source endpoints can return `kind: cluster`, and such a source cannot be renamed or
+    deleted on its own.
+
 - **In production, `OIDC_ISSUER_URL` must be https (ocidex-vvw6.3).** With
   `ENVIRONMENT=production` the API refuses to start with a plain-http issuer. OIDC requires https,
   and the rule keeps the demo's mock issuer out of a real installation. GitHub-only installs are
