@@ -156,6 +156,10 @@ the pull (ADR-0044 K10).
   series once the image stops running.
 - **Repeat pushes are free.** An image that already has a scan job, in any state but succeeded, is
   skipped before any network call, so reporting the same images every two minutes contacts no host.
+- **A digest-only image still gets a version.** The SBOM's version is the image's version label,
+  else the tag it runs under, else its short digest (`sha256:19f02276bf8d`, the index's for a
+  multi-arch image). A pod pinned by digest to an image with no version label, which is common for
+  Chainguard images, would otherwise be refused at ingest.
 - **Multi-arch images expand.** containerd reports the *index* digest, so OCIDex queues one scan
   per platform rather than one job that would match nothing.
 - **Refusals are recorded, not retried.** A 401/403, an egress refusal or a missing manifest is
