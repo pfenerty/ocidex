@@ -217,6 +217,21 @@ type License struct {
 	Url    pgtype.Text `json:"url"`
 }
 
+type LicenseComponentRollup struct {
+	LicenseID    pgtype.UUID `json:"license_id"`
+	NamespaceID  pgtype.UUID `json:"namespace_id"`
+	ComponentID  pgtype.UUID `json:"component_id"`
+	SbomID       pgtype.UUID `json:"sbom_id"`
+	Type         string      `json:"type"`
+	Name         string      `json:"name"`
+	GroupName    pgtype.Text `json:"group_name"`
+	Version      pgtype.Text `json:"version"`
+	Purl         pgtype.Text `json:"purl"`
+	VersionMajor pgtype.Int4 `json:"version_major"`
+	VersionMinor pgtype.Int4 `json:"version_minor"`
+	VersionPatch pgtype.Int4 `json:"version_patch"`
+}
+
 type LicenseRollup struct {
 	LicenseID   pgtype.UUID `json:"license_id"`
 	NamespaceID pgtype.UUID `json:"namespace_id"`
