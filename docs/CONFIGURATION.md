@@ -171,8 +171,12 @@ Controls how SBOMs are enriched after ingestion (OCI label extraction, user meta
 | Variable | Default | Description |
 |----------|---------|-------------|
 | `ENRICHMENT_ENABLED` | `true` | Read by the per-enricher workers; gates whether they consume enrichment jobs. Has no effect on the API process. |
-| `ENRICHMENT_WORKERS` | `2` | Number of concurrent enrichment goroutines inside each enricher worker process. |
-| `ENRICHMENT_QUEUE_SIZE` | `100` | Enrichment work queue depth inside each enricher worker process before back-pressure. |
+| `ENRICHMENT_MAX_CONCURRENCY` | `10` | Enrichment jobs each enricher worker process runs at once. |
+| `ENRICHMENT_POLL_INTERVAL` | `30s` | How often each enricher worker checks the database for queued jobs when no NATS hint arrives. This is what keeps the queue draining while NATS is down. |
+| `ENRICHMENT_STUCK_THRESHOLD` | `10m` | How long a `running` job can go without a heartbeat before the sweep requeues it, or fails it if its attempts are used up. |
+| `ENRICHMENT_MAX_ATTEMPTS` | `3` | Attempts per job before it is left `failed` for the Jobs page's Retry button. |
+| `ENRICHMENT_WORKERS` | `2` | Reported on the admin Status page only; it no longer changes how many jobs run. Use `ENRICHMENT_MAX_CONCURRENCY`. |
+| `ENRICHMENT_QUEUE_SIZE` | `100` | Reported on the admin Status page only; the queue is the `enrichment_jobs` table, which has no depth limit. |
 
 ### OCI Registry Scanner
 
@@ -181,8 +185,10 @@ Controls webhook-triggered and poll-triggered OCI image scanning (runs Syft).
 | Variable | Default | Description |
 |----------|---------|-------------|
 | `SCANNER_ENABLED` | `false` | On the API, enables publishing scan requests (required for both webhook and poll scan modes). The API never scans in-process, so a `scanner-worker` must run to consume the requests. |
-| `SCANNER_WORKERS` | `2` | Number of concurrent scan goroutines inside each `scanner-worker` process. |
-| `SCANNER_QUEUE_SIZE` | `50` | Scan work queue depth inside each `scanner-worker` process. |
+| `SCANNER_MAX_CONCURRENCY` | `10` | Scans each `scanner-worker` process runs at once. Each holds an image's layers in memory, so size `limits.memory` for this many. |
+| `SCANNER_POLL_INTERVAL` | `30s` | How often each `scanner-worker` checks the database for queued `scan_jobs` when no NATS hint arrives. |
+| `SCANNER_STUCK_THRESHOLD` | `15m` | How long a `running` scan job can go without a heartbeat before the sweep requeues it, or fails it if its attempts are used up. |
+| `SCANNER_MAX_ATTEMPTS` | `3` | Attempts per scan job before it is left `failed`. A failed job is not requeued automatically; Retry it from the Jobs page. |
 | `SCANNER_MAX_IMAGE_BYTES` | `2147483648` | Largest image the worker hands to Syft, as total *compressed* layer bytes read from its manifest. Above this the job fails permanently without pulling anything — Syft unpacks every layer, so an image past what `limits.memory` can hold OOMKills the container instead of returning an error, taking any concurrent scan with it. Raise this and the memory limit together; `0` disables the check. |
 | `SCANNER_GO_SYMBOLS` | `all` | Which Go binary packages get their linked function symbols captured, for symbol-level vulnerability matching ([ADR-050](adr/0050-go-symbol-level-vulnerability-matching.md)): `none`, `stdlib`, `extended-stdlib` or `all`. `all` is needed to filter third-party module advisories, not just the standard library's. A large Go image links ~1M symbols; the scan holds them in memory briefly and ingest stores them deduplicated. |
 | `REGISTRY_POLLER_ENABLED` | `false` | Enable the background poller for registries with `scan_mode=poll` or `scan_mode=both`. Requires `SCANNER_ENABLED=true`. Uses leader election so multiple API replicas are safe. |
@@ -331,7 +337,7 @@ Shares the same config vars as the API process. Relevant subset:
 
 - `DATABASE_URL` (required)
 - `NATS_URL`, `NATS_STREAM_NAME` (`NATS_URL` required)
-- `SCANNER_WORKERS`, `SCANNER_QUEUE_SIZE`
+- `SCANNER_MAX_CONCURRENCY`, `SCANNER_POLL_INTERVAL`, `SCANNER_STUCK_THRESHOLD`, `SCANNER_MAX_ATTEMPTS`, `SCANNER_MAX_IMAGE_BYTES`
 - `DATABASE_MAX_CONNECTIONS` (set low, e.g. `3`)
 
 **One-shot mode** (`--once` flag): Scans a single image and exits. Useful for K8s Jobs or ad-hoc scanning.
@@ -432,6 +438,19 @@ no digest and surface as **unresolvable** rather than being dropped — a missin
 read as "nothing is running there". The agent logs an `unresolvable` count on every push.
 
 ---
+
+### `operator`
+
+The Kubernetes operator (ADR-030) is its own chart, `charts/ocidex-operator`. Like `k8s-agent` it
+needs no database or NATS; it talks only to the API.
+
+| Variable | Default | Description |
+|----------|---------|-------------|
+| `OPERATOR_NAMESPACE` | — | Where the leader-election Lease lives. The chart sets it from the pod's own namespace. |
+| `WATCH_NAMESPACE` | — | Comma-separated namespaces whose `OCIRegistry`, `ScanRequest` and `APIKey` objects the operator reconciles. Empty watches every namespace. List the old and new namespaces together while retargeting, or the old namespace's finalizers are never removed (see [OPERATIONS.md](OPERATIONS.md)). |
+| `LEADER_ELECTION_LEASE_DURATION` | `60s` | Leader-election lease length. |
+| `LEADER_ELECTION_RENEW_DEADLINE` | `40s` | How long the leader keeps retrying a renewal before giving up leadership. Wider than controller-runtime's 10s, because each renewal request gets half this as its timeout, and 5s is too little on a loaded control plane (ocidex-vh6). |
+| `LEADER_ELECTION_RETRY_PERIOD` | `10s` | How often candidates retry acquiring the lease. |
 
 ## Per-Registry Trust Anchors
 
