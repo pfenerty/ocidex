@@ -87,6 +87,15 @@ type Config struct {
 	// validate.
 	TrustedProxyCIDRs []string `env:"TRUSTED_PROXY_CIDRS" envSeparator:","`
 	TrustedProxies    []netip.Prefix
+	// TrustedProxyHops is how many proxies stand in front of the API; the
+	// client is that many X-Forwarded-For entries from the right. 0 is off.
+	// It needs no addresses, but trusts that every path passes through all
+	// of them (ocidex-w6st).
+	TrustedProxyHops int `env:"TRUSTED_PROXY_HOPS" envDefault:"0"`
+	// ClientIPHeader names a header the edge overwrites with the client IP
+	// (CF-Connecting-IP, True-Client-IP). It wins over TrustedProxyHops, and
+	// is safe only when no path reaches the API without that edge.
+	ClientIPHeader string `env:"CLIENT_IP_HEADER"`
 
 	// Generic OIDC. Setting OIDC_ISSUER_URL is what enables the provider;
 	// leaving it empty leaves OCIDex GitHub-only, exactly as before.
@@ -640,6 +649,24 @@ func (c *Config) validatePerimeter() error {
 	}
 	if c.TrustedProxies, err = netguard.ParsePrefixes(trimAll(c.TrustedProxyCIDRs)); err != nil {
 		return fmt.Errorf("TRUSTED_PROXY_CIDRS: %w", err)
+	}
+	return c.validateClientIP()
+}
+
+// validateClientIP checks TRUSTED_PROXY_HOPS and CLIENT_IP_HEADER.
+func (c *Config) validateClientIP() error {
+	if c.TrustedProxyHops < 0 {
+		return fmt.Errorf("TRUSTED_PROXY_HOPS must be 0 (off) or the number of proxies in front of the API, got %d", c.TrustedProxyHops)
+	}
+	c.ClientIPHeader = strings.TrimSpace(c.ClientIPHeader)
+	switch {
+	case c.ClientIPHeader == "":
+		return nil
+	case strings.EqualFold(c.ClientIPHeader, "X-Forwarded-For"):
+		// A list any client can prepend to; TRUSTED_PROXY_HOPS is how to read it.
+		return fmt.Errorf("CLIENT_IP_HEADER must name a single-address header the edge overwrites; for X-Forwarded-For set TRUSTED_PROXY_HOPS or TRUSTED_PROXY_CIDRS")
+	case strings.ContainsAny(c.ClientIPHeader, " :\t"):
+		return fmt.Errorf("CLIENT_IP_HEADER %q is not a header name", c.ClientIPHeader)
 	}
 	return nil
 }

@@ -174,6 +174,14 @@ with-env {TZ: "UTC"} {
               `--config ${buildkitConfig}`,
             ].join(" "),
           },
+          // How long buildctl-daemonless.sh waits for buildkitd's socket (ocidex-ktoh).
+          // The script sleeps 0.1s + 0.02s per try, so its default of 10 tries is ~2.2s
+          // in total. That is too little for a daemon opening the persistent root on the
+          // PVC: one build in push run gxqv7 failed "could not connect ... after 10 trials"
+          // with an empty daemon log, i.e. buildkitd had not got as far as logging. 60
+          // tries is ~43s. A daemon that is genuinely broken still fails, and the script
+          // then prints its log.
+          { name: "BUILDCTL_CONNECT_RETRIES_MAX", value: "60" },
           { name: "CHAINS_IMAGE_URL_PATH", value: chains.urlPath },
           { name: "CHAINS_IMAGE_DIGEST_PATH", value: chains.digestPath },
           ...imageEnv,

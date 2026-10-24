@@ -167,6 +167,8 @@ spec:
           value: /tmp/docker-auth
         - name: BUILDKITD_FLAGS
           value: --oci-worker-snapshotter=native --oci-worker-no-process-sandbox --root $(workspaces.buildkit-release-cache.path)/root --config $(workspaces.buildkit-release-cache.path)/buildkitd.toml
+        - name: BUILDCTL_CONNECT_RETRIES_MAX
+          value: "60"
         - name: CHAINS_IMAGE_URL_PATH
           value: $(results.operator-IMAGE_URL.path)
         - name: CHAINS_IMAGE_DIGEST_PATH

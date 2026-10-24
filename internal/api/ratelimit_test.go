@@ -44,7 +44,82 @@ func TestClientIP(t *testing.T) {
 			for _, v := range tt.xff {
 				r.Header.Add("X-Forwarded-For", v)
 			}
-			is.Equal(api.NewClientIPResolver(tt.trusted).ClientIP(r), tt.want)
+			is.Equal(api.NewClientIPResolver(api.ClientIPPolicy{TrustedProxies: tt.trusted}).ClientIP(r), tt.want)
+		})
+	}
+}
+
+// TestClientIPHops covers TRUSTED_PROXY_HOPS (ocidex-w6st): N proxies in
+// front of the API, so the client is the N-th X-Forwarded-For entry from the
+// right, whatever a client prepended to the left of it.
+func TestClientIPHops(t *testing.T) {
+	tests := []struct {
+		name   string
+		hops   int
+		trust  []netip.Prefix
+		remote string
+		xff    []string
+		want   string
+	}{
+		{"one proxy: right-most entry", 1, nil, "10.244.1.5:5000", []string{"198.51.100.1"}, "198.51.100.1"},
+		{"one proxy ignores a spoofed prefix", 1, nil, "10.244.1.5:5000", []string{"6.6.6.6, 198.51.100.1"}, "198.51.100.1"},
+		{"two proxies: second from the right", 2, nil, "10.244.1.5:5000",
+			[]string{"6.6.6.6, 198.51.100.1, 203.0.113.50"}, "198.51.100.1"},
+		{"two proxies across two headers", 2, nil, "10.244.1.5:5000",
+			[]string{"198.51.100.1", "203.0.113.50"}, "198.51.100.1"},
+		{"short chain: left-most entry", 3, nil, "10.244.1.5:5000", []string{"198.51.100.1, 203.0.113.50"}, "198.51.100.1"},
+		{"no XFF: the peer", 1, nil, "10.244.1.5:5000", nil, "10.244.1.5"},
+		{"malformed hop: the peer", 1, nil, "10.244.1.5:5000", []string{"198.51.100.1, nonsense"}, "10.244.1.5"},
+		{"empty hop: the peer", 1, nil, "10.244.1.5:5000", []string{"198.51.100.1,"}, "10.244.1.5"},
+		{"IPv4-mapped hop is unmapped", 1, nil, "10.244.1.5:5000", []string{"::ffff:198.51.100.1"}, "198.51.100.1"},
+		{"CIDRs still gate the peer", 1, []netip.Prefix{netip.MustParsePrefix("10.0.0.0/8")},
+			"203.0.113.9:5000", []string{"198.51.100.1"}, "203.0.113.9"},
+		{"CIDRs gate, hops pick", 2, []netip.Prefix{netip.MustParsePrefix("10.0.0.0/8")},
+			"10.244.1.5:5000", []string{"198.51.100.1, 203.0.113.50"}, "198.51.100.1"},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			is := is.New(t)
+			r := httptest.NewRequest(http.MethodGet, "/auth/login", nil)
+			r.RemoteAddr = tt.remote
+			for _, v := range tt.xff {
+				r.Header.Add("X-Forwarded-For", v)
+			}
+			policy := api.ClientIPPolicy{TrustedProxies: tt.trust, TrustedHops: tt.hops}
+			is.Equal(api.NewClientIPResolver(policy).ClientIP(r), tt.want)
+		})
+	}
+}
+
+// TestClientIPHeader covers CLIENT_IP_HEADER (ocidex-w6st): the edge's header
+// wins over X-Forwarded-For and TRUSTED_PROXY_HOPS, falls back to the peer
+// when absent or unparseable, and still answers to TRUSTED_PROXY_CIDRS.
+func TestClientIPHeader(t *testing.T) {
+	tests := []struct {
+		name   string
+		trust  []netip.Prefix
+		remote string
+		header string
+		want   string
+	}{
+		{"header is the client", nil, "10.244.1.5:5000", "198.51.100.1", "198.51.100.1"},
+		{"IPv6 header", nil, "10.244.1.5:5000", "2001:db8::1", "2001:db8::1"},
+		{"missing header: the peer", nil, "10.244.1.5:5000", "", "10.244.1.5"},
+		{"garbage header: the peer", nil, "10.244.1.5:5000", "198.51.100.1, 6.6.6.6", "10.244.1.5"},
+		{"untrusted peer's header is ignored", []netip.Prefix{netip.MustParsePrefix("10.0.0.0/8")},
+			"203.0.113.9:5000", "198.51.100.1", "203.0.113.9"},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			is := is.New(t)
+			r := httptest.NewRequest(http.MethodGet, "/auth/login", nil)
+			r.RemoteAddr = tt.remote
+			r.Header.Set("X-Forwarded-For", "6.6.6.6")
+			if tt.header != "" {
+				r.Header.Set("CF-Connecting-IP", tt.header)
+			}
+			policy := api.ClientIPPolicy{TrustedProxies: tt.trust, TrustedHops: 1, Header: "CF-Connecting-IP"}
+			is.Equal(api.NewClientIPResolver(policy).ClientIP(r), tt.want)
 		})
 	}
 }

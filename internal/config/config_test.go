@@ -312,6 +312,38 @@ func TestLoad(t *testing.T) {
 			},
 		},
 		{
+			name: "TRUSTED_PROXY_HOPS and CLIENT_IP_HEADER parse",
+			env: map[string]string{
+				"DATABASE_URL":       "postgres://localhost/test",
+				"NATS_URL":           "nats://localhost:4222",
+				"TRUSTED_PROXY_HOPS": "2",
+				"CLIENT_IP_HEADER":   " CF-Connecting-IP ",
+			},
+			check: func(is *is.I, cfg *config.Config) {
+				is.Equal(cfg.TrustedProxyHops, 2)
+				is.Equal(cfg.ClientIPHeader, "CF-Connecting-IP")
+			},
+		},
+		{
+			name: "negative TRUSTED_PROXY_HOPS is rejected",
+			env: map[string]string{
+				"DATABASE_URL":       "postgres://localhost/test",
+				"NATS_URL":           "nats://localhost:4222",
+				"TRUSTED_PROXY_HOPS": "-1",
+			},
+			wantErr: true,
+		},
+		{
+			// A list any client can prepend to is not a client header.
+			name: "CLIENT_IP_HEADER=X-Forwarded-For is rejected",
+			env: map[string]string{
+				"DATABASE_URL":     "postgres://localhost/test",
+				"NATS_URL":         "nats://localhost:4222",
+				"CLIENT_IP_HEADER": "x-forwarded-for",
+			},
+			wantErr: true,
+		},
+		{
 			name: "malformed TRUSTED_PROXY_CIDRS is rejected",
 			env: map[string]string{
 				"DATABASE_URL":        "postgres://localhost/test",

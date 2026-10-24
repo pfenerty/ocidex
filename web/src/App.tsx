@@ -22,6 +22,7 @@ import ClusterDetail from "~/pages/ClusterDetail";
 import Login from "~/pages/Login";
 import Admin from "~/pages/Admin";
 import NotFound from "~/pages/NotFound";
+import About from "~/pages/About";
 import { ArtifactLookup, SBOMLookup } from "~/pages/Lookup";
 
 const queryClient = new QueryClient({
@@ -76,6 +77,7 @@ export default function App() {
                 <Route path="/admin/jobs" component={Admin} />
                 <Route path="/admin/account" component={Admin} />
                 <Route path="/login" component={Login} />
+                <Route path="/about" component={About} />
                 <Route path="*404" component={NotFound} />
             </Router>
             </AuthProvider>

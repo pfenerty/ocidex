@@ -165,6 +165,21 @@
     gap: 0.5rem;
 }
 
+.sidebar-about {
+    display: flex;
+    align-items: center;
+    gap: 0.5rem;
+    padding: 0.25rem 0.75rem;
+    color: var(--color-text-muted);
+    font-size: 0.75rem;
+    text-decoration: none;
+}
+
+.sidebar-about:hover {
+    color: var(--color-text);
+    text-decoration: none;
+}
+
 .sidebar-sign-in {
     display: flex;
     align-items: center;
@@ -357,6 +372,7 @@
     .sidebar-search span,
     .sidebar-search kbd,
     .sidebar-sign-in span,
+    .sidebar-about span,
     .sidebar-user-info span {
         display: none;
     }
@@ -409,6 +425,7 @@
     .sidebar-open .sidebar-search span,
     .sidebar-open .sidebar-search kbd,
     .sidebar-open .sidebar-sign-in span,
+    .sidebar-open .sidebar-about span,
     .sidebar-open .sidebar-user-info span {
         display: initial;
     }
