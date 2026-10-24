@@ -1,7 +1,7 @@
 import "./Layout.css";
 import { A, useNavigate, useLocation } from "@solidjs/router";
 import { createEffect, createSignal, lazy, onCleanup, onMount, Show, type ParentProps } from "solid-js";
-import { Home, LayoutDashboard, Package, Layers, ShieldCheck, ArrowUpDown, ShieldAlert, Server, Database, Settings, LogOut, Search, Menu, X, User } from "lucide-solid";
+import { Home, LayoutDashboard, Package, Layers, ShieldCheck, ArrowUpDown, ShieldAlert, Server, Database, Settings, LogOut, Search, Menu, X, User, Info } from "lucide-solid";
 import ThemeToggle from "~/components/ThemeToggle";
 import CommandPalette, { openCommandPalette, isAppleShortcut } from "~/components/CommandPalette";
 import { useAuth } from "~/context/auth";
@@ -193,6 +193,13 @@ export default function Layout(props: ParentProps) {
                 </nav>
                 <div class="sidebar-footer">
                     <ThemeToggle />
+                    {/* Attribution for the bundled packages and the vulnerability
+                        feeds, whose licenses ask for it where the data is shown
+                        (ocidex-7hhp). */}
+                    <A href="/about" class="sidebar-about" aria-label="About and licenses">
+                        <Info size={14} />
+                        <span>About</span>
+                    </A>
                     {/* Neither the sign-in label nor its icon names an issuer:
                         which ones exist is a deployment decision, and the login
                         page is what asks. */}

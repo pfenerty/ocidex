@@ -58,6 +58,7 @@ const ENTRIES: readonly Entry[] = [
     { path: "/licenses", label: "Licenses", group: "Explore", keywords: "spdx compliance legal" },
     { path: "/vulnerabilities", label: "Vulnerabilities", group: "Explore", keywords: "cve cves vulns security advisories osv" },
     { path: "/diff", label: "Compare", group: "Explore", keywords: "diff changelog drift versions" },
+    { path: "/about", label: "About", group: "Explore", keywords: "licenses attribution third-party data sources nvd" },
 
     { path: "/dashboard", label: "Workspace", group: "Workspace", keywords: "dashboard mine watched", visible: signedIn },
     { path: "/clusters", label: "Clusters", group: "Workspace", keywords: "kubernetes k8s workloads inventory coverage", visible: signedIn },
