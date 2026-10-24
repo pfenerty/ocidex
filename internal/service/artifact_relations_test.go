@@ -91,3 +91,31 @@ func TestCommandMatchRequiresAllFourConditions(t *testing.T) {
 	is.True(commandMatch(text(artifactPurl+"?type=binary"), "git-worker",
 		text(componentPurl+"?type=module"), text("/git-worker")))
 }
+
+// A container records the module as main-<sha> and the application SBOM as
+// 0.0.0-<sha>; the same commit must not read as outdated (ocidex-nps9.4).
+func TestSameVersionMatchesCommitSpellings(t *testing.T) {
+	str := func(s string) *string { return &s }
+	tests := []struct {
+		name             string
+		matched, current string
+		want             bool
+	}{
+		{"identical", "v1.2.3", "v1.2.3", true},
+		{"branch tag vs zero version", "main-bf2bab70", "0.0.0-bf2bab70", true},
+		{"short vs pseudo-version", "main-bf2bab70", "v0.0.0-20251002000000-bf2bab70c1d2", true},
+		{"different commits", "main-bf2bab70", "0.0.0-c1f24c0b", false},
+		{"semver differs", "v1.2.1", "v1.2.3", false},
+		{"date suffix is not a commit", "1.2-20240101", "1.3-20240101", false},
+		{"too short to be a commit", "1.0-abc", "2.0-abc", false},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			is := is.New(t)
+			got := sameVersion(str(tt.matched), str(tt.current))
+			is.True(got != nil)
+			is.Equal(*got, tt.want)
+		})
+	}
+	is.New(t).True(sameVersion(nil, str("v1")) == nil)
+}
