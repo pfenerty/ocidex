@@ -23,6 +23,41 @@ func (q *Queries) DeleteSBOM(ctx context.Context, id pgtype.UUID) (int64, error)
 	return result.RowsAffected(), nil
 }
 
+const getLicenseByName = `-- name: GetLicenseByName :one
+SELECT id, url FROM license WHERE name = $1 AND spdx_id IS NULL
+`
+
+type GetLicenseByNameRow struct {
+	ID  pgtype.UUID `json:"id"`
+	Url pgtype.Text `json:"url"`
+}
+
+func (q *Queries) GetLicenseByName(ctx context.Context, name string) (GetLicenseByNameRow, error) {
+	row := q.db.QueryRow(ctx, getLicenseByName, name)
+	var i GetLicenseByNameRow
+	err := row.Scan(&i.ID, &i.Url)
+	return i, err
+}
+
+const getLicenseBySPDX = `-- name: GetLicenseBySPDX :one
+SELECT id, name FROM license WHERE spdx_id = $1
+`
+
+type GetLicenseBySPDXRow struct {
+	ID   pgtype.UUID `json:"id"`
+	Name string      `json:"name"`
+}
+
+// Ingest's lock-free read before the license upserts (ocidex-q1ni): an
+// upsert row-locks the license until the ingest commits, so every concurrent
+// ingest would queue on a common license like MIT.
+func (q *Queries) GetLicenseBySPDX(ctx context.Context, spdxID pgtype.Text) (GetLicenseBySPDXRow, error) {
+	row := q.db.QueryRow(ctx, getLicenseBySPDX, spdxID)
+	var i GetLicenseBySPDXRow
+	err := row.Scan(&i.ID, &i.Name)
+	return i, err
+}
+
 const getSBOMRawBomForBackfill = `-- name: GetSBOMRawBomForBackfill :one
 SELECT flavor, raw_bom FROM sbom WHERE id = $1
 `

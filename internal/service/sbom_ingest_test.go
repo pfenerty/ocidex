@@ -263,24 +263,23 @@ func TestIngest_HappyPath_ContainerSBOM(t *testing.T) {
 	publisher := &fakePublisher{}
 
 	// queryRowFn is called by: GetSBOMByDigest (returns no rows), then in-tx:
-	// UpsertArtifact, InsertSBOM, UpsertLicenseBySPDX. Components are written via
+	// GetArtifactByIdentity (no rows: a new artifact), UpsertArtifact, InsertSBOM,
+	// GetLicenseBySPDX (no rows), UpsertLicenseBySPDX. Components are written via
 	// CopyFrom, not QueryRow.
-	callCount := 0
-	txQueryRow := func(_ context.Context, _ string, args ...any) pgx.Row {
-		callCount++
-		switch callCount {
-		case 1: // UpsertArtifact
+	txQueryRow := func(_ context.Context, sql string, args ...any) pgx.Row {
+		switch {
+		case contains(sql, "UpsertArtifact"):
 			return &fakeRow{scanFn: func(dest ...any) error {
 				*(dest[0].(*pgtype.UUID)) = artifactID
 				return nil
 			}}
-		case 2: // InsertSBOM — scans (ID UUID, SerialNumber text, SpecVersion string, Version int32, CreatedAt timestamptz)
+		case contains(sql, "InsertSBOM"): // scans (ID UUID, SerialNumber text, SpecVersion string, Version int32, CreatedAt timestamptz)
 			return &fakeRow{scanFn: func(dest ...any) error {
 				*(dest[0].(*pgtype.UUID)) = sbomID
 				*(dest[2].(*string)) = "1.4"
 				return nil
 			}}
-		case 3: // UpsertLicenseBySPDX
+		case contains(sql, "UpsertLicenseBySPDX"):
 			return &fakeRow{scanFn: func(dest ...any) error {
 				*(dest[0].(*pgtype.UUID)) = licenseID
 				return nil
@@ -632,9 +631,12 @@ func TestResolveIngestDigest(t *testing.T) {
 func licenseTx(licenseID pgtype.UUID, spdxCalled, nameCalled *bool) *fakeTx {
 	return &fakeTx{fakeDB: fakeDB{
 		queryRowFn: func(_ context.Context, sql string, _ ...any) pgx.Row {
-			if contains(sql, "UpsertLicenseBySPDX") {
+			switch {
+			case contains(sql, "-- name: GetLicense"):
+				return noRowsRow{} // a new license, so the upsert runs
+			case contains(sql, "UpsertLicenseBySPDX"):
 				*spdxCalled = true
-			} else {
+			default:
 				*nameCalled = true
 			}
 			return &fakeRow{scanFn: func(dest ...any) error {
@@ -688,7 +690,10 @@ func TestCopyComponentLicenses_DedupesDistinctLicenses(t *testing.T) {
 	is := is.New(t)
 	upsertCount := 0
 	tx := &fakeTx{fakeDB: fakeDB{
-		queryRowFn: func(_ context.Context, _ string, _ ...any) pgx.Row {
+		queryRowFn: func(_ context.Context, sql string, _ ...any) pgx.Row {
+			if contains(sql, "-- name: GetLicense") {
+				return noRowsRow{}
+			}
 			upsertCount++
 			return &fakeRow{scanFn: func(dest ...any) error {
 				*(dest[0].(*pgtype.UUID)) = newUUID(t)
@@ -707,6 +712,36 @@ func TestCopyComponentLicenses_DedupesDistinctLicenses(t *testing.T) {
 	is.NoErr(err)
 	is.Equal(upsertCount, 1)                        // license resolved once
 	is.Equal(tx.copiedRows("component_license"), 2) // one join row per component
+}
+
+// TestCopyComponentLicenses_ExistingLicenseIsNotWritten covers ocidex-q1ni: a
+// license already stored as the ingest would write it is read, not upserted, so
+// the ingest takes no row lock on it.
+func TestCopyComponentLicenses_ExistingLicenseIsNotWritten(t *testing.T) {
+	is := is.New(t)
+	stored := newUUID(t)
+	upserts := 0
+	tx := &fakeTx{fakeDB: fakeDB{
+		queryRowFn: func(_ context.Context, sql string, _ ...any) pgx.Row {
+			if contains(sql, "-- name: GetLicenseBySPDX") {
+				return &fakeRow{scanFn: func(dest ...any) error {
+					*(dest[0].(*pgtype.UUID)) = stored
+					*(dest[1].(*string)) = "MIT"
+					return nil
+				}}
+			}
+			upserts++
+			return noRowsRow{}
+		},
+	}}
+	q := repository.New(tx)
+
+	flat := []flatComponent{{id: newUUID(t), comp: &cdx.Component{
+		Licenses: &cdx.Licenses{{License: &cdx.License{ID: "MIT"}}},
+	}}}
+	is.NoErr(copyComponentLicenses(context.Background(), tx, q, flat))
+	is.Equal(upserts, 0)
+	is.Equal(tx.copiedRows("component_license"), 1)
 }
 
 // TestCopyComponentLicenses_NilLicenses verifies that nil input is a no-op.

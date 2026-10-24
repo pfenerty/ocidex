@@ -39,25 +39,29 @@ measured routes fit in the OS page cache of a 16 GB machine.
 
 **Background work that grows with the corpus:**
 * **Rollup refresh** (every 15 minutes, and after ingests): **85.5s** at 10k SBOMs. It runs on
-  the API's background pool, behind an advisory lock, so it never blocks a request.
+  the API's background pool, behind an advisory lock, so it never blocks a request. The
+  `license_component_rollup` added for ocidex-zbe5 costs about 15s of each pass at 8k SBOMs.
 * **Retention queries** (ADR-0056): about 130 ms each on ocidex-dev at 4.2k SBOMs, dominated by
   the semver parse over every version.
 
 ## Ingest throughput
 
-One API process, `-concurrency 1`, `API_RATE_LIMIT_INGEST=0`:
+One API process, `API_RATE_LIMIT_INGEST=0`:
 
-| SBOMs ingested | Time | Rate |
-|---|---:|---:|
-| First 5,000 (into an empty database) | 7m15s | 11.5/s |
-| 10,000 (into an empty database) | 29m48s | 5.6/s overall |
+| SBOMs ingested | Concurrency | Time | Rate |
+|---|---:|---:|---:|
+| First 5,000 (into an empty database) | 1 | 7m15s | 11.5/s |
+| 10,000 (into an empty database) | 1 | 29m48s | 5.6/s overall |
+| 10,000 (into an empty database), after ocidex-q1ni | 8 | 11m16s | 14.8/s overall |
 
-Ingest slows as the tables grow: the second 5,000 took about three times as long as the
-first. Two limits apply in practice:
+Ingest slows as the tables grow: at concurrency 1, the second 5,000 took about three times as
+long as the first. Two limits apply in practice:
 * **Rate limit.** The default per-key ingest limit (`API_RATE_LIMIT_INGEST`, 120 a minute, so
   2 a second) is far below what the API sustains, so it decides the rate for a single CI key.
-* **Concurrency.** Ingests deadlock on the license upsert when run concurrently (ocidex-5prp),
-  so one ingest stream per key is the safe setting until that's fixed.
+* **Concurrency.** Parallel ingest streams now scale: concurrent ingests used to deadlock on
+  the license upsert (ocidex-5prp), and to queue on the artifact's and each license's row lock
+  until some passed the 30s request deadline (ocidex-q1ni). Ingest now writes those rows only
+  when they're new or changed.
 
 Registry scanning isn't measured here: its throughput is the scanner worker's image pull and
 Syft time, which this corpus doesn't exercise.
@@ -151,12 +155,13 @@ sequential, from the same machine, with an admin key. The budget is the server's
 and `/jobs/{id}` returns 404 because the corpus has no scan jobs. Their timings are only the
 error path.
 
-**Over budget:** `/licenses/{id}/components`, p95 9.6s: ocidex-zbe5. Its cost grows with how
-many components carry the license, not with the page size. Every other route's p95 is under
-1s.
+**Over budget at the time:** `/licenses/{id}/components`, p95 9.6s (ocidex-zbe5). Its cost grew
+with how many components carried the license, not with the page size. Every other route's p95
+was under 1s. The server's `http_server_request_duration_seconds` agreed: that route's mean
+over the run was 8.7s.
 
-The server's `http_server_request_duration_seconds` agrees: that route's mean over the run was
-8.7s.
+**After ocidex-zbe5** the route reads `license_component_rollup`. On an 8.1k-SBOM corpus
+(4M components, 707k carrying the measured license), its p95 went from 6.24s to **36 ms**.
 
 ## Recommendations
 

@@ -604,25 +604,18 @@ func (q *Queries) ListComponentPurlTypes(ctx context.Context, arg ListComponentP
 }
 
 const listComponentsByLicense = `-- name: ListComponentsByLicense :many
-WITH ranked AS (
-    SELECT c.id, c.sbom_id, c.type, c.name, c.group_name, c.version, c.purl,
-           c.version_major, c.version_minor, c.version_patch,
-           ROW_NUMBER() OVER (
-               PARTITION BY c.name, COALESCE(c.group_name, ''), COALESCE(c.version, ''), c.type
-               ORDER BY c.id
-           ) AS rn
-    FROM component c
-    JOIN component_license cl ON cl.component_id = c.id
-    WHERE cl.license_id = $3
-      AND EXISTS (
-        SELECT 1 FROM sbom s WHERE s.id = c.sbom_id
-          AND s.namespace_id IN (SELECT visible_namespace_ids($4::uuid, $5::boolean))
-      )
+WITH visible AS (
+    SELECT DISTINCT ON (r.name, COALESCE(r.group_name, ''), COALESCE(r.version, ''), r.type)
+           r.component_id, r.sbom_id, r.type, r.name, r.group_name, r.version, r.purl,
+           r.version_major, r.version_minor, r.version_patch
+    FROM license_component_rollup r
+    WHERE r.license_id = $3
+      AND r.namespace_id IN (SELECT visible_namespace_ids($4::uuid, $5::boolean))
+    ORDER BY r.name, COALESCE(r.group_name, ''), COALESCE(r.version, ''), r.type, r.component_id
 )
-SELECT id, sbom_id, type, name, group_name, version, purl,
+SELECT component_id AS id, sbom_id, type, name, group_name, version, purl,
        COUNT(*) OVER() AS total_count
-FROM ranked
-WHERE rn = 1
+FROM visible
 ORDER BY name,
          version_major DESC NULLS LAST,
          version_minor DESC NULLS LAST,
@@ -650,6 +643,10 @@ type ListComponentsByLicenseRow struct {
 	TotalCount int64       `json:"total_count"`
 }
 
+// Reads license_component_rollup (ocidex-zbe5): one row per distinct component
+// per namespace, so the cost follows the license's distinct components, not
+// every component row carrying it. Visible namespaces are merged by keeping
+// the lowest representative id, which is the lowest across them all.
 func (q *Queries) ListComponentsByLicense(ctx context.Context, arg ListComponentsByLicenseParams) ([]ListComponentsByLicenseRow, error) {
 	rows, err := q.db.Query(ctx, listComponentsByLicense,
 		arg.RowOffset,

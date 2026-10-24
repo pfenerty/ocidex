@@ -1,3 +1,10 @@
+-- name: GetArtifactByIdentity :one
+-- Ingest's lock-free read before UpsertArtifact (ocidex-q1ni). An ON CONFLICT
+-- DO UPDATE row-locks the artifact until the ingest commits, even when it
+-- changes nothing, so concurrent ingests of one image would queue on it.
+SELECT id, purl, cpe FROM artifact
+WHERE type = $1 AND name = $2 AND COALESCE(group_name, '') = COALESCE(sqlc.narg('group_name')::text, '');
+
 -- name: UpsertArtifact :one
 INSERT INTO artifact (type, name, group_name, purl, cpe)
 VALUES ($1, $2, $3, $4, $5)

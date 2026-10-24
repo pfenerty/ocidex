@@ -24,6 +24,15 @@ RETURNING id;
 INSERT INTO component_hash (component_id, algorithm, value)
 VALUES ($1, $2, $3);
 
+-- name: GetLicenseBySPDX :one
+-- Ingest's lock-free read before the license upserts (ocidex-q1ni): an
+-- upsert row-locks the license until the ingest commits, so every concurrent
+-- ingest would queue on a common license like MIT.
+SELECT id, name FROM license WHERE spdx_id = $1;
+
+-- name: GetLicenseByName :one
+SELECT id, url FROM license WHERE name = $1 AND spdx_id IS NULL;
+
 -- name: UpsertLicenseBySPDX :one
 INSERT INTO license (spdx_id, name, url)
 VALUES ($1, $2, $3)
