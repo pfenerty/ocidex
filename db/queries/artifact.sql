@@ -30,6 +30,12 @@ RETURNING id;
 -- strongest negative signal the provenance enricher can produce — was hidden
 -- by any sibling that happened to pass.
 --
+-- signed sits above verified for the same reason (ocidex-nps9.8). A signature
+-- that was found but never checked is a weaker claim than one that was, and
+-- with verified first an artifact whose newest builds went unchecked still
+-- read "Verified" from its older siblings — while the list's tooltip promised
+-- the worst status across every SBOM.
+--
 -- unsigned stays the ELSE: it is the absence of a claim, not a failed one.
 --
 -- See ocidex-goh.16 and, in tests/artifact_rollup_scope_test.go,
@@ -50,13 +56,13 @@ SELECT a.id, a.type, a.name, a.group_name, a.purl, a.cpe, a.created_at,
            WHEN EXISTS (
                SELECT 1 FROM enrichment pe JOIN sbom sx ON sx.id = pe.sbom_id
                WHERE sx.artifact_id = a.id AND pe.enricher_name = 'provenance'
-                 AND pe.status = 'success' AND signing_status(pe.data) = 'verified'
-           ) THEN 'verified'
+                 AND pe.status = 'success' AND signing_status(pe.data) = 'signed'
+           ) THEN 'signed'
            WHEN EXISTS (
                SELECT 1 FROM enrichment pe JOIN sbom sx ON sx.id = pe.sbom_id
                WHERE sx.artifact_id = a.id AND pe.enricher_name = 'provenance'
-                 AND pe.status = 'success' AND signing_status(pe.data) = 'signed'
-           ) THEN 'signed'
+                 AND pe.status = 'success' AND signing_status(pe.data) = 'verified'
+           ) THEN 'verified'
            ELSE 'unsigned'
        END)::text AS signing_status
 FROM artifact a
@@ -84,13 +90,13 @@ SELECT a.id, a.type, a.name, a.group_name, a.purl, a.cpe, a.created_at,
            WHEN EXISTS (
                SELECT 1 FROM enrichment pe JOIN sbom sx ON sx.id = pe.sbom_id
                WHERE sx.artifact_id = a.id AND pe.enricher_name = 'provenance'
-                 AND pe.status = 'success' AND signing_status(pe.data) = 'verified'
-           ) THEN 'verified'
+                 AND pe.status = 'success' AND signing_status(pe.data) = 'signed'
+           ) THEN 'signed'
            WHEN EXISTS (
                SELECT 1 FROM enrichment pe JOIN sbom sx ON sx.id = pe.sbom_id
                WHERE sx.artifact_id = a.id AND pe.enricher_name = 'provenance'
-                 AND pe.status = 'success' AND signing_status(pe.data) = 'signed'
-           ) THEN 'signed'
+                 AND pe.status = 'success' AND signing_status(pe.data) = 'verified'
+           ) THEN 'verified'
            ELSE 'unsigned'
        END)::text AS signing_status,
        -- Severity counts for this artifact's latest *version* (ocidex-unn8.9,
