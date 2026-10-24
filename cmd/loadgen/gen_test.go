@@ -4,6 +4,7 @@ import (
 	"bytes"
 	"encoding/json"
 	"testing"
+	"time"
 
 	cdx "github.com/CycloneDX/cyclonedx-go"
 	"github.com/matryer/is"
@@ -83,4 +84,15 @@ func TestGenerateChurn(t *testing.T) {
 		}
 	}
 	is.True(changed > 20 && changed < 80) // about 5% of 1000
+}
+
+func TestPercentile(t *testing.T) {
+	is := is.New(t)
+	d := make([]time.Duration, 20)
+	for i := range d {
+		d[i] = time.Duration(i+1) * time.Millisecond
+	}
+	is.Equal(percentile(d, 0.50), 10*time.Millisecond)
+	is.Equal(percentile(d, 0.95), 19*time.Millisecond)
+	is.Equal(percentile(d[:1], 0.95), time.Millisecond)
 }

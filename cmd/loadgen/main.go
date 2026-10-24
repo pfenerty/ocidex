@@ -4,7 +4,8 @@
 // at vulnerable versions. The same -seed always produces the same corpus.
 //
 // It writes the SBOMs to a directory, or ingests them into a running instance
-// through pkg/client. See docs/DEVELOPMENT.md "Synthetic corpus".
+// through pkg/client. "loadgen measure" times GET routes against an instance
+// (docs/SIZING.md). See docs/DEVELOPMENT.md "Synthetic corpus".
 package main
 
 import (
@@ -35,9 +36,13 @@ type options struct {
 }
 
 func main() {
-	opts := parseFlags(os.Args[1:])
 	ctx, stop := signal.NotifyContext(context.Background(), os.Interrupt)
-	err := run(ctx, opts)
+	var err error
+	if len(os.Args) > 1 && os.Args[1] == "measure" {
+		err = runMeasure(ctx, parseMeasureFlags(os.Args[2:]), os.Stdout)
+	} else {
+		err = run(ctx, parseFlags(os.Args[1:]))
+	}
 	stop()
 	if err != nil {
 		fmt.Fprintln(os.Stderr, "loadgen:", err)
