@@ -212,7 +212,7 @@ enqueues work, so it carries the same `ClassOwner` + `Write` gate as the invento
 
 ### Rule K10 — Every running image is ingested, registry or not
 
-*Proposed amendment, epic `ocidex-ve0f`. K9 closed the gaps OCIDex already had a registry for. In
+*Amendment, epic `ocidex-ve0f`. K9 closed the gaps OCIDex already had a registry for. In
 practice that left most of the gap open: in the homelab cluster, every `cgr.dev` image and every
 `ghcr.io` repository outside a registry's `repositories` list was reported and never scanned. K10
 makes coverage the default. A registry stops being a precondition for an SBOM and goes back to
