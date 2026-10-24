@@ -4,8 +4,6 @@
 
 OCIDex ingests [CycloneDX](https://cyclonedx.org/) SBOMs, links them to the software artifacts they describe, and gives you a searchable inventory of every component, version, and license across your entire portfolio — with a changelog that shows exactly what changed between releases.
 
-<!-- Screenshots: replace these paths with your actual captures -->
-
 <p align="center">
   <img src="docs/screenshots/artifact.png" alt="OCIDex dashboard showing artifact list" width="800" />
 </p>
@@ -33,32 +31,50 @@ OCIDex ingests [CycloneDX](https://cyclonedx.org/) SBOMs, links them to the soft
 
 ## Quick Start
 
-### With Docker Compose
-
-The fastest way to get a running instance with seed data:
+### Try it: one command, no setup
 
 ```sh
 git clone https://github.com/pfenerty/ocidex.git
 cd ocidex
-cp .env.example .env   # fill in GitHub OAuth credentials and SESSION_SECRET
-docker compose up -d
+make demo
 ```
 
-This starts PostgreSQL, NATS JetStream, the OCIDex API server (port 8080), the scanner and enrichment workers, and the web frontend (port 3000). Database migrations run automatically on startup.
+This builds and starts the whole stack with Docker Compose: PostgreSQL, NATS JetStream, the API
+(port 8080), the scanner, enricher and vulnerability workers, and the web frontend (port 3000).
+Database migrations run first. You need Docker and nothing else: no OAuth app, no `.env` file.
 
-Then open [http://localhost:3000](http://localhost:3000).
+Open [http://localhost:3000](http://localhost:3000) and sign in. Sign-in goes through a mock OIDC
+issuer that lets you pick who you are: **demo-admin** is the installation admin, **demo-viewer** a
+plain viewer. The mock vouches for anyone, so the demo is for your own machine only. The API
+refuses a plain-http issuer like it when `ENVIRONMENT=production`.
 
-To populate it with real-world SBOMs from public container images, log in with GitHub, create an
-API key under **Settings → API Keys**, and run the seeder:
+To fill the catalog with real SBOMs from public container images, sign in as demo-admin, create an
+API key under **Admin → API keys**, and run the seeder:
 
 ```sh
 export OCIDEX_API_KEY=ocidex_...
 flox activate -- make seed
 ```
 
-This registers a set of well-annotated public repositories from quay.io and ghcr.io and triggers
-a scan on each. It exits once the first artifacts appear; the remaining images continue scanning
-in the background.
+It registers a set of well-annotated public repositories from quay.io and ghcr.io and triggers a
+scan on each. It exits once the first artifacts appear, and the remaining images keep scanning in
+the background.
+
+`make demo-down` stops it and keeps the data for next time.
+
+### With Docker Compose and GitHub sign-in
+
+To run the same stack with real accounts, create a GitHub OAuth app whose callback URL is
+`http://localhost:8080/auth/callback`, then:
+
+```sh
+cp .env.example .env   # fill in GITHUB_CLIENT_ID, GITHUB_CLIENT_SECRET and SESSION_SECRET
+docker compose up -d
+```
+
+Any OIDC issuer works instead of GitHub (`OIDC_ISSUER_URL` and `OIDC_CLIENT_ID`; see
+[CONFIGURATION.md](docs/CONFIGURATION.md)). For a real deployment, use the Helm chart
+([DEPLOYMENT.md](docs/DEPLOYMENT.md)).
 
 ### From Source
 

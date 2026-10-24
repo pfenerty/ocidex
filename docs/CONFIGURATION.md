@@ -91,7 +91,7 @@ than producing a login button that fails on click.
 
 | Variable | Default | Description |
 |----------|---------|-------------|
-| `OIDC_ISSUER_URL` | `""` | Discovery base — the URL serving `/.well-known/openid-configuration`. Must match the `iss` claim exactly. Empty leaves OCIDex with whatever else is configured — with nothing else configured, the server will not start. |
+| `OIDC_ISSUER_URL` | `""` | Discovery base — the URL serving `/.well-known/openid-configuration`. Must match the `iss` claim exactly, and must be `https://` when `ENVIRONMENT=production`. Empty leaves OCIDex with whatever else is configured — with nothing else configured, the server will not start. |
 | `OIDC_CLIENT_ID` | — | Required when `OIDC_ISSUER_URL` is set. |
 | `OIDC_CLIENT_SECRET` | `""` | Omit for a public client; PKCE is always used regardless. |
 | `OIDC_NAME` | `oidc` | Permanent key half of the `oidc:<name>` provider string stored against every account signed in through this issuer. **Changing it after the first login orphans those accounts.** |

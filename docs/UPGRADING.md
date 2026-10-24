@@ -129,6 +129,11 @@ Newest first. Each entry names the issue that made the change, so its full conte
   second identity. A fresh install now starts with no accounts. If the account was used
   on your install, nothing changes.
 
+- **In production, `OIDC_ISSUER_URL` must be https (ocidex-vvw6.3).** With
+  `ENVIRONMENT=production` the API refuses to start with a plain-http issuer. OIDC requires https,
+  and the rule keeps the demo's mock issuer out of a real installation. GitHub-only installs are
+  unaffected.
+
 **After upgrading:**
 
 - **Run `ocidex migrate backfill` once if your database predates 0.1.0's data (ocidex-bt62.1).**

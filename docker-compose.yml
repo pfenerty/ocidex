@@ -72,8 +72,10 @@ services:
       ENVIRONMENT: development
       # Registries here are on the compose network or the host (ocidex-avsz.6).
       EGRESS_ALLOW_PRIVATE: "true"
+    # Optional, so `make demo` (docker-compose.demo.yml) runs with no .env at all.
     env_file:
-      - .env
+      - path: .env
+        required: false
     ports:
       - "8080:8080"
 

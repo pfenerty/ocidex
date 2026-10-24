@@ -7,7 +7,7 @@ ifneq (,$(wildcard .env))
   export
 endif
 
-.PHONY: all build run fmt lint license-check vulncheck test test-coverage test-integration check init clean generate generate-check generate-client generate-client-check generate-operator generate-operator-check migrate-up migrate-down seed frontend frontend-dev frontend-dev-live frontend-dev-auth dev-auth-up dev-auth-down dev-auth-fixtures dev-auth-status dev-auth-reset dev-mock-idp frontend-init frontend-lint frontend-lint-fix frontend-typecheck frontend-test openapi openapi-check auth-matrix auth-matrix-check helm-check tekton-synth tekton-check dev-docker-check dev-registry dev-cluster-up dev-cluster-down dev-up dev-down release version help
+.PHONY: demo demo-down all build run fmt lint license-check vulncheck test test-coverage test-integration check init clean generate generate-check generate-client generate-client-check generate-operator generate-operator-check migrate-up migrate-down seed frontend frontend-dev frontend-dev-live frontend-dev-auth dev-auth-up dev-auth-down dev-auth-fixtures dev-auth-status dev-auth-reset dev-mock-idp frontend-init frontend-lint frontend-lint-fix frontend-typecheck frontend-test openapi openapi-check auth-matrix auth-matrix-check helm-check tekton-synth tekton-check dev-docker-check dev-registry dev-cluster-up dev-cluster-down dev-up dev-down release version help
 
 all: check build ## Run all checks and build
 
@@ -134,6 +134,22 @@ auth-matrix: ## Regenerate docs/AUTH_MATRIX.md from the authRules declarations
 auth-matrix-check: ## Verify docs/AUTH_MATRIX.md is up-to-date
 	go run ./cmd/authmatrix > /tmp/auth-matrix-check.md
 	diff docs/AUTH_MATRIX.md /tmp/auth-matrix-check.md || (echo "ERROR: docs/AUTH_MATRIX.md is stale. Run 'make auth-matrix'." && exit 1)
+
+# Zero-config demo (ocidex-vvw6.3): the compose stack plus a mock OIDC issuer, so a first run
+# needs no GitHub OAuth app and no .env. SESSION_SECRET is generated once into .dev/ (gitignored)
+# so sessions survive a restart.
+DEMO_COMPOSE = docker compose -f docker-compose.yml -f docker-compose.demo.yml
+
+demo: dev-docker-check ## Run OCIDex locally with a mock sign-in; no OAuth app or .env needed
+	@mkdir -p .dev
+	@test -s .dev/demo-session-secret || openssl rand -hex 32 > .dev/demo-session-secret
+	OCIDEX_DEMO_SESSION_SECRET=$$(cat .dev/demo-session-secret) $(DEMO_COMPOSE) up -d --build
+	@echo ""
+	@echo "OCIDex is starting at http://localhost:3000. Sign in with the mock issuer as"
+	@echo "demo-admin (installation admin) or demo-viewer. Stop it with: make demo-down"
+
+demo-down: ## Stop the demo started by make demo (keeps its data volumes)
+	OCIDEX_DEMO_SESSION_SECRET=unused $(DEMO_COMPOSE) down
 
 seed: ## Seed database with real SBOMs from public OCI registries (needs OCIDEX_API_KEY)
 	nu scripts/seed.nu $(SEED_ARGS)

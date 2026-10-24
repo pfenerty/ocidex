@@ -1,0 +1,49 @@
+# Zero-config demo (ocidex-vvw6.3): `make demo`, then open http://localhost:3000 and sign in as
+# demo-admin. No GitHub OAuth app, no .env. Layered over docker-compose.yml.
+#
+# Sign-in goes through cmd/mock-idp, a mock OIDC issuer that vouches for anyone. It is for a
+# laptop only: the API refuses a plain-http issuer when ENVIRONMENT=production, and this file
+# keeps ENVIRONMENT=development.
+#
+# The issuer has to be one URL that both the browser and the API can reach, because go-oidc checks
+# that the issuer the API was configured with is the one in the tokens. So the API runs inside
+# mock-idp's network namespace: http://localhost:9999 is mock-idp for the browser (published port)
+# and for the API (shared loopback). mock-idp owns the namespace, rather than the API, because the
+# API is the one that restarts.
+services:
+  mock-idp:
+    build:
+      context: .
+      dockerfile: docker/mock-idp/Dockerfile
+    container_name: ocidex-mock-idp
+    restart: unless-stopped
+    command: ["-addr", ":9999", "-issuer", "http://localhost:9999", "-personas", "demo-admin,demo-viewer"]
+    # The API listens here too, so its port is published from this container, and the web tier
+    # still finds it under the service name it proxies to.
+    ports:
+      - "8080:8080"
+      - "9999:9999"
+    networks:
+      default:
+        aliases: [ocidex]
+
+  ocidex:
+    network_mode: "service:mock-idp"
+    ports: !reset []
+    depends_on:
+      mock-idp:
+        condition: service_started
+    environment:
+      SESSION_SECRET: ${OCIDEX_DEMO_SESSION_SECRET:?run make demo, which generates it}
+      GITHUB_CLIENT_ID: ""
+      GITHUB_CLIENT_SECRET: ""
+      OIDC_ISSUER_URL: http://localhost:9999
+      OIDC_CLIENT_ID: ocidex-demo
+      OIDC_NAME: mock
+      OIDC_REDIRECT_URL: http://localhost:3000/auth/callback
+      FRONTEND_URL: http://localhost:3000
+      CORS_ALLOWED_ORIGINS: http://localhost:3000
+      # demo-admin is the installation admin; demo-viewer signs up as a plain viewer.
+      BOOTSTRAP_ADMINS: oidc:mock:demo-admin
+      SCANNER_ENABLED: "true"
+      REGISTRY_POLLER_ENABLED: "true"

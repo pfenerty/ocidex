@@ -312,6 +312,50 @@ func TestLoad(t *testing.T) {
 			},
 		},
 		{
+			// The demo's mock issuer is plain http; production must refuse it
+			// (ocidex-vvw6.3).
+			name: "production refuses a plain-http OIDC issuer",
+			env: map[string]string{
+				"DATABASE_URL":               "postgres://localhost/test",
+				"NATS_URL":                   "nats://localhost:4222",
+				"ENVIRONMENT":                "production",
+				"DATA_ENCRYPTION_KEYS":       "k1:" + testKey,
+				"DATA_ENCRYPTION_ACTIVE_KEY": "k1",
+				"OIDC_ISSUER_URL":            "http://localhost:9999",
+				"OIDC_CLIENT_ID":             "ocidex-demo",
+			},
+			wantErr: true,
+		},
+		{
+			// The same production config with an https issuer loads, so the
+			// case above fails on the issuer and nothing else.
+			name: "production accepts an https OIDC issuer",
+			env: map[string]string{
+				"DATABASE_URL":               "postgres://localhost/test",
+				"NATS_URL":                   "nats://localhost:4222",
+				"ENVIRONMENT":                "production",
+				"DATA_ENCRYPTION_KEYS":       "k1:" + testKey,
+				"DATA_ENCRYPTION_ACTIVE_KEY": "k1",
+				"OIDC_ISSUER_URL":            "https://id.example.com",
+				"OIDC_CLIENT_ID":             "ocidex",
+			},
+			check: func(is *is.I, cfg *config.Config) {
+				is.Equal(cfg.OIDCIssuerURL, "https://id.example.com")
+			},
+		},
+		{
+			name: "development accepts a plain-http OIDC issuer",
+			env: map[string]string{
+				"DATABASE_URL":    "postgres://localhost/test",
+				"NATS_URL":        "nats://localhost:4222",
+				"OIDC_ISSUER_URL": "http://localhost:9999",
+				"OIDC_CLIENT_ID":  "ocidex-demo",
+			},
+			check: func(is *is.I, cfg *config.Config) {
+				is.Equal(cfg.OIDCIssuerURL, "http://localhost:9999")
+			},
+		},
+		{
 			name: "TRUSTED_PROXY_HOPS and CLIENT_IP_HEADER parse",
 			env: map[string]string{
 				"DATABASE_URL":       "postgres://localhost/test",

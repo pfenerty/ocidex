@@ -589,6 +589,11 @@ func (c *Config) validate() error {
 	if err := c.validateRetention(); err != nil {
 		return err
 	}
+	return c.validateOIDC()
+}
+
+// validateOIDC checks the generic OIDC provider settings.
+func (c *Config) validateOIDC() error {
 	// Half-configured OIDC is worse than none: the login button would exist
 	// and fail. Discovery itself is validated at startup in cmd/ocidex.
 	if c.OIDCIssuerURL != "" && c.OIDCClientID == "" {
@@ -596,6 +601,12 @@ func (c *Config) validate() error {
 	}
 	if c.OIDCIssuerURL == "" && c.OIDCClientID != "" {
 		return fmt.Errorf("OIDC_ISSUER_URL is required when OIDC_CLIENT_ID is set")
+	}
+	// OIDC requires an https issuer. Enforcing it in production is also what
+	// keeps the demo's mock issuer (cmd/mock-idp, plain http, vouches for
+	// anyone) from ever signing users in to a real installation (ocidex-vvw6.3).
+	if c.Environment == envProduction && c.OIDCIssuerURL != "" && !strings.HasPrefix(c.OIDCIssuerURL, "https://") {
+		return fmt.Errorf("OIDC_ISSUER_URL must be an https URL when ENVIRONMENT=production, got %q", c.OIDCIssuerURL)
 	}
 	return nil
 }
