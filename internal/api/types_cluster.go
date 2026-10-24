@@ -353,9 +353,9 @@ type ListClusterUnknownImagesInput struct {
 // SBOM, together with whether OCIDex could ingest it.
 //
 // The reason is reported rather than reduced to a boolean because the remedies
-// differ: adding a registry, enabling one, and widening its repository patterns
-// are three different actions, and a bare "cannot ingest" would send everyone
-// to the first one.
+// differ: adding credentials, enabling a registry, and fixing a node runtime
+// are different actions, and a bare "cannot ingest" would send everyone to the
+// first one.
 type UnknownImageResponse struct {
 	ImageRef           string  `json:"image_ref"`
 	ImageDigest        string  `json:"image_digest"`
@@ -365,8 +365,8 @@ type UnknownImageResponse struct {
 	PodCount           int64   `json:"pod_count"`
 	SampleK8sNamespace string  `json:"sample_k8s_namespace,omitempty"`
 	SampleWorkloadName string  `json:"sample_workload_name,omitempty"`
-	Reason             string  `json:"reason" enum:"ready,scanning,unauthorized,egress_denied,failed,deleted,registry_disabled,pattern_excluded,unparseable_ref" doc:"Where this image stands: ready to queue, already has a job, or why it cannot be ingested (ADR-0044 K10)"`
-	RegistryID         *string `json:"registry_id,omitempty" doc:"Registry whose credentials pull this image, when one was matched at all; absent on a ready image means an anonymous pull"`
+	Reason             string  `json:"reason" enum:"ready,scanning,unauthorized,egress_denied,failed,deleted,registry_disabled,unparseable_ref" doc:"Where this image stands: ready to queue, already has a job, or why it cannot be ingested (ADR-0044 K10)"`
+	RegistryID         *string `json:"registry_id,omitempty" doc:"Registry whose credentials pull this image, or the disabled one blocking it; absent on a ready image means an anonymous pull"`
 	RegistryName       *string `json:"registry_name,omitempty"`
 }
 
@@ -383,7 +383,6 @@ type UnknownImageReasonCounts struct {
 	Failed           int64 `json:"failed" doc:"The manifest was not there, or the scan used up its attempts; ingesting the row retries it"`
 	Deleted          int64 `json:"deleted" doc:"Its SBOM was deleted on purpose; cluster ingest does not bring it back"`
 	RegistryDisabled int64 `json:"registry_disabled" doc:"The host matches a registry that is switched off"`
-	PatternExcluded  int64 `json:"pattern_excluded" doc:"The registry's repository patterns exclude this repository"`
 	UnparseableRef   int64 `json:"unparseable_ref" doc:"The reported reference carries no host to resolve against"`
 }
 
@@ -401,7 +400,7 @@ type UnknownImageReasonCounts struct {
 type UnknownHostResponse struct {
 	Host            string   `json:"host" doc:"Normalized registry host the images in this group name, and the address a registry for it would use"`
 	Scope           string   `json:"scope" doc:"The group: the host plus any leading repository segments that belong to the registry rather than the image, e.g. ghcr.io/pfenerty"`
-	Reason          string   `json:"reason" enum:"unauthorized,registry_disabled,pattern_excluded" doc:"The worst remedy seen for this group: a registry to add, switch on, or widen. Other states name no registry to configure and are not grouped here"`
+	Reason          string   `json:"reason" enum:"unauthorized,registry_disabled" doc:"The worst remedy seen for this group: a registry to add or fix credentials for, or one to switch on. Other states name no registry to configure and are not grouped here"`
 	ImageCount      int64    `json:"image_count"`
 	PodCount        int64    `json:"pod_count"`
 	WorkloadCount   int64    `json:"workload_count"`
@@ -437,8 +436,8 @@ type IngestUnknownInput struct {
 // it considered.
 //
 // The skips are broken out by reason rather than summed. A single "skipped"
-// number cannot be acted on: adding credentials, enabling a registry, widening
-// its repository patterns, and fixing a node runtime are different jobs.
+// number cannot be acted on: adding credentials, enabling a registry and
+// fixing a node runtime are different jobs.
 type IngestUnknownOutput struct {
 	Body struct {
 		Considered              int `json:"considered" doc:"Unknown images looked at; the counts below account for all of them"`
@@ -447,7 +446,6 @@ type IngestUnknownOutput struct {
 		Unauthorized            int `json:"unauthorized" doc:"The host refused the pull, in this run or a recorded earlier one; not retried"`
 		EgressDenied            int `json:"egress_denied" doc:"The host is in an address range the egress policy refuses; not retried"`
 		SkippedRegistryDisabled int `json:"skipped_registry_disabled" doc:"The host matches a registry that is switched off"`
-		SkippedPatternExcluded  int `json:"skipped_pattern_excluded" doc:"The registry's repository patterns exclude this repository"`
 		SkippedUnparseableRef   int `json:"skipped_unparseable_ref" doc:"The reported reference carries no host to resolve against"`
 		Failed                  int `json:"failed" doc:"Submission errored: a manifest that is not there, or a transient registry or queue problem"`
 	}

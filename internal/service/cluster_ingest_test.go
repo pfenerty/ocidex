@@ -88,12 +88,13 @@ func TestResolveIngestTarget(t *testing.T) {
 			wantReason: IngestReasonReady, wantRegistry: "r-ghcr",
 		},
 		{
-			// Nothing is broken here: the exclusion is deliberate, and saying
-			// so stops it being read as a failure to fix.
+			// ADR-0044 K10: patterns scope the catalog walk, not a running
+			// image. The registry's credentials pull it; the SBOM is the
+			// cluster's, since the registry's walk would not have found it.
 			name:       "repository excluded by the registry's patterns",
 			ref:        "quay.io/other/app:v1",
 			registries: []Registry{narrow},
-			wantReason: IngestReasonPatternExcluded, wantRegistry: "r-narrow",
+			wantReason: IngestReasonReady, wantRegistry: "r-narrow", wantCluster: true,
 		},
 		{
 			name:       "repository accepted by the registry's patterns",
@@ -112,7 +113,14 @@ func TestResolveIngestTarget(t *testing.T) {
 			name:       "another org's repository is not claimed",
 			ref:        "ghcr.io/thirdparty/agent:v1",
 			registries: []Registry{otherCorp},
-			wantReason: IngestReasonPatternExcluded, wantRegistry: "r-othercorp",
+			wantReason: IngestReasonReady, wantRegistry: "r-othercorp", wantCluster: true,
+		},
+		{
+			// Credentials that work beat a switched-off registry.
+			name:       "an excluding registry outranks a disabled one",
+			ref:        "quay.io/other/app:v1",
+			registries: []Registry{{ID: "r-quay-off", URL: "quay.io"}, narrow},
+			wantReason: IngestReasonReady, wantRegistry: "r-narrow", wantCluster: true,
 		},
 		{
 			name:       "the org's own registry wins on a shared host",
@@ -208,7 +216,6 @@ func TestIngestResultCountSkip(t *testing.T) {
 		IngestReasonFailed,
 		IngestReasonDeleted,
 		IngestReasonRegistryDisabled,
-		IngestReasonPatternExcluded,
 		IngestReasonUnparseableRef,
 	}
 	for _, reason := range reasons {
@@ -216,7 +223,7 @@ func TestIngestResultCountSkip(t *testing.T) {
 			var res IngestResult
 			res.countSkip(reason)
 			total := res.SkippedExisting + res.SkippedRegistryDisabled +
-				res.SkippedPatternExcluded + res.SkippedUnparseableRef +
+				res.SkippedUnparseableRef +
 				res.Unauthorized + res.EgressDenied + res.Failed
 			if total != 1 {
 				t.Errorf("countSkip(%q) filed %d skips, want exactly 1", reason, total)
@@ -247,7 +254,7 @@ func TestRollUpHosts(t *testing.T) {
 		img("ghcr.io", "org/c", IngestReasonReady, 90, 90, "r-ok"),
 		// A reference with no host has nowhere to send the reader.
 		img("", "", IngestReasonUnparseableRef, 70, 70, ""),
-		img("quay.io", "team/x", IngestReasonPatternExcluded, 1, 1, "r-quay"),
+		img("quay.io", "team/x", IngestReasonRegistryDisabled, 1, 1, "r-quay"),
 	})
 
 	if len(hosts) != 2 {
@@ -279,10 +286,9 @@ func TestRollUpHostsReportsWorstReason(t *testing.T) {
 		reasons []string
 		want    string
 	}{
-		{"excluded alone", []string{IngestReasonPatternExcluded}, IngestReasonPatternExcluded},
-		{"disabled outranks excluded", []string{IngestReasonPatternExcluded, IngestReasonRegistryDisabled}, IngestReasonRegistryDisabled},
-		{"refused outranks both", []string{IngestReasonRegistryDisabled, IngestReasonUnauthorized, IngestReasonPatternExcluded}, IngestReasonUnauthorized},
-		{"order of arrival does not matter", []string{IngestReasonUnauthorized, IngestReasonPatternExcluded}, IngestReasonUnauthorized},
+		{"disabled alone", []string{IngestReasonRegistryDisabled}, IngestReasonRegistryDisabled},
+		{"refused outranks disabled", []string{IngestReasonRegistryDisabled, IngestReasonUnauthorized}, IngestReasonUnauthorized},
+		{"order of arrival does not matter", []string{IngestReasonUnauthorized, IngestReasonRegistryDisabled}, IngestReasonUnauthorized},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {

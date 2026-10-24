@@ -36,10 +36,6 @@ const (
 	// IngestReasonRegistryDisabled means the host matches a registry that is
 	// switched off. The remedy is to enable it, not to add another.
 	IngestReasonRegistryDisabled = "registry_disabled"
-	// IngestReasonPatternExcluded means the registry's repository patterns, or
-	// its explicit repositories list, deliberately exclude this repository. Nothing is broken; the exclusion is
-	// reported so it does not look like a failure.
-	IngestReasonPatternExcluded = "pattern_excluded"
 	// IngestReasonUnparseableRef means the reported reference has no host, so
 	// there is nothing to resolve against. This overlaps with the K3 gap: a
 	// runtime reporting a bare identifier gives no registry to ask.
@@ -81,9 +77,9 @@ type UnknownImage struct {
 	SampleWorkloadName string
 
 	// Reason is one of the IngestReason constants. RegistryID and RegistryName
-	// are set whenever a registry was matched at all — including when it is
-	// disabled or excludes the repository, because naming the registry is what
-	// makes those two reasons actionable. A nil RegistryID on a ready image
+	// are set whenever a registry was matched at all: the one whose credentials
+	// pull the image, or the disabled one that blocks it, which is only
+	// actionable named. A nil RegistryID on a ready image
 	// means an anonymous pull.
 	Reason       string
 	RegistryID   *string
@@ -129,7 +125,7 @@ type UnknownHost struct {
 	RepositoryCount int64
 
 	// Set whenever a registry was matched for this host. Naming it is what
-	// makes "switched off" and "excludes this repository" actionable; an
+	// makes "switched off" and "wrong credentials" actionable; an
 	// unauthorized host usually has none, and the remedy is to add one.
 	RegistryID   *string
 	RegistryName *string
@@ -142,15 +138,14 @@ const maxHostRepositories = 100
 
 // hostRemedyRank orders the reasons that name a registry to configure, worst
 // first. A host whose images hit several reasons is reported by the worst one:
-// adding a registry subsumes enabling one, which subsumes widening its
-// patterns, and reporting the mildest would understate the work.
+// adding a registry with credentials subsumes enabling one, and reporting
+// the milder would understate the work.
 //
 // Ready and UnparseableRef are absent deliberately — neither names a registry
 // anyone can go and configure, so neither belongs in this rollup.
 var hostRemedyRank = map[string]int{
 	IngestReasonUnauthorized:     3,
 	IngestReasonRegistryDisabled: 2,
-	IngestReasonPatternExcluded:  1,
 }
 
 // singleTenantHosts are hosts that would otherwise be split by a rule below but
@@ -542,40 +537,49 @@ func jobStateReason(j repository.ListScanJobsForDigestsRow) string {
 // source its SBOM is attributed to, or records why it cannot be ingested.
 //
 // An enabled registry that accepts the repository wins outright, and the SBOM
-// is the registry's. A host no registry in the namespace matches is pulled
-// anonymously and attributed to the cluster (ADR-0044 K10). Otherwise the
-// first host match is kept so the reason can name it: "ghcr is switched off"
-// must name the registry to switch on.
+// is the registry's. Failing that, the first enabled registry for the host
+// pulls it with its credentials even though its patterns exclude the
+// repository: patterns scope the catalog walk, and a running image is already
+// chosen. That SBOM, like one pulled anonymously from a host no registry in
+// the namespace matches, is the cluster's (ADR-0044 K10). A host whose only
+// match is switched off is not ingested, and the reason names that registry.
 func resolveIngestTarget(img *UnknownImage, registries []Registry, clusterID string) {
 	if img.RegistryHost == "" {
 		img.Reason = IngestReasonUnparseableRef
 		return
 	}
-	img.Reason, img.attribution = IngestReasonReady, clusterID
-	for _, reg := range registries {
+	var credentials, disabled *Registry
+	for i := range registries {
+		reg := &registries[i]
 		if reg.Host() != img.RegistryHost {
 			continue
 		}
 		switch {
 		case !reg.Enabled:
-			img.setRegistry(reg, IngestReasonRegistryDisabled)
-		case !reg.ClaimsRepository(img.Repository):
-			img.setRegistry(reg, IngestReasonPatternExcluded)
-		default:
-			img.setRegistry(reg, IngestReasonReady)
+			if disabled == nil {
+				disabled = reg
+			}
+		case reg.ClaimsRepository(img.Repository):
+			img.setRegistry(*reg, IngestReasonReady)
 			img.attribution = reg.ID
 			return
+		case credentials == nil:
+			credentials = reg
 		}
+	}
+	switch {
+	case credentials != nil:
+		img.setRegistry(*credentials, IngestReasonReady)
+		img.attribution = clusterID
+	case disabled != nil:
+		img.setRegistry(*disabled, IngestReasonRegistryDisabled)
+	default:
+		img.Reason, img.attribution = IngestReasonReady, clusterID
 	}
 }
 
-// setRegistry names the matched registry, keeping the first match for any
-// non-ready reason so a later, worse match cannot overwrite it.
+// setRegistry names the matched registry and the reason.
 func (u *UnknownImage) setRegistry(reg Registry, reason string) {
-	if u.RegistryID != nil && reason != IngestReasonReady {
-		return
-	}
-	u.attribution = ""
 	id, name := reg.ID, reg.Name
 	u.RegistryID, u.RegistryName, u.Reason = &id, &name, reason
 }
@@ -679,7 +683,6 @@ type IngestResult struct {
 	// failed, or deleted on purpose. A repeat snapshot lands here.
 	SkippedExisting         int
 	SkippedRegistryDisabled int
-	SkippedPatternExcluded  int
 	SkippedUnparseableRef   int
 	// Unauthorized and EgressDenied count images refused by their host, in
 	// this run or a recorded earlier one. Neither is retried.
@@ -843,8 +846,6 @@ func (r *IngestResult) countSkip(reason string) {
 	switch reason {
 	case IngestReasonRegistryDisabled:
 		r.SkippedRegistryDisabled++
-	case IngestReasonPatternExcluded:
-		r.SkippedPatternExcluded++
 	case IngestReasonUnparseableRef:
 		r.SkippedUnparseableRef++
 	case IngestReasonUnauthorized, IngestReasonEgressDenied:

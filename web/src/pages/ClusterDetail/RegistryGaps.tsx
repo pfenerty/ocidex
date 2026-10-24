@@ -8,10 +8,10 @@ import { REASON_PRESENTATION, addRegistryHref } from "./GapsTab";
 /**
  * What to do about a host, and where that is done.
  *
- * Three different remedies, three different destinations: a host nothing is
- * configured for needs a registry created; one whose registry is switched off
- * needs it enabled; one excluded by patterns needs those widened. Collapsing
- * them into one "fix this" would send two thirds of readers to the wrong form.
+ * Different remedies, different destinations: a host that refused the pull
+ * needs a registry with credentials created, or its registry's credentials
+ * fixed; one whose registry is switched off needs it enabled. Collapsing them
+ * into one "fix this" would send readers to the wrong form.
  *
  * `repos` and `ns` only ride along on the create path. The edit paths open a
  * registry that already exists, and prefilling its Repositories from the gap
@@ -38,8 +38,6 @@ function remedyFor(host: UnknownHost, namespace: string): { label: string; href:
                 label: "Add registry",
                 href: addRegistryHref(host.host, repos, namespace, host.scope),
             };
-        case "pattern_excluded":
-            return { label: `Widen ${host.registry_name ?? "registry"} patterns`, href: `/admin/sources?registry=${host.registry_id ?? ""}` };
         default:
             return {
                 label: "Add registry",
@@ -116,7 +114,7 @@ function HostRow(props: { host: UnknownHost; namespace: string }) {
  *
  * Hosts with nothing to configure — an image that is already ingestable, or a
  * reference carrying no host at all — are absent by construction: the server
- * groups only the three reasons that name a registry.
+ * groups only the reasons that name a registry to configure.
  */
 export function RegistryGaps(props: { hosts: UnknownHost[]; namespace: string }) {
     const covered = () => props.hosts.reduce((n, h) => n + h.image_count, 0);

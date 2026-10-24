@@ -2844,11 +2844,6 @@ export interface components {
             skipped_existing: number;
             /**
              * Format: int64
-             * @description The registry's repository patterns exclude this repository
-             */
-            skipped_pattern_excluded: number;
-            /**
-             * Format: int64
              * @description The host matches a registry that is switched off
              */
             skipped_registry_disabled: number;
@@ -4006,10 +4001,10 @@ export interface components {
             /** Format: int64 */
             pod_count: number;
             /**
-             * @description The worst remedy seen for this group: a registry to add, switch on, or widen. Other states name no registry to configure and are not grouped here
+             * @description The worst remedy seen for this group: a registry to add or fix credentials for, or one to switch on. Other states name no registry to configure and are not grouped here
              * @enum {string}
              */
-            reason: "unauthorized" | "registry_disabled" | "pattern_excluded";
+            reason: "unauthorized" | "registry_disabled";
             /** @description Registry that serves this group, when one was matched at all */
             registry_id?: string;
             registry_name?: string;
@@ -4041,11 +4036,6 @@ export interface components {
              * @description The manifest was not there, or the scan used up its attempts; ingesting the row retries it
              */
             failed: number;
-            /**
-             * Format: int64
-             * @description The registry's repository patterns exclude this repository
-             */
-            pattern_excluded: number;
             /**
              * Format: int64
              * @description Will be queued next run, with a registry's credentials or anonymously
@@ -4081,10 +4071,10 @@ export interface components {
              * @description Where this image stands: ready to queue, already has a job, or why it cannot be ingested (ADR-0044 K10)
              * @enum {string}
              */
-            reason: "ready" | "scanning" | "unauthorized" | "egress_denied" | "failed" | "deleted" | "registry_disabled" | "pattern_excluded" | "unparseable_ref";
+            reason: "ready" | "scanning" | "unauthorized" | "egress_denied" | "failed" | "deleted" | "registry_disabled" | "unparseable_ref";
             /** @description Host parsed out of image_ref; empty when the reference carries none */
             registry_host?: string;
-            /** @description Registry whose credentials pull this image, when one was matched at all; absent on a ready image means an anonymous pull */
+            /** @description Registry whose credentials pull this image, or the disabled one blocking it; absent on a ready image means an anonymous pull */
             registry_id?: string;
             registry_name?: string;
             repository?: string;

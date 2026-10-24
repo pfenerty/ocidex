@@ -2955,11 +2955,6 @@
             "format": "int64",
             "type": "integer"
           },
-          "skipped_pattern_excluded": {
-            "description": "The registry's repository patterns exclude this repository",
-            "format": "int64",
-            "type": "integer"
-          },
           "skipped_registry_disabled": {
             "description": "The host matches a registry that is switched off",
             "format": "int64",
@@ -2983,7 +2978,6 @@
           "unauthorized",
           "egress_denied",
           "skipped_registry_disabled",
-          "skipped_pattern_excluded",
           "skipped_unparseable_ref",
           "failed"
         ],
@@ -6104,11 +6098,10 @@
             "type": "integer"
           },
           "reason": {
-            "description": "The worst remedy seen for this group: a registry to add, switch on, or widen. Other states name no registry to configure and are not grouped here",
+            "description": "The worst remedy seen for this group: a registry to add or fix credentials for, or one to switch on. Other states name no registry to configure and are not grouped here",
             "enum": [
               "unauthorized",
-              "registry_disabled",
-              "pattern_excluded"
+              "registry_disabled"
             ],
             "type": "string"
           },
@@ -6173,11 +6166,6 @@
             "format": "int64",
             "type": "integer"
           },
-          "pattern_excluded": {
-            "description": "The registry's repository patterns exclude this repository",
-            "format": "int64",
-            "type": "integer"
-          },
           "ready": {
             "description": "Will be queued next run, with a registry's credentials or anonymously",
             "format": "int64",
@@ -6212,7 +6200,6 @@
           "failed",
           "deleted",
           "registry_disabled",
-          "pattern_excluded",
           "unparseable_ref"
         ],
         "type": "object"
@@ -6240,7 +6227,6 @@
               "failed",
               "deleted",
               "registry_disabled",
-              "pattern_excluded",
               "unparseable_ref"
             ],
             "type": "string"
@@ -6250,7 +6236,7 @@
             "type": "string"
           },
           "registry_id": {
-            "description": "Registry whose credentials pull this image, when one was matched at all; absent on a ready image means an anonymous pull",
+            "description": "Registry whose credentials pull this image, or the disabled one blocking it; absent on a ready image means an anonymous pull",
             "type": "string"
           },
           "registry_name": {

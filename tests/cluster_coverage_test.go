@@ -45,6 +45,70 @@ func (f *queueingSubmitter) SubmitForRunningImage(ctx context.Context, target se
 	return 1, nil
 }
 
+// TestClusterCoveragePatternExcluded covers the pattern half of ADR-0044 K10:
+// a running image outside its registry's patterns is queued with that
+// registry's credentials and attributed to the cluster, while the registry's
+// own catalog scope is unchanged.
+func TestClusterCoveragePatternExcluded(t *testing.T) {
+	if testing.Short() {
+		t.Skip("skipping integration test in short mode")
+	}
+	requireTestInfra(t)
+	pool, cleanup := setupTestDB(t)
+	defer cleanup()
+
+	ctx := t.Context()
+	is := is.New(t)
+	q := repository.New(pool)
+	svc := service.NewClusterService(pool, nil)
+	jobs := service.NewJobService(pool, nil)
+
+	owner := seedUser(t, pool, 9702, "pattern-owner", "member")
+	nsID := seedNamespace(t, pool, "pattern-ns", owner, "private")
+	clusterID := seedCluster(t, pool, nsID, "pattern-prod")
+	cid := mustUUID(t, clusterID)
+	seedClusterRegistry(t, pool, nsID, "ghcr-team", "ghcr.io", true, []string{"team/**"})
+	var regID string
+	is.NoErr(pool.QueryRow(ctx, `SELECT id::text FROM source WHERE namespace_id = $1 AND name = 'ghcr-team'`, nsID).Scan(&regID))
+
+	observed := pgtype.Timestamptz{Time: time.Now().UTC(), Valid: true}
+	for _, w := range []struct{ name, ref, dgst string }{
+		{"own", "ghcr.io/team/api:v1", digest('4')},
+		{"outside", "ghcr.io/other/tool:v1", digest('5')},
+	} {
+		is.NoErr(q.UpsertClusterWorkload(ctx, repository.UpsertClusterWorkloadParams{
+			ClusterID: cid, K8sNamespace: "prod", WorkloadKind: "Deployment", WorkloadName: w.name,
+			ContainerName: "app", ImageRef: w.ref, ImageDigest: txt(w.dgst), PodCount: 1, ObservedAt: observed,
+		}))
+	}
+
+	sub := &queueingSubmitter{jobs: jobs}
+	res, err := svc.IngestUnknown(ctx, clusterID, sub, service.IngestUnknownParams{}, service.VisibilityFilter{UserID: owner})
+	is.NoErr(err)
+	is.Equal(res.Queued, 2)
+
+	attribution := func(dgst string) (registry, cluster string) {
+		t.Helper()
+		var r, c pgtype.Text
+		is.NoErr(pool.QueryRow(ctx, `SELECT registry_id::text, cluster_id::text FROM scan_jobs WHERE digest = $1`, dgst).Scan(&r, &c))
+		return r.String, c.String
+	}
+	// Inside the patterns: the registry's job, as its walk would have queued.
+	r, c := attribution(digest('4'))
+	is.Equal(r, regID)
+	is.Equal(c, "")
+	// Outside: the registry's credentials, the cluster's SBOM.
+	r, c = attribution(digest('5'))
+	is.Equal(r, regID)
+	is.Equal(c, clusterID)
+
+	// The registry's catalog scope is what it was.
+	reg, err := service.NewRegistryService(pool, nil).Get(ctx, regID)
+	is.NoErr(err)
+	is.True(reg.ClaimsRepository("team/api"))
+	is.True(!reg.ClaimsRepository("other/tool"))
+}
+
 // TestClusterCoverageAnonymous covers ADR-0044 K10 for hosts no registry
 // serves: the image is queued anonymously and attributed to the cluster's own
 // source, a refused host is recorded once and never asked again by a repeat

@@ -96,7 +96,6 @@ are one thing to ingest. Each row says what stands between it and an SBOM:
 | `scan failed` | The manifest was not there, or the scan used up its attempts | **Retry** |
 | `SBOM deleted` | Its SBOM was deleted on purpose | Rescan it from the image's page; cluster ingest does not bring it back |
 | `registry disabled` | The matching registry is switched off | Enable it |
-| `excluded by patterns` | The registry's repository patterns exclude this repo, or it lists explicit repositories and this is not one of them (a registry for one org on a shared host such as ghcr.io does not claim other orgs) | Widen them, or add the repository, if that is intended |
 | `no host in reference` | The reported reference names no registry at all | Node runtime issue; see below |
 
 Both link into **Sources**, where registries are managed: `pull refused` opens the add dialog
@@ -148,6 +147,9 @@ the pull (ADR-0044 K10).
   granted. Such an image, and any image from a host no registry serves, is pulled anonymously.
 - **Anonymous pulls are guarded.** They go through the same egress policy as registry traffic and
   always use HTTPS; a plain-HTTP registry needs a configured registry with `insecure` set.
+- **Patterns scope the catalog walk, not running images.** A registry for the host pulls a running
+  image with its credentials even when its repository patterns, or its explicit repositories list,
+  exclude the repository.
 - **Attribution.** An image a registry's patterns select is that registry's SBOM, exactly as if its
   catalog walk had found it. Anything else belongs to the cluster: each cluster has a source of
   kind `cluster` in its namespace, and retention keeps the newest versions of those SBOMs per

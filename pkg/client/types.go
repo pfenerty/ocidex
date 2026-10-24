@@ -632,7 +632,6 @@ func (e SourceResponseKind) Valid() bool {
 
 // Defines values for UnknownHostResponseReason.
 const (
-	UnknownHostResponseReasonPatternExcluded  UnknownHostResponseReason = "pattern_excluded"
 	UnknownHostResponseReasonRegistryDisabled UnknownHostResponseReason = "registry_disabled"
 	UnknownHostResponseReasonUnauthorized     UnknownHostResponseReason = "unauthorized"
 )
@@ -640,8 +639,6 @@ const (
 // Valid indicates whether the value is a known member of the UnknownHostResponseReason enum.
 func (e UnknownHostResponseReason) Valid() bool {
 	switch e {
-	case UnknownHostResponseReasonPatternExcluded:
-		return true
 	case UnknownHostResponseReasonRegistryDisabled:
 		return true
 	case UnknownHostResponseReasonUnauthorized:
@@ -656,7 +653,6 @@ const (
 	UnknownImageResponseReasonDeleted          UnknownImageResponseReason = "deleted"
 	UnknownImageResponseReasonEgressDenied     UnknownImageResponseReason = "egress_denied"
 	UnknownImageResponseReasonFailed           UnknownImageResponseReason = "failed"
-	UnknownImageResponseReasonPatternExcluded  UnknownImageResponseReason = "pattern_excluded"
 	UnknownImageResponseReasonReady            UnknownImageResponseReason = "ready"
 	UnknownImageResponseReasonRegistryDisabled UnknownImageResponseReason = "registry_disabled"
 	UnknownImageResponseReasonScanning         UnknownImageResponseReason = "scanning"
@@ -672,8 +668,6 @@ func (e UnknownImageResponseReason) Valid() bool {
 	case UnknownImageResponseReasonEgressDenied:
 		return true
 	case UnknownImageResponseReasonFailed:
-		return true
-	case UnknownImageResponseReasonPatternExcluded:
 		return true
 	case UnknownImageResponseReasonReady:
 		return true
@@ -2622,9 +2616,6 @@ type IngestUnknownOutputBody struct {
 	// SkippedExisting Already has a scan job: scanning, failed, or deleted on purpose. A repeat snapshot lands here.
 	SkippedExisting int64 `json:"skipped_existing"`
 
-	// SkippedPatternExcluded The registry's repository patterns exclude this repository
-	SkippedPatternExcluded int64 `json:"skipped_pattern_excluded"`
-
 	// SkippedRegistryDisabled The host matches a registry that is switched off
 	SkippedRegistryDisabled int64 `json:"skipped_registry_disabled"`
 
@@ -3684,7 +3675,7 @@ type UnknownHostResponse struct {
 	ImageCount int64  `json:"image_count"`
 	PodCount   int64  `json:"pod_count"`
 
-	// Reason The worst remedy seen for this group: a registry to add, switch on, or widen. Other states name no registry to configure and are not grouped here
+	// Reason The worst remedy seen for this group: a registry to add or fix credentials for, or one to switch on. Other states name no registry to configure and are not grouped here
 	Reason UnknownHostResponseReason `json:"reason"`
 
 	// RegistryId Registry that serves this group, when one was matched at all
@@ -3702,7 +3693,7 @@ type UnknownHostResponse struct {
 	WorkloadCount int64  `json:"workload_count"`
 }
 
-// UnknownHostResponseReason The worst remedy seen for this group: a registry to add, switch on, or widen. Other states name no registry to configure and are not grouped here
+// UnknownHostResponseReason The worst remedy seen for this group: a registry to add or fix credentials for, or one to switch on. Other states name no registry to configure and are not grouped here
 type UnknownHostResponseReason string
 
 // UnknownImageReasonCounts defines model for UnknownImageReasonCounts.
@@ -3715,9 +3706,6 @@ type UnknownImageReasonCounts struct {
 
 	// Failed The manifest was not there, or the scan used up its attempts; ingesting the row retries it
 	Failed int64 `json:"failed"`
-
-	// PatternExcluded The registry's repository patterns exclude this repository
-	PatternExcluded int64 `json:"pattern_excluded"`
 
 	// Ready Will be queued next run, with a registry's credentials or anonymously
 	Ready int64 `json:"ready"`
@@ -3747,7 +3735,7 @@ type UnknownImageResponse struct {
 	// RegistryHost Host parsed out of image_ref; empty when the reference carries none
 	RegistryHost *string `json:"registry_host,omitempty"`
 
-	// RegistryId Registry whose credentials pull this image, when one was matched at all; absent on a ready image means an anonymous pull
+	// RegistryId Registry whose credentials pull this image, or the disabled one blocking it; absent on a ready image means an anonymous pull
 	RegistryId         *string `json:"registry_id,omitempty"`
 	RegistryName       *string `json:"registry_name,omitempty"`
 	Repository         *string `json:"repository,omitempty"`

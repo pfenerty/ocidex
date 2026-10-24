@@ -231,7 +231,6 @@ const NO_REASONS = {
     failed: 0,
     deleted: 0,
     registry_disabled: 0,
-    pattern_excluded: 0,
     unparseable_ref: 0,
 };
 
@@ -952,7 +951,7 @@ describe("ClusterDetail", () => {
             unknownImage({ image_ref: "ghcr.io/a:v1", reason: "ready", registry_id: "r-1", registry_name: "ghcr" }),
             unknownImage({ image_ref: "gcr.io/b:v1", reason: "unauthorized", registry_host: "gcr.io" }),
             unknownImage({ image_ref: "quay.io/c:v1", reason: "registry_disabled", registry_id: "r-2", registry_name: "quay" }),
-            unknownImage({ image_ref: "quay.io/d:v1", reason: "pattern_excluded", registry_id: "r-2", registry_name: "quay" }),
+            unknownImage({ image_ref: "quay.io/d:v1", reason: "deleted", registry_id: "r-3", registry_name: "quay-team" }),
         ];
         const { container } = renderPage([workload({ match_state: "unknown" })], GAPPY);
 
@@ -962,7 +961,7 @@ describe("ClusterDetail", () => {
         // "switched off" and "never configured" are different problems, so the
         // matched registry is named rather than reported as absent.
         expect(container.textContent).toContain("registry disabled");
-        expect(container.textContent).toContain("excluded by patterns");
+        expect(container.textContent).toContain("SBOM deleted");
         expect(container.textContent).toContain("quay");
 
         // Both links used to point at a top-level /registries route that has
@@ -1190,11 +1189,10 @@ describe("ClusterDetail", () => {
         ingestResult = {
             considered: 3,
             queued: 1,
-            skipped_existing: 0,
+            skipped_existing: 1,
             unauthorized: 1,
             egress_denied: 0,
             skipped_registry_disabled: 0,
-            skipped_pattern_excluded: 1,
             skipped_unparseable_ref: 0,
             failed: 0,
         };
@@ -1202,7 +1200,7 @@ describe("ClusterDetail", () => {
 
         expect(container.textContent).toContain("Queued 1 scan job");
         expect(container.textContent).toContain("1 skipped: pull refused by the host");
-        expect(container.textContent).toContain("1 skipped: excluded by registry patterns");
+        expect(container.textContent).toContain("1 skipped: already scanning, failed or deleted");
         expect(container.textContent).not.toContain("registry disabled");
         expect(container.textContent).toContain("in the background");
     });

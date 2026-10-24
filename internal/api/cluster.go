@@ -200,7 +200,6 @@ func (h *Handler) autoIngestAfterSnapshot(ctx context.Context, clusterID string)
 			"unauthorized", res.Unauthorized,
 			"egress_denied", res.EgressDenied,
 			"registry_disabled", res.SkippedRegistryDisabled,
-			"pattern_excluded", res.SkippedPatternExcluded,
 			"unparseable_ref", res.SkippedUnparseableRef,
 			"failed", res.Failed)
 	}()
@@ -233,7 +232,6 @@ func (h *Handler) IngestUnknown(ctx context.Context, in *IngestUnknownInput) (*I
 	out.Body.Unauthorized = res.Unauthorized
 	out.Body.EgressDenied = res.EgressDenied
 	out.Body.SkippedRegistryDisabled = res.SkippedRegistryDisabled
-	out.Body.SkippedPatternExcluded = res.SkippedPatternExcluded
 	out.Body.SkippedUnparseableRef = res.SkippedUnparseableRef
 	out.Body.Failed = res.Failed
 	return out, nil
@@ -422,7 +420,6 @@ func (h *Handler) ListClusterUnknownImages(ctx context.Context, in *ListClusterU
 		Failed:           page.Reasons[service.IngestReasonFailed],
 		Deleted:          page.Reasons[service.IngestReasonDeleted],
 		RegistryDisabled: page.Reasons[service.IngestReasonRegistryDisabled],
-		PatternExcluded:  page.Reasons[service.IngestReasonPatternExcluded],
 		UnparseableRef:   page.Reasons[service.IngestReasonUnparseableRef],
 	}
 	out.Body.Hosts = make([]UnknownHostResponse, len(page.Hosts))

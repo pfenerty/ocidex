@@ -21,8 +21,8 @@ const PAGE_SIZE = 50;
 
 /**
  * How each ingest reason is presented. Every one of them is a different thing
- * to do — add credentials, switch a registry on, widen its patterns, fix the
- * node — so a single "cannot ingest" would send everyone to the wrong remedy.
+ * to do — add credentials, switch a registry on, fix the node — so a single
+ * "cannot ingest" would send everyone to the wrong remedy.
  */
 export const REASON_PRESENTATION: Record<
     IngestReason,
@@ -35,7 +35,6 @@ export const REASON_PRESENTATION: Record<
     failed: { label: "scan failed", variant: "danger" },
     deleted: { label: "SBOM deleted", variant: "warning" },
     registry_disabled: { label: "registry disabled", variant: "warning" },
-    pattern_excluded: { label: "excluded by patterns", variant: "warning" },
     unparseable_ref: { label: "no host in reference", variant: "warning" },
 };
 
@@ -95,9 +94,9 @@ const RETRYABLE: ReadonlySet<IngestReason> = new Set(["unauthorized", "egress_de
 /**
  * IngestTargetCell says what stands between this image and an SBOM.
  *
- * The registry is named whenever one was matched at all, including when it is
- * switched off or excludes the repository: "ghcr is disabled" is only
- * actionable if you know it is ghcr.
+ * The registry is named whenever one was matched at all: the one whose
+ * credentials pull the image, or the disabled one blocking it. "ghcr is
+ * disabled" is only actionable if you know it is ghcr.
  */
 function IngestTargetCell(props: {
     image: UnknownImage;
@@ -252,7 +251,6 @@ function ingestSummary(res: IngestResult): string {
         [res.unauthorized, "pull refused by the host"],
         [res.egress_denied, "address refused by the egress policy"],
         [res.skipped_registry_disabled, "registry disabled"],
-        [res.skipped_pattern_excluded, "excluded by registry patterns"],
         [res.skipped_unparseable_ref, "no host in the reference"],
         [res.failed, "submission failed"],
     ];
