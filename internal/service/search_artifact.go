@@ -121,14 +121,14 @@ func (s *searchService) ListVersionsByArtifact(ctx context.Context, artifactID p
 		all = append(all, artifactVersionFromRow(row))
 	}
 
-	hasSemver := false
+	semverCount := 0
 	for _, v := range all {
 		if isSemver(v.VersionKey) {
-			hasSemver = true
-			break
+			semverCount++
 		}
 	}
-	resolved := resolveSortMode(mode, hasSemver)
+	hasSemver := semverCount > 0
+	resolved := resolveSortMode(mode, semverCount, len(all))
 
 	if resolved == SortSemver {
 		filtered := all[:0:0]

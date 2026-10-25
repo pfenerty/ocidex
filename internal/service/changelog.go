@@ -341,8 +341,9 @@ func (s *searchService) GetArtifactChangelog(ctx context.Context, artifactID pgt
 
 	// hasSemver reflects the whole artifact (any arch/flavor), so switching the
 	// selected timeline never flips the default Semver/All toggle.
-	hasSemver := groupsHaveSemver(best)
-	resolved := resolveSortMode(query.Mode, hasSemver)
+	semverCount, versionCount := groupsSemverShare(best)
+	hasSemver := semverCount > 0
+	resolved := resolveSortMode(query.Mode, semverCount, versionCount)
 
 	candidates := filterByArchAndFlavor(best, selectedArch, selectedFlavor)
 	if resolved == SortSemver {

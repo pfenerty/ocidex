@@ -14,7 +14,7 @@ import type { SortDir } from "~/components/DataTable";
 import { EmptyState } from "~/components/Feedback";
 import { Skeleton, SkeletonHeader, SkeletonText } from "~/components/Skeleton";
 import { Breadcrumb, ButtonGroup, Button, QueryBoundary, TabBar, createExpandedSet, type Crumb, type TabDef } from "~/components/ui";
-import { artifactDisplayName } from "~/utils/format";
+import { artifactDisplayName, plural } from "~/utils/format";
 import { ArtifactHeader, ArtifactIdentity } from "./ArtifactHeader";
 import { ArtifactBand, type ArtifactTab } from "./ArtifactBand";
 import { VersionsTab } from "./VersionsTab";
@@ -241,6 +241,28 @@ export default function ArtifactDetail() {
                                 </Show>
 
                                 <Show when={tab() === "versions"}>
+                                    {/* Semver mode drops every other version, so the
+                                        count it hides is said rather than left to
+                                        the tab's total to contradict (ocidex-nps9.9). */}
+                                    <Show
+                                        when={
+                                            effectiveMode() === "semver" && versionsQuery.data !== undefined
+                                                ? a().versionCount - versionsQuery.data.pagination.total
+                                                : 0
+                                        }
+                                    >
+                                        {(hidden) => (
+                                            <Show when={hidden() > 0}>
+                                                <p class="text-muted text-sm mb-4">
+                                                    {plural(versionsQuery.data?.pagination.total ?? 0, "semver release")} ·{" "}
+                                                    {plural(hidden(), "other build")} hidden.{" "}
+                                                    <button type="button" class="link-button" onClick={() => selectMode("all")}>
+                                                        Show all
+                                                    </button>
+                                                </p>
+                                            </Show>
+                                        )}
+                                    </Show>
                                     <VersionsTab
                                         artifactId={params.id}
                                         isContainer={isContainer()}
