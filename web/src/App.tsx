@@ -1,4 +1,4 @@
-import { Router, Route } from "@solidjs/router";
+import { Router, Route, Navigate } from "@solidjs/router";
 import { QueryClient, QueryClientProvider } from "@tanstack/solid-query";
 import { AuthProvider } from "~/context/auth";
 import { ToastProvider } from "~/context/toast";
@@ -65,6 +65,8 @@ export default function App() {
                 <Route path="/vulnerabilities" component={Vulnerabilities} />
                 <Route path="/vulnerabilities/:id" component={VulnerabilityDetail} />
                 <Route path="/diff" component={Diff} />
+                {/* The page is "Compare" in the nav, so /compare is the URL people type. */}
+                <Route path="/compare" component={() => <Navigate href={(l) => `/diff${l.location.search}`} />} />
                 <Route path="/clusters" component={Clusters} />
                 <Route path="/clusters/:id" component={ClusterDetail} />
                 <Route path="/admin" component={Admin} />
