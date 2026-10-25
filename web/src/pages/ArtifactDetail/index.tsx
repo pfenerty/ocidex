@@ -194,7 +194,14 @@ export default function ArtifactDetail() {
 
     const crumbs = (): Crumb[] => [
         { label: "Artifacts", href: "/artifacts" },
-        { label: artifactQuery.isLoading ? <Skeleton width="6rem" inline /> : artifactQuery.data?.name },
+        // The same group/name the title and the list use (ocidex-nps9.28).
+        {
+            label: artifactQuery.isLoading ? (
+                <Skeleton width="6rem" inline />
+            ) : artifactQuery.data !== undefined ? (
+                artifactDisplayName(artifactQuery.data)
+            ) : undefined,
+        },
     ];
 
     return (

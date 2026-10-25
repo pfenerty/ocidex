@@ -5,6 +5,7 @@ import { EmptyState } from "~/components/Feedback";
 import { SkeletonText } from "~/components/Skeleton";
 import { DiffPairView, ViewToggle } from "~/components/DiffPairView";
 import { Breadcrumb, PageHeader, QueryBoundary, TabBar } from "~/components/ui";
+import { artifactDisplayName } from "~/utils/format";
 
 export default function ArtifactVersionHistory() {
     const params = useParams<{ id: string; version: string }>();
@@ -47,7 +48,10 @@ export default function ArtifactVersionHistory() {
                         items={[
                             { label: "Artifacts", href: "/artifacts" },
                             {
-                                label: artifactQuery.data?.name ?? params.id,
+                                label:
+                                    artifactQuery.data !== undefined
+                                        ? artifactDisplayName(artifactQuery.data)
+                                        : params.id,
                                 href: `/artifacts/${params.id}`,
                             },
                             { label: version(), mono: true },
