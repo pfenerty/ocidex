@@ -38,3 +38,279 @@ PATCH /api/v1/sources/{id} added the new `cluster` enum value to the `kind` resp
 POST /api/v1/clusters/{id}/ingest-unknown removed the required property `skipped_no_registry` from the response with the `200` status
 POST /api/v1/clusters/{id}/ingest-unknown removed the required property `skipped_pattern_excluded` from the response with the `200` status
 POST /api/v1/sources added the new `cluster` enum value to the `kind` response property for the response status `201`
+
+# Since v0.2.0, before 1.0 (ocidex-nps9.32): every /api/v1 JSON property is camelCase
+# (ocidex-nps9.7, docs/API_VERSIONING.md). Each snake_case property is removed and its
+# camelCase spelling added.
+GET /api/v1/admin/status removed the required property `db/latency_ms` from the response with the `200` status
+GET /api/v1/admin/status removed the required property `enrichment/queue_size` from the response with the `200` status
+GET /api/v1/admin/status removed the required property `scan_jobs` from the response with the `200` status
+GET /api/v1/admin/status removed the required property `scanner/poller_enabled` from the response with the `200` status
+GET /api/v1/auth/identities removed the required property `identities/items/created_at` from the response with the `200` status
+GET /api/v1/auth/identities removed the required property `identities/items/display_name` from the response with the `200` status
+GET /api/v1/auth/keys removed the required property `keys/items/created_at` from the response with the `200` status
+GET /api/v1/auth/providers removed the required property `providers/items/display_name` from the response with the `200` status
+GET /api/v1/auth/providers removed the required property `providers/items/login_path` from the response with the `200` status
+GET /api/v1/clusters removed the required property `data/items/auto_ingest` from the response with the `200` status
+GET /api/v1/clusters removed the required property `data/items/created_at` from the response with the `200` status
+GET /api/v1/clusters removed the required property `data/items/namespace_id` from the response with the `200` status
+GET /api/v1/clusters removed the required property `data/items/updated_at` from the response with the `200` status
+GET /api/v1/clusters/{id} removed the required property `auto_ingest` from the response with the `200` status
+GET /api/v1/clusters/{id} removed the required property `created_at` from the response with the `200` status
+GET /api/v1/clusters/{id} removed the required property `namespace_id` from the response with the `200` status
+GET /api/v1/clusters/{id} removed the required property `updated_at` from the response with the `200` status
+GET /api/v1/clusters/{id}/images removed the required property `data/items/image_ref` from the response with the `200` status
+GET /api/v1/clusters/{id}/images removed the required property `data/items/last_seen_at` from the response with the `200` status
+GET /api/v1/clusters/{id}/images removed the required property `data/items/match_state` from the response with the `200` status
+GET /api/v1/clusters/{id}/images removed the required property `data/items/namespace_count` from the response with the `200` status
+GET /api/v1/clusters/{id}/images removed the required property `data/items/pod_count` from the response with the `200` status
+GET /api/v1/clusters/{id}/images removed the required property `data/items/workload_count` from the response with the `200` status
+GET /api/v1/clusters/{id}/k8s-namespaces removed the required property `data/items/k8s_namespace` from the response with the `200` status
+GET /api/v1/clusters/{id}/k8s-namespaces removed the required property `data/items/workload_count` from the response with the `200` status
+GET /api/v1/clusters/{id}/unknown-images removed the required property `data/items/image_digest` from the response with the `200` status
+GET /api/v1/clusters/{id}/unknown-images removed the required property `data/items/image_ref` from the response with the `200` status
+GET /api/v1/clusters/{id}/unknown-images removed the required property `data/items/pod_count` from the response with the `200` status
+GET /api/v1/clusters/{id}/unknown-images removed the required property `data/items/workload_count` from the response with the `200` status
+GET /api/v1/clusters/{id}/unknown-images removed the required property `hosts/items/image_count` from the response with the `200` status
+GET /api/v1/clusters/{id}/unknown-images removed the required property `hosts/items/pod_count` from the response with the `200` status
+GET /api/v1/clusters/{id}/unknown-images removed the required property `hosts/items/repository_count` from the response with the `200` status
+GET /api/v1/clusters/{id}/unknown-images removed the required property `hosts/items/workload_count` from the response with the `200` status
+GET /api/v1/clusters/{id}/unknown-images removed the required property `reasons/registry_disabled` from the response with the `200` status
+GET /api/v1/clusters/{id}/unknown-images removed the required property `reasons/unparseable_ref` from the response with the `200` status
+GET /api/v1/clusters/{id}/vulns removed the required property `data/items/canonical_id` from the response with the `200` status
+GET /api/v1/clusters/{id}/vulns removed the required property `data/items/workload_count` from the response with the `200` status
+GET /api/v1/clusters/{id}/workloads removed the required property `data/items/cluster_id` from the response with the `200` status
+GET /api/v1/clusters/{id}/workloads removed the required property `data/items/container_name` from the response with the `200` status
+GET /api/v1/clusters/{id}/workloads removed the required property `data/items/first_seen_at` from the response with the `200` status
+GET /api/v1/clusters/{id}/workloads removed the required property `data/items/image_ref` from the response with the `200` status
+GET /api/v1/clusters/{id}/workloads removed the required property `data/items/k8s_namespace` from the response with the `200` status
+GET /api/v1/clusters/{id}/workloads removed the required property `data/items/last_seen_at` from the response with the `200` status
+GET /api/v1/clusters/{id}/workloads removed the required property `data/items/match_state` from the response with the `200` status
+GET /api/v1/clusters/{id}/workloads removed the required property `data/items/pod_count` from the response with the `200` status
+GET /api/v1/clusters/{id}/workloads removed the required property `data/items/workload_kind` from the response with the `200` status
+GET /api/v1/clusters/{id}/workloads removed the required property `data/items/workload_name` from the response with the `200` status
+GET /api/v1/discover removed the required property `license_spread` from the response with the `200` status
+GET /api/v1/discover removed the required property `recent_artifacts` from the response with the `200` status
+GET /api/v1/discover removed the required property `top_artifacts` from the response with the `200` status
+GET /api/v1/discover removed the required property `top_vulnerabilities` from the response with the `200` status
+GET /api/v1/enrichment-jobs removed the required property `data/items/created_at` from the response with the `200` status
+GET /api/v1/enrichment-jobs removed the required property `data/items/enricher_name` from the response with the `200` status
+GET /api/v1/enrichment-jobs/summary removed the required property `data/items/enricher_name` from the response with the `200` status
+GET /api/v1/jobs removed the required property `data/items/created_at` from the response with the `200` status
+GET /api/v1/jobs/{id} removed the required property `created_at` from the response with the `200` status
+GET /api/v1/namespaces removed the required property `data/items/created_at` from the response with the `200` status
+GET /api/v1/namespaces removed the required property `data/items/updated_at` from the response with the `200` status
+GET /api/v1/namespaces/by-name/{name} removed the required property `created_at` from the response with the `200` status
+GET /api/v1/namespaces/by-name/{name} removed the required property `updated_at` from the response with the `200` status
+GET /api/v1/namespaces/{id} removed the required property `created_at` from the response with the `200` status
+GET /api/v1/namespaces/{id} removed the required property `updated_at` from the response with the `200` status
+GET /api/v1/namespaces/{id}/members removed the required property `data/items/created_at` from the response with the `200` status
+GET /api/v1/namespaces/{id}/members removed the required property `data/items/user_id` from the response with the `200` status
+GET /api/v1/registries removed the required property `data/items/created_at` from the response with the `200` status
+GET /api/v1/registries removed the required property `data/items/has_auth` from the response with the `200` status
+GET /api/v1/registries removed the required property `data/items/has_secret` from the response with the `200` status
+GET /api/v1/registries removed the required property `data/items/include_untagged` from the response with the `200` status
+GET /api/v1/registries removed the required property `data/items/max_tag_age_days` from the response with the `200` status
+GET /api/v1/registries removed the required property `data/items/poll_interval_minutes` from the response with the `200` status
+GET /api/v1/registries removed the required property `data/items/repository_patterns` from the response with the `200` status
+GET /api/v1/registries removed the required property `data/items/scan_mode` from the response with the `200` status
+GET /api/v1/registries removed the required property `data/items/tag_limit` from the response with the `200` status
+GET /api/v1/registries removed the required property `data/items/tag_order` from the response with the `200` status
+GET /api/v1/registries removed the required property `data/items/tag_patterns` from the response with the `200` status
+GET /api/v1/registries removed the required property `data/items/updated_at` from the response with the `200` status
+GET /api/v1/registries removed the required property `data/items/verification_mode` from the response with the `200` status
+GET /api/v1/registries removed the required property `data/items/webhook_url` from the response with the `200` status
+GET /api/v1/registries/by-name/{name} removed the required property `created_at` from the response with the `200` status
+GET /api/v1/registries/by-name/{name} removed the required property `has_auth` from the response with the `200` status
+GET /api/v1/registries/by-name/{name} removed the required property `has_secret` from the response with the `200` status
+GET /api/v1/registries/by-name/{name} removed the required property `include_untagged` from the response with the `200` status
+GET /api/v1/registries/by-name/{name} removed the required property `max_tag_age_days` from the response with the `200` status
+GET /api/v1/registries/by-name/{name} removed the required property `poll_interval_minutes` from the response with the `200` status
+GET /api/v1/registries/by-name/{name} removed the required property `repository_patterns` from the response with the `200` status
+GET /api/v1/registries/by-name/{name} removed the required property `scan_mode` from the response with the `200` status
+GET /api/v1/registries/by-name/{name} removed the required property `tag_limit` from the response with the `200` status
+GET /api/v1/registries/by-name/{name} removed the required property `tag_order` from the response with the `200` status
+GET /api/v1/registries/by-name/{name} removed the required property `tag_patterns` from the response with the `200` status
+GET /api/v1/registries/by-name/{name} removed the required property `updated_at` from the response with the `200` status
+GET /api/v1/registries/by-name/{name} removed the required property `verification_mode` from the response with the `200` status
+GET /api/v1/registries/by-name/{name} removed the required property `webhook_url` from the response with the `200` status
+GET /api/v1/registries/{id} removed the required property `created_at` from the response with the `200` status
+GET /api/v1/registries/{id} removed the required property `has_auth` from the response with the `200` status
+GET /api/v1/registries/{id} removed the required property `has_secret` from the response with the `200` status
+GET /api/v1/registries/{id} removed the required property `include_untagged` from the response with the `200` status
+GET /api/v1/registries/{id} removed the required property `max_tag_age_days` from the response with the `200` status
+GET /api/v1/registries/{id} removed the required property `poll_interval_minutes` from the response with the `200` status
+GET /api/v1/registries/{id} removed the required property `repository_patterns` from the response with the `200` status
+GET /api/v1/registries/{id} removed the required property `scan_mode` from the response with the `200` status
+GET /api/v1/registries/{id} removed the required property `tag_limit` from the response with the `200` status
+GET /api/v1/registries/{id} removed the required property `tag_order` from the response with the `200` status
+GET /api/v1/registries/{id} removed the required property `tag_patterns` from the response with the `200` status
+GET /api/v1/registries/{id} removed the required property `updated_at` from the response with the `200` status
+GET /api/v1/registries/{id} removed the required property `verification_mode` from the response with the `200` status
+GET /api/v1/registries/{id} removed the required property `webhook_url` from the response with the `200` status
+GET /api/v1/registries/{id}/preview removed the required property `estimated_sboms` from the response with the `200` status
+GET /api/v1/registries/{id}/preview removed the required property `repositories/items/estimated_sboms` from the response with the `200` status
+GET /api/v1/registries/{id}/preview removed the required property `repositories/items/skipped_by_age` from the response with the `200` status
+GET /api/v1/registries/{id}/preview removed the required property `repositories/items/skipped_by_limit` from the response with the `200` status
+GET /api/v1/registries/{id}/preview removed the required property `skipped_by_limit` from the response with the `200` status
+GET /api/v1/sources removed the required property `data/items/created_at` from the response with the `200` status
+GET /api/v1/sources removed the required property `data/items/namespace_id` from the response with the `200` status
+GET /api/v1/sources removed the required property `data/items/updated_at` from the response with the `200` status
+GET /api/v1/sources/{id} removed the required property `created_at` from the response with the `200` status
+GET /api/v1/sources/{id} removed the required property `namespace_id` from the response with the `200` status
+GET /api/v1/sources/{id} removed the required property `updated_at` from the response with the `200` status
+GET /api/v1/stats removed the required property `artifact_count` from the response with the `200` status
+GET /api/v1/stats removed the required property `artifact_types` from the response with the `200` status
+GET /api/v1/stats removed the required property `ingestion_timeline` from the response with the `200` status
+GET /api/v1/stats removed the required property `license_categories` from the response with the `200` status
+GET /api/v1/stats removed the required property `license_count` from the response with the `200` status
+GET /api/v1/stats removed the required property `package_count` from the response with the `200` status
+GET /api/v1/stats removed the required property `package_growth_timeline` from the response with the `200` status
+GET /api/v1/stats removed the required property `sbom_count` from the response with the `200` status
+GET /api/v1/stats removed the required property `top_packages` from the response with the `200` status
+GET /api/v1/stats removed the required property `version_count` from the response with the `200` status
+GET /api/v1/stats removed the required property `version_growth_timeline` from the response with the `200` status
+GET /api/v1/stats removed the required property `vuln_count` from the response with the `200` status
+GET /api/v1/stats removed the required property `vuln_severity` from the response with the `200` status
+GET /api/v1/users removed the required property `users/items/display_name` from the response with the `200` status
+GET /api/v1/users/me removed the required property `display_name` from the response with the `200` status
+GET /api/v1/users/me removed the required property `memberships/items/namespace_id` from the response with the `200` status
+GET /api/v1/users/me/clusters removed the required property `data/items/auto_ingest` from the response with the `200` status
+GET /api/v1/users/me/clusters removed the required property `data/items/created_at` from the response with the `200` status
+GET /api/v1/users/me/clusters removed the required property `data/items/namespace_id` from the response with the `200` status
+GET /api/v1/users/me/clusters removed the required property `data/items/updated_at` from the response with the `200` status
+GET /api/v1/users/me/namespaces removed the required property `data/items/created_at` from the response with the `200` status
+GET /api/v1/users/me/namespaces removed the required property `data/items/updated_at` from the response with the `200` status
+GET /api/v1/users/me/registries removed the required property `data/items/created_at` from the response with the `200` status
+GET /api/v1/users/me/registries removed the required property `data/items/has_auth` from the response with the `200` status
+GET /api/v1/users/me/registries removed the required property `data/items/has_secret` from the response with the `200` status
+GET /api/v1/users/me/registries removed the required property `data/items/include_untagged` from the response with the `200` status
+GET /api/v1/users/me/registries removed the required property `data/items/max_tag_age_days` from the response with the `200` status
+GET /api/v1/users/me/registries removed the required property `data/items/poll_interval_minutes` from the response with the `200` status
+GET /api/v1/users/me/registries removed the required property `data/items/repository_patterns` from the response with the `200` status
+GET /api/v1/users/me/registries removed the required property `data/items/scan_mode` from the response with the `200` status
+GET /api/v1/users/me/registries removed the required property `data/items/tag_limit` from the response with the `200` status
+GET /api/v1/users/me/registries removed the required property `data/items/tag_order` from the response with the `200` status
+GET /api/v1/users/me/registries removed the required property `data/items/tag_patterns` from the response with the `200` status
+GET /api/v1/users/me/registries removed the required property `data/items/updated_at` from the response with the `200` status
+GET /api/v1/users/me/registries removed the required property `data/items/verification_mode` from the response with the `200` status
+GET /api/v1/users/me/registries removed the required property `data/items/webhook_url` from the response with the `200` status
+GET /api/v1/users/me/sources removed the required property `data/items/created_at` from the response with the `200` status
+GET /api/v1/users/me/sources removed the required property `data/items/namespace_id` from the response with the `200` status
+GET /api/v1/users/me/sources removed the required property `data/items/updated_at` from the response with the `200` status
+GET /api/v1/vulns/{id}/workloads removed the required property `data/items/cluster_id` from the response with the `200` status
+GET /api/v1/vulns/{id}/workloads removed the required property `data/items/cluster_name` from the response with the `200` status
+GET /api/v1/vulns/{id}/workloads removed the required property `data/items/container_name` from the response with the `200` status
+GET /api/v1/vulns/{id}/workloads removed the required property `data/items/first_seen_at` from the response with the `200` status
+GET /api/v1/vulns/{id}/workloads removed the required property `data/items/image_ref` from the response with the `200` status
+GET /api/v1/vulns/{id}/workloads removed the required property `data/items/k8s_namespace` from the response with the `200` status
+GET /api/v1/vulns/{id}/workloads removed the required property `data/items/last_seen_at` from the response with the `200` status
+GET /api/v1/vulns/{id}/workloads removed the required property `data/items/match_state` from the response with the `200` status
+GET /api/v1/vulns/{id}/workloads removed the required property `data/items/pod_count` from the response with the `200` status
+GET /api/v1/vulns/{id}/workloads removed the required property `data/items/workload_kind` from the response with the `200` status
+GET /api/v1/vulns/{id}/workloads removed the required property `data/items/workload_name` from the response with the `200` status
+PATCH /api/v1/clusters/{id} removed the required property `auto_ingest` from the response with the `200` status
+PATCH /api/v1/clusters/{id} removed the required property `created_at` from the response with the `200` status
+PATCH /api/v1/clusters/{id} removed the required property `namespace_id` from the response with the `200` status
+PATCH /api/v1/clusters/{id} removed the required property `updated_at` from the response with the `200` status
+PATCH /api/v1/namespaces/{id} removed the required property `created_at` from the response with the `200` status
+PATCH /api/v1/namespaces/{id} removed the required property `updated_at` from the response with the `200` status
+PATCH /api/v1/registries/{id} removed the required property `created_at` from the response with the `200` status
+PATCH /api/v1/registries/{id} removed the required property `has_auth` from the response with the `200` status
+PATCH /api/v1/registries/{id} removed the required property `has_secret` from the response with the `200` status
+PATCH /api/v1/registries/{id} removed the required property `include_untagged` from the response with the `200` status
+PATCH /api/v1/registries/{id} removed the required property `max_tag_age_days` from the response with the `200` status
+PATCH /api/v1/registries/{id} removed the required property `poll_interval_minutes` from the response with the `200` status
+PATCH /api/v1/registries/{id} removed the required property `repository_patterns` from the response with the `200` status
+PATCH /api/v1/registries/{id} removed the required property `scan_mode` from the response with the `200` status
+PATCH /api/v1/registries/{id} removed the required property `tag_limit` from the response with the `200` status
+PATCH /api/v1/registries/{id} removed the required property `tag_order` from the response with the `200` status
+PATCH /api/v1/registries/{id} removed the required property `tag_patterns` from the response with the `200` status
+PATCH /api/v1/registries/{id} removed the required property `updated_at` from the response with the `200` status
+PATCH /api/v1/registries/{id} removed the required property `verification_mode` from the response with the `200` status
+PATCH /api/v1/registries/{id} removed the required property `webhook_url` from the response with the `200` status
+PATCH /api/v1/sources/{id} removed the required property `created_at` from the response with the `200` status
+PATCH /api/v1/sources/{id} removed the required property `namespace_id` from the response with the `200` status
+PATCH /api/v1/sources/{id} removed the required property `updated_at` from the response with the `200` status
+PATCH /api/v1/users/{id}/role removed the required property `display_name` from the response with the `200` status
+POST /api/v1/auth/identities removed the required property `authorize_url` from the response with the `200` status
+POST /api/v1/clusters added the new required request property `namespaceId`
+POST /api/v1/clusters removed the required property `auto_ingest` from the response with the `201` status
+POST /api/v1/clusters removed the required property `created_at` from the response with the `201` status
+POST /api/v1/clusters removed the required property `namespace_id` from the response with the `201` status
+POST /api/v1/clusters removed the required property `updated_at` from the response with the `201` status
+POST /api/v1/clusters/{id}/ingest-unknown removed the required property `skipped_registry_disabled` from the response with the `200` status
+POST /api/v1/clusters/{id}/ingest-unknown removed the required property `skipped_unparseable_ref` from the response with the `200` status
+POST /api/v1/clusters/{id}/inventory added the new required request property `workloads/items/containerName`
+POST /api/v1/clusters/{id}/inventory added the new required request property `workloads/items/imageRef`
+POST /api/v1/clusters/{id}/inventory added the new required request property `workloads/items/k8sNamespace`
+POST /api/v1/clusters/{id}/inventory added the new required request property `workloads/items/podCount`
+POST /api/v1/clusters/{id}/inventory added the new required request property `workloads/items/workloadKind`
+POST /api/v1/clusters/{id}/inventory added the new required request property `workloads/items/workloadName`
+POST /api/v1/clusters/{id}/inventory removed the required property `seen_at` from the response with the `200` status
+POST /api/v1/namespaces removed the required property `created_at` from the response with the `201` status
+POST /api/v1/namespaces removed the required property `updated_at` from the response with the `201` status
+POST /api/v1/registries removed the required property `created_at` from the response with the `201` status
+POST /api/v1/registries removed the required property `has_auth` from the response with the `201` status
+POST /api/v1/registries removed the required property `has_secret` from the response with the `201` status
+POST /api/v1/registries removed the required property `include_untagged` from the response with the `201` status
+POST /api/v1/registries removed the required property `max_tag_age_days` from the response with the `201` status
+POST /api/v1/registries removed the required property `poll_interval_minutes` from the response with the `201` status
+POST /api/v1/registries removed the required property `repository_patterns` from the response with the `201` status
+POST /api/v1/registries removed the required property `scan_mode` from the response with the `201` status
+POST /api/v1/registries removed the required property `tag_limit` from the response with the `201` status
+POST /api/v1/registries removed the required property `tag_order` from the response with the `201` status
+POST /api/v1/registries removed the required property `tag_patterns` from the response with the `201` status
+POST /api/v1/registries removed the required property `updated_at` from the response with the `201` status
+POST /api/v1/registries removed the required property `verification_mode` from the response with the `201` status
+POST /api/v1/registries removed the required property `webhook_url` from the response with the `201` status
+POST /api/v1/registries/preview removed the required property `estimated_sboms` from the response with the `200` status
+POST /api/v1/registries/preview removed the required property `repositories/items/estimated_sboms` from the response with the `200` status
+POST /api/v1/registries/preview removed the required property `repositories/items/skipped_by_age` from the response with the `200` status
+POST /api/v1/registries/preview removed the required property `repositories/items/skipped_by_limit` from the response with the `200` status
+POST /api/v1/registries/preview removed the required property `skipped_by_limit` from the response with the `200` status
+POST /api/v1/registries/{id}/webhook-secret removed the required property `webhook_secret` from the response with the `200` status
+POST /api/v1/sources added the new required request property `namespaceId`
+POST /api/v1/sources removed the required property `created_at` from the response with the `201` status
+POST /api/v1/sources removed the required property `namespace_id` from the response with the `201` status
+POST /api/v1/sources removed the required property `updated_at` from the response with the `201` status
+PUT /api/v1/namespaces/{id}/members/{user_id} removed the required property `created_at` from the response with the `200` status
+PUT /api/v1/namespaces/{id}/members/{user_id} removed the required property `user_id` from the response with the `200` status
+
+# Since v0.2.0, before 1.0 (ocidex-nps9.34): query parameter names, path placeholders and
+# sort keys are camelCase too. The server still accepts the snake_case spellings for one
+# release (LegacyQueryNames, internal/api/naming.go), so these break the spec, not callers.
+GET /api/v1/artifacts/{id}/vulns removed the enum value `affected_package_count` from the `query` request parameter `sort`
+GET /api/v1/artifacts/{id}/vulns removed the enum value `affected_version_count` from the `query` request parameter `sort`
+GET /api/v1/artifacts/{id}/vulns removed the enum value `canonical_id` from the `query` request parameter `sort`
+GET /api/v1/artifacts/{id}/vulns removed the enum value `cvss_score` from the `query` request parameter `sort`
+GET /api/v1/clusters/{id}/images removed the enum value `image_ref` from the `query` request parameter `sort`
+GET /api/v1/clusters/{id}/images removed the enum value `last_seen_at` from the `query` request parameter `sort`
+GET /api/v1/clusters/{id}/images removed the enum value `match_state` from the `query` request parameter `sort`
+GET /api/v1/clusters/{id}/images removed the enum value `pod_count` from the `query` request parameter `sort`
+GET /api/v1/clusters/{id}/images removed the enum value `vuln_count` from the `query` request parameter `sort`
+GET /api/v1/clusters/{id}/images removed the enum value `workload_count` from the `query` request parameter `sort`
+GET /api/v1/clusters/{id}/vulns removed the enum value `canonical_id` from the `query` request parameter `sort`
+GET /api/v1/clusters/{id}/vulns removed the enum value `cvss_score` from the `query` request parameter `sort`
+GET /api/v1/clusters/{id}/vulns removed the enum value `workload_count` from the `query` request parameter `sort`
+GET /api/v1/clusters/{id}/workloads removed the enum value `container_name` from the `query` request parameter `sort`
+GET /api/v1/clusters/{id}/workloads removed the enum value `image_ref` from the `query` request parameter `sort`
+GET /api/v1/clusters/{id}/workloads removed the enum value `k8s_namespace` from the `query` request parameter `sort`
+GET /api/v1/clusters/{id}/workloads removed the enum value `last_seen_at` from the `query` request parameter `sort`
+GET /api/v1/clusters/{id}/workloads removed the enum value `match_state` from the `query` request parameter `sort`
+GET /api/v1/clusters/{id}/workloads removed the enum value `pod_count` from the `query` request parameter `sort`
+GET /api/v1/clusters/{id}/workloads removed the enum value `vuln_count` from the `query` request parameter `sort`
+GET /api/v1/clusters/{id}/workloads removed the enum value `workload_name` from the `query` request parameter `sort`
+GET /api/v1/sboms/{id}/vulns removed the enum value `affected_package_count` from the `query` request parameter `sort`
+GET /api/v1/sboms/{id}/vulns removed the enum value `canonical_id` from the `query` request parameter `sort`
+GET /api/v1/sboms/{id}/vulns removed the enum value `cvss_score` from the `query` request parameter `sort`
+GET /api/v1/users/me/vulns removed the enum value `affected_purl_count` from the `query` request parameter `sort`
+GET /api/v1/users/me/vulns removed the enum value `affected_sbom_count` from the `query` request parameter `sort`
+GET /api/v1/users/me/vulns removed the enum value `canonical_id` from the `query` request parameter `sort`
+GET /api/v1/users/me/vulns removed the enum value `cvss_score` from the `query` request parameter `sort`
+GET /api/v1/users/me/vulns removed the enum value `published_at` from the `query` request parameter `sort`
+GET /api/v1/vulns removed the enum value `affected_purl_count` from the `query` request parameter `sort`
+GET /api/v1/vulns removed the enum value `affected_sbom_count` from the `query` request parameter `sort`
+GET /api/v1/vulns removed the enum value `canonical_id` from the `query` request parameter `sort`
+GET /api/v1/vulns removed the enum value `cvss_score` from the `query` request parameter `sort`
+GET /api/v1/vulns removed the enum value `published_at` from the `query` request parameter `sort`

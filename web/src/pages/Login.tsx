@@ -52,7 +52,7 @@ export default function Login() {
                             <For each={providers.data?.providers}>
                                 {(p) => (
                                     <a
-                                        href={`${API_BASE_URL}${p.login_path}`}
+                                        href={`${API_BASE_URL}${p.loginPath}`}
                                         target="_self"
                                         class="inline-flex items-center gap-2.5 px-5 py-2.5 bg-[var(--color-elevated)] border border-[var(--color-border)] rounded-md text-[var(--color-text)] text-sm font-medium no-underline transition-[background,border-color] duration-150 w-full justify-center hover:bg-[var(--color-surface-hover)] hover:border-[var(--color-border-hover)]"
                                     >
@@ -62,7 +62,7 @@ export default function Login() {
                                         <Show when={p.name === "github"}>
                                             <GitHubMark />
                                         </Show>
-                                        Continue with {p.display_name}
+                                        Continue with {p.displayName}
                                     </a>
                                 )}
                             </For>

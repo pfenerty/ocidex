@@ -11,7 +11,7 @@ import (
 func (c *httpClient) ListSources(ctx context.Context, namespaceID string) ([]SourceResponse, error) {
 	var q url.Values
 	if namespaceID != "" {
-		q = url.Values{"namespace_id": []string{namespaceID}}
+		q = url.Values{"namespaceId": []string{namespaceID}}
 	}
 	var out ListSourcesOutputBody
 	if err := c.request(ctx, http.MethodGet, "/api/v1/sources", q, nil, &out); err != nil {

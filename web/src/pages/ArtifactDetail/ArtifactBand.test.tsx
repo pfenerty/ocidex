@@ -109,9 +109,25 @@ describe("ArtifactBand SBOM coverage", () => {
 });
 
 describe("ArtifactBand vulnerability tile", () => {
-    it("captions the count with the worst severity present", () => {
+    it("leads with the worst severity and adds up to the headline", () => {
+        // 12 critical + 73 other = 85 (ocidex-nps9.10).
         const { container } = renderBand();
-        expect(sub(container, "Vulnerabilities")).toBe("12 critical");
+        expect(sub(container, "Vulnerabilities")).toBe("12 critical +73 other");
+        expect(tile(container, "Vulnerabilities").querySelector("[title]")?.getAttribute("title")).toBe(
+            "12 critical, 30 high, 40 medium, 3 low",
+        );
+    });
+
+    it("keeps the single pill when only one severity is present", () => {
+        const { container } = renderBand({
+            vulns: { total: 2, critical: 0, high: 0, medium: 0, low: 0, unknown: 2 },
+        });
+        expect(sub(container, "Vulnerabilities")).toBe("2 unknown");
+    });
+
+    it("names the version the count is taken from", () => {
+        const { container } = renderBand({ vulnsVersion: "v0.1.0" });
+        expect(tile(container, "Vulnerabilities").querySelector(".tile-scope")?.textContent).toBe("v0.1.0");
     });
 
     it("says not scanned rather than zero when there is no summary", () => {

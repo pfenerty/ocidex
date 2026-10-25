@@ -19,11 +19,11 @@ type DiscoveryOutput struct {
 	CacheControl string `header:"Cache-Control"`
 
 	Body struct {
-		TopArtifacts       []service.DiscoverArtifact `json:"top_artifacts" doc:"Artifacts ranked by how widely they are used, how many versions are tracked, and how recently they were seen"`
-		RecentArtifacts    []service.DiscoverRecent   `json:"recent_artifacts" doc:"Most recently updated public artifacts, one row per artifact"`
-		TopVulnerabilities []service.DiscoverVuln     `json:"top_vulnerabilities" doc:"Vulnerabilities ranked by how many public artifacts they affect"`
-		LicenseSpread      []service.DiscoverLicense  `json:"license_spread" doc:"License distribution across public content, by distinct package identity"`
-		GeneratedAt        string                     `json:"generated_at,omitempty" doc:"When this snapshot was computed; absent while warming"`
+		TopArtifacts       []service.DiscoverArtifact `json:"topArtifacts" doc:"Artifacts ranked by how widely they are used, how many versions are tracked, and how recently they were seen"`
+		RecentArtifacts    []service.DiscoverRecent   `json:"recentArtifacts" doc:"Most recently updated public artifacts, one row per artifact"`
+		TopVulnerabilities []service.DiscoverVuln     `json:"topVulnerabilities" doc:"Vulnerabilities ranked by how many public artifacts they affect"`
+		LicenseSpread      []service.DiscoverLicense  `json:"licenseSpread" doc:"License distribution across public content, by distinct package identity"`
+		GeneratedAt        string                     `json:"generatedAt,omitempty" doc:"When this snapshot was computed; absent while warming"`
 		Warming            bool                       `json:"warming" doc:"No snapshot is available yet, so every section is empty because nothing is known — not because the catalog is empty; render a loading state and retry"`
 	}
 }

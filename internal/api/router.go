@@ -114,7 +114,7 @@ const (
 	pathNamespaceByID = "/api/v1/namespaces/{id}"
 
 	pathNamespaceMembers      = "/api/v1/namespaces/{id}/members"
-	pathNamespaceMemberByUser = "/api/v1/namespaces/{id}/members/{user_id}"
+	pathNamespaceMemberByUser = "/api/v1/namespaces/{id}/members/{userId}"
 	pathSourceByID            = "/api/v1/sources/{id}"
 	pathClusterByID           = "/api/v1/clusters/{id}"
 )
@@ -152,6 +152,7 @@ func NewRouter(h *Handler, corsOrigins, frontendURL, apiBaseURL string) chi.Rout
 	r.Use(RequestMetrics(h.meterProvider))
 	r.Use(middleware.Recoverer)
 	r.Use(SecurityHeaders)
+	r.Use(LegacyQueryNames)
 	allowedOrigins := parseCORSOrigins(corsOrigins, frontendURL)
 	r.Use(cors.Handler(cors.Options{
 		AllowedOrigins:   allowedOrigins,
@@ -396,6 +397,16 @@ func registerComponentOps(api huma.API, h *Handler) {
 		Tags:        []string{tagComponents},
 		Middlewares: huma.Middlewares{h.heavyLimit.Huma(api)},
 	}, h.GetComponentVersions)
+
+	huma.Register(api, huma.Operation{
+		OperationID: "list-component-version-summaries",
+		Method:      http.MethodGet,
+		Path:        "/api/v1/components/version-summaries",
+		Summary:     "List a component's distinct versions",
+		Description: "One row per distinct version with its SBOM and artifact counts, paginated by version.",
+		Tags:        []string{tagComponents},
+		Middlewares: huma.Middlewares{h.heavyLimit.Huma(api)},
+	}, h.ListComponentVersionSummaries)
 
 	huma.Register(api, huma.Operation{
 		OperationID: "get-component",
@@ -1157,6 +1168,16 @@ func registerJobOps(api huma.API, h *Handler) {
 		Tags:        []string{tagJobs, tagAdmin},
 		Middlewares: huma.Middlewares{adminMW, writeMW},
 	}, h.RetryScanJob)
+
+	huma.Register(api, huma.Operation{
+		OperationID: "cancel-scan-job",
+		Method:      http.MethodPost,
+		Path:        "/api/v1/admin/jobs/{id}/cancel",
+		Summary:     "Cancel a queued scan job",
+		Description: "Marks a 'queued' scan_jobs row failed so no worker picks it up. Admin-only.",
+		Tags:        []string{tagJobs, tagAdmin},
+		Middlewares: huma.Middlewares{adminMW, writeMW},
+	}, h.CancelScanJob)
 
 	huma.Register(api, huma.Operation{
 		OperationID: "retry-all-failed-scan-jobs",

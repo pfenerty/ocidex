@@ -16,7 +16,7 @@
 
 /** One membership as /users/me reports it. */
 export interface Membership {
-    namespace_id: string;
+    namespaceId: string;
     role: string;
 }
 

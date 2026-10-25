@@ -52,7 +52,7 @@ func (r *recordingRegistryService) Create(_ context.Context, p service.CreateReg
 	return service.Registry{ID: "r1", Name: p.Name, NamespaceID: p.NamespaceID}, nil
 }
 
-const createRegistryInNamespace = `{"name":"r","type":"generic","url":"registry.example.com","insecure":false,"namespace":"test-ns","scan_mode":"webhook","repositories":[],"repository_patterns":[],"tag_patterns":[]}`
+const createRegistryInNamespace = `{"name":"r","type":"generic","url":"registry.example.com","insecure":false,"namespace":"test-ns","scanMode":"webhook","repositories":[],"repositoryPatterns":[],"tagPatterns":[]}`
 
 var (
 	developerUUID = pgtype.UUID{Bytes: [16]byte{0xd0}, Valid: true}
@@ -138,7 +138,7 @@ func TestCreateRegistry_NamespaceRaceRechecks(t *testing.T) {
 // SELF_SERVICE_NAMESPACES=false a global viewer may not mint a namespace, either
 // directly or by creating a registry; a global member may.
 func TestNamespaceCreationRestricted(t *testing.T) {
-	const newRegistry = `{"name":"r","type":"generic","url":"registry.example.com","insecure":false,"scan_mode":"webhook","repositories":[],"repository_patterns":[],"tag_patterns":[]}`
+	const newRegistry = `{"name":"r","type":"generic","url":"registry.example.com","insecure":false,"scanMode":"webhook","repositories":[],"repositoryPatterns":[],"tagPatterns":[]}`
 	tests := []struct {
 		name       string
 		restrict   bool
@@ -173,7 +173,7 @@ func TestNamespaceCreationRestricted(t *testing.T) {
 // TestRegistryURLValidatedOnCreateAndUpdate covers ocidex-avsz.8 through the
 // router: both write paths answer 422 for a URL that carries credentials.
 func TestRegistryURLValidatedOnCreateAndUpdate(t *testing.T) {
-	const bad = `{"name":"r","type":"generic","url":"https://u:p@registry.example.com","insecure":false,"enabled":true,"scan_mode":"webhook","repositories":[],"repository_patterns":[],"tag_patterns":[]}`
+	const bad = `{"name":"r","type":"generic","url":"https://u:p@registry.example.com","insecure":false,"enabled":true,"scanMode":"webhook","repositories":[],"repositoryPatterns":[],"tagPatterns":[]}`
 	authSvc := &fakeAuthService{
 		users: map[string]service.AuthUser{
 			"owner-token": {ID: ownerUUID, Role: "member", APIKeyAuth: true, APIKeyCaps: authz.AllCapabilities()},

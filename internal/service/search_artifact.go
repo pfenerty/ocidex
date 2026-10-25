@@ -121,14 +121,14 @@ func (s *searchService) ListVersionsByArtifact(ctx context.Context, artifactID p
 		all = append(all, artifactVersionFromRow(row))
 	}
 
-	hasSemver := false
+	semverCount := 0
 	for _, v := range all {
 		if isSemver(v.VersionKey) {
-			hasSemver = true
-			break
+			semverCount++
 		}
 	}
-	resolved := resolveSortMode(mode, hasSemver)
+	hasSemver := semverCount > 0
+	resolved := resolveSortMode(mode, semverCount, len(all))
 
 	if resolved == SortSemver {
 		filtered := all[:0:0]
@@ -310,6 +310,23 @@ func paginateVersions(vs []ArtifactVersion, limit, offset int32) []ArtifactVersi
 	return vs[start:end]
 }
 
+// CountArtifacts returns how many artifacts ListArtifacts would page through
+// under filter, ignoring its cursor.
+func (s *searchService) CountArtifacts(ctx context.Context, filter ArtifactFilter) (int64, error) {
+	n, err := repository.New(s.db).CountArtifacts(ctx, repository.CountArtifactsParams{
+		Type:              textOrNull(filter.Type),
+		Name:              textOrNull(filter.Name),
+		RequireSufficient: boolOrNull(filter.RequireSufficient),
+		IsAdmin:           visAdminBool(filter.Visibility),
+		UserID:            filter.Visibility.UserID,
+		OwnedOnly:         filter.Visibility.ownedFlag(),
+	})
+	if err != nil {
+		return 0, fmt.Errorf("counting artifacts: %w", err)
+	}
+	return n, nil
+}
+
 func (s *searchService) ListArtifacts(ctx context.Context, filter ArtifactFilter) (CursorPage[ArtifactSummary], error) {
 	q := repository.New(s.db)
 
@@ -390,8 +407,18 @@ func vulnSummaryOrNil(critical, high, medium, low, unknown int64) *VulnSummary {
 	}
 }
 
-// GetArtifactLicenseSummary returns aggregated license counts for an artifact's latest SBOM.
-func (s *searchService) GetArtifactLicenseSummary(ctx context.Context, artifactID pgtype.UUID, vis VisibilityFilter) ([]LicenseCount, error) {
+// ArtifactLicenseSummary is the license breakdown of one SBOM of an artifact,
+// and which SBOM that is. SbomID is empty when the artifact has none.
+type ArtifactLicenseSummary struct {
+	Licenses       []LicenseCount
+	SbomID         string
+	SubjectVersion *string
+	SbomCreatedAt  *time.Time
+}
+
+// GetArtifactLicenseSummary returns aggregated license counts for an artifact's
+// most recently ingested SBOM, and names that SBOM.
+func (s *searchService) GetArtifactLicenseSummary(ctx context.Context, artifactID pgtype.UUID, vis VisibilityFilter) (ArtifactLicenseSummary, error) {
 	q := repository.New(s.db)
 
 	// Access check.
@@ -401,15 +428,15 @@ func (s *searchService) GetArtifactLicenseSummary(ctx context.Context, artifactI
 		IsAdmin: visAdminBool(vis),
 	})
 	if err != nil {
-		return nil, fmt.Errorf("checking artifact visibility: %w", err)
+		return ArtifactLicenseSummary{}, fmt.Errorf("checking artifact visibility: %w", err)
 	}
 	if !visible {
-		return nil, ErrNotFound
+		return ArtifactLicenseSummary{}, ErrNotFound
 	}
 
 	rows, err := q.LicenseSummaryByArtifact(ctx, artifactID)
 	if err != nil {
-		return nil, fmt.Errorf("querying license summary: %w", err)
+		return ArtifactLicenseSummary{}, fmt.Errorf("querying license summary: %w", err)
 	}
 
 	items := make([]LicenseCount, 0, len(rows))
@@ -425,11 +452,34 @@ func (s *searchService) GetArtifactLicenseSummary(ctx context.Context, artifactI
 		})
 	}
 
-	return items, nil
+	out := ArtifactLicenseSummary{Licenses: items}
+	ref, err := q.GetLatestSBOMRef(ctx, artifactID)
+	switch {
+	case errors.Is(err, pgx.ErrNoRows):
+	case err != nil:
+		return ArtifactLicenseSummary{}, fmt.Errorf("finding latest sbom: %w", err)
+	default:
+		out.SbomID = uuidToString(ref.ID)
+		out.SubjectVersion = textToPtr(ref.SubjectVersion)
+		if ref.CreatedAt.Valid {
+			t := ref.CreatedAt.Time
+			out.SbomCreatedAt = &t
+		}
+	}
+	return out, nil
 }
 
-// GetArtifactVulnSummary returns per-severity vuln counts for an artifact's latest SBOM.
-func (s *searchService) GetArtifactVulnSummary(ctx context.Context, artifactID pgtype.UUID, vis VisibilityFilter) (*VulnSummary, error) {
+// ArtifactVulnSummary is the vulnerability tile's figure for one artifact:
+// per-severity counts over the newest SBOM of its highest version, and that
+// version's name. Summary is nil when nothing is recorded.
+type ArtifactVulnSummary struct {
+	Summary        *VulnSummary
+	SubjectVersion string
+}
+
+// GetArtifactVulnSummary returns per-severity vuln counts for the newest SBOM
+// of an artifact's highest version, and which version that is.
+func (s *searchService) GetArtifactVulnSummary(ctx context.Context, artifactID pgtype.UUID, vis VisibilityFilter) (ArtifactVulnSummary, error) {
 	q := repository.New(s.db)
 
 	visible, err := q.IsArtifactVisible(ctx, repository.IsArtifactVisibleParams{
@@ -438,18 +488,18 @@ func (s *searchService) GetArtifactVulnSummary(ctx context.Context, artifactID p
 		IsAdmin: visAdminBool(vis),
 	})
 	if err != nil {
-		return nil, fmt.Errorf("checking artifact visibility: %w", err)
+		return ArtifactVulnSummary{}, fmt.Errorf("checking artifact visibility: %w", err)
 	}
 	if !visible {
-		return nil, ErrNotFound
+		return ArtifactVulnSummary{}, ErrNotFound
 	}
 
 	rows, err := q.GetArtifactVulnSummary(ctx, artifactID)
 	if err != nil {
-		return nil, fmt.Errorf("querying artifact vuln summary: %w", err)
+		return ArtifactVulnSummary{}, fmt.Errorf("querying artifact vuln summary: %w", err)
 	}
 	if len(rows) == 0 {
-		return nil, nil
+		return ArtifactVulnSummary{}, nil
 	}
 
 	var vs VulnSummary
@@ -470,9 +520,9 @@ func (s *searchService) GetArtifactVulnSummary(ctx context.Context, artifactID p
 		}
 	}
 	if vs.Total == 0 {
-		return nil, nil
+		return ArtifactVulnSummary{}, nil
 	}
-	return &vs, nil
+	return ArtifactVulnSummary{Summary: &vs, SubjectVersion: rows[0].SubjectVersion}, nil
 }
 
 // ListArtifactVulns returns one page of the artifact's vulnerability list.
@@ -578,7 +628,7 @@ func (s *searchService) ListArtifactVulns(ctx context.Context, artifactID pgtype
 	}
 
 	return ArtifactVulnPage{
-		PagedResult:   PagedResult[ArtifactVulnEntry]{Data: items, Total: total},
+		PagedResult:   PagedResult[ArtifactVulnEntry]{Data: items, Total: total, Limit: limit, Offset: offset},
 		VersionScope:  scope,
 		TotalVersions: totalVersions,
 	}, nil

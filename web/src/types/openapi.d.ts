@@ -81,6 +81,26 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/v1/admin/jobs/{id}/cancel": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Cancel a queued scan job
+         * @description Marks a 'queued' scan_jobs row failed so no worker picks it up. Admin-only.
+         */
+        post: operations["cancel-scan-job"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/v1/admin/jobs/{id}/retry": {
         parameters: {
             query?: never;
@@ -660,6 +680,26 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/v1/components/version-summaries": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * List a component's distinct versions
+         * @description One row per distinct version with its SBOM and artifact counts, paginated by version.
+         */
+        get: operations["list-component-version-summaries"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/v1/components/versions": {
         parameters: {
             query?: never;
@@ -942,7 +982,7 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
-    "/api/v1/namespaces/{id}/members/{user_id}": {
+    "/api/v1/namespaces/{id}/members/{userId}": {
         parameters: {
             query?: never;
             header?: never;
@@ -1647,7 +1687,7 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
-    "/api/v1/users/me/watches/{artifact_id}": {
+    "/api/v1/users/me/watches/{artifactId}": {
         parameters: {
             query?: never;
             header?: never;
@@ -1813,7 +1853,9 @@ export interface components {
         AffectedComponent: {
             /** Format: int64 */
             affectedVersionCount: number;
+            affectedVersions: string[] | null;
             fixedVersion?: string;
+            fixedVersions: string[] | null;
             group?: string;
             name: string;
         };
@@ -1871,7 +1913,7 @@ export interface components {
         };
         ArtifactTypeCountEntry: {
             /** Format: int64 */
-            artifact_count: number;
+            artifactCount: number;
             type: string;
         };
         ArtifactVersionSummary: {
@@ -1922,7 +1964,7 @@ export interface components {
         CategoryCountEntry: {
             category: string;
             /** Format: int64 */
-            component_count: number;
+            componentCount: number;
         };
         ChangeCounts: {
             /** Format: int64 */
@@ -1976,38 +2018,38 @@ export interface components {
             to: components["schemas"]["SBOMRef"];
         };
         ClusterImageResponse: {
-            artifact_id?: string;
-            artifact_name?: string;
-            artifact_type?: string;
-            image_digest?: string;
-            image_ref: string;
-            last_seen_at: string;
+            artifactId?: string;
+            artifactName?: string;
+            artifactType?: string;
+            imageDigest?: string;
+            imageRef: string;
+            lastSeenAt: string;
             /**
              * @description exact = digest matched an SBOM; index = matched a multi-arch image index, so the exact platform is unknown; unknown = real digest with no ingested SBOM (coverage gap); unresolvable = no digest could be read from the container (agent/runtime gap)
              * @enum {string}
              */
-            match_state: "exact" | "index" | "unknown" | "unresolvable";
+            matchState: "exact" | "index" | "unknown" | "unresolvable";
             /**
              * Format: int64
              * @description Kubernetes namespaces the image appears in
              */
-            namespace_count: number;
+            namespaceCount: number;
             /**
              * Format: int64
              * @description Running pods those workload-containers add up to
              */
-            pod_count: number;
-            sample_namespace?: string;
-            sample_workload?: string;
-            sbom_id?: string;
-            subject_version?: string;
+            podCount: number;
+            sampleNamespace?: string;
+            sampleWorkload?: string;
+            sbomId?: string;
+            subjectVersion?: string;
             /** @description Findings in the matched SBOM. Absent when no SBOM matched — absence is not zero */
             vulns?: components["schemas"]["WorkloadVulnCounts"];
             /**
              * Format: int64
              * @description Workload-containers running this image
              */
-            workload_count: number;
+            workloadCount: number;
         };
         ClusterResponse: {
             /**
@@ -2017,43 +2059,43 @@ export interface components {
              */
             readonly $schema?: string;
             /** @description Submit a scan job for every running image with no SBOM whose host resolves to a registry in this cluster's namespace, on every accepted snapshot. */
-            auto_ingest: boolean;
-            created_at: string;
+            autoIngest: boolean;
+            createdAt: string;
             description?: string;
             id: string;
             /** @description When an agent last pushed a snapshot. Empty means no agent has ever reported: a cluster showing no workloads for this reason is not a cluster running nothing. */
-            last_seen_at?: string;
+            lastSeenAt?: string;
             name: string;
-            namespace_id: string;
+            namespaceId: string;
             /** @description Owning namespace name; populated on list responses */
-            namespace_name?: string;
-            updated_at: string;
+            namespaceName?: string;
+            updatedAt: string;
         };
         ClusterWorkloadResponse: {
-            artifact_id?: string;
-            artifact_name?: string;
-            artifact_type?: string;
-            cluster_id: string;
-            container_name: string;
-            first_seen_at: string;
+            artifactId?: string;
+            artifactName?: string;
+            artifactType?: string;
+            clusterId: string;
+            containerName: string;
+            firstSeenAt: string;
             id: string;
-            image_digest?: string;
-            image_ref: string;
-            k8s_namespace: string;
-            last_seen_at: string;
+            imageDigest?: string;
+            imageRef: string;
+            k8sNamespace: string;
+            lastSeenAt: string;
             /**
              * @description exact = digest matched an SBOM; index = matched a multi-arch image index, so the exact platform is unknown; unknown = real digest with no ingested SBOM (coverage gap); unresolvable = no digest could be read from the container (agent/runtime gap)
              * @enum {string}
              */
-            match_state: "exact" | "index" | "unknown" | "unresolvable";
+            matchState: "exact" | "index" | "unknown" | "unresolvable";
             /** Format: int32 */
-            pod_count: number;
-            sbom_id?: string;
-            subject_version?: string;
+            podCount: number;
+            sbomId?: string;
+            subjectVersion?: string;
             /** @description Findings in the matched SBOM. Absent when no SBOM matched — absence is not zero */
             vulns?: components["schemas"]["WorkloadVulnCounts"];
-            workload_kind: string;
-            workload_name: string;
+            workloadKind: string;
+            workloadName: string;
         };
         ComponentDetail: {
             /**
@@ -2164,6 +2206,28 @@ export interface components {
             /** Format: int64 */
             vulnCount: number;
         };
+        ComponentVersionSummary: {
+            /** Format: int64 */
+            artifactCount: number;
+            /** Format: int64 */
+            criticalCount?: number;
+            /** Format: int64 */
+            highCount?: number;
+            /** Format: int64 */
+            lowCount?: number;
+            maxSeverity?: string;
+            /** Format: int64 */
+            mediumCount?: number;
+            purl?: string;
+            /** Format: int64 */
+            sbomCount: number;
+            type: string;
+            /** Format: int64 */
+            unknownCount?: number;
+            version?: string;
+            /** Format: int64 */
+            vulnCount: number;
+        };
         ComponentVulnEntry: {
             canonicalId: string;
             /** Format: float */
@@ -2211,7 +2275,7 @@ export interface components {
              * Format: uuid
              * @description Owning namespace UUID
              */
-            namespace_id: string;
+            namespaceId: string;
         };
         CreateNamespaceInputBody: {
             /**
@@ -2236,22 +2300,22 @@ export interface components {
              */
             readonly $schema?: string;
             /** @description Token or PAT for registry authentication; omit for anonymous access */
-            auth_token?: string;
+            authToken?: string;
             /** @description Username for registry authentication; omit for anonymous access */
-            auth_username?: string;
+            authUsername?: string;
             /** @description Scan untagged manifests via registry-specific APIs (supported: zot, harbor, ghcr) */
-            include_untagged?: boolean;
+            includeUntagged?: boolean;
             /** @description Allow HTTP (non-TLS) connections */
             insecure: boolean;
             /** @description External system that owns this registry's configuration (e.g. kubernetes); set by that system's controller, not by hand */
-            managed_by?: string;
+            managedBy?: string;
             /** @description Identifier within the managing system, e.g. '<namespace>/<name>' of the OCIRegistry resource */
-            managed_ref?: string;
+            managedRef?: string;
             /**
              * Format: int64
              * @description Skip tags whose image is older than this many days; needs the created order. 0 = no age limit
              */
-            max_tag_age_days?: number;
+            maxTagAgeDays?: number;
             /** @description Human-readable registry name */
             name: string;
             /** @description Namespace to create the registry in, created on first use; omit to give the registry a namespace of its own named after it */
@@ -2260,34 +2324,34 @@ export interface components {
              * Format: int64
              * @description Minutes between polls
              */
-            poll_interval_minutes?: number;
+            pollIntervalMinutes?: number;
             /** @description Explicit repositories to walk; bypasses /v2/_catalog discovery when non-empty */
             repositories?: string[] | null;
             /** @description Glob patterns for repositories to ingest; empty = all */
-            repository_patterns?: string[] | null;
+            repositoryPatterns?: string[] | null;
             /**
              * @description Scanning mode
              * @enum {string}
              */
-            scan_mode?: "webhook" | "poll" | "both";
+            scanMode?: "webhook" | "poll" | "both";
             /**
              * Format: int64
              * @description Newest tags kept per repository (ADR-0053); 0 = unlimited. Defaults to 50
              */
-            tag_limit?: number;
+            tagLimit?: number;
             /**
-             * @description How 'newest' is decided; auto (the default) = semver when tag_patterns contains semver, created otherwise
+             * @description How 'newest' is decided; auto (the default) = semver when tagPatterns contains semver, created otherwise
              * @enum {string}
              */
-            tag_order?: "auto" | "semver" | "created" | "lexical";
+            tagOrder?: "auto" | "semver" | "created" | "lexical";
             /** @description Glob patterns or 'semver' for tags to ingest; empty = all */
-            tag_patterns?: string[] | null;
-            /** @description Regex matched against the Fulcio certificate SAN; required when verification_mode is keyless */
-            trust_identity?: string;
-            /** @description Expected OIDC issuer URL; required when verification_mode is keyless */
-            trust_issuer?: string;
-            /** @description PEM-encoded EC public key; required when verification_mode is public_key */
-            trust_public_key?: string;
+            tagPatterns?: string[] | null;
+            /** @description Regex matched against the Fulcio certificate SAN; required when verificationMode is keyless */
+            trustIdentity?: string;
+            /** @description Expected OIDC issuer URL; required when verificationMode is keyless */
+            trustIssuer?: string;
+            /** @description PEM-encoded EC public key; required when verificationMode is public_key */
+            trustPublicKey?: string;
             /**
              * @description Registry type
              * @enum {string}
@@ -2299,7 +2363,7 @@ export interface components {
              * @description Signature verification mode; defaults to none
              * @enum {string}
              */
-            verification_mode?: "none" | "public_key" | "keyless";
+            verificationMode?: "none" | "public_key" | "keyless";
             /**
              * @description Registry visibility
              * @default public
@@ -2307,7 +2371,7 @@ export interface components {
              */
             visibility: "public" | "private";
             /** @description Bearer token required on incoming webhooks; omit to disable auth */
-            webhook_secret?: string;
+            webhookSecret?: string;
         };
         CreateRegistryResponseBody: {
             /**
@@ -2316,65 +2380,65 @@ export interface components {
              * @example https://example.com/schemas/CreateRegistryResponseBody.json
              */
             readonly $schema?: string;
-            created_at: string;
+            createdAt: string;
             enabled: boolean;
-            has_auth: boolean;
-            has_secret: boolean;
+            hasAuth: boolean;
+            hasSecret: boolean;
             id: string;
             /** @description Scan untagged manifests via registry-specific APIs (supported: zot, harbor, ghcr) */
-            include_untagged: boolean;
+            includeUntagged: boolean;
             insecure: boolean;
-            last_polled_at?: string;
+            lastPolledAt?: string;
             /** @description What the most recent catalog walk selected; absent until the first walk */
-            last_walk?: components["schemas"]["WalkStats"];
+            lastWalk?: components["schemas"]["WalkStats"];
             /** @description External system that owns this registry's configuration (e.g. kubernetes); absent when managed through this API */
-            managed_by?: string;
+            managedBy?: string;
             /** @description Identifier within the managing system, e.g. '<namespace>/<name>' of the OCIRegistry resource */
-            managed_ref?: string;
+            managedRef?: string;
             /**
              * Format: int64
              * @description Tags whose image is older than this many days are skipped; 0 = no age limit
              */
-            max_tag_age_days: number;
+            maxTagAgeDays: number;
             name: string;
             /** Format: int64 */
-            poll_interval_minutes: number;
+            pollIntervalMinutes: number;
             /** @description Explicit repositories to walk; overrides catalog discovery when non-empty */
             repositories: string[] | null;
             /** @description Glob patterns for repositories to ingest; empty = all */
-            repository_patterns: string[] | null;
-            scan_mode: string;
+            repositoryPatterns: string[] | null;
+            scanMode: string;
             /**
              * Format: int64
              * @description Newest tags kept per repository (ADR-0053); 0 = unlimited
              */
-            tag_limit: number;
+            tagLimit: number;
             /**
-             * @description How 'newest' is decided; auto = semver when tag_patterns contains semver, created otherwise
+             * @description How 'newest' is decided; auto = semver when tagPatterns contains semver, created otherwise
              * @enum {string}
              */
-            tag_order: "auto" | "semver" | "created" | "lexical";
+            tagOrder: "auto" | "semver" | "created" | "lexical";
             /** @description Glob patterns or 'semver' for tags to ingest; empty = all */
-            tag_patterns: string[] | null;
+            tagPatterns: string[] | null;
             /** @description Regex matched against the Fulcio certificate SAN; required for keyless verification mode */
-            trust_identity?: string;
+            trustIdentity?: string;
             /** @description Expected OIDC issuer URL; required for keyless verification mode */
-            trust_issuer?: string;
+            trustIssuer?: string;
             /** @description PEM-encoded EC public key for public_key verification mode */
-            trust_public_key?: string;
+            trustPublicKey?: string;
             type: string;
-            updated_at: string;
+            updatedAt: string;
             url: string;
             /**
              * @description Signature verification mode
              * @enum {string}
              */
-            verification_mode: "none" | "public_key" | "keyless";
+            verificationMode: "none" | "public_key" | "keyless";
             /** @description Registry visibility: public or private */
             visibility: string;
             /** @description Generated webhook secret — shown once only. Store it securely; it cannot be retrieved again. */
-            webhook_secret?: string;
-            webhook_url: string;
+            webhookSecret?: string;
+            webhookUrl: string;
         };
         CreateSourceInputBody: {
             /**
@@ -2389,7 +2453,7 @@ export interface components {
              * Format: uuid
              * @description Owning namespace UUID
              */
-            namespace_id: string;
+            namespaceId: string;
         };
         CursorMeta: {
             /** @description Whether more results exist after this page */
@@ -2404,7 +2468,7 @@ export interface components {
         };
         DBStatus: {
             /** Format: int64 */
-            latency_ms: number;
+            latencyMs: number;
             ok: boolean;
         };
         DailyCountEntry: {
@@ -2420,24 +2484,24 @@ export interface components {
              */
             readonly $schema?: string;
             /** Format: int64 */
-            artifact_count: number;
-            artifact_types: components["schemas"]["ArtifactTypeCountEntry"][] | null;
-            ingestion_timeline: components["schemas"]["DailyCountEntry"][] | null;
-            license_categories: components["schemas"]["CategoryCountEntry"][] | null;
+            artifactCount: number;
+            artifactTypes: components["schemas"]["ArtifactTypeCountEntry"][] | null;
+            ingestionTimeline: components["schemas"]["DailyCountEntry"][] | null;
+            licenseCategories: components["schemas"]["CategoryCountEntry"][] | null;
             /** Format: int64 */
-            license_count: number;
+            licenseCount: number;
             /** Format: int64 */
-            package_count: number;
-            package_growth_timeline: components["schemas"]["DailyCountEntry"][] | null;
+            packageCount: number;
+            packageGrowthTimeline: components["schemas"]["DailyCountEntry"][] | null;
             /** Format: int64 */
-            sbom_count: number;
-            top_packages: components["schemas"]["PackageSummaryEntry"][] | null;
+            sbomCount: number;
+            topPackages: components["schemas"]["PackageSummaryEntry"][] | null;
             /** Format: int64 */
-            version_count: number;
-            version_growth_timeline: components["schemas"]["DailyCountEntry"][] | null;
+            versionCount: number;
+            versionGrowthTimeline: components["schemas"]["DailyCountEntry"][] | null;
             /** Format: int64 */
-            vuln_count: number;
-            vuln_severity: components["schemas"]["VulnSeverityEntry"];
+            vulnCount: number;
+            vulnSeverity: components["schemas"]["VulnSeverityEntry"];
             /** @description No snapshot is available yet and every count is a zero placeholder; render a loading state and retry */
             warming: boolean;
         };
@@ -2530,15 +2594,15 @@ export interface components {
              */
             readonly $schema?: string;
             /** @description When this snapshot was computed; absent while warming */
-            generated_at?: string;
+            generatedAt?: string;
             /** @description License distribution across public content, by distinct package identity */
-            license_spread: components["schemas"]["DiscoverLicense"][] | null;
+            licenseSpread: components["schemas"]["DiscoverLicense"][] | null;
             /** @description Most recently updated public artifacts, one row per artifact */
-            recent_artifacts: components["schemas"]["DiscoverRecent"][] | null;
+            recentArtifacts: components["schemas"]["DiscoverRecent"][] | null;
             /** @description Artifacts ranked by how widely they are used, how many versions are tracked, and how recently they were seen */
-            top_artifacts: components["schemas"]["DiscoverArtifact"][] | null;
+            topArtifacts: components["schemas"]["DiscoverArtifact"][] | null;
             /** @description Vulnerabilities ranked by how many public artifacts they affect */
-            top_vulnerabilities: components["schemas"]["DiscoverVuln"][] | null;
+            topVulnerabilities: components["schemas"]["DiscoverVuln"][] | null;
             /** @description No snapshot is available yet, so every section is empty because nothing is known — not because the catalog is empty; render a loading state and retry */
             warming: boolean;
         };
@@ -2555,34 +2619,34 @@ export interface components {
         };
         EnrichmentJobResponse: {
             /** @description Name of the artifact, for display */
-            artifact_name?: string;
+            artifactName?: string;
             /** Format: int32 */
             attempts: number;
-            created_at: string;
+            createdAt: string;
             /**
              * @description Which enricher this job runs
              * @enum {string}
              */
-            enricher_name: "user" | "oci-metadata" | "provenance";
-            finished_at?: string;
+            enricherName: "user" | "oci-metadata" | "provenance";
+            finishedAt?: string;
             /** @description Job UUID */
             id: string;
-            last_attempt_at?: string;
-            last_error?: string;
+            lastAttemptAt?: string;
+            lastError?: string;
             /** @description Digest of the SBOM's image, for display */
-            sbom_digest?: string;
+            sbomDigest?: string;
             /** @description SBOM being enriched */
-            sbom_id?: string;
-            started_at?: string;
+            sbomId?: string;
+            startedAt?: string;
             /** @enum {string} */
             state: "queued" | "running" | "succeeded" | "failed";
             /** @description Pod hostname that is processing this job */
-            worker_id?: string;
+            workerId?: string;
         };
         EnrichmentJobSummaryRow: {
             /** Format: int64 */
             count: number;
-            enricher_name: string;
+            enricherName: string;
             state: string;
         };
         EnrichmentJobsSummaryOutputBody: {
@@ -2597,7 +2661,7 @@ export interface components {
         EnrichmentStatus: {
             enabled: boolean;
             /** Format: int64 */
-            queue_size: number;
+            queueSize: number;
             /** Format: int64 */
             workers: number;
         };
@@ -2670,6 +2734,15 @@ export interface components {
              */
             readonly $schema?: string;
             licenses: components["schemas"]["LicenseCount"][] | null;
+            /**
+             * Format: date-time
+             * @description When that SBOM was ingested
+             */
+            sbomCreatedAt?: string;
+            /** @description The SBOM the counts are taken from: the artifact's most recently ingested */
+            sbomId?: string;
+            /** @description That SBOM's subject version */
+            subjectVersion?: string;
         };
         GetArtifactUsagesOutputBody: {
             /**
@@ -2687,6 +2760,8 @@ export interface components {
              * @example https://example.com/schemas/GetArtifactVulnSummaryOutputBody.json
              */
             readonly $schema?: string;
+            /** @description Version whose newest SBOM the summary counts */
+            subjectVersion?: string;
             summary: components["schemas"]["VulnSummary"];
         };
         GetComponentVersionsOutputBody: {
@@ -2702,6 +2777,11 @@ export interface components {
              */
             artifactCount: number;
             pagination: components["schemas"]["PaginationMeta"];
+            /**
+             * Format: int64
+             * @description Distinct SBOMs containing this component, across every page. Pagination.total counts occurrences, and one SBOM can hold several.
+             */
+            sbomCount: number;
             /**
              * Format: int64
              * @description Distinct versions under this identity, across every page
@@ -2764,9 +2844,9 @@ export interface components {
         };
         IdentityResponse: {
             /** Format: date-time */
-            created_at: string;
+            createdAt: string;
             /** @description Label for the issuer */
-            display_name: string;
+            displayName: string;
             /** @description Address this issuer released, if any */
             email?: string;
             /** @description Identity UUID */
@@ -2808,7 +2888,7 @@ export interface components {
              */
             readonly $schema?: string;
             /** @description Limit the run to these running image digests. Omit to ingest every unknown image the cluster reports. */
-            image_digests?: string[] | null;
+            imageDigests?: string[] | null;
         };
         IngestUnknownOutputBody: {
             /**
@@ -2826,7 +2906,7 @@ export interface components {
              * Format: int64
              * @description The host is in an address range the egress policy refuses; not retried
              */
-            egress_denied: number;
+            egressDenied: number;
             /**
              * Format: int64
              * @description Submission errored: a manifest that is not there, or a transient registry or queue problem
@@ -2841,17 +2921,17 @@ export interface components {
              * Format: int64
              * @description Already has a scan job: scanning, failed, or deleted on purpose. A repeat snapshot lands here.
              */
-            skipped_existing: number;
+            skippedExisting: number;
             /**
              * Format: int64
              * @description The host matches a registry that is switched off
              */
-            skipped_registry_disabled: number;
+            skippedRegistryDisabled: number;
             /**
              * Format: int64
              * @description The reported reference carries no host to resolve against
              */
-            skipped_unparseable_ref: number;
+            skippedUnparseableRef: number;
             /**
              * Format: int64
              * @description The host refused the pull, in this run or a recorded earlier one; not retried
@@ -2859,31 +2939,31 @@ export interface components {
             unauthorized: number;
         };
         InventoryWorkload: {
-            container_name: string;
+            containerName: string;
             /** @description Normalized digest from status.containerStatuses[].imageID. Omit when the agent could not extract one — that is reported as 'unresolvable', not silently dropped. */
-            image_digest?: string;
+            imageDigest?: string;
             /** @description Image reference, for display only. Never used as an identity: a tag is mutable. */
-            image_ref: string;
+            imageRef: string;
             /** @description Kubernetes namespace the workload runs in */
-            k8s_namespace: string;
+            k8sNamespace: string;
             /**
              * Format: int32
              * @description Running pods carrying this container at this digest
              */
-            pod_count: number;
+            podCount: number;
             /** @description Owning workload kind (Deployment, StatefulSet, DaemonSet, Job, CronJob, Pod) */
-            workload_kind: string;
-            workload_name: string;
+            workloadKind: string;
+            workloadName: string;
         };
         KeyMetaResponse: {
             /** @description Capabilities this key may exercise, before intersection with the owner's live namespace roles */
             capabilities: string[] | null;
             /** Format: date-time */
-            created_at: string;
+            createdAt: string;
             /** @description Key UUID */
             id: string;
             /** Format: date-time */
-            last_used_at?: string;
+            lastUsedAt?: string;
             name: string;
             /** @description First 8 characters of the key */
             prefix: string;
@@ -2968,6 +3048,11 @@ export interface components {
             readonly $schema?: string;
             data: components["schemas"]["ArtifactSummary"][] | null;
             pagination: components["schemas"]["CursorMeta"];
+            /**
+             * Format: int64
+             * @description Artifacts matching the filters, on the first page only
+             */
+            total?: number;
         };
         ListClusterImagesOutputBody: {
             /**
@@ -3042,6 +3127,26 @@ export interface components {
              */
             readonly $schema?: string;
             types: string[] | null;
+        };
+        ListComponentVersionSummariesOutputBody: {
+            /**
+             * Format: uri
+             * @description A URL to the JSON Schema for this object.
+             * @example https://example.com/schemas/ListComponentVersionSummariesOutputBody.json
+             */
+            readonly $schema?: string;
+            /**
+             * Format: int64
+             * @description Distinct artifacts whose SBOMs contain this component, across every page
+             */
+            artifactCount: number;
+            pagination: components["schemas"]["PaginationMeta"];
+            /**
+             * Format: int64
+             * @description Distinct SBOMs containing this component, across every page
+             */
+            sbomCount: number;
+            versions: components["schemas"]["ComponentVersionSummary"][] | null;
         };
         ListComponentsByLicenseOutputBody: {
             /**
@@ -3281,7 +3386,7 @@ export interface components {
              */
             readonly $schema?: string;
             /** @description Name to show for this user; supplied by whichever issuer last signed them in */
-            display_name: string;
+            displayName: string;
             /** @description User UUID */
             id: string;
             /** @description The caller's namespace memberships, for UI emphasis only */
@@ -3291,7 +3396,7 @@ export interface components {
         };
         MyMembership: {
             /** @description Namespace UUID */
-            namespace_id: string;
+            namespaceId: string;
             /**
              * @description The caller's role in that namespace
              * @enum {string}
@@ -3303,12 +3408,12 @@ export interface components {
             url: string;
         };
         NamespaceFacetResponse: {
-            k8s_namespace: string;
+            k8sNamespace: string;
             /**
              * Format: int64
              * @description Containers reported in this namespace
              */
-            workload_count: number;
+            workloadCount: number;
         };
         NamespaceMemberResponse: {
             /**
@@ -3319,14 +3424,14 @@ export interface components {
             readonly $schema?: string;
             /** @description Capabilities the role grants, for display */
             capabilities: string[] | null;
-            created_at: string;
+            createdAt: string;
             /**
              * @description The member's role in this namespace
              * @enum {string}
              */
             role: "owner" | "maintainer" | "security" | "developer" | "viewer";
             /** @description UUID of the member */
-            user_id: string;
+            userId: string;
             /** @description GitHub username of the member */
             username: string;
         };
@@ -3337,14 +3442,16 @@ export interface components {
              * @example https://example.com/schemas/NamespaceResponse.json
              */
             readonly $schema?: string;
-            created_at: string;
+            /** @description Capabilities the caller holds in this namespace (ADR-046) */
+            capabilities?: string[] | null;
+            createdAt: string;
             id: string;
             name: string;
             /** @description UUID of the namespace owner */
-            owner_id?: string;
+            ownerId?: string;
             /** @description GitHub username of the namespace owner */
-            owner_username?: string;
-            updated_at: string;
+            ownerUsername?: string;
+            updatedAt: string;
             /**
              * @description Namespace visibility: public or private
              * @enum {string}
@@ -3355,10 +3462,10 @@ export interface components {
             group?: string;
             name: string;
             /** Format: int64 */
-            sbom_count: number;
+            sbomCount: number;
             type: string;
             /** Format: int64 */
-            version_count: number;
+            versionCount: number;
         };
         PageMeta: {
             /** Format: int32 */
@@ -3393,34 +3500,34 @@ export interface components {
              */
             readonly $schema?: string;
             /** @description Token or PAT for registry authentication; omit for anonymous access */
-            auth_token?: string;
+            authToken?: string;
             /** @description Username for registry authentication; omit for anonymous access */
-            auth_username?: string;
+            authUsername?: string;
             /** @description Scan untagged manifests via registry-specific APIs (supported: zot, harbor, ghcr) */
-            include_untagged?: boolean;
+            includeUntagged?: boolean;
             /** @description Allow HTTP (non-TLS) connections */
             insecure: boolean;
             /**
              * Format: int64
              * @description Skip tags whose image is older than this many days; needs the created order
              */
-            max_tag_age_days?: number;
+            maxTagAgeDays?: number;
             /** @description Explicit repositories to walk; bypasses /v2/_catalog discovery when non-empty */
             repositories?: string[] | null;
             /** @description Glob patterns for repositories to ingest; empty = all */
-            repository_patterns?: string[] | null;
+            repositoryPatterns?: string[] | null;
             /**
              * Format: int64
              * @description Newest tags kept per repository; 0 = unlimited. Defaults to 50
              */
-            tag_limit?: number;
+            tagLimit?: number;
             /**
              * @description How 'newest' is decided; defaults to auto
              * @enum {string}
              */
-            tag_order?: "auto" | "semver" | "created" | "lexical";
+            tagOrder?: "auto" | "semver" | "created" | "lexical";
             /** @description Glob patterns or 'semver' for tags to ingest; empty = all */
-            tag_patterns?: string[] | null;
+            tagPatterns?: string[] | null;
             /**
              * @description Registry type
              * @enum {string}
@@ -3439,9 +3546,9 @@ export interface components {
         };
         ProviderResponse: {
             /** @description Label for a sign-in button */
-            display_name: string;
+            displayName: string;
             /** @description Path on the API to begin a sign-in through this issuer */
-            login_path: string;
+            loginPath: string;
             /** @description Issuer key: 'github', or 'oidc:<name>' */
             name: string;
         };
@@ -3473,7 +3580,7 @@ export interface components {
              */
             pruned: number;
             /** @description Timestamp recorded on the cluster */
-            seen_at: string;
+            seenAt: string;
         };
         ReadinessCheckOutputBody: {
             /**
@@ -3512,7 +3619,7 @@ export interface components {
              */
             readonly $schema?: string;
             /** @description New webhook secret — shown once only. The previous secret is immediately invalidated. */
-            webhook_secret: string;
+            webhookSecret: string;
         };
         RegistryPreview: {
             /**
@@ -3522,12 +3629,12 @@ export interface components {
              */
             readonly $schema?: string;
             /** Format: int64 */
-            estimated_sboms: number;
+            estimatedSboms: number;
             repositories: components["schemas"]["RepoPreview"][] | null;
             /** Format: int64 */
             selected: number;
             /** Format: int64 */
-            skipped_by_limit: number;
+            skippedByLimit: number;
         };
         RegistryResponse: {
             /**
@@ -3536,63 +3643,63 @@ export interface components {
              * @example https://example.com/schemas/RegistryResponse.json
              */
             readonly $schema?: string;
-            created_at: string;
+            createdAt: string;
             enabled: boolean;
-            has_auth: boolean;
-            has_secret: boolean;
+            hasAuth: boolean;
+            hasSecret: boolean;
             id: string;
             /** @description Scan untagged manifests via registry-specific APIs (supported: zot, harbor, ghcr) */
-            include_untagged: boolean;
+            includeUntagged: boolean;
             insecure: boolean;
-            last_polled_at?: string;
+            lastPolledAt?: string;
             /** @description What the most recent catalog walk selected; absent until the first walk */
-            last_walk?: components["schemas"]["WalkStats"];
+            lastWalk?: components["schemas"]["WalkStats"];
             /** @description External system that owns this registry's configuration (e.g. kubernetes); absent when managed through this API */
-            managed_by?: string;
+            managedBy?: string;
             /** @description Identifier within the managing system, e.g. '<namespace>/<name>' of the OCIRegistry resource */
-            managed_ref?: string;
+            managedRef?: string;
             /**
              * Format: int64
              * @description Tags whose image is older than this many days are skipped; 0 = no age limit
              */
-            max_tag_age_days: number;
+            maxTagAgeDays: number;
             name: string;
             /** Format: int64 */
-            poll_interval_minutes: number;
+            pollIntervalMinutes: number;
             /** @description Explicit repositories to walk; overrides catalog discovery when non-empty */
             repositories: string[] | null;
             /** @description Glob patterns for repositories to ingest; empty = all */
-            repository_patterns: string[] | null;
-            scan_mode: string;
+            repositoryPatterns: string[] | null;
+            scanMode: string;
             /**
              * Format: int64
              * @description Newest tags kept per repository (ADR-0053); 0 = unlimited
              */
-            tag_limit: number;
+            tagLimit: number;
             /**
-             * @description How 'newest' is decided; auto = semver when tag_patterns contains semver, created otherwise
+             * @description How 'newest' is decided; auto = semver when tagPatterns contains semver, created otherwise
              * @enum {string}
              */
-            tag_order: "auto" | "semver" | "created" | "lexical";
+            tagOrder: "auto" | "semver" | "created" | "lexical";
             /** @description Glob patterns or 'semver' for tags to ingest; empty = all */
-            tag_patterns: string[] | null;
+            tagPatterns: string[] | null;
             /** @description Regex matched against the Fulcio certificate SAN; required for keyless verification mode */
-            trust_identity?: string;
+            trustIdentity?: string;
             /** @description Expected OIDC issuer URL; required for keyless verification mode */
-            trust_issuer?: string;
+            trustIssuer?: string;
             /** @description PEM-encoded EC public key for public_key verification mode */
-            trust_public_key?: string;
+            trustPublicKey?: string;
             type: string;
-            updated_at: string;
+            updatedAt: string;
             url: string;
             /**
              * @description Signature verification mode
              * @enum {string}
              */
-            verification_mode: "none" | "public_key" | "keyless";
+            verificationMode: "none" | "public_key" | "keyless";
             /** @description Registry visibility: public or private */
             visibility: string;
-            webhook_url: string;
+            webhookUrl: string;
         };
         RegistryTrustCount: {
             /** Format: int64 */
@@ -3620,7 +3727,7 @@ export interface components {
              * Format: int64
              * @description (selected tags x platforms) + untagged manifests; an estimate, since tags can share digests and platforms vary
              */
-            estimated_sboms: number;
+            estimatedSboms: number;
             /**
              * Format: int64
              * @description Tags that pass the filter
@@ -3639,17 +3746,17 @@ export interface components {
             selected: number;
             /**
              * Format: int64
-             * @description Matching tags older than max_tag_age_days, or with no build date while it is set
+             * @description Matching tags older than maxTagAgeDays, or with no build date while it is set
              */
-            skipped_by_age: number;
+            skippedByAge: number;
             /**
              * Format: int64
-             * @description Matching tags past tag_limit
+             * @description Matching tags past tagLimit
              */
-            skipped_by_limit: number;
+            skippedByLimit: number;
             /**
              * Format: int64
-             * @description Untagged manifests inside the untagged window (include_untagged only)
+             * @description Untagged manifests inside the untagged window (includeUntagged only)
              */
             untagged: number;
         };
@@ -3681,9 +3788,9 @@ export interface components {
         };
         RunningVulnResponse: {
             /** @description The id this finding is keyed and linked by, normally a CVE. Aliased advisories are collapsed into one row. */
-            canonical_id: string;
+            canonicalId: string;
             /** Format: float */
-            cvss_score?: number;
+            cvssScore?: number;
             /** @description Native advisory id of the representative record (OSV, GHSA, …) */
             id: string;
             severity?: string;
@@ -3692,34 +3799,34 @@ export interface components {
              * Format: int64
              * @description Distinct running workloads affected in this cluster
              */
-            workload_count: number;
+            workloadCount: number;
         };
         RunningWorkloadResponse: {
-            artifact_id?: string;
-            artifact_name?: string;
-            artifact_type?: string;
-            cluster_id: string;
-            cluster_name: string;
-            container_name: string;
-            first_seen_at: string;
+            artifactId?: string;
+            artifactName?: string;
+            artifactType?: string;
+            clusterId: string;
+            clusterName: string;
+            containerName: string;
+            firstSeenAt: string;
             id: string;
-            image_digest?: string;
-            image_ref: string;
-            k8s_namespace: string;
-            last_seen_at: string;
+            imageDigest?: string;
+            imageRef: string;
+            k8sNamespace: string;
+            lastSeenAt: string;
             /**
              * @description exact = digest matched an SBOM; index = matched a multi-arch image index, so the exact platform is unknown; unknown = real digest with no ingested SBOM (coverage gap); unresolvable = no digest could be read from the container (agent/runtime gap)
              * @enum {string}
              */
-            match_state: "exact" | "index" | "unknown" | "unresolvable";
+            matchState: "exact" | "index" | "unknown" | "unresolvable";
             /** Format: int32 */
-            pod_count: number;
-            sbom_id?: string;
-            subject_version?: string;
+            podCount: number;
+            sbomId?: string;
+            subjectVersion?: string;
             /** @description Findings in the matched SBOM. Absent when no SBOM matched — absence is not zero */
             vulns?: components["schemas"]["WorkloadVulnCounts"];
-            workload_kind: string;
-            workload_name: string;
+            workloadKind: string;
+            workloadName: string;
         };
         SBOMDetail: {
             /**
@@ -3819,36 +3926,36 @@ export interface components {
             readonly $schema?: string;
             /** Format: int32 */
             attempts: number;
-            created_at: string;
+            createdAt: string;
             digest: string;
-            finished_at?: string;
+            finishedAt?: string;
             /** @description Job UUID */
             id: string;
-            last_attempt_at?: string;
-            last_error?: string;
+            lastAttemptAt?: string;
+            lastError?: string;
             /** @description NATS deduplication message ID */
-            nats_msg_id?: string;
+            natsMsgId?: string;
             /** @description Source registry UUID */
-            registry_id?: string;
+            registryId?: string;
             repository: string;
             /** @description Resulting SBOM UUID on success */
-            sbom_id?: string;
-            started_at?: string;
+            sbomId?: string;
+            startedAt?: string;
             /** @enum {string} */
             state: "queued" | "running" | "succeeded" | "failed" | "pruned";
             tag?: string;
             /** @description Pod hostname that is processing this job */
-            worker_id?: string;
+            workerId?: string;
         };
         ScanJobsStatus: {
             /** Format: int64 */
-            failed_24h: number;
+            failed24h: number;
             /** Format: int64 */
             queued: number;
             /** Format: int64 */
             running: number;
             /** Format: int64 */
-            succeeded_24h: number;
+            succeeded24h: number;
         };
         ScanRegistryOutputBody: {
             /**
@@ -3862,7 +3969,7 @@ export interface components {
         };
         ScannerStatus: {
             enabled: boolean;
-            poller_enabled: boolean;
+            pollerEnabled: boolean;
         };
         SearchComponentsOutputBody: {
             /**
@@ -3904,7 +4011,7 @@ export interface components {
              * @example https://example.com/schemas/SourceResponse.json
              */
             readonly $schema?: string;
-            created_at: string;
+            createdAt: string;
             id: string;
             /**
              * @description Ingest channel kind
@@ -3912,10 +4019,10 @@ export interface components {
              */
             kind: "oci_registry" | "upload" | "cluster";
             name: string;
-            namespace_id: string;
+            namespaceId: string;
             /** @description Owning namespace name; populated on list responses */
-            namespace_name?: string;
-            updated_at: string;
+            namespaceName?: string;
+            updatedAt: string;
         };
         StartIdentityLinkInputBody: {
             /**
@@ -3935,7 +4042,7 @@ export interface components {
              */
             readonly $schema?: string;
             /** @description Navigate the browser here to continue linking */
-            authorize_url: string;
+            authorizeUrl: string;
         };
         SystemStatusOutputBody: {
             /**
@@ -3947,7 +4054,7 @@ export interface components {
             db: components["schemas"]["DBStatus"];
             enrichment: components["schemas"]["EnrichmentStatus"];
             nats: components["schemas"]["NATSStatus"];
-            scan_jobs: components["schemas"]["ScanJobsStatus"];
+            scanJobs: components["schemas"]["ScanJobsStatus"];
             scanner: components["schemas"]["ScannerStatus"];
         };
         TestRegistryConnectionInputBody: {
@@ -3958,9 +4065,9 @@ export interface components {
              */
             readonly $schema?: string;
             /** @description Token or PAT for registry authentication */
-            auth_token?: string;
+            authToken?: string;
             /** @description Username for registry authentication */
-            auth_username?: string;
+            authUsername?: string;
             /** @description Use HTTP instead of HTTPS */
             insecure: boolean;
             /** @description Registry address (e.g. zot:5000) */
@@ -3997,28 +4104,28 @@ export interface components {
             /** @description Normalized registry host the images in this group name, and the address a registry for it would use */
             host: string;
             /** Format: int64 */
-            image_count: number;
+            imageCount: number;
             /** Format: int64 */
-            pod_count: number;
+            podCount: number;
             /**
              * @description The worst remedy seen for this group: a registry to add or fix credentials for, or one to switch on. Other states name no registry to configure and are not grouped here
              * @enum {string}
              */
             reason: "unauthorized" | "registry_disabled";
             /** @description Registry that serves this group, when one was matched at all */
-            registry_id?: string;
-            registry_name?: string;
+            registryId?: string;
+            registryName?: string;
             /** @description Distinct repositories a registry would have to cover to close this group's gap, sorted; capped, so compare against repository_count */
             repositories: string[] | null;
             /**
              * Format: int64
              * @description Distinct repository total, which may exceed the length of repositories
              */
-            repository_count: number;
+            repositoryCount: number;
             /** @description The group: the host plus any leading repository segments that belong to the registry rather than the image, e.g. ghcr.io/pfenerty */
             scope: string;
             /** Format: int64 */
-            workload_count: number;
+            workloadCount: number;
         };
         UnknownImageReasonCounts: {
             /**
@@ -4030,7 +4137,7 @@ export interface components {
              * Format: int64
              * @description The host is in an address range the egress policy refuses
              */
-            egress_denied: number;
+            egressDenied: number;
             /**
              * Format: int64
              * @description The manifest was not there, or the scan used up its attempts; ingesting the row retries it
@@ -4045,7 +4152,7 @@ export interface components {
              * Format: int64
              * @description The host matches a registry that is switched off
              */
-            registry_disabled: number;
+            registryDisabled: number;
             /**
              * Format: int64
              * @description A scan job is queued or running
@@ -4060,31 +4167,31 @@ export interface components {
              * Format: int64
              * @description The reported reference carries no host to resolve against
              */
-            unparseable_ref: number;
+            unparseableRef: number;
         };
         UnknownImageResponse: {
-            image_digest: string;
-            image_ref: string;
+            imageDigest: string;
+            imageRef: string;
             /** Format: int64 */
-            pod_count: number;
+            podCount: number;
             /**
              * @description Where this image stands: ready to queue, already has a job, or why it cannot be ingested (ADR-0044 K10)
              * @enum {string}
              */
             reason: "ready" | "scanning" | "unauthorized" | "egress_denied" | "failed" | "deleted" | "registry_disabled" | "unparseable_ref";
-            /** @description Host parsed out of image_ref; empty when the reference carries none */
-            registry_host?: string;
+            /** @description Host parsed out of imageRef; empty when the reference carries none */
+            registryHost?: string;
             /** @description Registry whose credentials pull this image, or the disabled one blocking it; absent on a ready image means an anonymous pull */
-            registry_id?: string;
-            registry_name?: string;
+            registryId?: string;
+            registryName?: string;
             repository?: string;
-            sample_k8s_namespace?: string;
-            sample_workload_name?: string;
+            sampleK8sNamespace?: string;
+            sampleWorkloadName?: string;
             /**
              * Format: int64
              * @description Containers running this image
              */
-            workload_count: number;
+            workloadCount: number;
         };
         UpdateClusterInputBody: {
             /**
@@ -4094,7 +4201,7 @@ export interface components {
              */
             readonly $schema?: string;
             /** @description Auto-ingest unknown running images on every accepted snapshot. Omit to leave unchanged. */
-            auto_ingest?: boolean;
+            autoIngest?: boolean;
             description?: string;
             name: string;
         };
@@ -4120,51 +4227,53 @@ export interface components {
              * @example https://example.com/schemas/UpdateRegistryInputBody.json
              */
             readonly $schema?: string;
-            auth_token?: string;
-            auth_username?: string;
+            authToken?: string;
+            authUsername?: string;
             enabled: boolean;
             /** @description Scan untagged manifests via registry-specific APIs (supported: zot, harbor, ghcr) */
-            include_untagged?: boolean;
+            includeUntagged?: boolean;
             insecure: boolean;
             /** @description External system that owns this registry's configuration; omit to leave the existing marker untouched */
-            managed_by?: string;
+            managedBy?: string;
             /** @description Identifier within the managing system; omit to leave the existing value untouched */
-            managed_ref?: string;
+            managedRef?: string;
             /**
              * Format: int64
              * @description Skip tags whose image is older than this many days; 0 clears it. Omit to keep the current value
              */
-            max_tag_age_days?: number;
+            maxTagAgeDays?: number;
             name: string;
+            /** @description Move the registry, and every SBOM it is the source of, into this existing namespace. Requires manage_source there. Omit to leave it where it is */
+            namespace?: string;
             /**
              * Format: int64
              * @description Minutes between polls
              */
-            poll_interval_minutes?: number;
+            pollIntervalMinutes?: number;
             repositories?: string[] | null;
-            repository_patterns?: string[] | null;
+            repositoryPatterns?: string[] | null;
             /**
              * @description Scanning mode
              * @enum {string}
              */
-            scan_mode?: "webhook" | "poll" | "both";
+            scanMode?: "webhook" | "poll" | "both";
             /**
              * Format: int64
              * @description Newest tags kept per repository; 0 = unlimited. Omit to keep the current value
              */
-            tag_limit?: number;
+            tagLimit?: number;
             /**
-             * @description How 'newest' is decided; auto = semver when tag_patterns contains semver, created otherwise. Omit to keep the current value
+             * @description How 'newest' is decided; auto = semver when tagPatterns contains semver, created otherwise. Omit to keep the current value
              * @enum {string}
              */
-            tag_order?: "auto" | "semver" | "created" | "lexical";
-            tag_patterns?: string[] | null;
-            /** @description Regex matched against the Fulcio certificate SAN; required when verification_mode is keyless */
-            trust_identity?: string;
-            /** @description Expected OIDC issuer URL; required when verification_mode is keyless */
-            trust_issuer?: string;
-            /** @description PEM-encoded EC public key; required when verification_mode is public_key */
-            trust_public_key?: string;
+            tagOrder?: "auto" | "semver" | "created" | "lexical";
+            tagPatterns?: string[] | null;
+            /** @description Regex matched against the Fulcio certificate SAN; required when verificationMode is keyless */
+            trustIdentity?: string;
+            /** @description Expected OIDC issuer URL; required when verificationMode is keyless */
+            trustIssuer?: string;
+            /** @description PEM-encoded EC public key; required when verificationMode is public_key */
+            trustPublicKey?: string;
             /** @enum {string} */
             type: "zot" | "harbor" | "docker" | "generic" | "ghcr";
             url: string;
@@ -4172,7 +4281,7 @@ export interface components {
              * @description Signature verification mode; defaults to none
              * @enum {string}
              */
-            verification_mode?: "none" | "public_key" | "keyless";
+            verificationMode?: "none" | "public_key" | "keyless";
             /**
              * @description Registry visibility
              * @enum {string}
@@ -4210,7 +4319,7 @@ export interface components {
              */
             readonly $schema?: string;
             /** @description Name to show for this user; supplied by whichever issuer last signed them in */
-            display_name: string;
+            displayName: string;
             id: string;
             role: string;
         };
@@ -4226,11 +4335,20 @@ export interface components {
              * @example v1.0.0
              */
             build: string;
+            /** @description When the server was built, or 'unknown' */
+            builtAt: string;
+            /** @description VCS revision the server was built from, or 'unknown' */
+            commit: string;
             /**
              * @description API version
              * @example v1
              */
             version: string;
+            /**
+             * Format: date-time
+             * @description Build time of the vulnerability database the stored matches come from
+             */
+            vulnDbBuiltAt?: string;
         };
         VulnDetail: {
             aliases: string[] | null;
@@ -4308,14 +4426,14 @@ export interface components {
             selected: number;
             /**
              * Format: int64
-             * @description Matching tags older than max_tag_age_days
+             * @description Matching tags older than maxTagAgeDays
              */
-            skipped_by_age: number;
+            skippedByAge: number;
             /**
              * Format: int64
-             * @description Matching tags past tag_limit
+             * @description Matching tags past tagLimit
              */
-            skipped_by_limit: number;
+            skippedByLimit: number;
         };
         WatchEntry: {
             artifactId: string;
@@ -4422,7 +4540,7 @@ export interface operations {
         parameters: {
             query?: {
                 /** @description Limit the reset to a single enricher; omit to reset all */
-                enricher_name?: "user" | "oci-metadata" | "provenance";
+                enricherName?: "user" | "oci-metadata" | "provenance";
             };
             header?: never;
             path?: never;
@@ -4497,6 +4615,36 @@ export interface operations {
                 content: {
                     "application/json": components["schemas"]["RetryAllFailedScanJobsOutputBody"];
                 };
+            };
+            /** @description Error */
+            default: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["ErrorModel"];
+                };
+            };
+        };
+    };
+    "cancel-scan-job": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                /** @description Queued scan job UUID to cancel */
+                id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description No Content */
+            204: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
             };
             /** @description Error */
             default: {
@@ -4714,7 +4862,7 @@ export interface operations {
         parameters: {
             query?: {
                 /** @description Filter by subject version */
-                subject_version?: string;
+                subjectVersion?: string;
                 /** @description Architecture to show timeline for (e.g. amd64) */
                 arch?: string;
                 /** @description Flavor to show timeline for (e.g. standard, fips) */
@@ -4827,9 +4975,9 @@ export interface operations {
                 /** @description Opaque cursor from a previous response's nextCursor; omit for the first page */
                 cursor?: string;
                 /** @description Filter by subject version */
-                subject_version?: string;
+                subjectVersion?: string;
                 /** @description Filter by image version */
-                image_version?: string;
+                imageVersion?: string;
             };
             header?: never;
             path: {
@@ -4975,7 +5123,7 @@ export interface operations {
                 /** @description Filter to a single advisory, by canonical id or native OSV id */
                 vuln?: string;
                 /** @description Column to sort by. Unset means worst first: severity, then CVSS. */
-                sort?: "severity" | "cvss_score" | "affected_package_count" | "affected_version_count" | "canonical_id";
+                sort?: "severity" | "cvssScore" | "affectedPackageCount" | "affectedVersionCount" | "canonicalId";
                 /** @description Sort direction (default asc). Applies to sort only — with sort unset the worst-first default ordering ignores it. */
                 dir?: "asc" | "desc";
                 /** @description How many of the artifact's most recent versions to scan */
@@ -5232,7 +5380,7 @@ export interface operations {
         parameters: {
             query?: {
                 /** @description Limit to clusters in one namespace */
-                namespace_id?: string;
+                namespaceId?: string;
             };
             header?: never;
             path?: never;
@@ -5395,13 +5543,13 @@ export interface operations {
         parameters: {
             query?: {
                 /** @description Filter to one Kubernetes namespace */
-                k8s_namespace?: string;
+                k8sNamespace?: string;
                 /** @description Filter by SBOM match state */
-                match_state?: "exact" | "index" | "unknown" | "unresolvable";
+                matchState?: "exact" | "index" | "unknown" | "unresolvable";
                 /** @description Substring match over workload name, container name and image reference */
                 q?: string;
-                /** @description Column to sort by. vuln_count orders by severity, worst first, and sorts unassessed images last in either direction. Unset means image reference order. */
-                sort?: "image_ref" | "match_state" | "workload_count" | "pod_count" | "last_seen_at" | "vuln_count";
+                /** @description Column to sort by. vulnCount orders by severity, worst first, and sorts unassessed images last in either direction. Unset means image reference order. */
+                sort?: "imageRef" | "matchState" | "workloadCount" | "podCount" | "lastSeenAt" | "vulnCount";
                 /** @description Sort direction (default asc). Applies to sort only — with sort unset the default ordering ignores it. */
                 dir?: "asc" | "desc";
                 /** @description Maximum number of results per page */
@@ -5583,9 +5731,9 @@ export interface operations {
         parameters: {
             query?: {
                 /** @description Filter by severity */
-                severity?: "CRITICAL" | "HIGH" | "MEDIUM" | "LOW";
+                severity?: "CRITICAL" | "HIGH" | "MEDIUM" | "LOW" | "UNKNOWN";
                 /** @description Column to sort by. Unset means worst first: severity, then CVSS. */
-                sort?: "severity" | "cvss_score" | "workload_count" | "canonical_id";
+                sort?: "severity" | "cvssScore" | "workloadCount" | "canonicalId";
                 /** @description Sort direction (default asc). Applies to sort only — with sort unset the worst-first default ordering ignores it. */
                 dir?: "asc" | "desc";
                 /** @description Maximum number of results per page */
@@ -5626,13 +5774,13 @@ export interface operations {
         parameters: {
             query?: {
                 /** @description Filter to one Kubernetes namespace */
-                k8s_namespace?: string;
+                k8sNamespace?: string;
                 /** @description Filter by SBOM match state */
-                match_state?: "exact" | "index" | "unknown" | "unresolvable";
+                matchState?: "exact" | "index" | "unknown" | "unresolvable";
                 /** @description Substring match over workload name, container name and image reference */
                 q?: string;
-                /** @description Column to sort by. vuln_count orders by severity, worst first, and sorts unmatched workloads last in either direction. Unset means namespace, then workload, then container. */
-                sort?: "k8s_namespace" | "workload_name" | "container_name" | "image_ref" | "match_state" | "pod_count" | "last_seen_at" | "vuln_count";
+                /** @description Column to sort by. vulnCount orders by severity, worst first, and sorts unmatched workloads last in either direction. Unset means namespace, then workload, then container. */
+                sort?: "k8sNamespace" | "workloadName" | "containerName" | "imageRef" | "matchState" | "podCount" | "lastSeenAt" | "vulnCount";
                 /** @description Sort direction (default asc). Applies to sort only — with sort unset the default ordering ignores it. */
                 dir?: "asc" | "desc";
                 /** @description Maximum number of results per page */
@@ -5725,11 +5873,11 @@ export interface operations {
                 /** @description Filter by component type */
                 type?: string;
                 /** @description Filter by purl type */
-                purl_type?: string;
-                /** @description Sort field: name, version_count, sbom_count, or severity (worst first, ranked critical to unknown). Unrecognised values fall back to name. */
+                purlType?: string;
+                /** @description Sort field: name, versionCount, sbomCount, or severity (worst first, ranked critical to unknown). Unrecognised values fall back to name. */
                 sort?: string;
                 /** @description Sort direction (asc or desc) */
-                sort_dir?: string;
+                sortDir?: string;
             };
             header?: never;
             path?: never;
@@ -5773,6 +5921,46 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["ListComponentPurlTypesOutputBody"];
+                };
+            };
+            /** @description Error */
+            default: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["ErrorModel"];
+                };
+            };
+        };
+    };
+    "list-component-version-summaries": {
+        parameters: {
+            query: {
+                /** @description Maximum number of results per page */
+                limit?: number;
+                /** @description Number of results to skip */
+                offset?: number;
+                /** @description Component name */
+                name: string;
+                /** @description Filter by component group */
+                group?: string;
+                /** @description Filter by component type */
+                type?: string;
+            };
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description OK */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ListComponentVersionSummariesOutputBody"];
                 };
             };
             /** @description Error */
@@ -5932,7 +6120,7 @@ export interface operations {
                 /** @description Filter by job state */
                 state?: "queued" | "running" | "succeeded" | "failed";
                 /** @description Filter by enricher */
-                enricher_name?: "user" | "oci-metadata" | "provenance";
+                enricherName?: "user" | "oci-metadata" | "provenance";
             };
             header?: never;
             path?: never;
@@ -6065,7 +6253,7 @@ export interface operations {
                 /** @description Number of results to skip */
                 offset?: number;
                 /** @description Filter by SPDX identifier */
-                spdx_id?: string;
+                spdxId?: string;
                 /** @description Filter by license name */
                 name?: string;
                 /** @description Filter by license category */
@@ -6398,7 +6586,7 @@ export interface operations {
                 /** @description Namespace UUID */
                 id: string;
                 /** @description UUID of the user to grant a role to */
-                user_id: string;
+                userId: string;
             };
             cookie?: never;
         };
@@ -6436,7 +6624,7 @@ export interface operations {
                 /** @description Namespace UUID */
                 id: string;
                 /** @description UUID of the member to remove */
-                user_id: string;
+                userId: string;
             };
             cookie?: never;
         };
@@ -6929,7 +7117,7 @@ export interface operations {
                 /** @description Opaque cursor from a previous response's nextCursor; omit for the first page */
                 cursor?: string;
                 /** @description Filter by serial number */
-                serial_number?: string;
+                serialNumber?: string;
                 /** @description Filter by image digest */
                 digest?: string;
             };
@@ -6964,20 +7152,20 @@ export interface operations {
             query?: {
                 /** @description Ingest channel this SBOM arrived through, as a source UUID or <namespace>/<name>. Required — the source's namespace owns the SBOM. */
                 source?: string;
-                /** @description Image version/tag (overrides BOM-extracted value for subject_version and imageVersion) */
+                /** @description Image version/tag (overrides BOM-extracted value for subjectVersion and imageVersion) */
                 version?: string;
                 /** @description Image architecture (e.g. amd64, arm64) */
                 architecture?: string;
                 /** @description Image build date (RFC3339 or date string) */
-                build_date?: string;
+                buildDate?: string;
                 /** @description CycloneDX component type of the subject (e.g. application, library, file) */
-                subject_type?: string;
+                subjectType?: string;
                 /** @description Subject name (e.g. ocidex) */
-                subject_name?: string;
+                subjectName?: string;
                 /** @description Subject group/namespace (e.g. github.com/pfenerty) */
-                subject_group?: string;
+                subjectGroup?: string;
                 /** @description Subject package URL (e.g. pkg:golang/github.com/pfenerty/ocidex@v1.2.3) */
-                subject_purl?: string;
+                subjectPurl?: string;
                 /** @description sha256 of the artifact file itself, not of this SBOM document. Required for a non-container subject. */
                 digest?: string;
             };
@@ -7302,7 +7490,7 @@ export interface operations {
                 /** @description Filter by severity */
                 severity?: "CRITICAL" | "HIGH" | "MEDIUM" | "LOW" | "UNKNOWN";
                 /** @description Column to sort by. Unset means worst first: severity, then CVSS. */
-                sort?: "severity" | "cvss_score" | "affected_package_count" | "canonical_id";
+                sort?: "severity" | "cvssScore" | "affectedPackageCount" | "canonicalId";
                 /** @description Sort direction (default asc). Applies to sort only — with sort unset the worst-first default ordering ignores it. */
                 dir?: "asc" | "desc";
                 /** @description Maximum number of results per page */
@@ -7343,7 +7531,7 @@ export interface operations {
         parameters: {
             query?: {
                 /** @description Limit to sources in this namespace */
-                namespace_id?: string;
+                namespaceId?: string;
             };
             header?: never;
             path?: never;
@@ -7834,9 +8022,9 @@ export interface operations {
                 /** @description Filter by severity */
                 severity?: "CRITICAL" | "HIGH" | "MEDIUM" | "LOW";
                 /** @description Sort field */
-                sort?: "severity" | "cvss_score" | "affected_sbom_count" | "affected_purl_count" | "published_at" | "canonical_id";
+                sort?: "severity" | "cvssScore" | "affectedSbomCount" | "affectedPurlCount" | "publishedAt" | "canonicalId";
                 /** @description Sort direction (asc or desc) */
-                sort_dir?: "asc" | "desc";
+                sortDir?: "asc" | "desc";
             };
             header?: never;
             path?: never;
@@ -7938,7 +8126,7 @@ export interface operations {
             header?: never;
             path: {
                 /** @description Artifact UUID */
-                artifact_id: string;
+                artifactId: string;
             };
             cookie?: never;
         };
@@ -7968,7 +8156,7 @@ export interface operations {
             header?: never;
             path: {
                 /** @description Artifact UUID */
-                artifact_id: string;
+                artifactId: string;
             };
             cookie?: never;
         };
@@ -8040,9 +8228,9 @@ export interface operations {
                 /** @description Filter by severity */
                 severity?: "CRITICAL" | "HIGH" | "MEDIUM" | "LOW";
                 /** @description Sort field */
-                sort?: "severity" | "cvss_score" | "affected_sbom_count" | "affected_purl_count" | "published_at" | "canonical_id";
+                sort?: "severity" | "cvssScore" | "affectedSbomCount" | "affectedPurlCount" | "publishedAt" | "canonicalId";
                 /** @description Sort direction (asc or desc) */
-                sort_dir?: "asc" | "desc";
+                sortDir?: "asc" | "desc";
             };
             header?: never;
             path?: never;
@@ -8111,7 +8299,7 @@ export interface operations {
         parameters: {
             query?: {
                 /** @description Limit to one cluster. Omitted, the answer spans every cluster the caller can see. */
-                cluster_id?: string;
+                clusterId?: string;
                 limit?: number;
             };
             header?: never;

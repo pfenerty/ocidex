@@ -90,10 +90,10 @@ afterEach(() => {
 
 describe("SBOM VulnerabilitiesTab", () => {
     it("asks the API for the caller's severity, sort and page", () => {
-        renderTab({ severity: "HIGH", sortBy: "cvss_score", sortDir: "asc", offset: 50 });
+        renderTab({ severity: "HIGH", sortBy: "cvssScore", sortDir: "asc", offset: 50 });
         expect(lastParams).toMatchObject({
             severity: "HIGH",
-            sort: "cvss_score",
+            sort: "cvssScore",
             dir: "asc",
             offset: 50,
         });

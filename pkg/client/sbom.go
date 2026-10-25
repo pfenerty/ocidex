@@ -10,15 +10,15 @@ import (
 func (c *httpClient) IngestSBOM(ctx context.Context, data []byte, params IngestSbomParams) (IngestSBOMOutputBody, error) {
 	p := url.Values{}
 	for name, v := range map[string]*string{
-		"source":        params.Source,
-		"version":       params.Version,
-		"architecture":  params.Architecture,
-		"build_date":    params.BuildDate,
-		"subject_type":  params.SubjectType,
-		"subject_name":  params.SubjectName,
-		"subject_group": params.SubjectGroup,
-		"subject_purl":  params.SubjectPurl,
-		"digest":        params.Digest,
+		"source":       params.Source,
+		"version":      params.Version,
+		"architecture": params.Architecture,
+		"buildDate":    params.BuildDate,
+		"subjectType":  params.SubjectType,
+		"subjectName":  params.SubjectName,
+		"subjectGroup": params.SubjectGroup,
+		"subjectPurl":  params.SubjectPurl,
+		"digest":       params.Digest,
 	} {
 		if v != nil && *v != "" {
 			p.Set(name, *v)
@@ -49,7 +49,7 @@ type SBOMFilter struct {
 
 func (f SBOMFilter) apply(p url.Values) url.Values {
 	if f.SerialNumber != "" {
-		p.Set("serial_number", f.SerialNumber)
+		p.Set("serialNumber", f.SerialNumber)
 	}
 	if f.Digest != "" {
 		p.Set("digest", f.Digest)

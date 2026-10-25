@@ -30,6 +30,12 @@ RETURNING id;
 -- strongest negative signal the provenance enricher can produce — was hidden
 -- by any sibling that happened to pass.
 --
+-- signed sits above verified for the same reason (ocidex-nps9.8). A signature
+-- that was found but never checked is a weaker claim than one that was, and
+-- with verified first an artifact whose newest builds went unchecked still
+-- read "Verified" from its older siblings — while the list's tooltip promised
+-- the worst status across every SBOM.
+--
 -- unsigned stays the ELSE: it is the absence of a claim, not a failed one.
 --
 -- See ocidex-goh.16 and, in tests/artifact_rollup_scope_test.go,
@@ -50,17 +56,37 @@ SELECT a.id, a.type, a.name, a.group_name, a.purl, a.cpe, a.created_at,
            WHEN EXISTS (
                SELECT 1 FROM enrichment pe JOIN sbom sx ON sx.id = pe.sbom_id
                WHERE sx.artifact_id = a.id AND pe.enricher_name = 'provenance'
-                 AND pe.status = 'success' AND signing_status(pe.data) = 'verified'
-           ) THEN 'verified'
+                 AND pe.status = 'success' AND signing_status(pe.data) = 'signed'
+           ) THEN 'signed'
            WHEN EXISTS (
                SELECT 1 FROM enrichment pe JOIN sbom sx ON sx.id = pe.sbom_id
                WHERE sx.artifact_id = a.id AND pe.enricher_name = 'provenance'
-                 AND pe.status = 'success' AND signing_status(pe.data) = 'signed'
-           ) THEN 'signed'
+                 AND pe.status = 'success' AND signing_status(pe.data) = 'verified'
+           ) THEN 'verified'
            ELSE 'unsigned'
        END)::text AS signing_status
 FROM artifact a
 WHERE a.id = $1;
+
+-- name: CountArtifacts :one
+-- The total behind ListArtifacts' first page, under the same filters and
+-- visibility rule, so the list can say "20 of 126" (ocidex-nps9.18). Keyset
+-- pages carry no total of their own (ADR-043).
+SELECT COUNT(*)::bigint
+FROM artifact a
+WHERE (sqlc.narg('type')::text IS NULL OR a.type = sqlc.narg('type'))
+  AND (sqlc.narg('name')::text IS NULL OR a.name ILIKE '%' || sqlc.narg('name')::text || '%')
+  AND (sqlc.narg('require_sufficient')::boolean IS NULL
+       OR NOT sqlc.narg('require_sufficient')::boolean
+       OR EXISTS (SELECT 1 FROM sbom s2 WHERE s2.artifact_id = a.id AND s2.enrichment_sufficient))
+  AND CASE WHEN COALESCE(sqlc.narg('owned_only')::boolean, false)
+           THEN EXISTS (
+               SELECT 1 FROM artifact_namespace an
+               WHERE an.artifact_id = a.id
+                 AND an.namespace_id IN (
+                       SELECT owned_namespace_ids(sqlc.narg('user_id')::uuid)))
+           ELSE artifact_visible(a.id, sqlc.narg('user_id')::uuid, sqlc.narg('is_admin')::boolean)
+      END;
 
 -- name: ListArtifacts :many
 -- Same worst-case-first rollup precedence as GetArtifact above — see that
@@ -84,13 +110,13 @@ SELECT a.id, a.type, a.name, a.group_name, a.purl, a.cpe, a.created_at,
            WHEN EXISTS (
                SELECT 1 FROM enrichment pe JOIN sbom sx ON sx.id = pe.sbom_id
                WHERE sx.artifact_id = a.id AND pe.enricher_name = 'provenance'
-                 AND pe.status = 'success' AND signing_status(pe.data) = 'verified'
-           ) THEN 'verified'
+                 AND pe.status = 'success' AND signing_status(pe.data) = 'signed'
+           ) THEN 'signed'
            WHEN EXISTS (
                SELECT 1 FROM enrichment pe JOIN sbom sx ON sx.id = pe.sbom_id
                WHERE sx.artifact_id = a.id AND pe.enricher_name = 'provenance'
-                 AND pe.status = 'success' AND signing_status(pe.data) = 'signed'
-           ) THEN 'signed'
+                 AND pe.status = 'success' AND signing_status(pe.data) = 'verified'
+           ) THEN 'verified'
            ELSE 'unsigned'
        END)::text AS signing_status,
        -- Severity counts for this artifact's latest *version* (ocidex-unn8.9,

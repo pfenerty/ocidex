@@ -34,9 +34,9 @@ const acme = {
     id: "ns-acme",
     name: "acme",
     visibility: "private" as const,
-    owner_username: "octocat",
-    created_at: "2026-01-01T00:00:00Z",
-    updated_at: "2026-01-01T00:00:00Z",
+    ownerUsername: "octocat",
+    createdAt: "2026-01-01T00:00:00Z",
+    updatedAt: "2026-01-01T00:00:00Z",
 };
 
 function mutation(mutate: ReturnType<typeof vi.fn>) {
@@ -87,7 +87,7 @@ describe("NamespacesTab", () => {
     it("lists each namespace with its visibility, owner and source count", () => {
         const { container } = renderTab(
             [acme],
-            [{ id: "s1", namespace_id: "ns-acme" }, { id: "s2", namespace_id: "ns-acme" }],
+            [{ id: "s1", namespaceId: "ns-acme" }, { id: "s2", namespaceId: "ns-acme" }],
         );
 
         const row = must(container.querySelector("tbody tr"), "namespace row");
@@ -157,7 +157,7 @@ describe("NamespacesTab", () => {
     it("names what a delete would take with it, and only deletes on confirm", () => {
         const confirmSpy = vi.fn((_message?: string) => false);
         vi.stubGlobal("confirm", confirmSpy);
-        const { container } = renderTab([acme], [{ id: "s1", namespace_id: "ns-acme" }]);
+        const { container } = renderTab([acme], [{ id: "s1", namespaceId: "ns-acme" }]);
 
         fireEvent.click(button(container, "Delete"));
         expect(deleteMutate).not.toHaveBeenCalled();

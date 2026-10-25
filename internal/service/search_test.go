@@ -9,6 +9,8 @@ import (
 	"github.com/jackc/pgx/v5"
 	"github.com/jackc/pgx/v5/pgtype"
 	"github.com/matryer/is"
+
+	"github.com/pfenerty/ocidex/internal/repository"
 )
 
 // newSearchSvc is a helper that builds a searchService with a fakeDB configured
@@ -345,9 +347,9 @@ func TestGetComponentVersions_ReportsCorpusWideCounts(t *testing.T) {
 	db := &fakeDB{
 		queryRowFn: func(_ context.Context, _ string, _ ...any) pgx.Row {
 			return &fakeRow{scanFn: func(dest ...any) error {
-				// total, version_count, artifact_count — deliberately three
-				// different numbers, so a mix-up cannot pass.
-				for i, v := range []int64{4210, 37, 12} {
+				// total, version_count, artifact_count, sbom_count —
+				// deliberately different numbers, so a mix-up cannot pass.
+				for i, v := range []int64{4210, 37, 12, 3900} {
 					n, ok := dest[i].(*int64)
 					if !ok {
 						return errors.New("unexpected scan target")
@@ -370,6 +372,47 @@ func TestGetComponentVersions_ReportsCorpusWideCounts(t *testing.T) {
 	is.Equal(result.Total, int64(4210))
 	is.Equal(result.VersionCount, int64(37))
 	is.Equal(result.ArtifactCount, int64(12))
+	is.Equal(result.SbomCount, int64(3900))
+}
+
+// The overview's pager is over distinct versions (ocidex-nps9.2), so the total
+// is the counted version_count, and the SBOM figure is distinct SBOMs rather
+// than occurrences.
+func TestListComponentVersionSummaries_TotalIsVersionCount(t *testing.T) {
+	is := is.New(t)
+	var pageArgs []any
+	db := &fakeDB{
+		queryRowFn: func(_ context.Context, _ string, _ ...any) pgx.Row {
+			return &fakeRow{scanFn: func(dest ...any) error {
+				for i, v := range []int64{7482, 81, 20, 4286} {
+					n, ok := dest[i].(*int64)
+					if !ok {
+						return errors.New("unexpected scan target")
+					}
+					*n = v
+				}
+				return nil
+			}}
+		},
+		queryFn: func(_ context.Context, _ string, args ...any) (pgx.Rows, error) {
+			pageArgs = args
+			return emptyRows(), nil
+		},
+	}
+	svc := &searchService{db: db}
+
+	result, err := svc.ListComponentVersionSummaries(context.Background(), ComponentVersionFilter{
+		Name:   "stdlib",
+		Limit:  20,
+		Offset: 40,
+	})
+	is.NoErr(err)
+	is.True(containsArg(pageArgs, int32(20)))
+	is.True(containsArg(pageArgs, int32(40)))
+	is.Equal(result.Total, int64(81))
+	is.Equal(result.SbomCount, int64(4286))
+	is.Equal(result.ArtifactCount, int64(20))
+	is.Equal(result.Limit, int32(20))
 }
 
 func containsArg(args []any, want any) bool {
@@ -627,4 +670,24 @@ func TestGetSBOMDependencies_DecoratesVulns(t *testing.T) {
 	is.Equal(graph.Nodes[0].VulnCount, 1)
 	is.Equal(graph.Nodes[0].HighCount, 1)
 	is.Equal(graph.Nodes[0].MaxSeverity, sevHigh)
+}
+
+// One row per component, carrying every fixed version oldest first: stdlib
+// fixed on two release lines used to be two rows that read as duplicates
+// (ocidex-nps9.21).
+func TestBuildAffectedComponents_OneRowPerComponent(t *testing.T) {
+	is := is.New(t)
+	rows := []repository.ListAffectedComponentsByVulnRow{{
+		Name:                 "stdlib",
+		FixedVersions:        []string{"1.25.7", "1.24.13"},
+		AffectedVersions:     []string{"go1.25.3", "go1.24.9"},
+		AffectedVersionCount: 2,
+		TotalCount:           1,
+	}}
+	got, total := buildAffectedComponents(rows)
+	is.Equal(total, int64(1))
+	is.Equal(len(got), 1)
+	is.Equal(got[0].FixedVersions, []string{"1.24.13", "1.25.7"})
+	is.Equal(*got[0].FixedVersion, "1.24.13")
+	is.Equal(got[0].AffectedVersions, []string{"go1.24.9", "go1.25.3"})
 }

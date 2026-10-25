@@ -85,12 +85,27 @@ export function purlToRegistryUrl(purl: string): string | null {
   return builder !== undefined ? builder(parts) : null;
 }
 
-/** Human-friendly display name: namespace/name@version (no type prefix or qualifiers). */
+/** decodePurlText percent-decodes for display, leaving malformed input as-is. */
+export function decodePurlText(s: string): string {
+  try {
+    return decodeURIComponent(s);
+  } catch {
+    return s;
+  }
+}
+
+/**
+ * Human-friendly display name: namespace/name@version (no type prefix or
+ * qualifiers), percent-decoded. The purl spec encodes "@" in an npm scope and
+ * "+" in a Debian version, and showing that encoding read as
+ * "%40aws-sdk/checksums" (ocidex-nps9.14). Links and copied values keep the
+ * canonical form; only this text is decoded.
+ */
 export function purlDisplayName(purl: string): string {
   const parts = parsePurl(purl);
   if (!parts) return purl;
   const pkg = parts.namespace !== undefined ? `${parts.namespace}/${parts.name}` : parts.name;
-  return parts.version !== undefined ? `${pkg}@${parts.version}` : pkg;
+  return decodePurlText(parts.version !== undefined ? `${pkg}@${parts.version}` : pkg);
 }
 
 /** Get a human-readable label for a PURL type. */

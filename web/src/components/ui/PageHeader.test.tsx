@@ -1,6 +1,7 @@
 // @vitest-environment happy-dom
 import { describe, it, expect } from "vitest";
 import { render } from "@solidjs/testing-library";
+import { createSignal } from "solid-js";
 import { PageHeader } from "./PageHeader";
 
 describe("PageHeader structure", () => {
@@ -82,5 +83,31 @@ describe("PageHeader content", () => {
     it("does not decorate the subtitle with a redundant class", () => {
         const { container } = render(() => <PageHeader title="T" subtitle="s" />);
         expect(container.querySelector(".page-header p")?.className).toBe("");
+    });
+});
+
+// ocidex-nps9.16: every page was titled "OCIDex".
+describe("PageHeader document title", () => {
+    it("titles the document after the header", () => {
+        const { unmount } = render(() => <PageHeader title="CVE-2025-68121" />);
+        expect(document.title).toBe("CVE-2025-68121 · OCIDex");
+        unmount();
+        expect(document.title).toBe("OCIDex");
+    });
+
+    it("follows a title that fills in after load", async () => {
+        const [name, setName] = createSignal<string | undefined>(undefined);
+        render(() => (
+            <PageHeader
+                title={
+                    <>
+                        {name() ?? ""} <span class="font-mono">v1.6.0</span>
+                    </>
+                }
+            />
+        ));
+        setName("ghcr.io/pfenerty/ocidex-api");
+        await Promise.resolve();
+        expect(document.title).toBe("ghcr.io/pfenerty/ocidex-api v1.6.0 · OCIDex");
     });
 });

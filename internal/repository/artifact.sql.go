@@ -37,6 +37,50 @@ func (q *Queries) CountArtifactVersions(ctx context.Context, arg CountArtifactVe
 	return version_count, err
 }
 
+const countArtifacts = `-- name: CountArtifacts :one
+SELECT COUNT(*)::bigint
+FROM artifact a
+WHERE ($1::text IS NULL OR a.type = $1)
+  AND ($2::text IS NULL OR a.name ILIKE '%' || $2::text || '%')
+  AND ($3::boolean IS NULL
+       OR NOT $3::boolean
+       OR EXISTS (SELECT 1 FROM sbom s2 WHERE s2.artifact_id = a.id AND s2.enrichment_sufficient))
+  AND CASE WHEN COALESCE($4::boolean, false)
+           THEN EXISTS (
+               SELECT 1 FROM artifact_namespace an
+               WHERE an.artifact_id = a.id
+                 AND an.namespace_id IN (
+                       SELECT owned_namespace_ids($5::uuid)))
+           ELSE artifact_visible(a.id, $5::uuid, $6::boolean)
+      END
+`
+
+type CountArtifactsParams struct {
+	Type              pgtype.Text `json:"type"`
+	Name              pgtype.Text `json:"name"`
+	RequireSufficient pgtype.Bool `json:"require_sufficient"`
+	OwnedOnly         pgtype.Bool `json:"owned_only"`
+	UserID            pgtype.UUID `json:"user_id"`
+	IsAdmin           pgtype.Bool `json:"is_admin"`
+}
+
+// The total behind ListArtifacts' first page, under the same filters and
+// visibility rule, so the list can say "20 of 126" (ocidex-nps9.18). Keyset
+// pages carry no total of their own (ADR-043).
+func (q *Queries) CountArtifacts(ctx context.Context, arg CountArtifactsParams) (int64, error) {
+	row := q.db.QueryRow(ctx, countArtifacts,
+		arg.Type,
+		arg.Name,
+		arg.RequireSufficient,
+		arg.OwnedOnly,
+		arg.UserID,
+		arg.IsAdmin,
+	)
+	var column_1 int64
+	err := row.Scan(&column_1)
+	return column_1, err
+}
+
 const countSBOMsByArtifact = `-- name: CountSBOMsByArtifact :one
 SELECT COUNT(*)
 FROM sbom s
@@ -124,13 +168,13 @@ SELECT a.id, a.type, a.name, a.group_name, a.purl, a.cpe, a.created_at,
            WHEN EXISTS (
                SELECT 1 FROM enrichment pe JOIN sbom sx ON sx.id = pe.sbom_id
                WHERE sx.artifact_id = a.id AND pe.enricher_name = 'provenance'
-                 AND pe.status = 'success' AND signing_status(pe.data) = 'verified'
-           ) THEN 'verified'
+                 AND pe.status = 'success' AND signing_status(pe.data) = 'signed'
+           ) THEN 'signed'
            WHEN EXISTS (
                SELECT 1 FROM enrichment pe JOIN sbom sx ON sx.id = pe.sbom_id
                WHERE sx.artifact_id = a.id AND pe.enricher_name = 'provenance'
-                 AND pe.status = 'success' AND signing_status(pe.data) = 'signed'
-           ) THEN 'signed'
+                 AND pe.status = 'success' AND signing_status(pe.data) = 'verified'
+           ) THEN 'verified'
            ELSE 'unsigned'
        END)::text AS signing_status
 FROM artifact a
@@ -162,6 +206,12 @@ type GetArtifactRow struct {
 // rung: a signature that had actually been checked and rejected — the
 // strongest negative signal the provenance enricher can produce — was hidden
 // by any sibling that happened to pass.
+//
+// signed sits above verified for the same reason (ocidex-nps9.8). A signature
+// that was found but never checked is a weaker claim than one that was, and
+// with verified first an artifact whose newest builds went unchecked still
+// read "Verified" from its older siblings — while the list's tooltip promised
+// the worst status across every SBOM.
 //
 // unsigned stays the ELSE: it is the absence of a claim, not a failed one.
 //
@@ -402,13 +452,13 @@ SELECT a.id, a.type, a.name, a.group_name, a.purl, a.cpe, a.created_at,
            WHEN EXISTS (
                SELECT 1 FROM enrichment pe JOIN sbom sx ON sx.id = pe.sbom_id
                WHERE sx.artifact_id = a.id AND pe.enricher_name = 'provenance'
-                 AND pe.status = 'success' AND signing_status(pe.data) = 'verified'
-           ) THEN 'verified'
+                 AND pe.status = 'success' AND signing_status(pe.data) = 'signed'
+           ) THEN 'signed'
            WHEN EXISTS (
                SELECT 1 FROM enrichment pe JOIN sbom sx ON sx.id = pe.sbom_id
                WHERE sx.artifact_id = a.id AND pe.enricher_name = 'provenance'
-                 AND pe.status = 'success' AND signing_status(pe.data) = 'signed'
-           ) THEN 'signed'
+                 AND pe.status = 'success' AND signing_status(pe.data) = 'verified'
+           ) THEN 'verified'
            ELSE 'unsigned'
        END)::text AS signing_status,
        -- Severity counts for this artifact's latest *version* (ocidex-unn8.9,

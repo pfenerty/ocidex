@@ -1,10 +1,11 @@
 import { For, Show, createSignal } from "solid-js";
-import { useParams } from "@solidjs/router";
+import { A, useParams } from "@solidjs/router";
 import { useArtifact, useArtifactSBOMs } from "~/api/queries";
 import { EmptyState } from "~/components/Feedback";
 import { SkeletonText } from "~/components/Skeleton";
 import { DiffPairView, ViewToggle } from "~/components/DiffPairView";
 import { Breadcrumb, PageHeader, QueryBoundary, TabBar } from "~/components/ui";
+import { artifactDisplayName } from "~/utils/format";
 
 export default function ArtifactVersionHistory() {
     const params = useParams<{ id: string; version: string }>();
@@ -13,7 +14,7 @@ export default function ArtifactVersionHistory() {
     const artifactQuery = useArtifact(() => params.id);
     const sbomsQuery = useArtifactSBOMs(
         () => params.id,
-        () => ({ image_version: version(), limit: 200 }),
+        () => ({ imageVersion: version(), limit: 200 }),
     );
 
     const [selectedArch, setSelectedArch] = createSignal<string | undefined>("amd64");
@@ -47,7 +48,10 @@ export default function ArtifactVersionHistory() {
                         items={[
                             { label: "Artifacts", href: "/artifacts" },
                             {
-                                label: artifactQuery.data?.name ?? params.id,
+                                label:
+                                    artifactQuery.data !== undefined
+                                        ? artifactDisplayName(artifactQuery.data)
+                                        : params.id,
                                 href: `/artifacts/${params.id}`,
                             },
                             { label: version(), mono: true },
@@ -89,7 +93,12 @@ export default function ArtifactVersionHistory() {
                                 fallback={
                                     <EmptyState
                                         title="Only one build"
-                                        message="No previous build to compare against for this version."
+                                        message={
+                                            <>
+                                                No previous build to compare against for this version.{" "}
+                                                <A href={`/sboms/${builds()[0].id}`}>View this build's SBOM</A>
+                                            </>
+                                        }
                                     />
                                 }
                             >

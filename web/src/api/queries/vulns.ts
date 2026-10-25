@@ -42,7 +42,7 @@ export function useTopVulnerabilities(
         q?: string;
         severity?: string;
         sort?: TopVulnSort;
-        sort_dir?: "asc" | "desc";
+        sortDir?: "asc" | "desc";
     }>,
 ) {
     return createQuery(() => {
@@ -54,7 +54,7 @@ export function useTopVulnerabilities(
                 p.q,
                 p.severity,
                 p.sort,
-                p.sort_dir,
+                p.sortDir,
                 p.limit,
                 p.offset,
             ] as const,
@@ -67,7 +67,7 @@ export function useTopVulnerabilities(
                                 offset: p.offset,
                                 q: p.q !== "" ? p.q : undefined,
                                 sort: p.sort,
-                                sort_dir: p.sort_dir,
+                                sortDir: p.sortDir,
                                 severity: (p.severity !== "" ? p.severity : undefined) as
                                     | "CRITICAL"
                                     | "HIGH"

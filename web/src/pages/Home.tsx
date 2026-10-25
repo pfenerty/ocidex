@@ -24,38 +24,38 @@ function statTiles(data: Stats): StatTile[] {
             href: "/artifacts",
             icon: <Boxes size={ICON} />,
             head: "Artifacts",
-            value: data.artifact_count.toLocaleString(),
+            value: data.artifactCount.toLocaleString(),
             sub: "images, binaries and libraries",
         },
         {
             icon: <FileStack size={ICON} />,
             head: "SBOMs",
-            value: data.sbom_count.toLocaleString(),
+            value: data.sbomCount.toLocaleString(),
             sub: "one per image, arch and flavor",
         },
         {
             href: "/components",
             icon: <Package size={ICON} />,
             head: "Packages",
-            value: data.package_count.toLocaleString(),
-            // version_count is distinct *package* versions (db/queries/stats.sql
+            value: data.packageCount.toLocaleString(),
+            // versionCount is distinct *package* versions (db/queries/stats.sql
             // counts component_rollup.versions), not artifact versions — it
             // belongs here, not on the SBOM tile where it read as though the
             // catalog held more versions than SBOMs.
-            sub: `${data.version_count.toLocaleString()} versions indexed`,
+            sub: `${data.versionCount.toLocaleString()} package versions`,
         },
         {
             href: "/licenses",
             icon: <Scale size={ICON} />,
             head: "Licenses",
-            value: data.license_count.toLocaleString(),
+            value: data.licenseCount.toLocaleString(),
             sub: "seen across the catalog",
         },
         {
             href: "/vulnerabilities",
             icon: <ShieldAlert size={ICON} />,
             head: "Vulnerabilities",
-            value: data.vuln_count.toLocaleString(),
+            value: data.vulnCount.toLocaleString(),
             sub: "matched to indexed packages",
         },
     ];
@@ -107,12 +107,12 @@ export default function Home() {
                                 pretending to be clickable (ocidex-ag4q.42). */}
                             <StatBand class="landing-band" tiles={statTiles(data())} />
                             {/* The breakdown counts the same artifact set as
-                                artifact_count above, so the chips always sum to
+                                artifactCount above, so the chips always sum to
                                 it. The field is nullable in the generated spec —
                                 an empty catalog has no chips to show at all. */}
-                            <Show when={data().artifact_types?.length}>
+                            <Show when={data().artifactTypes?.length}>
                                 <div class="landing-types">
-                                    <For each={data().artifact_types}>
+                                    <For each={data().artifactTypes}>
                                         {(t) => (
                                             <A
                                                 href={`/artifacts?type=${encodeURIComponent(t.type)}`}
@@ -120,7 +120,7 @@ export default function Home() {
                                             >
                                                 <TypeBadge type={t.type} />
                                                 <span class="landing-type-count">
-                                                    {t.artifact_count.toLocaleString()}
+                                                    {t.artifactCount.toLocaleString()}
                                                 </span>
                                             </A>
                                         )}

@@ -277,7 +277,7 @@ If you upload a Syft-generated SBOM directly via `POST /api/v1/sbom` without the
 
 ```bash
 syft myregistry.example.com/my-service@sha256:abc123 -o cyclonedx-json | \
-  curl -X POST "https://ocidex.example.com/api/v1/sbom?version=v1.4.2&architecture=amd64&build_date=2024-03-15T10:30:00Z" \
+  curl -X POST "https://ocidex.example.com/api/v1/sbom?version=v1.4.2&architecture=amd64&buildDate=2024-03-15T10:30:00Z" \
     -H "Content-Type: application/json" \
     -d @-
 ```

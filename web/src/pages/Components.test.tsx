@@ -104,7 +104,7 @@ describe("Components filters live in the URL", () => {
         const args = mockDistinct.mock.calls[0][0]();
         expect(args.name).toBe("lodash");
         expect(args.group).toBe("org.example");
-        expect(args.purl_type).toBe("npm");
+        expect(args.purlType).toBe("npm");
     });
 
     it("waits for a pause before querying, rather than firing per character", async () => {
@@ -210,7 +210,7 @@ describe("Components severity column", () => {
         await waitFor(() => {
             const args = mockDistinct.mock.calls[mockDistinct.mock.calls.length - 1][0]();
             expect(args.sort).toBe("severity");
-            expect(args.sort_dir).toBe("desc");
+            expect(args.sortDir).toBe("desc");
         });
     });
 });

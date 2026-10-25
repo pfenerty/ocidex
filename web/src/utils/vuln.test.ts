@@ -25,9 +25,9 @@ describe("parseCvssVector", () => {
                 { label: "Low Complexity", variant: "warning" },
                 { label: "No Privileges", variant: "danger" },
                 { label: "No Interaction", variant: "warning" },
-                { label: "High C", variant: "danger" },
-                { label: "High I", variant: "danger" },
-                { label: "High A", variant: "danger" },
+                { label: "High confidentiality impact", variant: "danger" },
+                { label: "High integrity impact", variant: "danger" },
+                { label: "High availability impact", variant: "danger" },
             ],
         });
     });
@@ -43,14 +43,14 @@ describe("parseCvssVector", () => {
                 { label: "Low Complexity", variant: "warning" },
                 { label: "No Privileges", variant: "danger" },
                 { label: "No Interaction", variant: "warning" },
-                { label: "High VC", variant: "danger" },
-                { label: "High VI", variant: "danger" },
-                { label: "High VA", variant: "danger" },
+                { label: "High confidentiality impact", variant: "danger" },
+                { label: "High integrity impact", variant: "danger" },
+                { label: "High availability impact", variant: "danger" },
             ],
         });
         // AT:N and SC/SI/SA:N are all "omit" values — no chips for them.
         expect(result?.metrics.some((m) => m.label.includes("Attack Requirements"))).toBe(false);
-        expect(result?.metrics.some((m) => m.label.startsWith("High S"))).toBe(false);
+        expect(result?.metrics.some((m) => m.label.includes("downstream"))).toBe(false);
     });
 
     it("decodes v4-specific AT and UI values", () => {
@@ -59,7 +59,7 @@ describe("parseCvssVector", () => {
         );
         expect(result?.metrics).toContainEqual({ label: "Attack Requirements", variant: "warning" });
         expect(result?.metrics).toContainEqual({ label: "Passive Interaction", variant: "" });
-        expect(result?.metrics).toContainEqual({ label: "Low VC", variant: "warning" });
+        expect(result?.metrics).toContainEqual({ label: "Low confidentiality impact", variant: "warning" });
     });
 
     it("decodes v4 Active Interaction", () => {

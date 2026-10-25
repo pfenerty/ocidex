@@ -10,7 +10,7 @@ import type { Membership } from "~/utils/emphasis";
 
 interface User {
     id: string;
-    display_name: string;
+    displayName: string;
     role: string;
     /**
      * The caller's namespace memberships, as /users/me reports them. Present

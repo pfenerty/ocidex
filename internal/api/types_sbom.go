@@ -10,17 +10,17 @@ import "github.com/pfenerty/ocidex/internal/service"
 type IngestSBOMInput struct {
 	RawBody      []byte
 	Source       string `query:"source"       doc:"Ingest channel this SBOM arrived through, as a source UUID or <namespace>/<name>. Required — the source's namespace owns the SBOM."`
-	Version      string `query:"version"      doc:"Image version/tag (overrides BOM-extracted value for subject_version and imageVersion)"`
+	Version      string `query:"version"      doc:"Image version/tag (overrides BOM-extracted value for subjectVersion and imageVersion)"`
 	Architecture string `query:"architecture" doc:"Image architecture (e.g. amd64, arm64)"`
-	BuildDate    string `query:"build_date"   doc:"Image build date (RFC3339 or date string)"`
+	BuildDate    string `query:"buildDate"   doc:"Image build date (RFC3339 or date string)"`
 
 	// Caller-declared subject identity (ADR-040). A `syft dir:` BOM describes
 	// the directory it walked, so a non-container uploader has to say what the
 	// SBOM is about; each field overrides its BOM-extracted counterpart.
-	SubjectType  string `query:"subject_type"  doc:"CycloneDX component type of the subject (e.g. application, library, file)"`
-	SubjectName  string `query:"subject_name"  doc:"Subject name (e.g. ocidex)"`
-	SubjectGroup string `query:"subject_group" doc:"Subject group/namespace (e.g. github.com/pfenerty)"`
-	SubjectPurl  string `query:"subject_purl"  doc:"Subject package URL (e.g. pkg:golang/github.com/pfenerty/ocidex@v1.2.3)"`
+	SubjectType  string `query:"subjectType"  doc:"CycloneDX component type of the subject (e.g. application, library, file)"`
+	SubjectName  string `query:"subjectName"  doc:"Subject name (e.g. ocidex)"`
+	SubjectGroup string `query:"subjectGroup" doc:"Subject group/namespace (e.g. github.com/pfenerty)"`
+	SubjectPurl  string `query:"subjectPurl"  doc:"Subject package URL (e.g. pkg:golang/github.com/pfenerty/ocidex@v1.2.3)"`
 	Digest       string `query:"digest"        doc:"sha256 of the artifact file itself, not of this SBOM document. Required for a non-container subject."`
 }
 
@@ -42,7 +42,7 @@ type IngestSBOMOutput struct {
 // ListSBOMsInput is the request for GET /api/v1/sbom.
 type ListSBOMsInput struct {
 	CursorParams
-	SerialNumber string `query:"serial_number" doc:"Filter by serial number"`
+	SerialNumber string `query:"serialNumber" doc:"Filter by serial number"`
 	Digest       string `query:"digest" doc:"Filter by image digest"`
 }
 
@@ -132,7 +132,7 @@ type ListSBOMComponentsOutput struct {
 type ListSBOMVulnsInput struct {
 	ID       string `path:"id" doc:"SBOM UUID" format:"uuid"`
 	Severity string `query:"severity" enum:"CRITICAL,HIGH,MEDIUM,LOW,UNKNOWN" doc:"Filter by severity"`
-	Sort     string `query:"sort" enum:"severity,cvss_score,affected_package_count,canonical_id" doc:"Column to sort by. Unset means worst first: severity, then CVSS."`
+	Sort     string `query:"sort" enum:"severity,cvssScore,affectedPackageCount,canonicalId" doc:"Column to sort by. Unset means worst first: severity, then CVSS."`
 	Dir      string `query:"dir" enum:"asc,desc" doc:"Sort direction (default asc). Applies to sort only — with sort unset the worst-first default ordering ignores it."`
 	PaginationParams
 }

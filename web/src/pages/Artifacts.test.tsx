@@ -67,7 +67,7 @@ interface InfiniteQuery {
     isFetching: boolean;
     isError: boolean;
     error: unknown;
-    data: { pages: { data: ArtifactRow[] }[] } | undefined;
+    data: { pages: { data: ArtifactRow[]; total?: number }[] } | undefined;
     hasNextPage: boolean;
     isFetchingNextPage: boolean;
     fetchNextPage: () => void;
@@ -191,7 +191,24 @@ describe("Artifacts", () => {
             }) as never
         );
         const { container } = renderArtifacts();
-        expect(headings(container)).toEqual(["ghcr.io/pfenerty", "docker.io/library"]);
+        // Sorted by heading, not by which row loaded first (ocidex-nps9.18).
+        expect(headings(container)).toEqual(["docker.io/library", "ghcr.io/pfenerty"]);
+    });
+
+    it("states the total and marks the group that may continue on the next page", () => {
+        mockUseArtifacts.mockReturnValue(
+            makeQuery({
+                data: { pages: [{ data: [
+                    makeArtifact({ id: "a", name: "docker.io/library/postgres" }),
+                    makeArtifact({ id: "b", name: "ghcr.io/pfenerty/ocidex-api" }),
+                ], total: 126 }] },
+                hasNextPage: true,
+            }) as never
+        );
+        const { container } = renderArtifacts();
+        expect(container.querySelector(".pagination")?.textContent).toContain("Showing 2 of 126");
+        const counts = [...container.querySelectorAll(".group-header-count")].map((c) => c.textContent);
+        expect(counts).toEqual(["1", "1+"]);
     });
 
     it("groups a non-container by its package group, not by an OCI path parse", () => {

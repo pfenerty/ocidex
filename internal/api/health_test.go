@@ -71,11 +71,16 @@ func TestAPIVersion_ReportsBuild(t *testing.T) {
 	var body struct {
 		Version string `json:"version"`
 		Build   string `json:"build"`
+		Commit  string `json:"commit"`
+		BuiltAt string `json:"builtAt"`
 	}
 	is.NoErr(json.NewDecoder(w.Body).Decode(&body))
 	is.Equal(body.Version, "v1")
-	wantBuild, _, _ := version.Info()
+	// About shows all three, so a bug report can name the build (ocidex-nps9.17).
+	wantBuild, wantCommit, wantDate := version.Info()
 	is.Equal(body.Build, wantBuild)
+	is.Equal(body.Commit, wantCommit)
+	is.Equal(body.BuiltAt, wantDate)
 }
 
 func TestOpenAPIInfoVersion_IsContractVersion(t *testing.T) {

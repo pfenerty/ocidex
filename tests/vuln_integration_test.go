@@ -294,7 +294,7 @@ func TestVulnAliasDedup(t *testing.T) {
 	var statsResp map[string]any
 	is.NoErr(json.NewDecoder(resp.Body).Decode(&statsResp))
 	resp.Body.Close()
-	is.Equal(statsResp["vuln_count"], float64(1))
+	is.Equal(statsResp["vulnCount"], float64(1))
 
 	// Per-component decoration (GET /api/v1/sboms/{id}/components) must also
 	// dedupe by canonical_id — regression for the reported bug where a single
@@ -1151,7 +1151,7 @@ func TestArtifactVulnsList(t *testing.T) {
 	}
 
 	// Sort ascending by version count puts the single-version finding first.
-	data = listVulns("?sort=affected_version_count&dir=asc")["data"].([]any)
+	data = listVulns("?sort=affectedVersionCount&dir=asc")["data"].([]any)
 	is.Equal(data[0].(map[string]any)["canonicalId"], "CVE-2025-4000")
 
 	// Paging.

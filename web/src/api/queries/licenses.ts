@@ -7,7 +7,7 @@ export interface UseLicensesParams {
     limit?: number;
     offset?: number;
     name?: string;
-    spdx_id?: string;
+    spdxId?: string;
     category?: string;
 }
 
@@ -19,7 +19,7 @@ export function useLicenses(params: Accessor<UseLicensesParams>) {
             queryKey: [
                 "licenses",
                 p.name,
-                p.spdx_id,
+                p.spdxId,
                 p.category,
                 p.limit,
                 p.offset,

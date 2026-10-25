@@ -9,17 +9,17 @@ package api
 // matching registry row carrying its pull config and trust policy.
 type SourceResponse struct {
 	ID            string `json:"id"`
-	NamespaceID   string `json:"namespace_id"`
-	NamespaceName string `json:"namespace_name,omitempty" doc:"Owning namespace name; populated on list responses"`
+	NamespaceID   string `json:"namespaceId"`
+	NamespaceName string `json:"namespaceName,omitempty" doc:"Owning namespace name; populated on list responses"`
 	Kind          string `json:"kind" enum:"oci_registry,upload,cluster" doc:"Ingest channel kind"`
 	Name          string `json:"name"`
-	CreatedAt     string `json:"created_at"`
-	UpdatedAt     string `json:"updated_at"`
+	CreatedAt     string `json:"createdAt"`
+	UpdatedAt     string `json:"updatedAt"`
 }
 
 // ListSourcesInput is the request for GET /api/v1/sources.
 type ListSourcesInput struct {
-	NamespaceID string `query:"namespace_id" doc:"Limit to sources in this namespace"`
+	NamespaceID string `query:"namespaceId" doc:"Limit to sources in this namespace"`
 }
 
 // ListMySourcesInput is the request for GET /api/v1/users/me/sources. There is
@@ -49,7 +49,7 @@ type GetSourceOutput struct {
 // its registry row via POST /api/v1/registries.
 type CreateSourceInput struct {
 	Body struct {
-		NamespaceID string `json:"namespace_id" format:"uuid" doc:"Owning namespace UUID"`
+		NamespaceID string `json:"namespaceId" format:"uuid" doc:"Owning namespace UUID"`
 		Name        string `json:"name" minLength:"1" maxLength:"100" doc:"Source name, unique within the namespace"`
 	}
 }

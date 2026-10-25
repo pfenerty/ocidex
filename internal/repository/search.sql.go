@@ -22,7 +22,10 @@ WITH matched AS MATERIALIZED (
 )
 SELECT COUNT(*) AS total,
        COUNT(DISTINCT m.version) AS version_count,
-       COUNT(DISTINCT s.artifact_id) AS artifact_count
+       COUNT(DISTINCT s.artifact_id) AS artifact_count,
+       -- total counts occurrences: stdlib appears many times in one Go image's
+       -- SBOM. "Found in N SBOMs" is this figure, not that one (ocidex-nps9.2).
+       COUNT(DISTINCT m.sbom_id) AS sbom_count
 FROM matched m
 JOIN sbom s ON s.id = m.sbom_id
 WHERE s.namespace_id IN (SELECT visible_namespace_ids($1::uuid, $2::boolean))
@@ -41,6 +44,7 @@ type CountComponentVersionsRow struct {
 	Total         int64 `json:"total"`
 	VersionCount  int64 `json:"version_count"`
 	ArtifactCount int64 `json:"artifact_count"`
+	SbomCount     int64 `json:"sbom_count"`
 }
 
 // The total for GetComponentVersions, deliberately NOT a COUNT(*) OVER() inside
@@ -81,7 +85,12 @@ func (q *Queries) CountComponentVersions(ctx context.Context, arg CountComponent
 		arg.Type,
 	)
 	var i CountComponentVersionsRow
-	err := row.Scan(&i.Total, &i.VersionCount, &i.ArtifactCount)
+	err := row.Scan(
+		&i.Total,
+		&i.VersionCount,
+		&i.ArtifactCount,
+		&i.SbomCount,
+	)
 	return i, err
 }
 
@@ -262,6 +271,29 @@ func (q *Queries) GetComponentVersions(ctx context.Context, arg GetComponentVers
 		return nil, err
 	}
 	return items, nil
+}
+
+const getLatestSBOMRef = `-- name: GetLatestSBOMRef :one
+SELECT id, subject_version, created_at
+FROM sbom
+WHERE artifact_id = $1
+ORDER BY created_at DESC
+LIMIT 1
+`
+
+type GetLatestSBOMRefRow struct {
+	ID             pgtype.UUID        `json:"id"`
+	SubjectVersion pgtype.Text        `json:"subject_version"`
+	CreatedAt      pgtype.Timestamptz `json:"created_at"`
+}
+
+// The SBOM LicenseSummaryByArtifact counts, so the tab can say which build it
+// describes (ocidex-nps9.29). Same ordering as that query's subselect.
+func (q *Queries) GetLatestSBOMRef(ctx context.Context, artifactID pgtype.UUID) (GetLatestSBOMRefRow, error) {
+	row := q.db.QueryRow(ctx, getLatestSBOMRef, artifactID)
+	var i GetLatestSBOMRefRow
+	err := row.Scan(&i.ID, &i.SubjectVersion, &i.CreatedAt)
+	return i, err
 }
 
 const getSBOM = `-- name: GetSBOM :one
@@ -596,6 +628,91 @@ func (q *Queries) ListComponentPurlTypes(ctx context.Context, arg ListComponentP
 			return nil, err
 		}
 		items = append(items, purl_type)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
+const listComponentVersionSummaries = `-- name: ListComponentVersionSummaries :many
+WITH matched AS MATERIALIZED (
+    SELECT c.sbom_id, c.type, c.version, c.purl, c.version_major, c.version_minor, c.version_patch
+    FROM component c
+    WHERE c.name = $5
+      AND ($6::text IS NULL OR c.group_name = $6)
+      AND ($7::text IS NULL OR c.type = $7)
+)
+SELECT m.version,
+       MIN(m.type)::text AS type,
+       COALESCE(MIN(m.purl), '')::text AS purl,
+       COUNT(DISTINCT m.sbom_id) AS sbom_count,
+       COUNT(DISTINCT s.artifact_id) AS artifact_count
+FROM matched m
+JOIN sbom s ON s.id = m.sbom_id
+WHERE s.namespace_id IN (SELECT visible_namespace_ids($1::uuid, $2::boolean))
+GROUP BY m.version
+ORDER BY MAX(m.version_major) DESC NULLS LAST,
+         MAX(m.version_minor) DESC NULLS LAST,
+         MAX(m.version_patch) DESC NULLS LAST,
+         m.version DESC NULLS LAST
+LIMIT $4 OFFSET $3
+`
+
+type ListComponentVersionSummariesParams struct {
+	UserID    pgtype.UUID `json:"user_id"`
+	IsAdmin   pgtype.Bool `json:"is_admin"`
+	RowOffset int32       `json:"row_offset"`
+	RowLimit  int32       `json:"row_limit"`
+	Name      string      `json:"name"`
+	GroupName pgtype.Text `json:"group_name"`
+	Type      pgtype.Text `json:"type"`
+}
+
+type ListComponentVersionSummariesRow struct {
+	Version       pgtype.Text `json:"version"`
+	Type          string      `json:"type"`
+	Purl          string      `json:"purl"`
+	SbomCount     int64       `json:"sbom_count"`
+	ArtifactCount int64       `json:"artifact_count"`
+}
+
+// One row per distinct version of a component, for /components/overview.
+// GetComponentVersions returns one row per (version, SBOM) occurrence, so a page
+// of 20 occurrences grouped by version showed one or two versions of stdlib and
+// a pager of 375 (ocidex-nps9.2). Paging here is by version; the total is
+// CountComponentVersions' version_count over the same filters.
+//
+// MATERIALIZED for the same join-order reason as CountComponentVersions. The
+// version_* columns are a function of the version string, so MAX just names
+// the one value each group has.
+func (q *Queries) ListComponentVersionSummaries(ctx context.Context, arg ListComponentVersionSummariesParams) ([]ListComponentVersionSummariesRow, error) {
+	rows, err := q.db.Query(ctx, listComponentVersionSummaries,
+		arg.UserID,
+		arg.IsAdmin,
+		arg.RowOffset,
+		arg.RowLimit,
+		arg.Name,
+		arg.GroupName,
+		arg.Type,
+	)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	items := []ListComponentVersionSummariesRow{}
+	for rows.Next() {
+		var i ListComponentVersionSummariesRow
+		if err := rows.Scan(
+			&i.Version,
+			&i.Type,
+			&i.Purl,
+			&i.SbomCount,
+			&i.ArtifactCount,
+		); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
 	}
 	if err := rows.Err(); err != nil {
 		return nil, err

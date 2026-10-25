@@ -17,18 +17,20 @@ type SearchService interface {
 	SearchComponents(ctx context.Context, filter ComponentFilter) (PagedResult[ComponentSummary], error)
 	SearchDistinctComponents(ctx context.Context, filter ComponentFilter) (PagedResult[DistinctComponentSummary], error)
 	GetComponentVersions(ctx context.Context, filter ComponentVersionFilter) (ComponentVersionsPage, error)
+	ListComponentVersionSummaries(ctx context.Context, filter ComponentVersionFilter) (ComponentVersionSummaryPage, error)
 	GetComponent(ctx context.Context, id pgtype.UUID, vis VisibilityFilter) (ComponentDetail, error)
 	ListLicenses(ctx context.Context, filter LicenseFilter) (PagedResult[LicenseCount], error)
 	ListComponentsByLicense(ctx context.Context, licenseID pgtype.UUID, limit, offset int32, vis VisibilityFilter) (PagedResult[ComponentSummary], error)
 	GetArtifact(ctx context.Context, id pgtype.UUID, vis VisibilityFilter) (ArtifactDetail, error)
 	ListArtifacts(ctx context.Context, filter ArtifactFilter) (CursorPage[ArtifactSummary], error)
+	CountArtifacts(ctx context.Context, filter ArtifactFilter) (int64, error)
 	ListSBOMsByArtifact(ctx context.Context, artifactID pgtype.UUID, subjectVersion, imageVersion string, page SBOMByArtifactPage, vis VisibilityFilter) (CursorPage[SBOMSummary], error)
 	ListVersionsByArtifact(ctx context.Context, artifactID pgtype.UUID, limit, offset int32, mode VersionSortMode, colSort VersionColumnSort, vis VisibilityFilter) (ArtifactVersionsPage, error)
 	GetArtifactChangelog(ctx context.Context, artifactID pgtype.UUID, query ChangelogQuery, vis VisibilityFilter) (Changelog, error)
 	DiffSBOMs(ctx context.Context, fromID, toID pgtype.UUID, vis VisibilityFilter) (ChangelogEntry, error)
 	DiffSBOMsWithTree(ctx context.Context, fromID, toID pgtype.UUID, vis VisibilityFilter) (DiffTree, error)
 	ListSBOMsByDigest(ctx context.Context, digest string, limit, offset int32, vis VisibilityFilter) (PagedResult[SBOMSummary], error)
-	GetArtifactLicenseSummary(ctx context.Context, artifactID pgtype.UUID, vis VisibilityFilter) ([]LicenseCount, error)
+	GetArtifactLicenseSummary(ctx context.Context, artifactID pgtype.UUID, vis VisibilityFilter) (ArtifactLicenseSummary, error)
 	GetSBOMDependencies(ctx context.Context, sbomID pgtype.UUID, vis VisibilityFilter) (DependencyGraph, error)
 	ListSBOMComponents(ctx context.Context, sbomID pgtype.UUID, vis VisibilityFilter) ([]ComponentSummary, error)
 	ListSBOMComponentsPage(ctx context.Context, sbomID pgtype.UUID, page ComponentPage, vis VisibilityFilter) (CursorPage[ComponentSummary], error)
@@ -38,7 +40,8 @@ type SearchService interface {
 	GetDiscovery(ctx context.Context) (*Discovery, error)
 	WarmDiscovery(ctx context.Context) (*Discovery, error)
 	ListTopVulnerabilities(ctx context.Context, filter TopVulnFilter) (PagedResult[TopVulnEntry], error)
-	GetArtifactVulnSummary(ctx context.Context, artifactID pgtype.UUID, vis VisibilityFilter) (*VulnSummary, error)
+	GetArtifactVulnSummary(ctx context.Context, artifactID pgtype.UUID, vis VisibilityFilter) (ArtifactVulnSummary, error)
+	VulnDBBuiltAt(ctx context.Context) (*time.Time, error)
 	GetArtifactUsages(ctx context.Context, artifactID pgtype.UUID, vis VisibilityFilter) ([]ArtifactRelation, error)
 	GetArtifactContains(ctx context.Context, artifactID pgtype.UUID, vis VisibilityFilter) ([]ArtifactRelation, error)
 	GetVulnerabilityDetail(ctx context.Context, id string, limit, offset int32, vis VisibilityFilter) (VulnerabilityDetailResult, error)
@@ -161,10 +164,14 @@ type AffectedArtifact struct {
 
 // AffectedComponent is a distinct component (by name+group) affected by a vulnerability.
 type AffectedComponent struct {
-	Name                 string  `json:"name"`
-	Group                *string `json:"group,omitempty"`
-	FixedVersion         *string `json:"fixedVersion,omitempty"`
-	AffectedVersionCount int64   `json:"affectedVersionCount"`
+	Name  string  `json:"name"`
+	Group *string `json:"group,omitempty"`
+	// FixedVersion is the lowest of FixedVersions, kept for clients that read
+	// one value; FixedVersions has one entry per release line with a fix.
+	FixedVersion         *string  `json:"fixedVersion,omitempty"`
+	FixedVersions        []string `json:"fixedVersions"`
+	AffectedVersions     []string `json:"affectedVersions"`
+	AffectedVersionCount int64    `json:"affectedVersionCount"`
 }
 
 // ComponentVulnEntry is one vulnerability finding for a specific component purl.
@@ -403,6 +410,18 @@ type ComponentVersionsPage struct {
 	VersionCount int64
 	// ArtifactCount is the number of distinct artifacts whose SBOMs contain
 	// this component, across every page.
+	ArtifactCount int64
+	// SbomCount is the number of distinct SBOMs containing this component.
+	// Total counts occurrences, and one SBOM can hold many (stdlib).
+	SbomCount int64
+}
+
+// ComponentVersionSummaryPage is a page of distinct versions of one component,
+// paginated by version: Total is the version count. SbomCount and
+// ArtifactCount describe the whole result set.
+type ComponentVersionSummaryPage struct {
+	PagedResult[ComponentVersionSummary]
+	SbomCount     int64
 	ArtifactCount int64
 }
 
@@ -817,6 +836,24 @@ type ComponentVersionEntry struct {
 	MediumCount    int     `json:"mediumCount,omitempty"`
 	LowCount       int     `json:"lowCount,omitempty"`
 	UnknownCount   int     `json:"unknownCount,omitempty"`
+}
+
+// ComponentVersionSummary is one distinct version of a component with the
+// number of SBOMs and artifacts that carry it. Vulnerability counts are a
+// property of the (name, version) pair, matched by purl.
+type ComponentVersionSummary struct {
+	Version       *string `json:"version,omitempty"`
+	Type          string  `json:"type"`
+	Purl          *string `json:"purl,omitempty"`
+	SbomCount     int64   `json:"sbomCount"`
+	ArtifactCount int64   `json:"artifactCount"`
+	VulnCount     int     `json:"vulnCount"`
+	MaxSeverity   string  `json:"maxSeverity,omitempty"`
+	CriticalCount int     `json:"criticalCount,omitempty"`
+	HighCount     int     `json:"highCount,omitempty"`
+	MediumCount   int     `json:"mediumCount,omitempty"`
+	LowCount      int     `json:"lowCount,omitempty"`
+	UnknownCount  int     `json:"unknownCount,omitempty"`
 }
 
 // DependencyGraph represents the dependency structure of an SBOM.

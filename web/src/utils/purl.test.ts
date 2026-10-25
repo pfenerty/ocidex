@@ -97,6 +97,15 @@ describe("purlDisplayName", () => {
     it("returns raw string for invalid purl", () => {
         expect(purlDisplayName("garbage")).toBe("garbage");
     });
+
+    it("decodes percent-encoding for display (ocidex-nps9.14)", () => {
+        expect(purlDisplayName("pkg:npm/%40aws-sdk/checksums@3.1001.1")).toBe("@aws-sdk/checksums@3.1001.1");
+        expect(purlDisplayName("pkg:deb/debian/tzdata-legacy@2026c-0%2Bdeb13u1?arch=all")).toBe(
+            "debian/tzdata-legacy@2026c-0+deb13u1",
+        );
+        // Malformed encoding is shown as it came rather than throwing.
+        expect(purlDisplayName("pkg:npm/bad%E0%A4%A@1")).toBe("bad%E0%A4%A@1");
+    });
 });
 
 describe("purlTypeLabel", () => {

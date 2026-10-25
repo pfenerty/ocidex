@@ -34,11 +34,14 @@ func ParseVersionSortMode(s string) VersionSortMode {
 	}
 }
 
-// resolveSortMode collapses SortAuto to a concrete mode: SortSemver when the
-// timeline contains at least one semver version, else SortBuildTime.
-func resolveSortMode(mode VersionSortMode, hasSemver bool) VersionSortMode {
+// resolveSortMode collapses SortAuto to a concrete mode: SortSemver when
+// semver versions make up at least half of the timeline's distinct versions,
+// else SortBuildTime. Semver mode hides every other version, so "any semver
+// at all" opened an artifact of 37 branch builds and one v0.2.0 tag on a
+// one-row list (ocidex-nps9.9).
+func resolveSortMode(mode VersionSortMode, semverCount, total int) VersionSortMode {
 	if mode == SortAuto {
-		if hasSemver {
+		if semverCount > 0 && semverCount*2 >= total {
 			return SortSemver
 		}
 		return SortBuildTime

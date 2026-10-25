@@ -22,6 +22,20 @@ export function worstSeverity(
     ].find((r) => r.count > 0);
 }
 
+/** breakdownTitle lists every non-zero severity, for the remainder's tooltip. */
+function breakdownTitle(v: VulnSummary): string {
+    return [
+        { label: "critical", count: v.critical },
+        { label: "high", count: v.high },
+        { label: "medium", count: v.medium },
+        { label: "low", count: v.low },
+        { label: "unknown", count: v.unknown },
+    ]
+        .filter((r) => r.count > 0)
+        .map((r) => `${r.count} ${r.label}`)
+        .join(", ");
+}
+
 /**
  * The caption. "no known vulnerabilities" is a claim about what has been
  * scanned, so it is only made when a summary exists — something never scanned
@@ -33,9 +47,21 @@ function VulnTileSub(props: { vulns: VulnSummary | undefined }) {
         <Show when={props.vulns !== undefined} fallback={<>not scanned</>}>
             <Show when={worstSeverity(props.vulns)} fallback={<>no known vulnerabilities</>}>
                 {(w) => (
-                    <SeverityPill severity={w().label}>
-                        {w().count} {w().label}
-                    </SeverityPill>
+                    <>
+                        <SeverityPill severity={w().label}>
+                            {w().count} {w().label}
+                        </SeverityPill>
+                        {/* The remainder, so the line adds up to the number above
+                            it: the worst alone read as "1 medium" under a 3
+                            (ocidex-nps9.10). The full breakdown is on hover. */}
+                        <Show when={(props.vulns?.total ?? 0) - w().count > 0 ? props.vulns : undefined}>
+                            {(v) => (
+                                <span class="text-muted" title={breakdownTitle(v())}>
+                                    {" "}+{v().total - w().count} other
+                                </span>
+                            )}
+                        </Show>
+                    </>
                 )}
             </Show>
         </Show>

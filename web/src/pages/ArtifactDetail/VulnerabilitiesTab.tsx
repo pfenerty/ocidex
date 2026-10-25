@@ -10,17 +10,19 @@ import { useArtifactVulns } from "~/api/queries";
 import type { ArtifactVulnSortKey, VulnSeverityFilter } from "~/api/queries";
 import "./VulnerabilitiesTab.css";
 
-const SEVERITY_TABS = ["All", "CRITICAL", "HIGH", "MEDIUM", "LOW"] as const;
+// UNKNOWN is a filter like the others: an artifact whose only finding has no
+// severity offered no way to isolate it (ocidex-nps9.19).
+const SEVERITY_TABS = ["All", "CRITICAL", "HIGH", "MEDIUM", "LOW", "UNKNOWN"] as const;
 
 const SORT_KEYS: ArtifactVulnSortKey[] = [
     "severity",
-    "cvss_score",
-    "affected_version_count",
-    "affected_package_count",
-    "canonical_id",
+    "cvssScore",
+    "affectedVersionCount",
+    "affectedPackageCount",
+    "canonicalId",
 ];
 
-const SEVERITIES: VulnSeverityFilter[] = ["CRITICAL", "HIGH", "MEDIUM", "LOW"];
+const SEVERITIES: VulnSeverityFilter[] = ["CRITICAL", "HIGH", "MEDIUM", "LOW", "UNKNOWN"];
 
 /**
  * AffectedVersionsList names the versions one finding reaches.
@@ -146,7 +148,7 @@ export function VulnerabilitiesTab(props: {
     const columns: Column<ArtifactVulnEntry>[] = [
         {
             header: "ID",
-            sortKey: "canonical_id",
+            sortKey: "canonicalId",
             render: (v) => <VulnId canonicalId={v.canonicalId} nativeId={v.id} />,
         },
         {
@@ -158,7 +160,7 @@ export function VulnerabilitiesTab(props: {
         {
             header: "CVSS",
             align: "right",
-            sortKey: "cvss_score",
+            sortKey: "cvssScore",
             sortType: "numeric",
             render: (v) => (
                 <Show when={v.cvssScore} fallback={<span class="text-muted">—</span>}>
@@ -171,7 +173,7 @@ export function VulnerabilitiesTab(props: {
             // you know which three — so the versions themselves are the cell,
             // each linking to the SBOM that carries it.
             header: "Affected versions",
-            sortKey: "affected_version_count",
+            sortKey: "affectedVersionCount",
             sortType: "numeric",
             render: (v) => (
                 <>
@@ -197,7 +199,7 @@ export function VulnerabilitiesTab(props: {
         {
             header: "Packages",
             align: "right",
-            sortKey: "affected_package_count",
+            sortKey: "affectedPackageCount",
             sortType: "numeric",
             render: (v) => <span class="font-mono text-sm">{v.affectedPackageCount.toLocaleString()}</span>,
         },

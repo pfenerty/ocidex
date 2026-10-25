@@ -21,17 +21,22 @@
 -- name: GetDiscoverTopArtifacts :many
 -- Artifacts ranked by discovery_score: usage breadth, version breadth, recency.
 --
--- usage_count is the ADR-041 "usages" relation counted rather than listed — how
--- many *other* artifacts' SBOMs contain a component matching this artifact. The
--- match is the same coarse one ListArtifactUsages does (purl base via
--- idx_component_purl_base, or the (type, name, group) tuple for purl-less rows),
--- and it is a superset for the same reason: identity qualifiers are settled in
--- Go by componentKey(). A count does not need that exactness — the ranking is
--- ordinal, and an over-count of a few qualifier variants cannot reorder a
--- log-damped score — so the Go pass is skipped here rather than pulling every
--- matching component row into the service to be filtered and thrown away.
+-- usage_count is the ADR-041 "usages" relation counted rather than listed: how
+-- many *other* artifacts' latest public SBOM contains a component matching
+-- this artifact. That is the figure the Relationships tab reports ("ships in N
+-- artifacts"), and it has to be: counting SBOMs instead, and leaving out the
+-- ADR-048 R6 command branch, ranked every ocidex command artifact at "0 uses"
+-- while its Relationships tab named the image that ships it (ocidex-nps9.5).
 --
--- The two match branches are separate CTEs unioned, not one predicate with OR.
+-- The match is the same coarse one ListArtifactUsages does: purl base via
+-- idx_component_purl_base, the (type, name, group) tuple for purl-less rows,
+-- and for a golang purl the module component of a binary whose file name is
+-- this artifact's name (R6). It is a superset for the same reason: identity
+-- qualifiers are settled in Go by componentKey(). A count does not need that
+-- exactness, so the Go pass is skipped rather than pulling every matching
+-- component row into the service to be filtered and thrown away.
+--
+-- The match branches are separate CTEs unioned, not one predicate with OR.
 -- An OR across two relations cannot be planned as a hash join, so the combined
 -- form degrades to a nested loop over the component table; split, each branch is
 -- a clean join against its own index.
@@ -42,6 +47,12 @@ public_sbom AS (
     SELECT s.id, s.artifact_id, s.subject_version, s.created_at
     FROM sbom s
     WHERE s.namespace_id IN (SELECT id FROM public_ns)
+),
+public_latest AS (
+    -- Each consumer's newest public SBOM, the one the Relationships tab reads.
+    SELECT DISTINCT ON (ps.artifact_id) ps.id, ps.artifact_id
+    FROM public_sbom ps
+    ORDER BY ps.artifact_id, ps.created_at DESC, ps.id DESC
 ),
 subject AS (
     -- Only artifacts with at least one public SBOM are candidates: the JOIN is
@@ -63,31 +74,53 @@ subject AS (
     GROUP BY a.id, a.type, a.name, a.group_name, a.purl
 ),
 usage_purl AS (
-    SELECT sub.id AS artifact_id, ps.id AS sbom_id
+    SELECT sub.id AS artifact_id, pl.artifact_id AS consumer_id
     FROM subject sub
     JOIN component c
       ON c.purl IS NOT NULL
      AND split_part(split_part(c.purl, '?', 1), '@', 1) = sub.purl_base
-    JOIN public_sbom ps ON ps.id = c.sbom_id AND ps.artifact_id <> sub.id
+    JOIN public_latest pl ON pl.id = c.sbom_id AND pl.artifact_id <> sub.id
     WHERE sub.purl_base IS NOT NULL
 ),
 usage_tuple AS (
-    SELECT sub.id AS artifact_id, ps.id AS sbom_id
+    SELECT sub.id AS artifact_id, pl.artifact_id AS consumer_id
     FROM subject sub
     JOIN component c
       ON c.purl IS NULL
      AND c.type = sub.type
      AND c.name = sub.name
      AND COALESCE(c.group_name, '') = COALESCE(sub.group_name, '')
-    JOIN public_sbom ps ON ps.id = c.sbom_id AND ps.artifact_id <> sub.id
+    JOIN public_latest pl ON pl.id = c.sbom_id AND pl.artifact_id <> sub.id
     WHERE sub.purl_base IS NULL
 ),
+module_base AS (
+    -- Every path-boundary prefix of a golang purl base below the full path,
+    -- as modulePurlBases() builds them in Go: equality against these is what
+    -- the purl-base index serves.
+    SELECT sub.id AS artifact_id, sub.name,
+           array_to_string((string_to_array(sub.purl_base, '/'))[1:n], '/') AS base
+    FROM subject sub
+    CROSS JOIN LATERAL generate_series(2, cardinality(string_to_array(sub.purl_base, '/')) - 1) AS n
+    WHERE sub.purl_base LIKE 'pkg:golang/%'
+),
+usage_command AS (
+    SELECT mb.artifact_id, pl.artifact_id AS consumer_id
+    FROM module_base mb
+    JOIN component c
+      ON c.purl IS NOT NULL
+     AND c.file_path IS NOT NULL
+     AND split_part(split_part(c.purl, '?', 1), '@', 1) = mb.base
+     AND regexp_replace(c.file_path, '^.*/', '') = mb.name
+    JOIN public_latest pl ON pl.id = c.sbom_id AND pl.artifact_id <> mb.artifact_id
+),
 usage AS (
-    SELECT m.artifact_id, COUNT(DISTINCT m.sbom_id)::bigint AS usage_count
+    SELECT m.artifact_id, COUNT(DISTINCT m.consumer_id)::bigint AS usage_count
     FROM (
-        SELECT artifact_id, sbom_id FROM usage_purl
+        SELECT artifact_id, consumer_id FROM usage_purl
         UNION ALL
-        SELECT artifact_id, sbom_id FROM usage_tuple
+        SELECT artifact_id, consumer_id FROM usage_tuple
+        UNION ALL
+        SELECT artifact_id, consumer_id FROM usage_command
     ) m
     GROUP BY m.artifact_id
 )

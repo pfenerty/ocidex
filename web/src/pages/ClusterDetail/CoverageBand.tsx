@@ -53,7 +53,7 @@ export function CoverageBand(props: {
                     workload containers · {plural(props.coverage.pods, "pod")}
                 </span>
             </A>
-            <A class={cls(onWorkloads("exact"))} href={href("tab=workloads&match_state=exact")}>
+            <A class={cls(onWorkloads("exact"))} href={href("tab=workloads&matchState=exact")}>
                 <span class="tile-head">Matched</span>
                 <span class="tile-value">{props.coverage.matched.toLocaleString()}</span>
                 <span class="tile-sub">{pct()} of what is running</span>

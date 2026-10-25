@@ -56,6 +56,28 @@ func (h *Handler) GetComponentVersions(ctx context.Context, input *GetComponentV
 	out.Body.Pagination = paginationMeta(result.PagedResult)
 	out.Body.VersionCount = result.VersionCount
 	out.Body.ArtifactCount = result.ArtifactCount
+	out.Body.SbomCount = result.SbomCount
+	return out, nil
+}
+
+// ListComponentVersionSummaries handles GET /api/v1/components/version-summaries.
+func (h *Handler) ListComponentVersionSummaries(ctx context.Context, input *ListComponentVersionSummariesInput) (*ListComponentVersionSummariesOutput, error) {
+	result, err := h.searchService.ListComponentVersionSummaries(ctx, service.ComponentVersionFilter{
+		Name:       input.Name,
+		Group:      input.Group,
+		Type:       input.Type,
+		Limit:      input.Limit,
+		Offset:     input.Offset,
+		Visibility: visibilityFilterFromContext(ctx),
+	})
+	if err != nil {
+		return nil, mapServiceError(err)
+	}
+	out := &ListComponentVersionSummariesOutput{}
+	out.Body.Versions = result.Data
+	out.Body.Pagination = paginationMeta(result.PagedResult)
+	out.Body.SbomCount = result.SbomCount
+	out.Body.ArtifactCount = result.ArtifactCount
 	return out, nil
 }
 
@@ -433,6 +455,13 @@ func (h *Handler) listArtifacts(ctx context.Context, input *ListArtifactsInput, 
 
 	out := &ListArtifactsOutput{}
 	out.Body.Data = result.Data
+	if !hasCursor {
+		total, err := h.searchService.CountArtifacts(ctx, filter)
+		if err != nil {
+			return nil, mapServiceError(err)
+		}
+		out.Body.Total = &total
+	}
 	if sortSeverity {
 		// The next page starts where this one ended. Encoding it through the
 		// same helper keeps the cursor opaque, so no client learns that this
@@ -604,7 +633,10 @@ func (h *Handler) GetArtifactLicenseSummary(ctx context.Context, input *GetArtif
 	}
 
 	out := &GetArtifactLicenseSummaryOutput{}
-	out.Body.Licenses = summary
+	out.Body.Licenses = summary.Licenses
+	out.Body.SbomID = summary.SbomID
+	out.Body.SubjectVersion = summary.SubjectVersion
+	out.Body.SbomCreatedAt = summary.SbomCreatedAt
 	return out, nil
 }
 
@@ -622,7 +654,8 @@ func (h *Handler) GetArtifactVulnSummary(ctx context.Context, input *GetArtifact
 	}
 
 	out := &GetArtifactVulnSummaryOutput{}
-	out.Body.Summary = summary
+	out.Body.Summary = summary.Summary
+	out.Body.SubjectVersion = summary.SubjectVersion
 	return out, nil
 }
 

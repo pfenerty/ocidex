@@ -92,7 +92,8 @@ describe("the .page-header-row wrapper", () => {
         // regex that tries to find the row's own `</div>` by counting tags is
         // guessing.
         const src = code(join(SRC, "components/ui/PageHeader.tsx"));
-        expect(src).toMatch(/<div class="page-header-row">\s*<div>\s*<h2>/);
+        // The h2 may carry attributes (its ref feeds document.title).
+        expect(src).toMatch(/<div class="page-header-row">\s*<div>\s*<h2[\s>]/);
     });
 
     it("is emitted from nowhere else", () => {

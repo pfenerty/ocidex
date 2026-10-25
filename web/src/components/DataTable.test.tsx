@@ -384,3 +384,29 @@ describe("DataTable mobile layout", () => {
         expect(wrapper?.classList.contains("table-mobile-cards")).toBe(false);
     });
 });
+
+// ocidex-nps9.22: a column's `font-mono text-sm` reached its <th>, so one
+// header rendered mono and larger than its neighbours.
+describe("DataTable header typography", () => {
+    it("keeps typography classes off headers but on cells", () => {
+        const { container } = render(() => (
+            <DataTable
+                columns={[
+                    { header: "Package", render: (r: { v: string }) => r.v },
+                    { header: "Version", class: "font-mono text-sm col-ref", align: "right", render: (r: { v: string }) => r.v },
+                ]}
+                rows={[{ v: "1.0" }]}
+                loading={false}
+                isError={false}
+                emptyTitle="none"
+            />
+        ));
+        const th = [...container.querySelectorAll("th")][1];
+        expect(th.className).not.toContain("font-mono");
+        expect(th.className).not.toContain("text-sm");
+        expect(th.className).toContain("col-ref");
+        expect(th.className).toContain("text-right");
+        const td = [...container.querySelectorAll("tbody td")][1];
+        expect(td.className).toContain("font-mono");
+    });
+});

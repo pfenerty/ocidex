@@ -24,11 +24,14 @@ export default function LoadMore(props: {
     onClick: () => void;
     /** How many rows are on screen. */
     loaded?: number;
+    /** The whole list's size, when the API sends one alongside its keyset pages. */
+    total?: number;
 }) {
     const label = (): string => {
         const n = props.loaded;
         if (n === undefined) return "";
         if (n === 0) return "No results";
+        if (props.total !== undefined) return `Showing ${n} of ${props.total}`;
         return props.hasMore ? `Showing ${n}` : `Showing ${n} of ${n}`;
     };
 

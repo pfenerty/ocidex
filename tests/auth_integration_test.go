@@ -23,12 +23,12 @@ import (
 
 const testSessionSecret = "test-session-secret-padded-32b!" // 32 bytes
 
-const patchRegistryBody = `{"name":"updated","type":"generic","url":"registry.example.com","insecure":false,"enabled":true,"repositories":[],"repository_patterns":[],"tag_patterns":[]}`
+const patchRegistryBody = `{"name":"updated","type":"generic","url":"registry.example.com","insecure":false,"enabled":true,"repositories":[],"repositoryPatterns":[],"tagPatterns":[]}`
 
 // registryBody uses scan_mode=webhook so the test doesn't require
 // REGISTRY_POLLER_ENABLED=true (poll/both modes are gated on that env var).
 func registryBody(name string) string {
-	return `{"name":"` + name + `","type":"generic","url":"registry.example.com","insecure":false,"visibility":"public","scan_mode":"webhook","repositories":[],"repository_patterns":[],"tag_patterns":[]}`
+	return `{"name":"` + name + `","type":"generic","url":"registry.example.com","insecure":false,"visibility":"public","scanMode":"webhook","repositories":[],"repositoryPatterns":[],"tagPatterns":[]}`
 }
 
 func setupServerWithAuth(t *testing.T, pool *pgxpool.Pool) (*httptest.Server, service.AuthService) {

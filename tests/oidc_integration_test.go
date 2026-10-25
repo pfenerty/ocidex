@@ -236,7 +236,7 @@ func TestOIDCLoginEndToEnd(t *testing.T) {
 			is.Equal(meResp.StatusCode, http.StatusOK)
 
 			var me struct {
-				DisplayName string `json:"display_name"`
+				DisplayName string `json:"displayName"`
 				Role        string `json:"role"`
 			}
 			is.NoErr(json.Unmarshal(meResp.Body, &me))

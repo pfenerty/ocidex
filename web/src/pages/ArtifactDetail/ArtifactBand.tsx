@@ -22,6 +22,9 @@ export function ArtifactBand(props: {
     artifact: ArtifactDetail;
     isContainer: boolean;
     vulns: VulnSummary | undefined;
+    /** The version the vulnerability summary counts, named in the tile's scope:
+     *  the highest by version parts, which need not be the newest build. */
+    vulnsVersion?: string;
     /** The ordering the versions list resolved to, captioning the Versions tile. */
     ordering: "semver" | "all";
     active: ArtifactTab;
@@ -65,7 +68,13 @@ export function ArtifactBand(props: {
             // most recent versions (ocidex-7gf7.5). The two numbers legitimately
             // differ, and without a label the tab looks like it contradicts the
             // tile the reader clicked to reach it.
-            vulnTile<ArtifactTab>(props.vulns, "vulns", "latest version"),
+            vulnTile<ArtifactTab>(
+                props.vulns,
+                "vulns",
+                props.vulnsVersion !== undefined && props.vulnsVersion !== ""
+                    ? props.vulnsVersion
+                    : "latest version",
+            ),
         ];
 
         // Signing is image-only. On an uploaded binary or library it would be a

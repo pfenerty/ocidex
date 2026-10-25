@@ -33,25 +33,25 @@ const acme = {
     id: "ns-acme",
     name: "acme",
     visibility: "private" as const,
-    owner_id: "u-owner",
-    created_at: "2026-01-01T00:00:00Z",
-    updated_at: "2026-01-01T00:00:00Z",
+    ownerId: "u-owner",
+    createdAt: "2026-01-01T00:00:00Z",
+    updatedAt: "2026-01-01T00:00:00Z",
 };
 
 const owner = {
-    user_id: "u-owner",
+    userId: "u-owner",
     username: "octocat",
     role: "owner" as const,
     capabilities: ["manage_member"],
-    created_at: "2026-01-01T00:00:00Z",
+    createdAt: "2026-01-01T00:00:00Z",
 };
 
 const viewer = {
-    user_id: "u-viewer",
+    userId: "u-viewer",
     username: "hubot",
     role: "viewer" as const,
     capabilities: ["read_private"],
-    created_at: "2026-01-02T00:00:00Z",
+    createdAt: "2026-01-02T00:00:00Z",
 };
 
 function must<T>(value: T | null | undefined, what: string): T {
@@ -72,13 +72,13 @@ function select(container: HTMLElement, label: string): HTMLSelectElement {
 
 /**
  * caller is the signed-in user. `role` is the *installation* role; namespace
- * ownership is expressed by matching `acme.owner_id`, which is what the panel
+ * ownership is expressed by matching `acme.ownerId`, which is what the panel
  * actually keys its visibility on.
  */
 function renderPanel(
     caller: { id: string; role: string } | undefined,
     members = [owner, viewer],
-    users: unknown[] = [{ id: "u-new", display_name: "monalisa" }],
+    users: unknown[] = [{ id: "u-new", displayName: "monalisa" }],
 ) {
     mockAuth.mockReturnValue({ user: () => caller, refetch: vi.fn() } as never);
     mockMembers.mockImplementation((() => ({
@@ -150,8 +150,8 @@ describe("NamespaceMembers", () => {
 
     it("adds a member, offering only users who are not members yet", () => {
         const { container } = renderPanel({ id: "u-owner", role: "member" }, [owner, viewer], [
-            { id: "u-new", display_name: "monalisa" },
-            { id: "u-viewer", display_name: "hubot" },
+            { id: "u-new", displayName: "monalisa" },
+            { id: "u-viewer", displayName: "hubot" },
         ]);
 
         const picker = select(container, "User to add");

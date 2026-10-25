@@ -34,6 +34,15 @@ export function useRetryScanJob() {
     }));
 }
 
+export function useCancelScanJob() {
+    const qc = useQueryClient();
+    return createMutation(() => ({
+        mutationFn: (id: string) =>
+            unwrap(client.POST("/api/v1/admin/jobs/{id}/cancel", { params: { path: { id } } })),
+        onSuccess: () => qc.invalidateQueries({ queryKey: ["jobs"] }),
+    }));
+}
+
 export function useRetryAllFailedScanJobs() {
     const qc = useQueryClient();
     return createMutation(() => ({
@@ -44,14 +53,14 @@ export function useRetryAllFailedScanJobs() {
 
 export function useListEnrichmentJobs(params?: Accessor<{
     state?: "queued" | "running" | "succeeded" | "failed";
-    enricher_name?: "user" | "oci-metadata" | "provenance";
+    enricherName?: "user" | "oci-metadata" | "provenance";
     limit?: number;
     offset?: number;
 }>) {
     return createQuery(() => {
         const p = params?.() ?? {};
         return {
-            queryKey: ["enrichment-jobs", p.state, p.enricher_name, p.limit, p.offset] as const,
+            queryKey: ["enrichment-jobs", p.state, p.enricherName, p.limit, p.offset] as const,
             queryFn: () => unwrap(client.GET("/api/v1/enrichment-jobs", { params: { query: p } })),
             refetchInterval: 2500,
         };
@@ -78,9 +87,9 @@ export function useRetryEnrichmentJob() {
 export function useRetryAllFailedEnrichmentJobs() {
     const qc = useQueryClient();
     return createMutation(() => ({
-        mutationFn: (enricher_name?: "user" | "oci-metadata" | "provenance") =>
+        mutationFn: (enricherName?: "user" | "oci-metadata" | "provenance") =>
             unwrap(client.POST("/api/v1/admin/enrichment-jobs/retry-failed", {
-                params: { query: enricher_name ? { enricher_name } : {} },
+                params: { query: enricherName ? { enricherName } : {} },
             })),
         onSuccess: () => qc.invalidateQueries({ queryKey: ["enrichment-jobs"] }),
     }));

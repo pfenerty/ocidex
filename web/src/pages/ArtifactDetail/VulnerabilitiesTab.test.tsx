@@ -99,11 +99,11 @@ afterEach(() => {
 
 describe("Artifact VulnerabilitiesTab", () => {
     it("asks the API for the caller's severity, advisory filter, sort and page", () => {
-        renderTab({ severity: "HIGH", vuln: "CVE-2026-1", sortBy: "cvss_score", sortDir: "asc", offset: 50 });
+        renderTab({ severity: "HIGH", vuln: "CVE-2026-1", sortBy: "cvssScore", sortDir: "asc", offset: 50 });
         expect(lastParams).toMatchObject({
             severity: "HIGH",
             vuln: "CVE-2026-1",
-            sort: "cvss_score",
+            sort: "cvssScore",
             dir: "asc",
             offset: 50,
         });
@@ -180,6 +180,17 @@ describe("Artifact VulnerabilitiesTab", () => {
         const { container } = renderTab();
         expect(container.textContent).toContain("20 most recent versions");
         expect(container.textContent).toContain("1,025 in all");
+    });
+
+    it("pages a single page as one page", () => {
+        // The server once omitted limit and offset here, and the pager divided
+        // by zero: "Showing 1–0 of 1", "NaN / Infinity", next/last enabled.
+        const { container, getByLabelText } = renderTab();
+        const pager = container.querySelector(".pagination");
+        expect(pager?.textContent).toContain("Showing 1–1 of 1");
+        expect(pager?.textContent).toContain("1 / 1");
+        expect(getByLabelText("Next page").hasAttribute("disabled")).toBe(true);
+        expect(getByLabelText("Last page").hasAttribute("disabled")).toBe(true);
     });
 
     it("says so plainly when nothing was left out", () => {

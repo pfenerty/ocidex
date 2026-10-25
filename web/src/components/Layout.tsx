@@ -213,7 +213,7 @@ export default function Layout(props: ParentProps) {
                         <div class="sidebar-user">
                             <div class="sidebar-user-info">
                                 <User size={14} class="sidebar-user-icon" />
-                                <span class="truncate">{u().display_name}</span>
+                                <span class="truncate">{u().displayName}</span>
                             </div>
                             <button
                                 onClick={() => void handleLogout()}

@@ -220,6 +220,8 @@ type JobRepository interface {
 	RequeueStuckRunning(ctx context.Context, arg RequeueStuckRunningParams) error
 	RetryScanJob(ctx context.Context, id pgtype.UUID) error
 	RetryAllFailedScanJobs(ctx context.Context) (int64, error)
+	FailStaleRequeuedScanJobs(ctx context.Context, staleBefore pgtype.Timestamptz) error
+	CancelQueuedScanJob(ctx context.Context, id pgtype.UUID) (int64, error)
 	CountActiveScanJobs(ctx context.Context) ([]CountActiveScanJobsRow, error)
 }
 

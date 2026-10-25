@@ -98,8 +98,8 @@ cookies carry no ceiling and are unaffected.
 | GET | `/api/v1/users/me/vulns` | `list-my-vulnerabilities` | `authenticated` | — |  | Owned rows only; excludes others' public rows, and admins get no widening. |
 | GET | `/api/v1/users/me/watches` | `list-my-watches` | `authenticated` | — |  | Owned rows only; excludes others' public rows, and admins get no widening. |
 | GET | `/api/v1/users/me/watches/feed` | `list-my-watch-feed` | `authenticated` | — |  | Self-scoped, and additionally visibility-filtered: an artifact made private after being starred stays on the watchlist but stops producing events. |
-| DELETE | `/api/v1/users/me/watches/{artifact_id}` | `unwatch-artifact` | `authenticated` | — | ✓ | Removes the caller's own watch; idempotent. |
-| PUT | `/api/v1/users/me/watches/{artifact_id}` | `watch-artifact` | `authenticated` | — | ✓ | Watch is self-scoped; the artifact must be visible to the caller, which may include others' public artifacts. |
+| DELETE | `/api/v1/users/me/watches/{artifactId}` | `unwatch-artifact` | `authenticated` | — | ✓ | Removes the caller's own watch; idempotent. |
+| PUT | `/api/v1/users/me/watches/{artifactId}` | `watch-artifact` | `authenticated` | — | ✓ | Watch is self-scoped; the artifact must be visible to the caller, which may include others' public artifacts. |
 | PATCH | `/api/v1/users/{id}/role` | `update-user-role` | `admin` | — | ✓ |  |
 
 ### Clusters
@@ -127,6 +127,7 @@ cookies carry no ceiling and are unaffected.
 | GET | `/api/v1/components` | `search-components` | `public` | — |  | VisibilityFilter. |
 | GET | `/api/v1/components/distinct` | `search-distinct-components` | `public` | — |  | VisibilityFilter. |
 | GET | `/api/v1/components/purl-types` | `list-component-purl-types` | `public` | — |  | VisibilityFilter. |
+| GET | `/api/v1/components/version-summaries` | `list-component-version-summaries` | `public` | — |  | VisibilityFilter. |
 | GET | `/api/v1/components/versions` | `get-component-versions` | `public` | — |  | VisibilityFilter. |
 | GET | `/api/v1/components/{id}` | `get-component` | `public` | — |  | VisibilityFilter. |
 | GET | `/api/v1/components/{id}/vulns` | `get-component-vulns` | `public` | — |  | VisibilityFilter. |
@@ -151,6 +152,7 @@ cookies carry no ceiling and are unaffected.
 | POST | `/api/v1/admin/enrichment-jobs/retry-failed` | `retry-all-failed-enrichment-jobs` | `admin` | — | ✓ |  |
 | POST | `/api/v1/admin/enrichment-jobs/{id}/retry` | `retry-enrichment-job` | `admin` | — | ✓ |  |
 | POST | `/api/v1/admin/jobs/retry-failed` | `retry-all-failed-scan-jobs` | `admin` | — | ✓ |  |
+| POST | `/api/v1/admin/jobs/{id}/cancel` | `cancel-scan-job` | `admin` | — | ✓ |  |
 | POST | `/api/v1/admin/jobs/{id}/retry` | `retry-scan-job` | `admin` | — | ✓ |  |
 | GET | `/api/v1/enrichment-jobs` | `list-enrichment-jobs` | `authenticated` | — |  | Rows filtered via visible_namespace_ids; admins see every namespace. |
 | GET | `/api/v1/enrichment-jobs/summary` | `enrichment-jobs-summary` | `authenticated` | — |  | Rows filtered via visible_namespace_ids; admins see every namespace. |
@@ -182,8 +184,8 @@ cookies carry no ceiling and are unaffected.
 | GET | `/api/v1/namespaces/{id}` | `get-namespace` | `authenticated` | — |  | A private namespace the caller does not own 404s, so its existence is not leaked. |
 | PATCH | `/api/v1/namespaces/{id}` | `update-namespace` | `capability` | `manage_member` | ✓ | manage_member capability check in handler. |
 | GET | `/api/v1/namespaces/{id}/members` | `list-namespace-members` | `capability` | `manage_member` |  | RequireCapability(manage_member) middleware, on the {id} path param. Who may see the roster is who may change it. |
-| DELETE | `/api/v1/namespaces/{id}/members/{user_id}` | `remove-namespace-member` | `capability` | `manage_member` | ✓ | RequireCapability(manage_member) middleware, on the {id} path param. Removing the owner is a 409. |
-| PUT | `/api/v1/namespaces/{id}/members/{user_id}` | `set-namespace-member` | `capability` | `manage_member` | ✓ | RequireCapability(manage_member) middleware, on the {id} path param. A caller may not grant a role they do not hold themselves; demoting or removing the owner, or granting a second one, is a 409. |
+| DELETE | `/api/v1/namespaces/{id}/members/{userId}` | `remove-namespace-member` | `capability` | `manage_member` | ✓ | RequireCapability(manage_member) middleware, on the {id} path param. Removing the owner is a 409. |
+| PUT | `/api/v1/namespaces/{id}/members/{userId}` | `set-namespace-member` | `capability` | `manage_member` | ✓ | RequireCapability(manage_member) middleware, on the {id} path param. A caller may not grant a role they do not hold themselves; demoting or removing the owner, or granting a second one, is a 409. |
 
 ### Registries
 

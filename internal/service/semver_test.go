@@ -57,10 +57,13 @@ func TestCompareSemver(t *testing.T) {
 
 func TestResolveSortMode(t *testing.T) {
 	is := is.New(t)
-	is.Equal(resolveSortMode(SortAuto, true), SortSemver)
-	is.Equal(resolveSortMode(SortAuto, false), SortBuildTime)
-	is.Equal(resolveSortMode(SortSemver, false), SortSemver) // explicit wins
-	is.Equal(resolveSortMode(SortBuildTime, true), SortBuildTime)
+	is.Equal(resolveSortMode(SortAuto, 3, 3), SortSemver)
+	is.Equal(resolveSortMode(SortAuto, 2, 4), SortSemver) // half is enough
+	is.Equal(resolveSortMode(SortAuto, 0, 5), SortBuildTime)
+	// One tag among 37 branch builds: semver would hide the current build.
+	is.Equal(resolveSortMode(SortAuto, 1, 38), SortBuildTime)
+	is.Equal(resolveSortMode(SortSemver, 0, 5), SortSemver) // explicit wins
+	is.Equal(resolveSortMode(SortBuildTime, 3, 3), SortBuildTime)
 }
 
 func TestParseVersionSortMode(t *testing.T) {

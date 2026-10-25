@@ -53,7 +53,7 @@ type DistinctComponentFilter struct {
 func (f DistinctComponentFilter) apply(p url.Values) url.Values {
 	for k, v := range map[string]string{
 		paramName: f.Name, "group": f.Group, "type": f.Type,
-		"purl_type": f.PurlType, "sort": f.Sort, "sort_dir": f.SortDir,
+		"purlType": f.PurlType, "sort": f.Sort, "sortDir": f.SortDir,
 	} {
 		if v != "" {
 			p.Set(k, v)

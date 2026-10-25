@@ -129,19 +129,13 @@ export function VersionsTab(props: {
         ...(props.isContainer ? imageColumns : []),
         {
             header: "",
+            // One SBOM per architecture is still one build, so the history
+            // page had nothing to compare. The button appears only when some
+            // architecture was built more than once, rather than as a
+            // disabled button that styled every other row differently
+            // (ocidex-nps9.23).
             render: (version) => (
-                <Show
-                    when={version.sbomCount > 1}
-                    fallback={
-                        <Button
-                            size="sm"
-                            disabled
-                            title="Only one build — need at least two to show history"
-                        >
-                            Build History
-                        </Button>
-                    }
-                >
+                <Show when={version.sbomCount > Math.max(1, version.architectures?.length ?? 0)}>
                     <Button
                         as={A}
                         href={`/artifacts/${props.artifactId}/versions/${encodeURIComponent(version.versionKey)}`}

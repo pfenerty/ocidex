@@ -5,22 +5,25 @@ import { VulnCountBadges } from "~/components/VulnBadge";
 import DataTable from "~/components/DataTable";
 import type { Column } from "~/components/DataTable";
 import { plural } from "~/utils/format";
-import type { VersionGroup } from "./grouping";
+import type { ComponentVersionSummary } from "~/api/client";
+
+/** NO_VERSION labels the group of occurrences that carry no version string. */
+export const NO_VERSION = "(no version)";
 
 /** VersionListTable is the summary view: one row per version of the component. */
 export function VersionListTable(props: {
-    groups: VersionGroup[];
+    versions: ComponentVersionSummary[];
     versionHref: (version: string) => string;
 }) {
-    const columns = (): Column<VersionGroup>[] => [
+    const columns = (): Column<ComponentVersionSummary>[] => [
         {
             header: "Version",
-            render: (group) => (
+            render: (v) => (
                 <>
-                    <A href={props.versionHref(group.version)} class="font-mono">
-                        {group.version}
+                    <A href={props.versionHref(v.version ?? NO_VERSION)} class="font-mono">
+                        {v.version ?? NO_VERSION}
                     </A>
-                    <Show when={group.purl} keyed>
+                    <Show when={v.purl} keyed>
                         {(purl) => (
                             <span class="ml-2">
                                 <PurlLink purl={purl} showBadge />
@@ -31,22 +34,24 @@ export function VersionListTable(props: {
             ),
         },
         {
+            header: "SBOMs",
+            class: "text-muted",
+            render: (v) => plural(v.sbomCount, "SBOM"),
+        },
+        {
             header: "Artifacts",
             class: "text-muted",
-            render: (group) => plural(group.entries.length, "artifact"),
+            render: (v) => plural(v.artifactCount, "artifact"),
         },
         {
             header: "Vulnerabilities",
-            // Vulnerability counts are a property of the (name, version) pair,
-            // so every entry in the group carries the same numbers — the first
-            // is representative.
-            render: (group) => (
+            render: (v) => (
                 <VulnCountBadges
-                    criticalCount={group.entries[0].criticalCount}
-                    highCount={group.entries[0].highCount}
-                    mediumCount={group.entries[0].mediumCount}
-                    lowCount={group.entries[0].lowCount}
-                    unknownCount={group.entries[0].unknownCount}
+                    criticalCount={v.criticalCount}
+                    highCount={v.highCount}
+                    mediumCount={v.mediumCount}
+                    lowCount={v.lowCount}
+                    unknownCount={v.unknownCount}
                 />
             ),
         },
@@ -55,7 +60,7 @@ export function VersionListTable(props: {
     return (
         <DataTable
             columns={columns()}
-            rows={props.groups}
+            rows={props.versions}
             loading={false}
             isError={false}
             emptyTitle="No versions"

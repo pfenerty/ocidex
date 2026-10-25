@@ -24,6 +24,20 @@ function sbomSub(s: SBOMSummary): string | undefined {
     return s.digest;
 }
 
+/** builtAt is when an SBOM's subject was built, or ingested if that is unknown. */
+function builtAt(s: SBOMSummary): string {
+    return s.buildDate ?? s.createdAt;
+}
+
+/**
+ * byBuildNewestFirst orders picker options by build time. Ingest order put a
+ * 10:36 build above a 13:07 one because a scan ingested both at 13:18
+ * (ocidex-nps9.20).
+ */
+function byBuildNewestFirst(sboms: SBOMSummary[]): SBOMSummary[] {
+    return [...sboms].sort((a, b) => builtAt(b).localeCompare(builtAt(a)));
+}
+
 export default function Diff() {
     const [searchParams, setSearchParams] = useSearchParams<{
         from?: string;
@@ -60,12 +74,31 @@ export default function Diff() {
         return sel?.architecture;
     });
 
+    const fromSbomOptions = createMemo(() => byBuildNewestFirst(fromSbomsQuery.data?.data ?? []));
+
     const toSbomOptions = createMemo(() => {
-        const sboms = toSbomsQuery.data?.data ?? [];
+        const sboms = byBuildNewestFirst(toSbomsQuery.data?.data ?? []);
         const arch = fromSbomArch();
         if (showAllArchs() || arch === undefined || arch === "") return sboms;
         return sboms.filter((s) => s.architecture === arch);
     });
+
+    // A diff reads FROM → TO, so picking a newer FROM inverts every change:
+    // upgrades read as downgrades. Said, with a one-click fix, rather than
+    // left for the result to look wrong.
+    const reversed = createMemo(() => {
+        const from = fromSbomsQuery.data?.data.find((s) => s.id === fromSbomId());
+        const to = toSbomsQuery.data?.data.find((s) => s.id === toSbomId());
+        return from !== undefined && to !== undefined && builtAt(from) > builtAt(to);
+    });
+
+    function swap() {
+        const [fa, fs, ta, ts] = [fromArtifactId(), fromSbomId(), toArtifactId(), toSbomId()];
+        setFromArtifactId(ta);
+        setFromSbomId(ts);
+        setToArtifactId(fa);
+        setToSbomId(fs);
+    }
 
     function handleCompare() {
         if (fromSbomId() !== "" && toSbomId() !== "") {
@@ -107,14 +140,14 @@ export default function Diff() {
                         <Combobox
                             label="From SBOM"
                             placeholder="Search SBOMs..."
-                            items={fromSbomsQuery.data?.data ?? []}
+                            items={fromSbomOptions()}
                             value={fromSbomId()}
                             onSelect={setFromSbomId}
                             itemId={(s) => s.id}
                             itemLabel={sbomPickerLabel}
                             itemSub={sbomSub}
                             disabled={fromArtifactId() === ""}
-                            emptyMessage="No SBOMs match"
+                            emptyMessage={fromSbomsQuery.isLoading ? "Loading SBOMs…" : "No SBOMs match"}
                         />
                     </div>
 
@@ -145,7 +178,7 @@ export default function Diff() {
                             itemLabel={sbomPickerLabel}
                             itemSub={sbomSub}
                             disabled={toArtifactId() === ""}
-                            emptyMessage="No SBOMs match"
+                            emptyMessage={toSbomsQuery.isLoading ? "Loading SBOMs…" : "No SBOMs match"}
                         />
                     </div>
                 </div>
@@ -161,6 +194,15 @@ export default function Diff() {
                         />
                         Show all architectures (default: match {fromSbomArch()})
                     </label>
+                </Show>
+
+                <Show when={reversed()}>
+                    <p class="mt-3 text-sm">
+                        <span class="text-muted">From was built after To, so changes will read backwards.</span>{" "}
+                        <button type="button" class="link-button" onClick={swap}>
+                            Swap
+                        </button>
+                    </p>
                 </Show>
 
                 <div class="mt-4">

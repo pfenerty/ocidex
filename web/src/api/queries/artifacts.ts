@@ -97,8 +97,8 @@ export function useArtifact(id: Accessor<string>) {
 
 export interface UseArtifactSBOMsParams {
     limit?: number;
-    subject_version?: string;
-    image_version?: string;
+    subjectVersion?: string;
+    imageVersion?: string;
 }
 
 /** First keyset page of an artifact's SBOMs. Consumers (diff picker, version
@@ -115,8 +115,8 @@ export function useArtifactSBOMs(
                 "artifact",
                 id(),
                 "sboms",
-                p.subject_version,
-                p.image_version,
+                p.subjectVersion,
+                p.imageVersion,
                 p.limit,
             ] as const,
             queryFn: () =>
@@ -126,8 +126,8 @@ export function useArtifactSBOMs(
                             path: { id: id() },
                             query: {
                                 limit: p.limit,
-                                subject_version: p.subject_version !== "" ? p.subject_version : undefined,
-                                image_version: p.image_version !== "" ? p.image_version : undefined,
+                                subjectVersion: p.subjectVersion !== "" ? p.subjectVersion : undefined,
+                                imageVersion: p.imageVersion !== "" ? p.imageVersion : undefined,
                             },
                         },
                     }),

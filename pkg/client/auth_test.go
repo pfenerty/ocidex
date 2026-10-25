@@ -34,7 +34,7 @@ func TestListAPIKeys(t *testing.T) {
 		is.Equal(r.Method, http.MethodGet)
 		is.Equal(r.URL.Path, "/api/v1/auth/keys")
 		w.Header().Set("Content-Type", "application/json")
-		_, _ = w.Write([]byte(`{"keys":[{"id":"key-1","name":"my-key","prefix":"ocidex_a","capabilities":["ingest"],"created_at":"2024-01-01T00:00:00Z"}]}`))
+		_, _ = w.Write([]byte(`{"keys":[{"id":"key-1","name":"my-key","prefix":"ocidex_a","capabilities":["ingest"],"createdAt":"2024-01-01T00:00:00Z"}]}`))
 	}))
 	defer srv.Close()
 
@@ -64,7 +64,7 @@ func TestGetCurrentUser(t *testing.T) {
 		is.Equal(r.Method, http.MethodGet)
 		is.Equal(r.URL.Path, "/api/v1/users/me")
 		w.Header().Set("Content-Type", "application/json")
-		_, _ = w.Write([]byte(`{"id":"user-1","display_name":"pfenerty","role":"admin"}`))
+		_, _ = w.Write([]byte(`{"id":"user-1","displayName":"pfenerty","role":"admin"}`))
 	}))
 	defer srv.Close()
 

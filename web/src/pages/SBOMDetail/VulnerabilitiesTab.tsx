@@ -14,16 +14,18 @@ import { noFixLabel } from "~/utils/vuln";
 import { componentHref } from "./componentHref";
 import "./VulnerabilitiesTab.css";
 
-const SEVERITY_TABS = ["All", "CRITICAL", "HIGH", "MEDIUM", "LOW"] as const;
+// UNKNOWN is a filter like the others: an artifact whose only finding has no
+// severity offered no way to isolate it (ocidex-nps9.19).
+const SEVERITY_TABS = ["All", "CRITICAL", "HIGH", "MEDIUM", "LOW", "UNKNOWN"] as const;
 
 const SORT_KEYS: SBOMVulnSortKey[] = [
     "severity",
-    "cvss_score",
-    "affected_package_count",
-    "canonical_id",
+    "cvssScore",
+    "affectedPackageCount",
+    "canonicalId",
 ];
 
-const SEVERITIES: VulnSeverityFilter[] = ["CRITICAL", "HIGH", "MEDIUM", "LOW"];
+const SEVERITIES: VulnSeverityFilter[] = ["CRITICAL", "HIGH", "MEDIUM", "LOW", "UNKNOWN"];
 
 /**
  * AffectedPackagesList names the packages one finding lands on.
@@ -130,7 +132,7 @@ export function VulnerabilitiesTab(props: {
     const columns: Column<SBOMVulnEntry>[] = [
         {
             header: "ID",
-            sortKey: "canonical_id",
+            sortKey: "canonicalId",
             render: (v) => <VulnId canonicalId={v.canonicalId} nativeId={v.id} />,
         },
         {
@@ -142,7 +144,7 @@ export function VulnerabilitiesTab(props: {
         {
             header: "CVSS",
             align: "right",
-            sortKey: "cvss_score",
+            sortKey: "cvssScore",
             sortType: "numeric",
             render: (v) => (
                 <Show when={v.cvssScore} fallback={<span class="text-muted">—</span>}>
@@ -155,7 +157,7 @@ export function VulnerabilitiesTab(props: {
             // you know which three. The names are already on the row, so they
             // are simply shown; the count survives as the "+N more" tail.
             header: "Affected packages",
-            sortKey: "affected_package_count",
+            sortKey: "affectedPackageCount",
             sortType: "numeric",
             render: (v) => (
                 <>

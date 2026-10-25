@@ -96,8 +96,8 @@ export function useComponentSearch(term: Accessor<string>) {
                         query: {
                             name: q,
                             limit: PER_GROUP_LIMIT,
-                            sort: "version_count",
-                            sort_dir: "desc",
+                            sort: "versionCount",
+                            sortDir: "desc",
                         },
                     },
                 }),

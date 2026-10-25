@@ -11,6 +11,23 @@ import (
 	"github.com/jackc/pgx/v5/pgtype"
 )
 
+const cancelQueuedScanJob = `-- name: CancelQueuedScanJob :execrows
+UPDATE scan_jobs
+SET state = 'failed', finished_at = now(), last_error = 'cancelled by an administrator', worker_id = NULL
+WHERE id = $1::uuid
+  AND state = 'queued'
+`
+
+// An operator's cancel. Queued only: a running job's worker would finish it
+// anyway and overwrite the state.
+func (q *Queries) CancelQueuedScanJob(ctx context.Context, id pgtype.UUID) (int64, error) {
+	result, err := q.db.Exec(ctx, cancelQueuedScanJob, id)
+	if err != nil {
+		return 0, err
+	}
+	return result.RowsAffected(), nil
+}
+
 const claimNextQueuedJob = `-- name: ClaimNextQueuedJob :one
 WITH next_id AS (
     SELECT id FROM scan_jobs
@@ -273,6 +290,12 @@ SET state       = CASE
     finished_at = CASE
         WHEN attempts >= $1::int THEN now()
         ELSE NULL
+    END,
+    -- A queued row holds no lease, so it names no worker: "queued" beside a
+    -- worker id read as a job one worker had and never let go (ocidex-nps9.26).
+    worker_id   = CASE
+        WHEN attempts >= $1::int THEN worker_id
+        ELSE NULL
     END
 WHERE id = $3::uuid
   AND state NOT IN ('succeeded', 'failed', 'pruned')
@@ -308,6 +331,27 @@ type FailScanJobParams struct {
 
 func (q *Queries) FailScanJob(ctx context.Context, arg FailScanJobParams) error {
 	_, err := q.db.Exec(ctx, failScanJob, arg.LastError, arg.NatsMsgID)
+	return err
+}
+
+const failStaleRequeuedScanJobs = `-- name: FailStaleRequeuedScanJobs :exec
+UPDATE scan_jobs
+SET state       = 'failed',
+    finished_at = now(),
+    last_error  = 'stale: requeued for retry and not picked up again'
+                  || COALESCE('; last error: ' || last_error, '')
+WHERE state = 'queued'
+  AND attempts > 0
+  AND last_attempt_at < $1::timestamptz
+`
+
+// A job requeued for retry is claimed again within seconds while any worker is
+// consuming. One still queued long after its last attempt means none is, and
+// it sat "queued" for days with no way to tell that from a fresh backlog
+// (ocidex-nps9.26). It fails, keeping its last error, so Retry is on offer.
+// Never-attempted rows are left alone: a large walk's backlog is legitimate.
+func (q *Queries) FailStaleRequeuedScanJobs(ctx context.Context, staleBefore pgtype.Timestamptz) error {
+	_, err := q.db.Exec(ctx, failStaleRequeuedScanJobs, staleBefore)
 	return err
 }
 
@@ -711,6 +755,10 @@ SET state = CASE
     finished_at = CASE
         WHEN attempts >= $1::int THEN now()
         ELSE NULL
+    END,
+    worker_id = CASE
+        WHEN attempts >= $1::int THEN worker_id
+        ELSE NULL
     END
 WHERE state = 'running'
   AND last_attempt_at < $2::timestamptz
@@ -740,6 +788,7 @@ func (q *Queries) RequeueStuckRunning(ctx context.Context, arg RequeueStuckRunni
 const retryAllFailedScanJobs = `-- name: RetryAllFailedScanJobs :execrows
 UPDATE scan_jobs
 SET state       = 'queued',
+    worker_id   = NULL,
     attempts    = 0,
     last_error  = NULL,
     finished_at = NULL,
@@ -761,6 +810,7 @@ func (q *Queries) RetryAllFailedScanJobs(ctx context.Context) (int64, error) {
 const retryScanJob = `-- name: RetryScanJob :exec
 UPDATE scan_jobs
 SET state       = 'queued',
+    worker_id   = NULL,
     attempts    = 0,
     last_error  = NULL,
     finished_at = NULL,

@@ -21,11 +21,29 @@ never the server's build version, so the generated spec is the same for every bu
 The version of the running server is reported by `GET /api/v1/`:
 
 ```json
-{ "version": "v1", "build": "v1.2.3" }
+{ "version": "v1", "build": "v1.2.3", "commit": "bf2bab70…", "builtAt": "2026-10-24T21:28:32Z", "vulnDbBuiltAt": "2026-10-24T06:00:00Z" }
 ```
 
 `build` is the release tag for release images. Otherwise it is the Go module version, or
 `dev` for a local build. It is the same version that `ocidex --version` prints.
+
+## Field Names and Pagination
+
+Decided before the 1.0 compatibility freeze (ocidex-nps9.7):
+
+- **Names are camelCase** throughout `/api/v1`: JSON fields in request and response
+  bodies, query parameter names, path placeholders, and the values a `sort` parameter
+  accepts (they name fields). Renamed before 1.0 in ocidex-nps9.32 and ocidex-nps9.34;
+  `TestOpenAPIPropertiesAreCamelCase` and `TestOpenAPIParametersAreCamelCase` keep it so.
+  Enum values that name a *state* rather than a field (`egress_denied`,
+  `verification_failed`) are not names and keep their spelling. Through 1.0 the server
+  still accepts the old snake_case query parameter names and sort keys, for an
+  `ocidex-cli` older than the server; that shim goes in the release after 1.0 (ocidex-6hfs).
+- **Two pagination envelopes, on purpose** ([ADR-043](adr/0043-pagination-convention.md)). Numbered
+  pages over computed aggregates use offset pagination: `?limit=&offset=` in, `{total,
+  limit, offset}` out. Append-only lists use keyset pagination: `?limit=&cursor=` in,
+  `{limit, hasMore, nextCursor}` out, where the cursor is opaque. A keyset list may also
+  carry a `total` beside the envelope on its first page, as `/api/v1/artifacts` does.
 
 ## Go SDK
 

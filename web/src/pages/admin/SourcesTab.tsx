@@ -1,4 +1,4 @@
-import { createEffect, createMemo, createSignal } from "solid-js";
+import { Show, createEffect, createMemo, createSignal } from "solid-js";
 import { useSearchParams } from "@solidjs/router";
 import {
     useListRegistries,
@@ -82,8 +82,8 @@ export function SourcesTab() {
     const activeByRegistry = createMemo(() => {
         const counts = new Map<string, number>();
         for (const job of activeJobs.data?.data ?? []) {
-            if ((job.state === "running" || job.state === "queued") && job.registry_id !== undefined) {
-                counts.set(job.registry_id, (counts.get(job.registry_id) ?? 0) + 1);
+            if ((job.state === "running" || job.state === "queued") && job.registryId !== undefined) {
+                counts.set(job.registryId, (counts.get(job.registryId) ?? 0) + 1);
             }
         }
         return counts;
@@ -102,9 +102,28 @@ export function SourcesTab() {
         return byRegistry;
     });
 
+    // What the caller may do with each registry, from their role in the
+    // namespace that owns it. The list shows every source the caller can see,
+    // and offering Edit/Scan/Delete on all of them sent a viewer into a row of
+    // 403s (ocidex-nps9.15).
+    const capsByRegistry = createMemo(() => {
+        const capsByNamespace = new Map<string, Set<string>>();
+        for (const ns of namespacesQuery.data?.data ?? []) {
+            capsByNamespace.set(ns.id, new Set(ns.capabilities ?? []));
+        }
+        const out = new Map<string, Set<string>>();
+        for (const src of sourcesQuery.data?.data ?? []) {
+            out.set(src.id, capsByNamespace.get(src.namespaceId) ?? new Set());
+        }
+        return out;
+    });
+    const canManageAny = () =>
+        (namespacesQuery.data?.data ?? []).some((ns) => (ns.capabilities ?? []).includes("manage_source"));
+
     const columns = registryColumns({
         activeByRegistry,
         trustByRegistry,
+        capsFor: (id) => capsByRegistry().get(id) ?? new Set(),
         onEdit: (reg) => dialog?.openEdit(reg),
         onSecretRevealed: setRevealedSecret,
     });
@@ -113,9 +132,11 @@ export function SourcesTab() {
         <>
             <WebhookSecretBanner secret={revealedSecret()} onDismiss={() => setRevealedSecret(null)} />
 
-            <div class="mb-4">
-                <Button variant="primary" onClick={() => dialog?.openAdd()}>Add Registry</Button>
-            </div>
+            <Show when={canManageAny()}>
+                <div class="mb-4">
+                    <Button variant="primary" onClick={() => dialog?.openAdd()}>Add Registry</Button>
+                </div>
+            </Show>
 
             <RegistryFormDialog ref={(h) => (dialog = h)} onSecretRevealed={setRevealedSecret} />
 

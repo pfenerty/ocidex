@@ -1,6 +1,7 @@
 package service
 
 import (
+	"encoding/json"
 	"fmt"
 	"slices"
 	"strings"
@@ -36,19 +37,19 @@ func (r Registry) EffectiveTagOrder() string {
 // caller (API, CLI through the API, operator) gets the same answer.
 func ValidateScanScope(tagLimit int, tagOrder string, maxTagAgeDays int, tagPatterns []string) error {
 	if tagLimit < 0 {
-		return &ValidationError{Message: "tag_limit must be 0 (unlimited) or more"}
+		return &ValidationError{Message: "tagLimit must be 0 (unlimited) or more"}
 	}
 	switch tagOrder {
 	case "", TagOrderSemver, TagOrderCreated, TagOrderLexical:
 	default:
-		return &ValidationError{Message: fmt.Sprintf("tag_order must be semver, created or lexical, not %q", tagOrder)}
+		return &ValidationError{Message: fmt.Sprintf("tagOrder must be semver, created or lexical, not %q", tagOrder)}
 	}
 	if maxTagAgeDays < 0 {
-		return &ValidationError{Message: "max_tag_age_days must be 1 or more, or 0 for no age limit"}
+		return &ValidationError{Message: "maxTagAgeDays must be 1 or more, or 0 for no age limit"}
 	}
 	order := Registry{TagOrder: tagOrder, TagPatterns: tagPatterns}.EffectiveTagOrder()
 	if maxTagAgeDays > 0 && order != TagOrderCreated {
-		return &ValidationError{Message: fmt.Sprintf("max_tag_age_days needs tag_order created; the effective order is %s", order)}
+		return &ValidationError{Message: fmt.Sprintf("maxTagAgeDays needs tagOrder created; the effective order is %s", order)}
 	}
 	return nil
 }
@@ -61,8 +62,8 @@ type WalkStats struct {
 	Repositories   int       `json:"repositories" doc:"Repositories the walk visited"`
 	Matched        int       `json:"matched" doc:"Tags that passed the filter"`
 	Selected       int       `json:"selected" doc:"Tags inside the window"`
-	SkippedByLimit int       `json:"skipped_by_limit" doc:"Matching tags past tag_limit"`
-	SkippedByAge   int       `json:"skipped_by_age" doc:"Matching tags older than max_tag_age_days"`
+	SkippedByLimit int       `json:"skippedByLimit" doc:"Matching tags past tagLimit"`
+	SkippedByAge   int       `json:"skippedByAge" doc:"Matching tags older than maxTagAgeDays"`
 	Queued         int       `json:"queued" doc:"Scan jobs the walk submitted (already-ingested digests are not)"`
 	Error          string    `json:"error,omitempty" doc:"Why the walk failed, if it did"`
 
@@ -72,6 +73,29 @@ type WalkStats struct {
 	// (ADR-0056 R2), so a repository with a selected tag that failed to resolve
 	// is left out. Stored apart from the stats, as registry_window rows.
 	Windows map[string][]string `json:"-"`
+}
+
+// UnmarshalJSON reads WalkStats in either key spelling. The stats are stored as
+// registry.last_walk_stats JSONB, and rows written before the camelCase rename
+// (ocidex-nps9.32) say skipped_by_limit and skipped_by_age.
+func (w *WalkStats) UnmarshalJSON(b []byte) error {
+	type plain WalkStats
+	var v struct {
+		plain
+		LegacySkippedByLimit *int `json:"skipped_by_limit"`
+		LegacySkippedByAge   *int `json:"skipped_by_age"`
+	}
+	if err := json.Unmarshal(b, &v); err != nil {
+		return err
+	}
+	*w = WalkStats(v.plain)
+	if v.LegacySkippedByLimit != nil && w.SkippedByLimit == 0 {
+		w.SkippedByLimit = *v.LegacySkippedByLimit
+	}
+	if v.LegacySkippedByAge != nil && w.SkippedByAge == 0 {
+		w.SkippedByAge = *v.LegacySkippedByAge
+	}
+	return nil
 }
 
 // TagWindow is the outcome of applying a registry's selection window to one

@@ -200,10 +200,14 @@ func TestArtifactRollupSigningStatus_FailureBeatsVerified(t *testing.T) {
 
 	verifiedID := mustIngest(t, srv.URL, path, scopeSBOM(3, 3, "v1.0.0", "calm-lib"), memberKey)
 	failedID := mustIngest(t, srv.URL, path, scopeSBOM(4, 4, "v1.1.0", "calm-lib"), memberKey)
+	signedID := mustIngest(t, srv.URL, path, scopeSBOM(5, 5, "v1.2.0", "calm-lib"), memberKey)
 
 	for _, s := range []struct{ id, data string }{
 		{verifiedID, `{"verified": true, "signaturePresent": true}`},
 		{failedID, `{"verified": false, "signaturePresent": true}`},
+		// Signed but never checked ranks below failed and above verified
+		// (ocidex-nps9.8); failed must still win.
+		{signedID, `{"signaturePresent": true}`},
 	} {
 		_, err := pool.Exec(t.Context(),
 			`INSERT INTO enrichment (sbom_id, enricher_name, status, data)
@@ -228,4 +232,43 @@ func TestArtifactRollupSigningStatus_FailureBeatsVerified(t *testing.T) {
 	var detail map[string]any
 	is.NoErr(json.NewDecoder(resp.Body).Decode(&detail))
 	is.Equal(detail["signingStatus"], "verification_failed")
+}
+
+// TestArtifactRollupSigningStatus_UncheckedBeatsVerified: a newer SBOM whose
+// signature was found but never verified must not be hidden by older verified
+// siblings (ocidex-nps9.8).
+func TestArtifactRollupSigningStatus_UncheckedBeatsVerified(t *testing.T) {
+	if testing.Short() {
+		t.Skip("skipping integration test in short mode")
+	}
+	requireTestInfra(t)
+
+	pool, cleanup := setupTestDB(t)
+	defer cleanup()
+
+	srv, authSvc := setupServerWithAuth(t, pool)
+	defer srv.Close()
+
+	is := is.New(t)
+
+	memberID := seedUser(t, pool, 8403, "signing-unchecked-member", "member")
+	memberKey, err := authSvc.CreateAPIKey(t.Context(), memberID, "signing-unchecked", nil)
+	is.NoErr(err)
+	path := ingestPath(t, pool, memberID)
+
+	verifiedID := mustIngest(t, srv.URL, path, scopeSBOM(6, 6, "v1.0.0", "calm-lib"), memberKey)
+	signedID := mustIngest(t, srv.URL, path, scopeSBOM(7, 7, "v1.1.0", "calm-lib"), memberKey)
+	for _, s := range []struct{ id, data string }{
+		{verifiedID, `{"verified": true, "signaturePresent": true}`},
+		{signedID, `{"signaturePresent": true}`},
+	} {
+		_, err := pool.Exec(t.Context(),
+			`INSERT INTO enrichment (sbom_id, enricher_name, status, data)
+			 VALUES ($1::uuid, 'provenance', 'success', $2::jsonb)`, s.id, s.data)
+		is.NoErr(err)
+	}
+
+	refreshRollups(t, pool)
+
+	is.Equal(artifactListEntry(t, srv.URL, memberKey)["signingStatus"], "signed")
 }

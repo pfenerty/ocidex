@@ -49,7 +49,7 @@ func TestPreviewRegistryConfig(t *testing.T) {
 
 	t.Run("counts", func(t *testing.T) {
 		is := is.New(t)
-		body := fmt.Sprintf(`{"type":"generic","url":%q,"insecure":true,"repositories":["app"],"tag_patterns":["semver"],"tag_limit":2}`, host)
+		body := fmt.Sprintf(`{"type":"generic","url":%q,"insecure":true,"repositories":["app"],"tagPatterns":["semver"],"tagLimit":2}`, host)
 		w := memberRequest(router, http.MethodPost, "/api/v1/registries/preview", body, "stranger-token")
 		is.Equal(w.Code, http.StatusOK)
 		var p scanner.RegistryPreview
@@ -64,7 +64,7 @@ func TestPreviewRegistryConfig(t *testing.T) {
 
 	t.Run("invalid window is a 400", func(t *testing.T) {
 		is := is.New(t)
-		body := fmt.Sprintf(`{"type":"generic","url":%q,"insecure":true,"tag_patterns":["semver"],"max_tag_age_days":30}`, host)
+		body := fmt.Sprintf(`{"type":"generic","url":%q,"insecure":true,"tagPatterns":["semver"],"maxTagAgeDays":30}`, host)
 		w := memberRequest(router, http.MethodPost, "/api/v1/registries/preview", body, "stranger-token")
 		is.Equal(w.Code, http.StatusBadRequest)
 	})

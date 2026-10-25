@@ -118,3 +118,46 @@ func TestSplitCaseInsensitive(t *testing.T) {
 	is.Equal(splitCaseInsensitive("a And B And C", " and "), []string{"a", "B", "C"})
 	is.Equal(splitCaseInsensitive("no separator", " and "), []string{"no separator"})
 }
+
+func TestExpandLicense(t *testing.T) {
+	tests := []struct {
+		name             string
+		id, inName, expr string
+		want             []licenseDef
+	}{
+		{"spdx id", "MIT", "", "", []licenseDef{{"MIT", "MIT"}}},
+		{"expat is MIT", "", "Expat", "", []licenseDef{{"MIT", "MIT License"}}},
+		{"mit/x11 is MIT", "", "MIT/X11", "", []licenseDef{{"MIT", "MIT License"}}},
+		{"artistic", "", "Artistic", "", []licenseDef{{"Artistic-1.0", "Artistic License 1.0"}}},
+		{"operator fragment", "", "AND", "", nil},
+		{"generic word", "", "license", "", nil},
+		{"permissive", "", "permissive", "", nil},
+		{"clause fragment", "", "2-clause", "", nil},
+		{"digest", "", "sha256:fd7e4aae7e7b05f217bcf2d02322825c360e66c52c4c2f1b28d784d6297a1c23", "", nil},
+		{"trailing comma", "", "REGCOMP,", "", []licenseDef{{"", "REGCOMP"}}},
+		{"local name kept", "", "BSD-like", "", []licenseDef{{"", "BSD-like"}}},
+		{
+			"expression in a name splits into members", "",
+			"EPL-2.0 AND GPL-2.0-only WITH Classpath-exception-2.0", "",
+			[]licenseDef{
+				{"EPL-2.0", "Eclipse Public License 2.0"},
+				{"GPL-2.0-only WITH Classpath-exception-2.0", "GPL-2.0-only WITH Classpath-exception-2.0"},
+			},
+		},
+		{
+			"expression field, parens and duplicates", "", "",
+			"(MIT OR Apache-2.0) AND MIT AND X11-distribute-modifications-variant",
+			[]licenseDef{
+				{"MIT", "MIT License"},
+				{"Apache-2.0", "Apache License 2.0"},
+				{"", "X11-distribute-modifications-variant"},
+			},
+		},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			is := is.New(t)
+			is.Equal(ExpandLicense(tt.id, tt.inName, tt.expr), tt.want)
+		})
+	}
+}

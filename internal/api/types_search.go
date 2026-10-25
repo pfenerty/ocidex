@@ -33,9 +33,9 @@ type SearchDistinctComponentsInput struct {
 	Name     string `query:"name" doc:"Filter by component name"`
 	Group    string `query:"group" doc:"Filter by component group"`
 	Type     string `query:"type" doc:"Filter by component type"`
-	PurlType string `query:"purl_type" doc:"Filter by purl type"`
-	Sort     string `query:"sort" doc:"Sort field: name, version_count, sbom_count, or severity (worst first, ranked critical to unknown). Unrecognised values fall back to name."`
-	SortDir  string `query:"sort_dir" doc:"Sort direction (asc or desc)"`
+	PurlType string `query:"purlType" doc:"Filter by purl type"`
+	Sort     string `query:"sort" doc:"Sort field: name, versionCount, sbomCount, or severity (worst first, ranked critical to unknown). Unrecognised values fall back to name."`
+	SortDir  string `query:"sortDir" doc:"Sort direction (asc or desc)"`
 }
 
 // SearchDistinctComponentsOutput is the response for GET /api/v1/components/distinct.
@@ -81,6 +81,28 @@ type GetComponentVersionsOutput struct {
 		// neither of the two a reader arrives with.
 		VersionCount  int64 `json:"versionCount" doc:"Distinct versions under this identity, across every page"`
 		ArtifactCount int64 `json:"artifactCount" doc:"Distinct artifacts whose SBOMs contain this component, across every page"`
+		SbomCount     int64 `json:"sbomCount" doc:"Distinct SBOMs containing this component, across every page. Pagination.total counts occurrences, and one SBOM can hold several."`
+	}
+}
+
+// ListComponentVersionSummariesInput is the request for
+// GET /api/v1/components/version-summaries.
+type ListComponentVersionSummariesInput struct {
+	PaginationParams
+	Name  string `query:"name" required:"true" doc:"Component name"`
+	Group string `query:"group" doc:"Filter by component group"`
+	Type  string `query:"type" doc:"Filter by component type"`
+}
+
+// ListComponentVersionSummariesOutput is the response for
+// GET /api/v1/components/version-summaries: one row per distinct version,
+// paginated by version, so Pagination.Total is the version count.
+type ListComponentVersionSummariesOutput struct {
+	Body struct {
+		Versions      []service.ComponentVersionSummary `json:"versions"`
+		Pagination    PaginationMeta                    `json:"pagination"`
+		SbomCount     int64                             `json:"sbomCount" doc:"Distinct SBOMs containing this component, across every page"`
+		ArtifactCount int64                             `json:"artifactCount" doc:"Distinct artifacts whose SBOMs contain this component, across every page"`
 	}
 }
 
@@ -117,7 +139,7 @@ type GetComponentVulnsOutput struct {
 // ListLicensesInput is the request for GET /api/v1/licenses.
 type ListLicensesInput struct {
 	PaginationParams
-	SpdxID   string `query:"spdx_id" doc:"Filter by SPDX identifier"`
+	SpdxID   string `query:"spdxId" doc:"Filter by SPDX identifier"`
 	Name     string `query:"name" doc:"Filter by license name"`
 	Category string `query:"category" doc:"Filter by license category"`
 }

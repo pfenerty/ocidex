@@ -141,6 +141,8 @@ type JobService interface {
 	// RetryAllFailed resets every 'failed' row back to 'queued'. Returns the
 	// number of rows affected.
 	RetryAllFailed(ctx context.Context) (int64, error)
+	// Cancel fails a queued row on an operator's request.
+	Cancel(ctx context.Context, id string) error
 }
 
 type jobService struct {
@@ -396,13 +398,44 @@ func (s *jobService) FailOrRequeue(ctx context.Context, id, lastError string, ma
 	return state, nil
 }
 
+// staleRequeuedAfter is how long a job requeued for retry may wait before the
+// sweep fails it. Any consuming worker claims it again within seconds.
+const staleRequeuedAfter = 24 * time.Hour
+
 func (s *jobService) RequeueStuckRunning(ctx context.Context, stuckThreshold time.Duration, maxAttempts int32) error {
 	cutoff := pgtype.Timestamptz{}
 	_ = cutoff.Scan(time.Now().Add(-stuckThreshold))
-	return s.repo.RequeueStuckRunning(ctx, repository.RequeueStuckRunningParams{
+	if err := s.repo.RequeueStuckRunning(ctx, repository.RequeueStuckRunningParams{
 		MaxAttempts: maxAttempts,
 		StuckBefore: cutoff,
-	})
+	}); err != nil {
+		return err
+	}
+	// The same sweep covers the other stuck state: queued for retry, but no
+	// worker has come back for it (ocidex-nps9.26).
+	stale := pgtype.Timestamptz{}
+	_ = stale.Scan(time.Now().Add(-staleRequeuedAfter))
+	if err := s.repo.FailStaleRequeuedScanJobs(ctx, stale); err != nil {
+		return fmt.Errorf("failing stale requeued scan jobs: %w", err)
+	}
+	return nil
+}
+
+// Cancel fails a queued scan job on an operator's request. It reports
+// ErrNotFound when the job is missing or no longer queued.
+func (s *jobService) Cancel(ctx context.Context, id string) error {
+	uid, err := parseUUID(id)
+	if err != nil {
+		return ErrNotFound
+	}
+	n, err := s.repo.CancelQueuedScanJob(ctx, uid)
+	if err != nil {
+		return fmt.Errorf("cancel scan job: %w", err)
+	}
+	if n == 0 {
+		return ErrNotFound
+	}
+	return nil
 }
 
 // CountActive returns how many scan jobs are queued and running, keyed by

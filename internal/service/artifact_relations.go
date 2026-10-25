@@ -5,6 +5,7 @@ import (
 	"errors"
 	"fmt"
 	"path"
+	"regexp"
 	"strings"
 	"time"
 
@@ -238,12 +239,42 @@ func textOrEmpty(t pgtype.Text) pgtype.Text {
 
 // sameVersion reports whether two optional versions match, or nil when
 // either is absent. Nil means "unknown", not "differs".
+//
+// Two spellings of the same commit match: a container SBOM records the Go
+// module as "main-bf2bab70" where the application SBOM says
+// "0.0.0-bf2bab70", and calling that container outdated was wrong
+// (ocidex-nps9.4).
 func sameVersion(matched, current *string) *bool {
 	if matched == nil || current == nil {
 		return nil
 	}
-	eq := *matched == *current
+	eq := *matched == *current || sameCommit(*matched, *current)
 	return &eq
+}
+
+// commitSuffixRe captures a trailing abbreviated or full git commit hash: hex
+// after a "-", "+" or "." separator. The letter requirement keeps a build
+// number or a date ("1.2-20240101") from passing as a hash.
+var commitSuffixRe = regexp.MustCompile(`[-+.]([0-9a-f]*[a-f][0-9a-f]*)$`)
+
+// sameCommit reports whether a and b both end in a commit hash and name the
+// same commit, allowing one to be an abbreviation of the other (Go
+// pseudo-versions carry 12 hex digits, branch tags often 8).
+func sameCommit(a, b string) bool {
+	ca, cb := commitSuffix(a), commitSuffix(b)
+	if ca == "" || cb == "" {
+		return false
+	}
+	return strings.HasPrefix(ca, cb) || strings.HasPrefix(cb, ca)
+}
+
+// commitSuffix returns v's trailing commit hash, or "" if it has none.
+func commitSuffix(v string) string {
+	m := commitSuffixRe.FindStringSubmatch(strings.ToLower(v))
+	if m == nil || len(m[1]) < 7 || len(m[1]) > 40 {
+		return ""
+	}
+	return m[1]
 }
 
 // Command matching (ADR-048 R6/R7).

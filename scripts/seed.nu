@@ -223,10 +223,10 @@ def main [
             url: $reg.url
             insecure: false
             repositories: $reg.repositories
-            repository_patterns: []
-            tag_patterns: $patterns
-            scan_mode: "poll"
-            poll_interval_minutes: $poll_interval
+            repositoryPatterns: []
+            tagPatterns: $patterns
+            scanMode: "poll"
+            pollIntervalMinutes: $poll_interval
             visibility: "public"
         }
 

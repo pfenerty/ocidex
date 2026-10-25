@@ -134,6 +134,32 @@ export default function ProvenanceCard(props: {
                     </div>
                 </Show>
 
+                {/* Signed, but verification never ran: no verdict and no error is
+                    the shape the worker leaves when the SBOM's source has no trust
+                    configuration. Unexplained, "Signed" next to builds that say
+                    "Verified" with the same key read as a broken verifier
+                    (ocidex-nps9.6). */}
+                <Show
+                    when={
+                        p.verified === undefined &&
+                        (p.verificationError === undefined || p.verificationError === "") &&
+                        (p.signaturePresent === true || p.attestationPresent === true)
+                    }
+                >
+                    <div class="detail-field">
+                        <span class="detail-label">Verification</span>
+                        <span class="detail-value">Not attempted</span>
+                    </div>
+                    <div class="detail-field">
+                        <span class="detail-label">Reason</span>
+                        <span class="detail-value text-muted text-sm">
+                            The source this SBOM was ingested from has no trusted key or
+                            keyless identity configured, so its signature was found but not
+                            checked.
+                        </span>
+                    </div>
+                </Show>
+
                 {/* Why it failed, so diagnosis doesn't need the worker's logs */}
                 <Show when={p.verificationError}>
                     {(reason) => (

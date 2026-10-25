@@ -10,6 +10,9 @@ import { CATEGORY_COLORS } from "~/utils/licenseUtils";
 
 export function LicensesTab(props: {
     licenses: LicenseCount[] | undefined;
+    /** The SBOM the counts come from: the artifact's most recently ingested. */
+    sbomId?: string;
+    subjectVersion?: string;
     loading: boolean;
     isError: boolean;
     error?: unknown;
@@ -56,10 +59,26 @@ export function LicensesTab(props: {
     return (
         <>
             <Show when={licenses().length > 0}>
+                {/* Which build this is. Unsaid, the table read as "every
+                    license in this artifact's history" (ocidex-nps9.29). */}
+                <Show when={props.sbomId}>
+                    {(id) => (
+                        <p class="text-muted text-sm mb-4">
+                            From the most recently ingested SBOM
+                            <Show when={props.subjectVersion}>
+                                {(v) => <>, <span class="font-mono">{v()}</span></>}
+                            </Show>
+                            . <A href={`/sboms/${id()}`}>View that SBOM</A>
+                        </p>
+                    )}
+                </Show>
+
+                {/* A note, not an alarm: GPL in a Debian base image is normal,
+                    and a red error banner read as a failure. */}
                 <Show when={hasCopyleft()}>
-                    <div class="alert alert-danger mb-4">
-                        <strong>Copyleft licenses detected.</strong> Review the
-                        licenses below for compliance requirements.
+                    <div class="alert alert-info mb-4">
+                        Includes copyleft licenses. Check their terms if you
+                        redistribute this artifact.
                     </div>
                 </Show>
 
@@ -92,7 +111,7 @@ export function LicensesTab(props: {
                                             CATEGORY_COLORS[cat]?.bg ?? "gray",
                                     }}
                                 />
-                                {CATEGORY_COLORS[cat]?.label ?? cat} ({count})
+                                {CATEGORY_COLORS[cat]?.label ?? cat} ({plural(count ?? 0, "component")})
                             </span>
                         )}
                     </For>

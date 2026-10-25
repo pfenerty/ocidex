@@ -5,6 +5,7 @@
 package service
 
 import (
+	"regexp"
 	"strconv"
 	"strings"
 )
@@ -144,6 +145,28 @@ func compareVersions(purl, a, b string) int {
 	return debVersionCompare(a, b)
 }
 
+// numericVersionRe matches a purely numeric dotted version ("20240101",
+// "1.2.3.4"): no letters, so no commit hash to misread as a number.
+var numericVersionRe = regexp.MustCompile(`^[0-9]+(\.[0-9]+)*$`)
+
+// versionsOrderable reports whether a and b have a meaningful order for the
+// ecosystem identified by purl. compareVersions always returns an answer, so
+// the diff can sort deterministically, but outside distro packages that answer
+// means nothing unless both sides parse as semver (Go pseudo-versions do, and
+// order by timestamp) or are plain numbers. "main-d4bd093c" against
+// "main-bf2bab70" compares two commit hashes letter by letter, and calling one
+// of them an upgrade alternated the changelog between upgraded and downgraded
+// on every build (ocidex-nps9.3).
+func versionsOrderable(purl, a, b string) bool {
+	if distroPurlTypes[purlType(purl)] {
+		return true
+	}
+	if isSemver(a) && isSemver(b) {
+		return true
+	}
+	return numericVersionRe.MatchString(a) && numericVersionRe.MatchString(b)
+}
+
 // addDirectionCount increments the appropriate field of counts based on direction.
 func addDirectionCount(counts *ChangeCounts, dir string) {
 	switch dir {
@@ -188,6 +211,9 @@ func classifyDirection(d ComponentDiff) string {
 	var purl string
 	if d.Purl != nil {
 		purl = *d.Purl
+	}
+	if !versionsOrderable(purl, *d.Version, *d.PreviousVersion) {
+		return dirModified
 	}
 	cmp := compareVersions(purl, *d.Version, *d.PreviousVersion)
 	switch {

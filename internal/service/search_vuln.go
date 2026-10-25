@@ -3,7 +3,10 @@ package service
 import (
 	"context"
 	"errors"
+	"fmt"
+	"sort"
 	"strings"
+	"time"
 
 	"github.com/jackc/pgx/v5"
 	"github.com/jackc/pgx/v5/pgtype"
@@ -16,6 +19,7 @@ import (
 // list had before sorting was configurable. The query interpolates neither
 // value, so this is about honest defaults rather than injection.
 func normalizeTopVulnSort(sort, dir string) (string, string) {
+	sort = columnName(sort)
 	switch sort {
 	case sortBySeverity, sortByCVSS, "affected_sbom_count", "affected_purl_count", "published_at", sortByCanonicalID:
 	default:
@@ -222,8 +226,10 @@ func buildAffectedComponents(rows []repository.ListAffectedComponentsByVulnRow) 
 		if r.GroupName.Valid {
 			c.Group = &r.GroupName.String
 		}
-		if r.FixedVersion.Valid {
-			c.FixedVersion = &r.FixedVersion.String
+		c.FixedVersions = sortedVersions(r.FixedVersions)
+		c.AffectedVersions = sortedVersions(r.AffectedVersions)
+		if len(c.FixedVersions) > 0 {
+			c.FixedVersion = &c.FixedVersions[0]
 		}
 		components = append(components, c)
 	}
@@ -242,4 +248,29 @@ func float4ToPtr(f pgtype.Float4) *float32 {
 		return nil
 	}
 	return &f.Float32
+}
+
+// VulnDBBuiltAt returns when the grype database the stored matches came from
+// was built, or nil before the first match run.
+func (s *searchService) VulnDBBuiltAt(ctx context.Context) (*time.Time, error) {
+	ts, err := repository.New(s.db).GetVulnMatchedDBBuilt(ctx)
+	if errors.Is(err, pgx.ErrNoRows) {
+		return nil, nil
+	}
+	if err != nil {
+		return nil, fmt.Errorf("reading vulnerability database build time: %w", err)
+	}
+	if !ts.Valid {
+		return nil, nil
+	}
+	t := ts.Time
+	return &t, nil
+}
+
+// sortedVersions orders versions ascending by compareVersions' generic rules,
+// so release lines read oldest to newest.
+func sortedVersions(vs []string) []string {
+	out := append([]string{}, vs...)
+	sort.SliceStable(out, func(i, j int) bool { return compareVersions("", out[i], out[j]) < 0 })
+	return out
 }

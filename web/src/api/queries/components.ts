@@ -9,9 +9,9 @@ export interface DistinctComponentParams {
     name?: string;
     group?: string;
     type?: string;
-    purl_type?: string;
+    purlType?: string;
     sort?: string;
-    sort_dir?: string;
+    sortDir?: string;
 }
 
 /** Parameters for fetching component version history. */
@@ -37,9 +37,9 @@ export function useDistinctComponents(
                 p.name,
                 p.group,
                 p.type,
-                p.purl_type,
+                p.purlType,
                 p.sort,
-                p.sort_dir,
+                p.sortDir,
                 p.limit,
                 p.offset,
             ] as const,
@@ -51,9 +51,9 @@ export function useDistinctComponents(
                                 name: p.name !== "" ? p.name : undefined,
                                 group: p.group !== "" ? p.group : undefined,
                                 type: p.type !== "" ? p.type : undefined,
-                                purl_type: p.purl_type !== "" ? p.purl_type : undefined,
+                                purlType: p.purlType !== "" ? p.purlType : undefined,
                                 sort: p.sort,
-                                sort_dir: p.sort_dir,
+                                sortDir: p.sortDir,
                                 limit: p.limit,
                                 offset: p.offset,
                             },
@@ -178,6 +178,47 @@ export function useComponentVersions(
             enabled: options?.enabled?.() ?? p?.name !== undefined,
             // Paging dims the table rather than blanking it, matching the other
             // paginated hooks in this file.
+            keepPreviousData: true,
+            select: (resp) => ({ ...resp, versions: resp.versions ?? [] }),
+        };
+    });
+}
+
+/**
+ * List a component's distinct versions, one row per version with its SBOM and
+ * artifact counts, paginated by version (pagination.total is the version
+ * count). useComponentVersions is one row per SBOM occurrence instead.
+ */
+export function useComponentVersionSummaries(
+    params: Accessor<Omit<ComponentVersionParams, "version"> | undefined>,
+    options?: { enabled?: Accessor<boolean> },
+) {
+    return createQuery(() => {
+        const p = params();
+        return {
+            queryKey: [
+                "component-version-summaries",
+                p?.name,
+                p?.group,
+                p?.type,
+                p?.limit,
+                p?.offset,
+            ] as const,
+            queryFn: () =>
+                unwrap(
+                    client.GET("/api/v1/components/version-summaries", {
+                        params: {
+                            query: {
+                                name: p?.name ?? "",
+                                group: p?.group !== "" ? p?.group : undefined,
+                                type: p?.type !== "" ? p?.type : undefined,
+                                limit: p?.limit ?? DEFAULT_PAGE_SIZE,
+                                offset: p?.offset ?? 0,
+                            },
+                        },
+                    }),
+                ),
+            enabled: options?.enabled?.() ?? p?.name !== undefined,
             keepPreviousData: true,
             select: (resp) => ({ ...resp, versions: resp.versions ?? [] }),
         };

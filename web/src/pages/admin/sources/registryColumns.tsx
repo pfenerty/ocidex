@@ -11,6 +11,7 @@ import {
 } from "~/api/queries";
 import { hasWebhook, regTypeLabel } from "./registryTypes";
 import { Button } from "~/components/ui";
+import { formatDateTime } from "~/utils/format";
 
 /**
  * registryColumns builds the registry table's columns. It is a function rather
@@ -23,6 +24,8 @@ export function registryColumns(opts: {
     trustByRegistry: Accessor<Map<string, Map<string, number>>>;
     onEdit: (reg: Registry) => void;
     onSecretRevealed: (secret: string) => void;
+    /** The caller's capabilities in the registry's namespace (ADR-046). */
+    capsFor: (registryID: string) => Set<string>;
 }): Column<Registry>[] {
     const toast = useToast();
     const deleteReg = useDeleteRegistry();
@@ -41,12 +44,12 @@ export function registryColumns(opts: {
             render: (reg) => (
                 <div class="flex flex-wrap items-center gap-[0.4rem]">
                     {reg.name}
-                    <Show when={(reg.managed_by ?? "") !== ""}>
+                    <Show when={(reg.managedBy ?? "") !== ""}>
                         <span
                             class="badge text-[0.7rem]"
-                            title={`Configured by ${reg.managed_by ?? ""}${(reg.managed_ref ?? "") === "" ? "" : ` (${reg.managed_ref ?? ""})`} — edits made here are reverted on the next reconcile`}
+                            title={`Configured by ${reg.managedBy ?? ""}${(reg.managedRef ?? "") === "" ? "" : ` (${reg.managedRef ?? ""})`} — edits made here are reverted on the next reconcile`}
                         >
-                            {reg.managed_by === "kubernetes" ? "Managed by Kubernetes" : `Managed by ${reg.managed_by ?? ""}`}
+                            {reg.managedBy === "kubernetes" ? "Managed by Kubernetes" : `Managed by ${reg.managedBy ?? ""}`}
                         </span>
                     </Show>
                 </div>
@@ -67,7 +70,7 @@ export function registryColumns(opts: {
             // What the scan window selected on the latest walk (ADR-0053).
             header: "Last walk",
             render: (reg) => (
-                <Show when={reg.last_walk} fallback={<span class="text-[var(--color-text-muted)]">never</span>}>
+                <Show when={reg.lastWalk} fallback={<span class="text-[var(--color-text-muted)]">never</span>}>
                     {(w) => (
                         <Show
                             when={w().error === undefined || w().error === ""}
@@ -75,13 +78,17 @@ export function registryColumns(opts: {
                         >
                             <span
                                 data-testid="last-walk"
-                                title={`${w().repositories} repositories, ${w().matched} matching tags, ${w().skipped_by_age} too old. ${new Date(w().at).toLocaleString()}`}
+                                title={`${w().repositories} repositories, ${w().matched} matching tags, ${w().skippedByAge} too old. ${formatDateTime(w().at)}`}
                             >
                                 {w().selected} tags
-                                <Show when={w().skipped_by_limit > 0}>
-                                    <span class="text-[var(--color-text-muted)]"> (+{w().skipped_by_limit} past limit)</span>
+                                <Show when={w().skippedByLimit > 0}>
+                                    <span class="text-[var(--color-text-muted)]"> (+{w().skippedByLimit} past limit)</span>
                                 </Show>
-                                {" · "}{w().queued} queued
+                                {/* Jobs that walk submitted, not jobs still waiting:
+                                    the "N active" badge counts those, and the two
+                                    read as a contradiction when both said "queued"
+                                    (ocidex-nps9.25). */}
+                                {" · "}{w().queued} sent to scan
                             </span>
                         </Show>
                     )}
@@ -118,7 +125,7 @@ export function registryColumns(opts: {
                 </Show>
             ),
         },
-        { header: "Scan Mode", render: (reg) => <code>{reg.scan_mode}</code> },
+        { header: "Scan Mode", render: (reg) => <code>{reg.scanMode}</code> },
         {
             header: "Webhook URL",
             render: (reg) => (
@@ -126,71 +133,93 @@ export function registryColumns(opts: {
                     <Show when={hasWebhook(reg)} fallback={<span class="text-muted">—</span>}>
                         <Button
                             size="sm"
-                            onClick={() => copyWebhookURL(reg.webhook_url)}
+                            onClick={() => copyWebhookURL(reg.webhookUrl)}
                         >
                             Copy URL
                         </Button>
+                        <Show when={opts.capsFor(reg.id).has("read_secret")}>
                         <Button
                             size="sm"
                             title="Generate a new webhook secret (invalidates the old one)"
                             disabled={regenSecret.isPending}
                             onClick={() => regenSecret.mutate(reg.id, {
-                                onSuccess: (data) => opts.onSecretRevealed(data.webhook_secret),
+                                onSuccess: (data) => opts.onSecretRevealed(data.webhookSecret),
                                 onError: () => toast("Failed to regenerate secret", "error"),
                             })}
                         >
                             Regen Secret
                         </Button>
+                        </Show>
                     </Show>
                 </div>
             ),
         },
         {
             header: "",
-            render: (reg) => (
-                <div class="flex gap-[0.4rem]">
-                    <Button onClick={() => opts.onEdit(reg)}>
-                        Edit
-                    </Button>
-                    <Button
-                        title="Scan new/changed images; already-scanned digests are skipped"
-                        onClick={() => scanReg.mutate({ id: reg.id }, {
-                            onSuccess: (data) => toast(data.message, "success"),
-                            onError: () => toast("Failed to start scan", "error"),
-                        })}
-                        disabled={scanReg.isPending}
+            render: (reg) => {
+                const caps = () => opts.capsFor(reg.id);
+                const canManage = () => caps().has("manage_source");
+                const canScan = () => caps().has("trigger_scan");
+                return (
+                    <Show
+                        when={canManage() || canScan()}
+                        fallback={
+                            <span class="text-muted text-sm whitespace-nowrap" title="Your role in this namespace does not allow changing or scanning it">
+                                Read only
+                            </span>
+                        }
                     >
-                        Scan
-                    </Button>
-                    <Button
-                        title="Re-scan every image, including already-scanned digests (repopulates enrichment)"
-                        onClick={() => {
-                            if (!confirm("Force a full re-scan of every image in this registry, including digests already ingested? This re-pulls and re-scans everything.")) return;
-                            scanReg.mutate({ id: reg.id, force: true }, {
-                                onSuccess: (data) => toast(data.message, "success"),
-                                onError: () => toast("Failed to start scan", "error"),
-                            });
-                        }}
-                        disabled={scanReg.isPending}
-                    >
-                        Force
-                    </Button>
-                    <Show when={(opts.activeByRegistry().get(reg.id) ?? 0) > 0}>
-                        <span class="badge badge-primary text-xs">
-                            {opts.activeByRegistry().get(reg.id)} active
-                        </span>
+                        <div class="flex gap-[0.4rem]">
+                            <Show when={canManage()}>
+                                <Button onClick={() => opts.onEdit(reg)}>
+                                    Edit
+                                </Button>
+                            </Show>
+                            <Show when={canScan()}>
+                                <Button
+                                    title="Scan new/changed images; already-scanned digests are skipped"
+                                    onClick={() => scanReg.mutate({ id: reg.id }, {
+                                        onSuccess: (data) => toast(data.message, "success"),
+                                        onError: () => toast("Failed to start scan", "error"),
+                                    })}
+                                    disabled={scanReg.isPending}
+                                >
+                                    Scan
+                                </Button>
+                                <Button
+                                    title="Re-scan every image, including already-scanned digests (repopulates enrichment)"
+                                    onClick={() => {
+                                        if (!confirm("Force a full re-scan of every image in this registry, including digests already ingested? This re-pulls and re-scans everything.")) return;
+                                        scanReg.mutate({ id: reg.id, force: true }, {
+                                            onSuccess: (data) => toast(data.message, "success"),
+                                            onError: () => toast("Failed to start scan", "error"),
+                                        });
+                                    }}
+                                    disabled={scanReg.isPending}
+                                >
+                                    Force
+                                </Button>
+                            </Show>
+                            <Show when={(opts.activeByRegistry().get(reg.id) ?? 0) > 0}>
+                                <span class="badge badge-primary text-xs">
+                                    {opts.activeByRegistry().get(reg.id)} active
+                                </span>
+                            </Show>
+                            <Show when={canManage()}>
+                                <Button
+                                    onClick={() => deleteReg.mutate(reg.id, {
+                                        onSuccess: () => toast("Registry deleted", "success"),
+                                        onError: () => toast("Failed to delete registry", "error"),
+                                    })}
+                                    disabled={deleteReg.isPending}
+                                >
+                                    Delete
+                                </Button>
+                            </Show>
+                        </div>
                     </Show>
-                    <Button
-                        onClick={() => deleteReg.mutate(reg.id, {
-                            onSuccess: () => toast("Registry deleted", "success"),
-                            onError: () => toast("Failed to delete registry", "error"),
-                        })}
-                        disabled={deleteReg.isPending}
-                    >
-                        Delete
-                    </Button>
-                </div>
-            ),
+                );
+            },
         },
     ];
 }

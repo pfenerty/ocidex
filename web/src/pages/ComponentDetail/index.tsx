@@ -57,7 +57,10 @@ export default function ComponentDetail() {
         return {
             artifactCount: p.artifactCount,
             versionCount: p.versionCount,
-            sbomCount: p.pagination.total,
+            // pagination.total counts occurrences — stdlib appears many times
+            // in one Go image's SBOM — so it stands in only for an API pod that
+            // predates sbomCount.
+            sbomCount: p.sbomCount ?? p.pagination.total,
         };
     };
 

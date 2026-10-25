@@ -94,7 +94,7 @@ export type Cluster = components["schemas"]["ClusterResponse"];
 export type ClusterWorkload = components["schemas"]["ClusterWorkloadResponse"];
 export type ClusterImage = components["schemas"]["ClusterImageResponse"];
 export type WorkloadCoverage = components["schemas"]["WorkloadCoverageResponse"];
-export type WorkloadMatchState = ClusterWorkload["match_state"];
+export type WorkloadMatchState = ClusterWorkload["matchState"];
 export type RunningVuln = components["schemas"]["RunningVulnResponse"];
 export type UnknownImage = components["schemas"]["UnknownImageResponse"];
 /** Why an unknown image can or cannot be ingested; each value has its own remedy. */
@@ -109,6 +109,8 @@ export type DistinctComponentSummary =
     components["schemas"]["DistinctComponentSummary"];
 export type ComponentVersionEntry =
     components["schemas"]["ComponentVersionEntry"];
+export type ComponentVersionSummary =
+    components["schemas"]["ComponentVersionSummary"];
 export type LicenseCount = components["schemas"]["LicenseCount"];
 export type LicenseSummary = components["schemas"]["LicenseSummary"];
 export type DependencyGraph = components["schemas"]["DependencyGraph"];

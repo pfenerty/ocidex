@@ -127,6 +127,20 @@ Responsibilities:
 
 ## Data Model
 
+### Glossary
+
+The UI and the stats use these words and no others for the component table
+(ocidex-nps9.11):
+
+| Word | Counts | Where |
+|---|---|---|
+| **Package** | one `library` identity: (type, name, group), any version | Home "Packages", /components |
+| **Package version** | one package at one version | Home "N package versions", /licenses counts, the home license card |
+| **Component** | one row in one SBOM; the same package version in ten SBOMs is ten components | SBOM Packages tab, component detail |
+
+Syft also records `file`, `application` and `operating-system` components.
+They are components but not packages, so no package figure counts them.
+
 The core entities and their relationships:
 
 ```

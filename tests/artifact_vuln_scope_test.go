@@ -59,7 +59,9 @@ type artifactVulnPage struct {
 		} `json:"affectedVersions"`
 	} `json:"data"`
 	Pagination struct {
-		Total int64 `json:"total"`
+		Total  int64 `json:"total"`
+		Limit  int32 `json:"limit"`
+		Offset int32 `json:"offset"`
 	} `json:"pagination"`
 	VersionScope  int32 `json:"versionScope"`
 	TotalVersions int64 `json:"totalVersions"`
@@ -128,6 +130,10 @@ func TestArtifactVulnsVersionScope(t *testing.T) {
 	is.Equal(all.VersionScope, int32(20))
 	is.Equal(all.TotalVersions, int64(vulnScopeVersions))
 	is.Equal(all.Pagination.Total, int64(vulnScopeVersions))
+	// The page echoes its limit and offset: without them the tab's pager
+	// divided by zero and read "Showing 1–0 of 5", "NaN / Infinity".
+	is.True(all.Pagination.Limit > 0)
+	is.Equal(all.Pagination.Offset, int32(0))
 
 	// Capped at 2, the list covers v1.5.0 and v1.4.0 — the newest two — and
 	// nothing older. This is the assertion that would have caught a cap ordered

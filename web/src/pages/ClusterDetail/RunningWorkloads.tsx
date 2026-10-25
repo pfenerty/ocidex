@@ -55,23 +55,23 @@ export function RunningWorkloadsList(props: {
                             {(w) => (
                                 <li>
                                     <Show when={props.showCluster}>
-                                        <A href={`/clusters/${w.cluster_id}`}>
-                                            {w.cluster_name}
+                                        <A href={`/clusters/${w.clusterId}`}>
+                                            {w.clusterName}
                                         </A>
                                         <span class="text-muted"> · </span>
                                     </Show>
-                                    <span class="text-muted">{w.k8s_namespace}/</span>
-                                    {w.workload_name}
-                                    <span class="text-muted"> · {w.container_name}</span>
-                                    <Show when={imageRefName(w.image_ref)}>
+                                    <span class="text-muted">{w.k8sNamespace}/</span>
+                                    {w.workloadName}
+                                    <span class="text-muted"> · {w.containerName}</span>
+                                    <Show when={imageRefName(w.imageRef)}>
                                         {(name) => (
                                             <span class="text-muted font-mono text-sm"> {name()}</span>
                                         )}
                                     </Show>
                                     <span class="text-muted text-sm">
                                         {" "}
-                                        ({w.pod_count.toLocaleString()}{" "}
-                                        {w.pod_count === 1 ? "pod" : "pods"})
+                                        ({w.podCount.toLocaleString()}{" "}
+                                        {w.podCount === 1 ? "pod" : "pods"})
                                     </span>
                                 </li>
                             )}

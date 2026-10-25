@@ -64,14 +64,20 @@ func filterByArchAndFlavor(best map[changelogGroupKey]changelogCandidate, arch, 
 	return out
 }
 
-// groupsHaveSemver reports whether any deduplicated group has a semver version.
-func groupsHaveSemver(best map[changelogGroupKey]changelogCandidate) bool {
+// groupsSemverShare counts the distinct versions across the deduplicated
+// groups, and how many of them are semver.
+func groupsSemverShare(best map[changelogGroupKey]changelogCandidate) (semver, total int) {
+	seen := make(map[string]struct{}, len(best))
 	for k := range best {
+		if _, dup := seen[k.version]; dup {
+			continue
+		}
+		seen[k.version] = struct{}{}
 		if isSemver(k.version) {
-			return true
+			semver++
 		}
 	}
-	return false
+	return semver, len(seen)
 }
 
 // filterSemverCandidates keeps only candidates whose subject version is semver.

@@ -1,6 +1,9 @@
 package service
 
-import "strings"
+import (
+	"regexp"
+	"strings"
+)
 
 type licenseDef struct {
 	spdxID string
@@ -140,6 +143,16 @@ var licenseAlias = map[string]licenseDef{
 
 	// GFDL
 	"gfdl": {"GFDL-1.3-or-later", "GNU Free Documentation License v1.3 or later"},
+
+	// Debian copyright short names for SPDX licenses (ocidex-nps9.13). Expat
+	// is the Debian name for MIT; Artistic is Perl's Artistic 1.0.
+	"expat":        {"MIT", "MIT License"},
+	"mit/x11":      {"MIT", "MIT License"},
+	"mit-x11":      {"MIT", "MIT License"},
+	"artistic":     {"Artistic-1.0", "Artistic License 1.0"},
+	"artistic-1":   {"Artistic-1.0", "Artistic License 1.0"},
+	"artistic-2":   {"Artistic-2.0", "Artistic License 2.0"},
+	"artistic-2.0": {"Artistic-2.0", "Artistic License 2.0"},
 
 	// Verbose display names that arrive as plain names
 	"gnu general public license v2.0 only":                                {"GPL-2.0-only", "GNU General Public License v2.0 only"},
@@ -380,4 +393,102 @@ func splitCaseInsensitive(s, sep string) []string {
 		lower = lower[idx+len(lowerSep):]
 	}
 	return parts
+}
+
+// ExpandLicense turns one CycloneDX license choice into the licenses it names.
+//
+// A component's license list held three kinds of noise (ocidex-nps9.13): an
+// expression stored whole as one license's name ("EPL-2.0 AND GPL-2.0-only
+// WITH Classpath-exception-2.0"), so neither member was counted under its own
+// license; fragments a Debian copyright parser left behind ("AND", "license",
+// "2-clause", "REGCOMP,"); and content digests standing in for a name
+// ("sha256:fd7e…"). An expression, whether it arrives in the choice's
+// expression field or as a name, now yields each member license — a "WITH"
+// exception stays attached to its license — and fragments yield nothing.
+func ExpandLicense(id, name, expression string) []licenseDef {
+	if expression != "" {
+		return expandExpression(expression)
+	}
+	spdxID, display := NormalizeLicense(id, name)
+	if spdxID != "" {
+		return []licenseDef{{spdxID, display}}
+	}
+	if isLicenseExpression(display) {
+		return expandExpression(display)
+	}
+	display = strings.TrimRight(strings.TrimSpace(display), ",;")
+	if isLicenseJunk(display) {
+		return nil
+	}
+	return []licenseDef{{"", display}}
+}
+
+// licenseOperatorRe splits an SPDX expression at its AND / OR operators.
+// WITH binds its exception to the license before it, so it is not a split.
+var licenseOperatorRe = regexp.MustCompile(`(?i)\s+(?:and|or)\s+`)
+
+// isLicenseExpression reports whether s joins licenses with AND or OR.
+func isLicenseExpression(s string) bool {
+	return licenseOperatorRe.MatchString(s)
+}
+
+// expandExpression returns each member license of an SPDX expression,
+// normalized, without duplicates or fragments. Grouping parentheses are
+// dropped: a per-license count needs the members, not the precedence.
+func expandExpression(expr string) []licenseDef {
+	flat := strings.NewReplacer("(", " ", ")", " ").Replace(expr)
+	var out []licenseDef
+	seen := map[string]struct{}{}
+	for _, term := range licenseOperatorRe.Split(flat, -1) {
+		term = strings.TrimRight(strings.TrimSpace(term), ",;")
+		if term == "" || isLicenseJunk(term) {
+			continue
+		}
+		def := normalizeExpressionTerm(term)
+		key := licenseKey(def.spdxID, def.name)
+		if _, dup := seen[key]; dup {
+			continue
+		}
+		seen[key] = struct{}{}
+		out = append(out, def)
+	}
+	return out
+}
+
+// normalizeExpressionTerm resolves one member of an expression. A term the
+// alias map does not know keeps its name and no SPDX id: an expression's
+// grammar says each term is an id, but Debian and Fedora fill them with local
+// names ("BSD-3-clause-GENERIC") that SPDX does not define.
+func normalizeExpressionTerm(term string) licenseDef {
+	if i := strings.Index(strings.ToUpper(term), " WITH "); i > 0 {
+		base, exception := strings.TrimSpace(term[:i]), strings.TrimSpace(term[i+len(" WITH "):])
+		if spdxID, _ := normalizeSingle(base); spdxID != "" {
+			full := spdxID + " WITH " + exception
+			return licenseDef{full, full}
+		}
+		return licenseDef{"", term}
+	}
+	if spdxID, display := normalizeSingle(term); spdxID != "" {
+		return licenseDef{spdxID, display}
+	}
+	return licenseDef{"", term}
+}
+
+// licenseJunk is every token seen standing alone as a "license" that names
+// none: expression operators and the generic words around a real name.
+var licenseJunk = map[string]bool{
+	"and": true, "or": true, "with": true,
+	"license": true, "licence": true, "licenses": true,
+	"permissive": true, "custom": true, "other": true, "unknown": true,
+	"noassertion": true, "see-license": true,
+	"2-clause": true, "3-clause": true, "4-clause": true,
+}
+
+// licenseDigestRe matches a content digest syft records in place of a name.
+var licenseDigestRe = regexp.MustCompile(`^sha(1|256|512):[0-9a-f]+$`)
+
+// isLicenseJunk reports whether s, standing alone, names no license.
+func isLicenseJunk(s string) bool {
+	lower := strings.ToLower(strings.TrimSpace(s))
+	return lower == "" || licenseJunk[lower] || licenseDigestRe.MatchString(lower)
 }

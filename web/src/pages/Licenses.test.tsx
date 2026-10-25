@@ -22,7 +22,7 @@ afterEach(cleanup);
 
 interface QueryParams {
     name?: string;
-    spdx_id?: string;
+    spdxId?: string;
     category?: string;
     limit?: number;
     offset?: number;
@@ -67,7 +67,7 @@ describe("Licenses filters live in the URL", () => {
         expect(active.length).toBe(1);
         expect(active[0].textContent).toBe("Copyleft");
         expect(params().name).toBe("Apache");
-        expect(params().spdx_id).toBe("MIT");
+        expect(params().spdxId).toBe("MIT");
         expect(params().category).toBe("copyleft");
     });
 
@@ -128,7 +128,7 @@ describe("Licenses filters live in the URL", () => {
         await waitFor(() => {
             expect(params().name).toBeUndefined();
         });
-        expect(params().spdx_id).toBeUndefined();
+        expect(params().spdxId).toBeUndefined();
         // Clear belongs to the Toolbar, so it clears the Toolbar's fields. The
         // category is the TabBar's dimension and keeps its own control.
         expect(params().category).toBe("copyleft");

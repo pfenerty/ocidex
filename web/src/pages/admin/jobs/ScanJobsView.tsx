@@ -8,6 +8,7 @@ import {
     useListScanJobs,
     useRetryScanJob,
     useRetryAllFailedScanJobs,
+    useCancelScanJob,
 } from "~/api/queries";
 import {
     DigestLine,
@@ -30,6 +31,7 @@ export function ScanJobsView() {
     const [repoFilter, setRepoFilter] = createSignal("");
     const [registryFilter, setRegistryFilter] = createSignal("");
     const retry = useRetryScanJob();
+    const cancel = useCancelScanJob();
     const retryAll = useRetryAllFailedScanJobs();
 
     createEffect(() => { stateFilter(); repoFilter(); registryFilter(); setOffset(0); });
@@ -57,10 +59,10 @@ export function ScanJobsView() {
         let jobs;
         if (isActive()) {
             const running = [...(qMain.data.data ?? [])].sort(
-                (a, b) => new Date(a.started_at ?? a.created_at).getTime() - new Date(b.started_at ?? b.created_at).getTime()
+                (a, b) => new Date(a.startedAt ?? a.createdAt).getTime() - new Date(b.startedAt ?? b.createdAt).getTime()
             );
             const queued = [...(qQueued.data?.data ?? [])].sort(
-                (a, b) => new Date(a.created_at).getTime() - new Date(b.created_at).getTime()
+                (a, b) => new Date(a.createdAt).getTime() - new Date(b.createdAt).getTime()
             );
             jobs = [...running, ...queued];
         } else {
@@ -70,7 +72,7 @@ export function ScanJobsView() {
         const reg = registryFilter();
         return jobs.filter(job =>
             (!repo || job.repository.toLowerCase().includes(repo) || (job.tag ?? "").toLowerCase().includes(repo)) &&
-            (!reg || job.registry_id === reg)
+            (!reg || job.registryId === reg)
         );
     };
 
@@ -90,7 +92,7 @@ export function ScanJobsView() {
         createdColumn(),
         lastErrorColumn(expandedErrors),
         sbomColumn(),
-        retryColumn(retry),
+        retryColumn(retry, cancel),
     ];
 
     return (

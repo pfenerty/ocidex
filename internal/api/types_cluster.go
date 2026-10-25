@@ -9,19 +9,19 @@ package api
 // the owning namespace decides who may see it.
 type ClusterResponse struct {
 	ID            string `json:"id"`
-	NamespaceID   string `json:"namespace_id"`
-	NamespaceName string `json:"namespace_name,omitempty" doc:"Owning namespace name; populated on list responses"`
+	NamespaceID   string `json:"namespaceId"`
+	NamespaceName string `json:"namespaceName,omitempty" doc:"Owning namespace name; populated on list responses"`
 	Name          string `json:"name"`
 	Description   string `json:"description,omitempty"`
-	LastSeenAt    string `json:"last_seen_at,omitempty" doc:"When an agent last pushed a snapshot. Empty means no agent has ever reported: a cluster showing no workloads for this reason is not a cluster running nothing."`
-	AutoIngest    bool   `json:"auto_ingest" doc:"Submit a scan job for every running image with no SBOM whose host resolves to a registry in this cluster's namespace, on every accepted snapshot."`
-	CreatedAt     string `json:"created_at"`
-	UpdatedAt     string `json:"updated_at"`
+	LastSeenAt    string `json:"lastSeenAt,omitempty" doc:"When an agent last pushed a snapshot. Empty means no agent has ever reported: a cluster showing no workloads for this reason is not a cluster running nothing."`
+	AutoIngest    bool   `json:"autoIngest" doc:"Submit a scan job for every running image with no SBOM whose host resolves to a registry in this cluster's namespace, on every accepted snapshot."`
+	CreatedAt     string `json:"createdAt"`
+	UpdatedAt     string `json:"updatedAt"`
 }
 
 // ListClustersInput is the request for GET /api/v1/clusters.
 type ListClustersInput struct {
-	NamespaceID string `query:"namespace_id" doc:"Limit to clusters in one namespace"`
+	NamespaceID string `query:"namespaceId" doc:"Limit to clusters in one namespace"`
 }
 
 // ListMyClustersInput is the request for GET /api/v1/users/me/clusters.
@@ -47,7 +47,7 @@ type GetClusterOutput struct {
 // CreateClusterInput is the request for POST /api/v1/clusters.
 type CreateClusterInput struct {
 	Body struct {
-		NamespaceID string `json:"namespace_id" format:"uuid" doc:"Owning namespace UUID"`
+		NamespaceID string `json:"namespaceId" format:"uuid" doc:"Owning namespace UUID"`
 		Name        string `json:"name" minLength:"1" maxLength:"100" doc:"Cluster name, unique within the namespace"`
 		Description string `json:"description,omitempty" maxLength:"500"`
 	}
@@ -68,7 +68,7 @@ type UpdateClusterInput struct {
 		Description string `json:"description,omitempty" maxLength:"500"`
 		// A pointer so omitting the field leaves the setting alone: a rename
 		// must not be able to switch ingest off as a side effect.
-		AutoIngest *bool `json:"auto_ingest,omitempty" doc:"Auto-ingest unknown running images on every accepted snapshot. Omit to leave unchanged."`
+		AutoIngest *bool `json:"autoIngest,omitempty" doc:"Auto-ingest unknown running images on every accepted snapshot. Omit to leave unchanged."`
 	}
 }
 
@@ -88,13 +88,13 @@ type DeleteClusterInput struct {
 
 // InventoryWorkload is one running container image in a pushed snapshot.
 type InventoryWorkload struct {
-	K8sNamespace  string `json:"k8s_namespace" minLength:"1" maxLength:"253" doc:"Kubernetes namespace the workload runs in"`
-	WorkloadKind  string `json:"workload_kind" minLength:"1" maxLength:"63" doc:"Owning workload kind (Deployment, StatefulSet, DaemonSet, Job, CronJob, Pod)"`
-	WorkloadName  string `json:"workload_name" minLength:"1" maxLength:"253"`
-	ContainerName string `json:"container_name" minLength:"1" maxLength:"253"`
-	ImageRef      string `json:"image_ref" minLength:"1" maxLength:"2048" doc:"Image reference, for display only. Never used as an identity: a tag is mutable."`
-	ImageDigest   string `json:"image_digest,omitempty" pattern:"^sha256:[0-9a-f]{64}$" doc:"Normalized digest from status.containerStatuses[].imageID. Omit when the agent could not extract one — that is reported as 'unresolvable', not silently dropped."`
-	PodCount      int32  `json:"pod_count" minimum:"0" doc:"Running pods carrying this container at this digest"`
+	K8sNamespace  string `json:"k8sNamespace" minLength:"1" maxLength:"253" doc:"Kubernetes namespace the workload runs in"`
+	WorkloadKind  string `json:"workloadKind" minLength:"1" maxLength:"63" doc:"Owning workload kind (Deployment, StatefulSet, DaemonSet, Job, CronJob, Pod)"`
+	WorkloadName  string `json:"workloadName" minLength:"1" maxLength:"253"`
+	ContainerName string `json:"containerName" minLength:"1" maxLength:"253"`
+	ImageRef      string `json:"imageRef" minLength:"1" maxLength:"2048" doc:"Image reference, for display only. Never used as an identity: a tag is mutable."`
+	ImageDigest   string `json:"imageDigest,omitempty" pattern:"^sha256:[0-9a-f]{64}$" doc:"Normalized digest from status.containerStatuses[].imageID. Omit when the agent could not extract one — that is reported as 'unresolvable', not silently dropped."`
+	PodCount      int32  `json:"podCount" minimum:"0" doc:"Running pods carrying this container at this digest"`
 }
 
 // PutInventoryInput is the request for POST /api/v1/clusters/{id}/inventory.
@@ -116,7 +116,7 @@ type PutInventoryOutput struct {
 	Body struct {
 		Accepted int    `json:"accepted" doc:"Workload rows in the snapshot"`
 		Pruned   int    `json:"pruned" doc:"Rows deleted because the snapshot no longer reports them"`
-		SeenAt   string `json:"seen_at" doc:"Timestamp recorded on the cluster"`
+		SeenAt   string `json:"seenAt" doc:"Timestamp recorded on the cluster"`
 	}
 }
 
@@ -124,28 +124,28 @@ type PutInventoryOutput struct {
 // about its image.
 type ClusterWorkloadResponse struct {
 	ID            string `json:"id"`
-	ClusterID     string `json:"cluster_id"`
-	K8sNamespace  string `json:"k8s_namespace"`
-	WorkloadKind  string `json:"workload_kind"`
-	WorkloadName  string `json:"workload_name"`
-	ContainerName string `json:"container_name"`
-	ImageRef      string `json:"image_ref"`
-	ImageDigest   string `json:"image_digest,omitempty"`
-	PodCount      int32  `json:"pod_count"`
-	FirstSeenAt   string `json:"first_seen_at"`
-	LastSeenAt    string `json:"last_seen_at"`
+	ClusterID     string `json:"clusterId"`
+	K8sNamespace  string `json:"k8sNamespace"`
+	WorkloadKind  string `json:"workloadKind"`
+	WorkloadName  string `json:"workloadName"`
+	ContainerName string `json:"containerName"`
+	ImageRef      string `json:"imageRef"`
+	ImageDigest   string `json:"imageDigest,omitempty"`
+	PodCount      int32  `json:"podCount"`
+	FirstSeenAt   string `json:"firstSeenAt"`
+	LastSeenAt    string `json:"lastSeenAt"`
 
 	// MatchState is always one of exact/index/unknown/unresolvable and is never
 	// empty. Clients MUST branch on it: rendering an unmatched workload the same
 	// as a matched one with no findings reports missing data as safety
 	// (ADR-044 K5).
-	MatchState string `json:"match_state" enum:"exact,index,unknown,unresolvable" doc:"exact = digest matched an SBOM; index = matched a multi-arch image index, so the exact platform is unknown; unknown = real digest with no ingested SBOM (coverage gap); unresolvable = no digest could be read from the container (agent/runtime gap)"`
+	MatchState string `json:"matchState" enum:"exact,index,unknown,unresolvable" doc:"exact = digest matched an SBOM; index = matched a multi-arch image index, so the exact platform is unknown; unknown = real digest with no ingested SBOM (coverage gap); unresolvable = no digest could be read from the container (agent/runtime gap)"`
 
-	SBOMID         string `json:"sbom_id,omitempty"`
-	ArtifactID     string `json:"artifact_id,omitempty"`
-	ArtifactName   string `json:"artifact_name,omitempty"`
-	ArtifactType   string `json:"artifact_type,omitempty"`
-	SubjectVersion string `json:"subject_version,omitempty"`
+	SBOMID         string `json:"sbomId,omitempty"`
+	ArtifactID     string `json:"artifactId,omitempty"`
+	ArtifactName   string `json:"artifactName,omitempty"`
+	ArtifactType   string `json:"artifactType,omitempty"`
+	SubjectVersion string `json:"subjectVersion,omitempty"`
 
 	// Vulns is present only for a matched workload. Its absence means the image
 	// was never assessed, which is a different fact from an assessed image with
@@ -177,10 +177,10 @@ type WorkloadCoverageResponse struct {
 // ListClusterWorkloadsInput is the request for GET /api/v1/clusters/{id}/workloads.
 type ListClusterWorkloadsInput struct {
 	ID           string `path:"id" doc:"Cluster UUID" format:"uuid"`
-	K8sNamespace string `query:"k8s_namespace" doc:"Filter to one Kubernetes namespace"`
-	MatchState   string `query:"match_state" enum:"exact,index,unknown,unresolvable" doc:"Filter by SBOM match state"`
+	K8sNamespace string `query:"k8sNamespace" doc:"Filter to one Kubernetes namespace"`
+	MatchState   string `query:"matchState" enum:"exact,index,unknown,unresolvable" doc:"Filter by SBOM match state"`
 	Q            string `query:"q" doc:"Substring match over workload name, container name and image reference"`
-	Sort         string `query:"sort" enum:"k8s_namespace,workload_name,container_name,image_ref,match_state,pod_count,last_seen_at,vuln_count" doc:"Column to sort by. vuln_count orders by severity, worst first, and sorts unmatched workloads last in either direction. Unset means namespace, then workload, then container."`
+	Sort         string `query:"sort" enum:"k8sNamespace,workloadName,containerName,imageRef,matchState,podCount,lastSeenAt,vulnCount" doc:"Column to sort by. vulnCount orders by severity, worst first, and sorts unmatched workloads last in either direction. Unset means namespace, then workload, then container."`
 	Dir          string `query:"dir" enum:"asc,desc" doc:"Sort direction (default asc). Applies to sort only — with sort unset the default ordering ignores it."`
 	PaginationParams
 }
@@ -208,27 +208,27 @@ type ListClusterWorkloadsOutput struct {
 // ClusterWorkloadResponse, including Vulns being absent rather than zero for an
 // image that was never assessed (ADR-044 K5).
 type ClusterImageResponse struct {
-	ImageRef    string `json:"image_ref"`
-	ImageDigest string `json:"image_digest,omitempty"`
+	ImageRef    string `json:"imageRef"`
+	ImageDigest string `json:"imageDigest,omitempty"`
 
-	WorkloadCount  int64 `json:"workload_count" doc:"Workload-containers running this image"`
-	PodCount       int64 `json:"pod_count" doc:"Running pods those workload-containers add up to"`
-	NamespaceCount int64 `json:"namespace_count" doc:"Kubernetes namespaces the image appears in"`
+	WorkloadCount  int64 `json:"workloadCount" doc:"Workload-containers running this image"`
+	PodCount       int64 `json:"podCount" doc:"Running pods those workload-containers add up to"`
+	NamespaceCount int64 `json:"namespaceCount" doc:"Kubernetes namespaces the image appears in"`
 
 	// One place the image runs, chosen deterministically. An example, not the
 	// whole answer: the by-workload listing enumerates them all.
-	SampleNamespace string `json:"sample_namespace,omitempty"`
-	SampleWorkload  string `json:"sample_workload,omitempty"`
+	SampleNamespace string `json:"sampleNamespace,omitempty"`
+	SampleWorkload  string `json:"sampleWorkload,omitempty"`
 
-	LastSeenAt string `json:"last_seen_at"`
+	LastSeenAt string `json:"lastSeenAt"`
 
-	MatchState string `json:"match_state" enum:"exact,index,unknown,unresolvable" doc:"exact = digest matched an SBOM; index = matched a multi-arch image index, so the exact platform is unknown; unknown = real digest with no ingested SBOM (coverage gap); unresolvable = no digest could be read from the container (agent/runtime gap)"`
+	MatchState string `json:"matchState" enum:"exact,index,unknown,unresolvable" doc:"exact = digest matched an SBOM; index = matched a multi-arch image index, so the exact platform is unknown; unknown = real digest with no ingested SBOM (coverage gap); unresolvable = no digest could be read from the container (agent/runtime gap)"`
 
-	SBOMID         string `json:"sbom_id,omitempty"`
-	ArtifactID     string `json:"artifact_id,omitempty"`
-	ArtifactName   string `json:"artifact_name,omitempty"`
-	ArtifactType   string `json:"artifact_type,omitempty"`
-	SubjectVersion string `json:"subject_version,omitempty"`
+	SBOMID         string `json:"sbomId,omitempty"`
+	ArtifactID     string `json:"artifactId,omitempty"`
+	ArtifactName   string `json:"artifactName,omitempty"`
+	ArtifactType   string `json:"artifactType,omitempty"`
+	SubjectVersion string `json:"subjectVersion,omitempty"`
 
 	Vulns *WorkloadVulnCounts `json:"vulns,omitempty" doc:"Findings in the matched SBOM. Absent when no SBOM matched — absence is not zero"`
 }
@@ -238,10 +238,10 @@ type ClusterImageResponse struct {
 // client keeps whatever the reader had narrowed to.
 type ListClusterImagesInput struct {
 	ID           string `path:"id" doc:"Cluster UUID" format:"uuid"`
-	K8sNamespace string `query:"k8s_namespace" doc:"Filter to one Kubernetes namespace"`
-	MatchState   string `query:"match_state" enum:"exact,index,unknown,unresolvable" doc:"Filter by SBOM match state"`
+	K8sNamespace string `query:"k8sNamespace" doc:"Filter to one Kubernetes namespace"`
+	MatchState   string `query:"matchState" enum:"exact,index,unknown,unresolvable" doc:"Filter by SBOM match state"`
 	Q            string `query:"q" doc:"Substring match over workload name, container name and image reference"`
-	Sort         string `query:"sort" enum:"image_ref,match_state,workload_count,pod_count,last_seen_at,vuln_count" doc:"Column to sort by. vuln_count orders by severity, worst first, and sorts unassessed images last in either direction. Unset means image reference order."`
+	Sort         string `query:"sort" enum:"imageRef,matchState,workloadCount,podCount,lastSeenAt,vulnCount" doc:"Column to sort by. vulnCount orders by severity, worst first, and sorts unassessed images last in either direction. Unset means image reference order."`
 	Dir          string `query:"dir" enum:"asc,desc" doc:"Sort direction (default asc). Applies to sort only — with sort unset the default ordering ignores it."`
 	PaginationParams
 }
@@ -267,8 +267,8 @@ type ListClusterNamespacesInput struct {
 
 // NamespaceFacetResponse is one selectable value for the namespace filter.
 type NamespaceFacetResponse struct {
-	K8sNamespace  string `json:"k8s_namespace"`
-	WorkloadCount int64  `json:"workload_count" doc:"Containers reported in this namespace"`
+	K8sNamespace  string `json:"k8sNamespace"`
+	WorkloadCount int64  `json:"workloadCount" doc:"Containers reported in this namespace"`
 }
 
 // ListClusterNamespacesOutput is the response for
@@ -291,18 +291,18 @@ type ListClusterNamespacesOutput struct {
 // running in a cluster.
 type RunningVulnResponse struct {
 	ID            string   `json:"id" doc:"Native advisory id of the representative record (OSV, GHSA, …)"`
-	CanonicalID   string   `json:"canonical_id" doc:"The id this finding is keyed and linked by, normally a CVE. Aliased advisories are collapsed into one row."`
+	CanonicalID   string   `json:"canonicalId" doc:"The id this finding is keyed and linked by, normally a CVE. Aliased advisories are collapsed into one row."`
 	Severity      string   `json:"severity,omitempty"`
-	CvssScore     *float32 `json:"cvss_score,omitempty"`
+	CvssScore     *float32 `json:"cvssScore,omitempty"`
 	Summary       string   `json:"summary,omitempty"`
-	WorkloadCount int64    `json:"workload_count" doc:"Distinct running workloads affected in this cluster"`
+	WorkloadCount int64    `json:"workloadCount" doc:"Distinct running workloads affected in this cluster"`
 }
 
 // ListClusterVulnsInput is the request for GET /api/v1/clusters/{id}/vulns.
 type ListClusterVulnsInput struct {
 	ID       string `path:"id" doc:"Cluster UUID" format:"uuid"`
-	Severity string `query:"severity" enum:"CRITICAL,HIGH,MEDIUM,LOW" doc:"Filter by severity"`
-	Sort     string `query:"sort" enum:"severity,cvss_score,workload_count,canonical_id" doc:"Column to sort by. Unset means worst first: severity, then CVSS."`
+	Severity string `query:"severity" enum:"CRITICAL,HIGH,MEDIUM,LOW,UNKNOWN" doc:"Filter by severity"`
+	Sort     string `query:"sort" enum:"severity,cvssScore,workloadCount,canonicalId" doc:"Column to sort by. Unset means worst first: severity, then CVSS."`
 	Dir      string `query:"dir" enum:"asc,desc" doc:"Sort direction (default asc). Applies to sort only — with sort unset the worst-first default ordering ignores it."`
 	PaginationParams
 }
@@ -325,13 +325,13 @@ type ListClusterVulnsOutput struct {
 // together with the cluster it runs in.
 type RunningWorkloadResponse struct {
 	ClusterWorkloadResponse
-	ClusterName string `json:"cluster_name"`
+	ClusterName string `json:"clusterName"`
 }
 
 // ListVulnWorkloadsInput is the request for GET /api/v1/vulns/{id}/workloads.
 type ListVulnWorkloadsInput struct {
 	ID        string `path:"id" doc:"Vulnerability id (CVE or GHSA); aliases of the same advisory resolve to the same workloads"`
-	ClusterID string `query:"cluster_id" doc:"Limit to one cluster. Omitted, the answer spans every cluster the caller can see."`
+	ClusterID string `query:"clusterId" doc:"Limit to one cluster. Omitted, the answer spans every cluster the caller can see."`
 	Limit     int32  `query:"limit" default:"50" minimum:"1" maximum:"200"`
 }
 
@@ -357,17 +357,17 @@ type ListClusterUnknownImagesInput struct {
 // are different actions, and a bare "cannot ingest" would send everyone to the
 // first one.
 type UnknownImageResponse struct {
-	ImageRef           string  `json:"image_ref"`
-	ImageDigest        string  `json:"image_digest"`
-	RegistryHost       string  `json:"registry_host,omitempty" doc:"Host parsed out of image_ref; empty when the reference carries none"`
+	ImageRef           string  `json:"imageRef"`
+	ImageDigest        string  `json:"imageDigest"`
+	RegistryHost       string  `json:"registryHost,omitempty" doc:"Host parsed out of imageRef; empty when the reference carries none"`
 	Repository         string  `json:"repository,omitempty"`
-	WorkloadCount      int64   `json:"workload_count" doc:"Containers running this image"`
-	PodCount           int64   `json:"pod_count"`
-	SampleK8sNamespace string  `json:"sample_k8s_namespace,omitempty"`
-	SampleWorkloadName string  `json:"sample_workload_name,omitempty"`
+	WorkloadCount      int64   `json:"workloadCount" doc:"Containers running this image"`
+	PodCount           int64   `json:"podCount"`
+	SampleK8sNamespace string  `json:"sampleK8sNamespace,omitempty"`
+	SampleWorkloadName string  `json:"sampleWorkloadName,omitempty"`
 	Reason             string  `json:"reason" enum:"ready,scanning,unauthorized,egress_denied,failed,deleted,registry_disabled,unparseable_ref" doc:"Where this image stands: ready to queue, already has a job, or why it cannot be ingested (ADR-0044 K10)"`
-	RegistryID         *string `json:"registry_id,omitempty" doc:"Registry whose credentials pull this image, or the disabled one blocking it; absent on a ready image means an anonymous pull"`
-	RegistryName       *string `json:"registry_name,omitempty"`
+	RegistryID         *string `json:"registryId,omitempty" doc:"Registry whose credentials pull this image, or the disabled one blocking it; absent on a ready image means an anonymous pull"`
+	RegistryName       *string `json:"registryName,omitempty"`
 }
 
 // UnknownImageReasonCounts breaks the whole gap down by remedy.
@@ -379,11 +379,11 @@ type UnknownImageReasonCounts struct {
 	Ready            int64 `json:"ready" doc:"Will be queued next run, with a registry's credentials or anonymously"`
 	Scanning         int64 `json:"scanning" doc:"A scan job is queued or running"`
 	Unauthorized     int64 `json:"unauthorized" doc:"The host refused the pull; a registry with credentials for it is the remedy"`
-	EgressDenied     int64 `json:"egress_denied" doc:"The host is in an address range the egress policy refuses"`
+	EgressDenied     int64 `json:"egressDenied" doc:"The host is in an address range the egress policy refuses"`
 	Failed           int64 `json:"failed" doc:"The manifest was not there, or the scan used up its attempts; ingesting the row retries it"`
 	Deleted          int64 `json:"deleted" doc:"Its SBOM was deleted on purpose; cluster ingest does not bring it back"`
-	RegistryDisabled int64 `json:"registry_disabled" doc:"The host matches a registry that is switched off"`
-	UnparseableRef   int64 `json:"unparseable_ref" doc:"The reported reference carries no host to resolve against"`
+	RegistryDisabled int64 `json:"registryDisabled" doc:"The host matches a registry that is switched off"`
+	UnparseableRef   int64 `json:"unparseableRef" doc:"The reported reference carries no host to resolve against"`
 }
 
 // UnknownHostResponse is one registry the gap points at, rolled up.
@@ -401,13 +401,13 @@ type UnknownHostResponse struct {
 	Host            string   `json:"host" doc:"Normalized registry host the images in this group name, and the address a registry for it would use"`
 	Scope           string   `json:"scope" doc:"The group: the host plus any leading repository segments that belong to the registry rather than the image, e.g. ghcr.io/pfenerty"`
 	Reason          string   `json:"reason" enum:"unauthorized,registry_disabled" doc:"The worst remedy seen for this group: a registry to add or fix credentials for, or one to switch on. Other states name no registry to configure and are not grouped here"`
-	ImageCount      int64    `json:"image_count"`
-	PodCount        int64    `json:"pod_count"`
-	WorkloadCount   int64    `json:"workload_count"`
+	ImageCount      int64    `json:"imageCount"`
+	PodCount        int64    `json:"podCount"`
+	WorkloadCount   int64    `json:"workloadCount"`
 	Repositories    []string `json:"repositories" doc:"Distinct repositories a registry would have to cover to close this group's gap, sorted; capped, so compare against repository_count"`
-	RepositoryCount int64    `json:"repository_count" doc:"Distinct repository total, which may exceed the length of repositories"`
-	RegistryID      *string  `json:"registry_id,omitempty" doc:"Registry that serves this group, when one was matched at all"`
-	RegistryName    *string  `json:"registry_name,omitempty"`
+	RepositoryCount int64    `json:"repositoryCount" doc:"Distinct repository total, which may exceed the length of repositories"`
+	RegistryID      *string  `json:"registryId,omitempty" doc:"Registry that serves this group, when one was matched at all"`
+	RegistryName    *string  `json:"registryName,omitempty"`
 }
 
 // ListClusterUnknownImagesOutput is the response for
@@ -428,7 +428,7 @@ type IngestUnknownInput struct {
 		// Naming digests is what lets a per-image button mean one image. An
 		// empty list is the whole gap, which is what the bulk button and the
 		// snapshot trigger both want.
-		ImageDigests []string `json:"image_digests,omitempty" doc:"Limit the run to these running image digests. Omit to ingest every unknown image the cluster reports."`
+		ImageDigests []string `json:"imageDigests,omitempty" doc:"Limit the run to these running image digests. Omit to ingest every unknown image the cluster reports."`
 	}
 }
 
@@ -442,11 +442,11 @@ type IngestUnknownOutput struct {
 	Body struct {
 		Considered              int `json:"considered" doc:"Unknown images looked at; the counts below account for all of them"`
 		Queued                  int `json:"queued" doc:"Scan jobs enqueued. A multi-arch image expands into one job per platform, so this can exceed the image count."`
-		SkippedExisting         int `json:"skipped_existing" doc:"Already has a scan job: scanning, failed, or deleted on purpose. A repeat snapshot lands here."`
+		SkippedExisting         int `json:"skippedExisting" doc:"Already has a scan job: scanning, failed, or deleted on purpose. A repeat snapshot lands here."`
 		Unauthorized            int `json:"unauthorized" doc:"The host refused the pull, in this run or a recorded earlier one; not retried"`
-		EgressDenied            int `json:"egress_denied" doc:"The host is in an address range the egress policy refuses; not retried"`
-		SkippedRegistryDisabled int `json:"skipped_registry_disabled" doc:"The host matches a registry that is switched off"`
-		SkippedUnparseableRef   int `json:"skipped_unparseable_ref" doc:"The reported reference carries no host to resolve against"`
+		EgressDenied            int `json:"egressDenied" doc:"The host is in an address range the egress policy refuses; not retried"`
+		SkippedRegistryDisabled int `json:"skippedRegistryDisabled" doc:"The host matches a registry that is switched off"`
+		SkippedUnparseableRef   int `json:"skippedUnparseableRef" doc:"The reported reference carries no host to resolve against"`
 		Failed                  int `json:"failed" doc:"Submission errored: a manifest that is not there, or a transient registry or queue problem"`
 	}
 }

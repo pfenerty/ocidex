@@ -1,32 +1,11 @@
 import type { ComponentVersionEntry } from "~/api/client";
 
-/** One version of the component, with every SBOM instance that carries it. */
-export interface VersionGroup {
-    version: string;
-    purl?: string;
-    entries: ComponentVersionEntry[];
-}
-
 /** One artifact that contains the selected version, with its SBOM instances. */
 export interface ArtifactGroup {
     key: string;
     artifactId?: string;
     artifactName?: string;
     entries: ComponentVersionEntry[];
-}
-
-export function groupByVersion(entries: ComponentVersionEntry[]): VersionGroup[] {
-    const map = new Map<string, VersionGroup>();
-    for (const entry of entries) {
-        const key = entry.version ?? "(no version)";
-        let group = map.get(key);
-        if (!group) {
-            group = { version: key, purl: entry.purl, entries: [] };
-            map.set(key, group);
-        }
-        group.entries.push(entry);
-    }
-    return Array.from(map.values());
 }
 
 /**

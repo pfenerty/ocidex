@@ -49,7 +49,7 @@ export default function Vulnerabilities() {
         q: param("q"),
         severity: param("severity"),
         sort: sortBy(),
-        sort_dir: sortDir(),
+        sortDir: sortDir(),
     }));
 
     // The query wants "" for no filter; the strip wants a tab id. "All" is the
@@ -68,13 +68,10 @@ export default function Vulnerabilities() {
         setOffset(0);
     };
 
-    const formatDate = (iso: string | undefined) =>
-        iso !== undefined && iso !== "" ? new Date(iso).toLocaleDateString() : "—";
-
     const columns: Column<TopVulnEntry>[] = [
         {
             header: "Vulnerability",
-            sortKey: "canonical_id",
+            sortKey: "canonicalId",
             sortType: "text",
             render: (row) => (
                 <VulnId canonicalId={row.canonicalId} nativeId={row.id} />
@@ -93,7 +90,7 @@ export default function Vulnerabilities() {
         {
             header: "CVSS",
             align: "right",
-            sortKey: "cvss_score",
+            sortKey: "cvssScore",
             sortType: "numeric",
             render: (row) =>
                 row.cvssScore !== undefined ? row.cvssScore.toFixed(1) : "—",
@@ -108,25 +105,19 @@ export default function Vulnerabilities() {
         {
             header: "Affected SBOMs",
             align: "right",
-            sortKey: "affected_sbom_count",
+            sortKey: "affectedSbomCount",
             sortType: "numeric",
             render: (row) => row.affectedSbomCount.toLocaleString(),
         },
         {
             header: "Affected Packages",
             align: "right",
-            sortKey: "affected_purl_count",
+            sortKey: "affectedPurlCount",
             sortType: "numeric",
             render: (row) => row.affectedPurlCount.toLocaleString(),
         },
-        {
-            header: "Published",
-            sortKey: "published_at",
-            sortType: "numeric",
-            render: (row) => (
-                <span class="text-muted">{formatDate(row.publishedAt)}</span>
-            ),
-        },
+        // No Published column: grype's match metadata carries no publication
+        // date, so every row read "—" (ocidex-nps9.12).
     ];
 
     return (
@@ -135,7 +126,7 @@ export default function Vulnerabilities() {
                 title="Vulnerabilities"
                 subtitle={
                     <>
-                        Most-found CVEs across all tracked artifacts
+                        Vulnerabilities found across all tracked artifacts, worst first
                         <Show when={query.data}>
                             {(d) => (
                                 <span class="text-muted">

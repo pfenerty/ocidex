@@ -54,7 +54,6 @@ const ENTRIES: readonly Entry[] = [
     { path: "/", label: "Home", group: "Explore", keywords: "start landing overview" },
     { path: "/artifacts", label: "Artifacts", group: "Explore", keywords: "images oci containers sboms" },
     { path: "/components", label: "Components", group: "Explore", keywords: "packages dependencies purl" },
-    { path: "/components/overview", label: "Component versions", group: "Explore", keywords: "spread versions rollup" },
     { path: "/licenses", label: "Licenses", group: "Explore", keywords: "spdx compliance legal" },
     { path: "/vulnerabilities", label: "Vulnerabilities", group: "Explore", keywords: "cve cves vulns security advisories osv" },
     { path: "/diff", label: "Compare", group: "Explore", keywords: "diff changelog drift versions" },

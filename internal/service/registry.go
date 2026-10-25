@@ -406,6 +406,9 @@ type RegistryService interface {
 	MarkPolled(ctx context.Context, id string) (Registry, error)
 	// RecordWalkStats stores what the registry's latest walk selected.
 	RecordWalkStats(ctx context.Context, id string, stats WalkStats) error
+	// MoveNamespace moves a registry, and every SBOM it is the source of, into
+	// another existing namespace.
+	MoveNamespace(ctx context.Context, id, namespaceID string) error
 	// LastWalks returns each walked registry's latest stats, keyed by registry
 	// ID. Registries never walked are absent.
 	LastWalks(ctx context.Context) (map[string]WalkStats, error)
@@ -991,4 +994,57 @@ func uuidToStr(u pgtype.UUID) string {
 	b := u.Bytes
 	return fmt.Sprintf("%08x-%04x-%04x-%04x-%012x",
 		b[0:4], b[4:6], b[6:8], b[8:10], b[10:16])
+}
+
+// MoveNamespace moves the registry id into namespaceID, along with every SBOM
+// whose source it is and the artifact visibility links those SBOMs imply
+// (ocidex-nps9.33). It is a no-op when the registry is already there. A source
+// of the same name already in the target namespace is a ValidationError.
+//
+// Rollups are not touched: they are rebuilt whole on the refresher's next pass.
+func (s *registryService) MoveNamespace(ctx context.Context, id, namespaceID string) error {
+	uid, err := parseUUID(id)
+	if err != nil {
+		return ErrNotFound
+	}
+	nsID, err := parseUUID(namespaceID)
+	if err != nil {
+		return ErrNotFound
+	}
+	tx, err := s.pool.Begin(ctx)
+	if err != nil {
+		return fmt.Errorf("beginning transaction: %w", err)
+	}
+	defer tx.Rollback(ctx) //nolint:errcheck // rollback on committed tx is a no-op
+	q := repository.New(tx)
+
+	oldNS, err := q.GetSourceNamespace(ctx, uid)
+	if errors.Is(err, pgx.ErrNoRows) {
+		return ErrNotFound
+	}
+	if err != nil {
+		return fmt.Errorf("reading registry namespace: %w", err)
+	}
+	if oldNS == nsID {
+		return nil
+	}
+	if err := q.MoveSourceNamespace(ctx, repository.MoveSourceNamespaceParams{ID: uid, NamespaceID: nsID}); err != nil {
+		if isUniqueViolation(err) {
+			return &ValidationError{Message: "a source with this name already exists in the target namespace"}
+		}
+		return fmt.Errorf("moving registry: %w", err)
+	}
+	if _, err := q.MoveSourceSBOMs(ctx, repository.MoveSourceSBOMsParams{SourceID: uid, NamespaceID: nsID}); err != nil {
+		return fmt.Errorf("moving registry sboms: %w", err)
+	}
+	if err := q.LinkSourceArtifacts(ctx, repository.LinkSourceArtifactsParams{SourceID: uid, NamespaceID: nsID}); err != nil {
+		return fmt.Errorf("linking artifacts to new namespace: %w", err)
+	}
+	if err := q.UnlinkEmptiedArtifacts(ctx, repository.UnlinkEmptiedArtifactsParams{SourceID: uid, OldNamespaceID: oldNS}); err != nil {
+		return fmt.Errorf("unlinking artifacts from old namespace: %w", err)
+	}
+	if err := tx.Commit(ctx); err != nil {
+		return fmt.Errorf("committing namespace move: %w", err)
+	}
+	return nil
 }

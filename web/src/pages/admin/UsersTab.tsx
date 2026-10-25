@@ -18,7 +18,7 @@ export function UsersTab() {
     const roleFor = (u: UserAccount) => overrides()[u.id] ?? (u.role as Role);
 
     const columns: Column<UserAccount>[] = [
-        { header: "Name", render: (u) => <>{u.display_name}</> },
+        { header: "Name", render: (u) => <>{u.displayName}</> },
         {
             header: "Role",
             render: (u) => <span class="badge">{roleFor(u)}</span>,

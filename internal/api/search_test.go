@@ -2,6 +2,7 @@ package api_test
 
 import (
 	"context"
+	"encoding/base64"
 	"encoding/json"
 	"net/http"
 	"net/http/httptest"
@@ -131,11 +132,11 @@ func (f *fakeSearchService) DiffSBOMsWithTree(_ context.Context, _, _ pgtype.UUI
 	}, nil
 }
 
-func (f *fakeSearchService) GetArtifactLicenseSummary(_ context.Context, _ pgtype.UUID, _ service.VisibilityFilter) ([]service.LicenseCount, error) {
+func (f *fakeSearchService) GetArtifactLicenseSummary(_ context.Context, _ pgtype.UUID, _ service.VisibilityFilter) (service.ArtifactLicenseSummary, error) {
 	mit := "MIT"
-	return []service.LicenseCount{
+	return service.ArtifactLicenseSummary{Licenses: []service.LicenseCount{
 		{ID: "lic1", SpdxID: &mit, Name: "MIT License", ComponentCount: 42, Category: "permissive"},
-	}, nil
+	}}, nil
 }
 
 func (f *fakeSearchService) GetSBOMDependencies(_ context.Context, _ pgtype.UUID, _ service.VisibilityFilter) (service.DependencyGraph, error) {
@@ -166,6 +167,20 @@ func (f *fakeSearchService) GetComponentVersions(_ context.Context, filter servi
 		},
 		VersionCount:  1,
 		ArtifactCount: 1,
+	}, nil
+}
+
+func (f *fakeSearchService) ListComponentVersionSummaries(_ context.Context, filter service.ComponentVersionFilter) (service.ComponentVersionSummaryPage, error) {
+	v := "1.0.0"
+	return service.ComponentVersionSummaryPage{
+		PagedResult: service.PagedResult[service.ComponentVersionSummary]{
+			Data:   []service.ComponentVersionSummary{{Version: &v, SbomCount: 2, ArtifactCount: 1}},
+			Total:  81,
+			Limit:  filter.Limit,
+			Offset: filter.Offset,
+		},
+		SbomCount:     4286,
+		ArtifactCount: 20,
 	}, nil
 }
 
@@ -221,8 +236,16 @@ func (f *fakeSearchService) ListTopVulnerabilities(_ context.Context, filter ser
 	return service.PagedResult[service.TopVulnEntry]{Data: []service.TopVulnEntry{}, Limit: filter.Limit, Offset: filter.Offset}, nil
 }
 
-func (f *fakeSearchService) GetArtifactVulnSummary(_ context.Context, _ pgtype.UUID, _ service.VisibilityFilter) (*service.VulnSummary, error) {
+func (f *fakeSearchService) CountArtifacts(_ context.Context, _ service.ArtifactFilter) (int64, error) {
+	return 1, nil
+}
+
+func (f *fakeSearchService) VulnDBBuiltAt(_ context.Context) (*time.Time, error) {
 	return nil, nil
+}
+
+func (f *fakeSearchService) GetArtifactVulnSummary(_ context.Context, _ pgtype.UUID, _ service.VisibilityFilter) (service.ArtifactVulnSummary, error) {
+	return service.ArtifactVulnSummary{}, nil
 }
 
 func (f *fakeSearchService) GetArtifactUsages(_ context.Context, _ pgtype.UUID, _ service.VisibilityFilter) ([]service.ArtifactRelation, error) {
@@ -479,6 +502,34 @@ func (f *capturingVersionsService) GetComponentVersions(_ context.Context, filte
 // (ocidex-ag4q.7). Paginating it is only useful if the window reaches the
 // service and the total comes back out — a page with no total leaves the UI
 // unable to say there is a second one.
+// The overview pages by distinct version (ocidex-nps9.2): the total is the
+// version count, and the SBOM figure is distinct SBOMs, not occurrences.
+func TestListComponentVersionSummaries(t *testing.T) {
+	is := is.New(t)
+	router := newTestRouter(&fakeSBOMService{}, &fakeSearchService{})
+
+	r := httptest.NewRequest(http.MethodGet, "/api/v1/components/version-summaries?name=stdlib&limit=20", nil)
+	w := httptest.NewRecorder()
+	router.ServeHTTP(w, r)
+
+	is.Equal(w.Code, http.StatusOK)
+	var body struct {
+		Versions   []service.ComponentVersionSummary `json:"versions"`
+		Pagination struct {
+			Total int64 `json:"total"`
+			Limit int32 `json:"limit"`
+		} `json:"pagination"`
+		SbomCount     int64 `json:"sbomCount"`
+		ArtifactCount int64 `json:"artifactCount"`
+	}
+	is.NoErr(json.Unmarshal(w.Body.Bytes(), &body))
+	is.Equal(len(body.Versions), 1)
+	is.Equal(body.Pagination.Total, int64(81))
+	is.Equal(body.Pagination.Limit, int32(20))
+	is.Equal(body.SbomCount, int64(4286))
+	is.Equal(body.ArtifactCount, int64(20))
+}
+
 func TestGetComponentVersionsPaginates(t *testing.T) {
 	is := is.New(t)
 	search := &capturingVersionsService{}
@@ -608,7 +659,7 @@ func TestListLicenses(t *testing.T) {
 	is := is.New(t)
 	router := newTestRouter(&fakeSBOMService{}, &fakeSearchService{})
 
-	r := httptest.NewRequest(http.MethodGet, "/api/v1/licenses?spdx_id=MIT", nil)
+	r := httptest.NewRequest(http.MethodGet, "/api/v1/licenses?spdxId=MIT", nil)
 	w := httptest.NewRecorder()
 	router.ServeHTTP(w, r)
 
@@ -742,14 +793,14 @@ func TestGetDashboardStats(t *testing.T) {
 	is.Equal(w.Code, http.StatusOK)
 
 	var body struct {
-		VulnCount    int64 `json:"vuln_count"`
+		VulnCount    int64 `json:"vulnCount"`
 		VulnSeverity struct {
 			Critical int64 `json:"critical"`
 			High     int64 `json:"high"`
 			Medium   int64 `json:"medium"`
 			Low      int64 `json:"low"`
 			Unknown  int64 `json:"unknown"`
-		} `json:"vuln_severity"`
+		} `json:"vulnSeverity"`
 	}
 	is.NoErr(json.Unmarshal(w.Body.Bytes(), &body))
 	// fakeSearchService returns zero-valued DashboardStats; fields must be present
@@ -788,11 +839,11 @@ func TestGetDiscoveryCacheControl(t *testing.T) {
 			is.Equal(w.Header().Get("Cache-Control"), tt.wantCache)
 
 			var body struct {
-				TopArtifacts       []struct{ Name string } `json:"top_artifacts"`
-				RecentArtifacts    []struct{ Name string } `json:"recent_artifacts"`
-				TopVulnerabilities []struct{ ID string }   `json:"top_vulnerabilities"`
-				LicenseSpread      []struct{ Name string } `json:"license_spread"`
-				GeneratedAt        string                  `json:"generated_at"`
+				TopArtifacts       []struct{ Name string } `json:"topArtifacts"`
+				RecentArtifacts    []struct{ Name string } `json:"recentArtifacts"`
+				TopVulnerabilities []struct{ ID string }   `json:"topVulnerabilities"`
+				LicenseSpread      []struct{ Name string } `json:"licenseSpread"`
+				GeneratedAt        string                  `json:"generatedAt"`
 				Warming            bool                    `json:"warming"`
 			}
 			is.NoErr(json.Unmarshal(w.Body.Bytes(), &body))
@@ -1079,4 +1130,32 @@ func TestListSBOMComponents_DefaultSortKeepsKeyset(t *testing.T) {
 	is.Equal(w2.Code, http.StatusOK)
 	is.True(spy.got.HasCursor)
 	is.Equal(spy.got.CursorName, "test-lib")
+}
+
+// The artifacts list says "20 of 126" (ocidex-nps9.18): the first page carries
+// the total, later pages do not recount it.
+func TestListArtifactsTotalOnFirstPageOnly(t *testing.T) {
+	is := is.New(t)
+	router := newTestRouter(&fakeSBOMService{}, &fakeSearchService{})
+
+	w := httptest.NewRecorder()
+	router.ServeHTTP(w, httptest.NewRequest(http.MethodGet, "/api/v1/artifacts", nil))
+	is.Equal(w.Code, http.StatusOK)
+	var first struct {
+		Total *int64 `json:"total"`
+	}
+	is.NoErr(json.Unmarshal(w.Body.Bytes(), &first))
+	is.True(first.Total != nil)
+	is.Equal(*first.Total, int64(1))
+
+	w = httptest.NewRecorder()
+	// The cursor is opaque to clients; built here the way the server builds it.
+	cursor := base64.RawURLEncoding.EncodeToString([]byte(`["a","container","00000000-0000-0000-0000-000000000001"]`))
+	router.ServeHTTP(w, httptest.NewRequest(http.MethodGet, "/api/v1/artifacts?cursor="+url.QueryEscape(cursor), nil))
+	is.Equal(w.Code, http.StatusOK)
+	var next struct {
+		Total *int64 `json:"total"`
+	}
+	is.NoErr(json.Unmarshal(w.Body.Bytes(), &next))
+	is.True(next.Total == nil)
 }

@@ -81,7 +81,7 @@ export default function SBOMDetail() {
     const vulnSortDir = (): SortDir => {
         const raw = one(searchParams.dir);
         if (raw === "asc" || raw === "desc") return raw;
-        return vulnSortBy() === "canonical_id" ? "asc" : "desc";
+        return vulnSortBy() === "canonicalId" ? "asc" : "desc";
     };
     const vulnOffset = () => {
         const parsed = Number(one(searchParams.offset));
@@ -111,7 +111,7 @@ export default function SBOMDetail() {
 
     const siblingsQuery = useArtifactSBOMs(
         () => sbomQuery.data?.artifactId ?? "",
-        () => ({ limit: 50, subject_version: sbomQuery.data?.subjectVersion }),
+        () => ({ limit: 50, subjectVersion: sbomQuery.data?.subjectVersion }),
         { enabled: () => sbomQuery.data?.artifactId !== undefined && sbomQuery.data.subjectVersion !== undefined },
     );
 

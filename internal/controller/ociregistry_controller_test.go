@@ -447,6 +447,21 @@ func TestSpecScanWindow(t *testing.T) {
 	is.Equal(*create.MaxTagAgeDays, int64(30))
 }
 
+// An update moves a registry only when the CR names a namespace. The
+// create-time default (the CR's Kubernetes namespace) is never sent: registries
+// created before it, or adopted, would all be moved (ocidex-nps9.33).
+func TestSpecToUpdateBodyNamespace(t *testing.T) {
+	is := is.New(t)
+	spec := newTestRegistry().Spec
+	spec.Namespace = ""
+	is.True(specToUpdateBody(spec, "default/reg", "", "").Namespace == nil)
+
+	spec.Namespace = "ocidex"
+	body := specToUpdateBody(spec, "default/reg", "", "")
+	is.True(body.Namespace != nil)
+	is.Equal(*body.Namespace, "ocidex")
+}
+
 // TestOCIRegistryReconciler_RecordsScope covers ocidex-5y0r.2: a synced CR
 // carries the preview estimate, and a preview failure is recorded without
 // failing the reconcile.

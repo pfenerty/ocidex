@@ -12,13 +12,14 @@ import type { components } from "~/types/openapi";
 import DataTable from "~/components/DataTable";
 import type { Column, SortDir } from "~/components/DataTable";
 import { ComponentNameCell } from "~/components/cells";
+import { decodePurlText } from "~/utils/purl";
 import { VulnCountBadges } from "~/components/VulnBadge";
 import { Button, PageHeader, Toolbar } from "~/components/ui";
 import type { ToolbarField } from "~/components/ui";
 
 type DistinctComponentSummary = components["schemas"]["DistinctComponentSummary"];
 type ComponentSummary = components["schemas"]["ComponentSummary"];
-type SortColumn = "name" | "version_count" | "sbom_count" | "severity";
+type SortColumn = "name" | "versionCount" | "sbomCount" | "severity";
 
 export default function Components() {
     const [searchParams] = useSearchParams();
@@ -65,7 +66,7 @@ function PurlOccurrences(props: { purl: string }) {
                 title="Component occurrences"
                 subtitle={
                     <>
-                        <span class="font-mono text-sm">{props.purl}</span>
+                        <span class="font-mono text-sm" title={props.purl}>{decodePurlText(props.purl)}</span>
                         <Show when={query.data}>
                             {(d) => (
                                 <span class="text-muted">
@@ -102,7 +103,7 @@ function PurlOccurrences(props: { purl: string }) {
 
 function ComponentBrowser() {
     const [offset, setOffset] = createSignal(0);
-    const [sortBy, setSortBy] = createSignal<SortColumn>("sbom_count");
+    const [sortBy, setSortBy] = createSignal<SortColumn>("sbomCount");
     const [sortDir, setSortDir] = createSignal<SortDir>("desc");
     const limit = DEFAULT_PAGE_SIZE;
 
@@ -138,9 +139,9 @@ function ComponentBrowser() {
         name: param("name"),
         group: param("group"),
         type: "library",
-        purl_type: param("purlType"),
+        purlType: param("purlType"),
         sort: sortBy(),
-        sort_dir: sortDir(),
+        sortDir: sortDir(),
         limit,
         offset: offset(),
     }));
@@ -180,7 +181,7 @@ function ComponentBrowser() {
                 </>
             ),
             mobileLabel: "Versions",
-            sortKey: "version_count",
+            sortKey: "versionCount",
             sortType: "numeric",
             align: "right",
             render: (c) => formatCount(c.versionCount),
@@ -193,7 +194,7 @@ function ComponentBrowser() {
                 </>
             ),
             mobileLabel: "Found In",
-            sortKey: "sbom_count",
+            sortKey: "sbomCount",
             sortType: "numeric",
             align: "right",
             render: (c) => formatCount(c.sbomCount),
@@ -236,7 +237,7 @@ function ComponentBrowser() {
                 title="Components"
                 subtitle={
                     <>
-                        Libraries found across all SBOMs
+                        Packages found across all SBOMs
                         <Show when={query.data}>
                             {(d) => (
                                 <span class="text-muted">

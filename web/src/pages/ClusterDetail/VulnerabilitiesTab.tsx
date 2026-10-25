@@ -11,16 +11,18 @@ import { useClusterVulns } from "~/api/queries";
 import type { ClusterVulnSortKey, VulnSeverityFilter } from "~/api/queries";
 import { RunningWorkloadsList } from "./RunningWorkloads";
 
-const SEVERITY_TABS = ["All", "CRITICAL", "HIGH", "MEDIUM", "LOW"] as const;
+// UNKNOWN is a filter like the others: an artifact whose only finding has no
+// severity offered no way to isolate it (ocidex-nps9.19).
+const SEVERITY_TABS = ["All", "CRITICAL", "HIGH", "MEDIUM", "LOW", "UNKNOWN"] as const;
 
 const SORT_KEYS: ClusterVulnSortKey[] = [
     "severity",
-    "cvss_score",
-    "workload_count",
-    "canonical_id",
+    "cvssScore",
+    "workloadCount",
+    "canonicalId",
 ];
 
-const SEVERITIES: VulnSeverityFilter[] = ["CRITICAL", "HIGH", "MEDIUM", "LOW"];
+const SEVERITIES: VulnSeverityFilter[] = ["CRITICAL", "HIGH", "MEDIUM", "LOW", "UNKNOWN"];
 
 /**
  * VulnerabilitiesTab lists what the cluster is actually running, not what the
@@ -59,8 +61,8 @@ export function VulnerabilitiesTab(props: {
     const columns: Column<RunningVuln>[] = [
         {
             header: "ID",
-            sortKey: "canonical_id",
-            render: (v) => <VulnId canonicalId={v.canonical_id} nativeId={v.id} />,
+            sortKey: "canonicalId",
+            render: (v) => <VulnId canonicalId={v.canonicalId} nativeId={v.id} />,
         },
         {
             header: "Severity",
@@ -73,10 +75,10 @@ export function VulnerabilitiesTab(props: {
         {
             header: "CVSS",
             align: "right",
-            sortKey: "cvss_score",
+            sortKey: "cvssScore",
             sortType: "numeric",
             render: (v) => (
-                <Show when={v.cvss_score} fallback={<span class="text-muted">—</span>}>
+                <Show when={v.cvssScore} fallback={<span class="text-muted">—</span>}>
                     {(score) => <span class="font-mono text-sm">{score().toFixed(1)}</span>}
                 </Show>
             ),
@@ -86,23 +88,23 @@ export function VulnerabilitiesTab(props: {
             // its own is not actionable: "3 workloads" is only useful once you
             // know which three.
             header: "Running workloads",
-            sortKey: "workload_count",
+            sortKey: "workloadCount",
             sortType: "numeric",
             render: (v) => (
                 <>
                     <button
                         type="button"
                         class="link-button"
-                        aria-expanded={expanded.has(v.canonical_id)}
-                        onClick={() => expanded.toggle(v.canonical_id)}
+                        aria-expanded={expanded.has(v.canonicalId)}
+                        onClick={() => expanded.toggle(v.canonicalId)}
                     >
-                        {v.workload_count.toLocaleString()}{" "}
-                        {v.workload_count === 1 ? "workload" : "workloads"}
+                        {v.workloadCount.toLocaleString()}{" "}
+                        {v.workloadCount === 1 ? "workload" : "workloads"}
                     </button>
                     <RunningWorkloadsList
-                        canonicalId={v.canonical_id}
+                        canonicalId={v.canonicalId}
                         clusterId={props.clusterId}
-                        when={expanded.has(v.canonical_id)}
+                        when={expanded.has(v.canonicalId)}
                     />
                 </>
             ),

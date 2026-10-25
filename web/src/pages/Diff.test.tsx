@@ -169,3 +169,47 @@ describe("Diff page picker — arch coupling", () => {
         expect(box(container, "From SBOM").disabled).toBe(false);
     });
 });
+
+// ocidex-nps9.20: "No SBOMs match" while loading, ingest-time order, no hint
+// when From is newer than To.
+describe("Diff page picker — order, loading and direction", () => {
+    beforeEach(() => {
+        vi.clearAllMocks();
+        mockSearchParams = {};
+        mockUseArtifacts.mockReturnValue({ isLoading: false, isError: false, data: { data: artifacts } });
+    });
+
+    const built = (id: string, version: string, buildDate: string): SBOMSummary => ({
+        ...makeSBOM(id, "amd64", version),
+        buildDate,
+    });
+
+    it("says it is loading rather than that nothing matches", () => {
+        mockUseArtifactSBOMs.mockReturnValue({ isLoading: true, isError: false });
+        const { container } = render(() => <Diff />);
+        pick(container, "From artifact", "svc");
+        fireEvent.focus(box(container, "From SBOM"));
+        expect(container.textContent).toContain("Loading SBOMs…");
+        expect(container.textContent).not.toContain("No SBOMs match");
+    });
+
+    it("orders options by build time, newest first, and offers a swap when From is newer", () => {
+        mockUseArtifactSBOMs.mockReturnValue({
+            isLoading: false,
+            isError: false,
+            // Ingest order (both share createdAt) is older-build first.
+            data: { data: [built("old", "main-c945b05e", "2026-10-24T10:36:00Z"), built("new", "main-087b69b5", "2026-10-24T13:07:00Z")] },
+        });
+        const { container, getByText } = render(() => <Diff />);
+        pick(container, "From artifact", "svc");
+        pick(container, "To artifact", "svc");
+        const opts = optionsOf(container, "From SBOM");
+        expect(opts[0]).toContain("main-087b69b5");
+
+        pick(container, "From SBOM", "087b69b5");
+        pick(container, "To SBOM", "c945b05e");
+        expect(container.textContent).toContain("changes will read backwards");
+        fireEvent.click(getByText("Swap"));
+        expect(container.textContent).not.toContain("changes will read backwards");
+    });
+});

@@ -28,6 +28,13 @@
     text-align: center;
 }
 
+/* A zero count is a placeholder, not a finding: muted, never severity-coloured. */
+.vuln-chip-zero {
+    color: var(--color-text-muted);
+    background: transparent;
+    font-weight: 400;
+}
+
 /* Shared de-escalating redscale — one definition, applied to both the
    compact VulnCountBadges chip segments (.vuln-chip-n) and full-size
    SeverityPill badges (.badge.badge-sm) across the app.

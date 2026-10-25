@@ -120,11 +120,72 @@ Newest first. Each entry names the issue that made the change, so its full conte
 
 **Behavior changes to check after upgrading:**
 
+- **Every `/api/v1` JSON field is camelCase (ocidex-nps9.32, decided in ocidex-nps9.7).** The
+  admin, auth, cluster, discovery, job, namespace, registry, source, stats and status
+  endpoints returned and accepted some snake_case fields; each is renamed by the same rule
+  (`artifact_count` → `artifactCount`), in responses and in request bodies. Query parameter
+  names and sort keys follow the same rule (ocidex-nps9.34): `?subject_version=` is now
+  `?subjectVersion=`, `?sort=cvss_score` is `?sort=cvssScore`. The server still accepts the
+  old query spellings through 1.0 and drops that in the next release (ocidex-6hfs), so a
+  CI image pinning an older `ocidex-cli` keeps ingesting correctly; bump it before then.
+  Bookmarked cluster pages that filter with `?k8s_namespace=` or `?match_state=` open
+  unfiltered; the page now uses `?k8sNamespace=` and `?matchState=`. What to do:
+  - API clients and scripts: rename the fields you read or send. The full list:
+    `artifact_count`→`artifactCount`, `artifact_id`→`artifactId`,
+    `artifact_name`→`artifactName`, `artifact_type`→`artifactType`,
+    `artifact_types`→`artifactTypes`, `auth_token`→`authToken`, `auth_username`→`authUsername`,
+    `authorize_url`→`authorizeUrl`, `auto_ingest`→`autoIngest`, `canonical_id`→`canonicalId`,
+    `cluster_id`→`clusterId`, `cluster_name`→`clusterName`, `component_count`→`componentCount`,
+    `container_name`→`containerName`, `created_at`→`createdAt`, `cvss_score`→`cvssScore`,
+    `display_name`→`displayName`, `egress_denied`→`egressDenied`,
+    `enricher_name`→`enricherName`, `estimated_sboms`→`estimatedSboms`,
+    `failed_24h`→`failed24h`, `finished_at`→`finishedAt`, `first_seen_at`→`firstSeenAt`,
+    `generated_at`→`generatedAt`, `has_auth`→`hasAuth`, `has_secret`→`hasSecret`,
+    `image_count`→`imageCount`, `image_digest`→`imageDigest`, `image_digests`→`imageDigests`,
+    `image_ref`→`imageRef`, `include_untagged`→`includeUntagged`,
+    `ingestion_timeline`→`ingestionTimeline`, `k8s_namespace`→`k8sNamespace`,
+    `last_attempt_at`→`lastAttemptAt`, `last_error`→`lastError`,
+    `last_polled_at`→`lastPolledAt`, `last_seen_at`→`lastSeenAt`, `last_used_at`→`lastUsedAt`,
+    `last_walk`→`lastWalk`, `latency_ms`→`latencyMs`, `license_categories`→`licenseCategories`,
+    `license_count`→`licenseCount`, `license_spread`→`licenseSpread`, `login_path`→`loginPath`,
+    `managed_by`→`managedBy`, `managed_ref`→`managedRef`, `match_state`→`matchState`,
+    `max_tag_age_days`→`maxTagAgeDays`, `namespace_count`→`namespaceCount`,
+    `namespace_id`→`namespaceId`, `namespace_name`→`namespaceName`, `nats_msg_id`→`natsMsgId`,
+    `owner_id`→`ownerId`, `owner_username`→`ownerUsername`, `package_count`→`packageCount`,
+    `package_growth_timeline`→`packageGrowthTimeline`, `pod_count`→`podCount`,
+    `poll_interval_minutes`→`pollIntervalMinutes`, `poller_enabled`→`pollerEnabled`,
+    `queue_size`→`queueSize`, `recent_artifacts`→`recentArtifacts`,
+    `registry_disabled`→`registryDisabled`, `registry_host`→`registryHost`,
+    `registry_id`→`registryId`, `registry_name`→`registryName`,
+    `repository_count`→`repositoryCount`, `repository_patterns`→`repositoryPatterns`,
+    `sample_k8s_namespace`→`sampleK8sNamespace`, `sample_namespace`→`sampleNamespace`,
+    `sample_workload`→`sampleWorkload`, `sample_workload_name`→`sampleWorkloadName`,
+    `sbom_count`→`sbomCount`, `sbom_digest`→`sbomDigest`, `sbom_id`→`sbomId`,
+    `scan_jobs`→`scanJobs`, `scan_mode`→`scanMode`, `seen_at`→`seenAt`,
+    `skipped_by_age`→`skippedByAge`, `skipped_by_limit`→`skippedByLimit`,
+    `skipped_existing`→`skippedExisting`, `skipped_registry_disabled`→`skippedRegistryDisabled`,
+    `skipped_unparseable_ref`→`skippedUnparseableRef`, `started_at`→`startedAt`,
+    `subject_version`→`subjectVersion`, `succeeded_24h`→`succeeded24h`, `tag_limit`→`tagLimit`,
+    `tag_order`→`tagOrder`, `tag_patterns`→`tagPatterns`, `top_artifacts`→`topArtifacts`,
+    `top_packages`→`topPackages`, `top_vulnerabilities`→`topVulnerabilities`,
+    `trust_identity`→`trustIdentity`, `trust_issuer`→`trustIssuer`,
+    `trust_public_key`→`trustPublicKey`, `unparseable_ref`→`unparseableRef`,
+    `updated_at`→`updatedAt`, `user_id`→`userId`, `verification_mode`→`verificationMode`,
+    `version_count`→`versionCount`, `version_growth_timeline`→`versionGrowthTimeline`,
+    `vuln_count`→`vulnCount`, `vuln_severity`→`vulnSeverity`, `webhook_secret`→`webhookSecret`,
+    `webhook_url`→`webhookUrl`, `worker_id`→`workerId`, `workload_count`→`workloadCount`,
+    `workload_kind`→`workloadKind`, `workload_name`→`workloadName`
+  - Upgrade the **k8s agent, the operator and `ocidex-cli` together with the server**. They
+    talk to the API through `pkg/client`, and a version older than the server sends the old
+    names: the agent's inventory push (`POST /api/v1/clusters/{id}/inventory`) is rejected
+    until the agent is upgraded, so cluster inventory pauses for that window.
+  - Stored walk stats need nothing: rows written before the rename are still read.
+
 - **Registry responses no longer carry `owner_id` or `owner_username` (ocidex-bt62.2).** A
   registry has no owner of its own; it belongs to a namespace (ADR-039, ADR-046). The two
   fields only repeated the namespace's owner member, and only the list endpoint filled in
   `owner_username`. Read the owner from the registry's namespace
-  (`GET /api/v1/namespaces/{id}`, `owner_id` / `owner_username`). `/api/v1/users/me/registries`
+  (`GET /api/v1/namespaces/{id}`, `ownerId` / `ownerUsername`). `/api/v1/users/me/registries`
   still lists registries in namespaces you own.
 
 - **The account migration 00008 seeded is removed if it was never used (ocidex-7tss).**

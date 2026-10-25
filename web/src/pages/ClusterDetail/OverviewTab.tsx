@@ -102,9 +102,9 @@ export function OverviewTab(props: {
                                             <SeverityPill severity={v.severity}>
                                                 {v.severity ?? "unknown"}
                                             </SeverityPill>
-                                            <VulnId canonicalId={v.canonical_id} nativeId={v.id} />
+                                            <VulnId canonicalId={v.canonicalId} nativeId={v.id} />
                                             <span class="overview-vuln-cvss text-muted">
-                                                <Show when={v.cvss_score} fallback="—">
+                                                <Show when={v.cvssScore} fallback="—">
                                                     {(score) => <>{score().toFixed(1)}</>}
                                                 </Show>
                                             </span>
@@ -115,7 +115,7 @@ export function OverviewTab(props: {
                                                 {v.summary}
                                             </span>
                                             <span class="text-muted text-sm">
-                                                {plural(v.workload_count, "workload")}
+                                                {plural(v.workloadCount, "workload")}
                                             </span>
                                         </li>
                                     )}

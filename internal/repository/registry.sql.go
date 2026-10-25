@@ -307,6 +307,22 @@ func (q *Queries) GetRegistryByName(ctx context.Context, name string) (GetRegist
 	return i, err
 }
 
+const getSourceNamespace = `-- name: GetSourceNamespace :one
+
+SELECT namespace_id FROM source WHERE id = $1::uuid FOR UPDATE
+`
+
+// Moving a registry to another namespace (ocidex-nps9.33). Namespace was
+// create-only, so a registry could not join the namespace a cluster resolves
+// running images against. The four statements run in one transaction; rollups
+// catch up on the refresher's next pass, which rebuilds them from scratch.
+func (q *Queries) GetSourceNamespace(ctx context.Context, id pgtype.UUID) (pgtype.UUID, error) {
+	row := q.db.QueryRow(ctx, getSourceNamespace, id)
+	var namespace_id pgtype.UUID
+	err := row.Scan(&namespace_id)
+	return namespace_id, err
+}
+
 const insertRegistryWindow = `-- name: InsertRegistryWindow :exec
 INSERT INTO registry_window (registry_id, repository, digests, walked_at)
 VALUES ($1, $2, $3::text[], $4)
@@ -326,6 +342,25 @@ func (q *Queries) InsertRegistryWindow(ctx context.Context, arg InsertRegistryWi
 		arg.Digests,
 		arg.WalkedAt,
 	)
+	return err
+}
+
+const linkSourceArtifacts = `-- name: LinkSourceArtifacts :exec
+INSERT INTO artifact_namespace (artifact_id, namespace_id)
+SELECT DISTINCT s.artifact_id, $1::uuid
+FROM sbom s
+WHERE s.source_id = $2::uuid
+ON CONFLICT DO NOTHING
+`
+
+type LinkSourceArtifactsParams struct {
+	NamespaceID pgtype.UUID `json:"namespace_id"`
+	SourceID    pgtype.UUID `json:"source_id"`
+}
+
+// Every artifact the source's SBOMs belong to is visible in the new namespace.
+func (q *Queries) LinkSourceArtifacts(ctx context.Context, arg LinkSourceArtifactsParams) error {
+	_, err := q.db.Exec(ctx, linkSourceArtifacts, arg.NamespaceID, arg.SourceID)
 	return err
 }
 
@@ -760,6 +795,37 @@ func (q *Queries) ListRegistryWalkStats(ctx context.Context) ([]ListRegistryWalk
 	return items, nil
 }
 
+const moveSourceNamespace = `-- name: MoveSourceNamespace :exec
+UPDATE source SET namespace_id = $1::uuid, updated_at = now() WHERE id = $2::uuid
+`
+
+type MoveSourceNamespaceParams struct {
+	NamespaceID pgtype.UUID `json:"namespace_id"`
+	ID          pgtype.UUID `json:"id"`
+}
+
+func (q *Queries) MoveSourceNamespace(ctx context.Context, arg MoveSourceNamespaceParams) error {
+	_, err := q.db.Exec(ctx, moveSourceNamespace, arg.NamespaceID, arg.ID)
+	return err
+}
+
+const moveSourceSBOMs = `-- name: MoveSourceSBOMs :execrows
+UPDATE sbom SET namespace_id = $1::uuid WHERE source_id = $2::uuid
+`
+
+type MoveSourceSBOMsParams struct {
+	NamespaceID pgtype.UUID `json:"namespace_id"`
+	SourceID    pgtype.UUID `json:"source_id"`
+}
+
+func (q *Queries) MoveSourceSBOMs(ctx context.Context, arg MoveSourceSBOMsParams) (int64, error) {
+	result, err := q.db.Exec(ctx, moveSourceSBOMs, arg.NamespaceID, arg.SourceID)
+	if err != nil {
+		return 0, err
+	}
+	return result.RowsAffected(), nil
+}
+
 const recordRegistryWalkStats = `-- name: RecordRegistryWalkStats :exec
 UPDATE registry SET last_walk_stats = $1::jsonb WHERE id = $2
 `
@@ -855,6 +921,27 @@ func (q *Queries) SetRegistryEnabled(ctx context.Context, arg SetRegistryEnabled
 		&i.LastWalkStats,
 	)
 	return i, err
+}
+
+const unlinkEmptiedArtifacts = `-- name: UnlinkEmptiedArtifacts :exec
+DELETE FROM artifact_namespace an
+WHERE an.namespace_id = $1::uuid
+  AND an.artifact_id IN (SELECT DISTINCT s.artifact_id FROM sbom s WHERE s.source_id = $2::uuid)
+  AND NOT EXISTS (
+      SELECT 1 FROM sbom s2
+      WHERE s2.artifact_id = an.artifact_id AND s2.namespace_id = $1::uuid
+  )
+`
+
+type UnlinkEmptiedArtifactsParams struct {
+	OldNamespaceID pgtype.UUID `json:"old_namespace_id"`
+	SourceID       pgtype.UUID `json:"source_id"`
+}
+
+// ...and stops being visible in the old one once none of its SBOMs is left there.
+func (q *Queries) UnlinkEmptiedArtifacts(ctx context.Context, arg UnlinkEmptiedArtifactsParams) error {
+	_, err := q.db.Exec(ctx, unlinkEmptiedArtifacts, arg.OldNamespaceID, arg.SourceID)
+	return err
 }
 
 const updateRegistry = `-- name: UpdateRegistry :one

@@ -40,9 +40,16 @@ func (h *Handler) ReadinessCheck(ctx context.Context, _ *struct{}) (*ReadinessCh
 }
 
 // APIVersion returns the API version and the version of the running server build.
-func (h *Handler) APIVersion(_ context.Context, _ *struct{}) (*VersionOutput, error) {
+func (h *Handler) APIVersion(ctx context.Context, _ *struct{}) (*VersionOutput, error) {
 	out := &VersionOutput{}
 	out.Body.Version = "v1"
-	out.Body.Build, _, _ = version.Info()
+	out.Body.Build, out.Body.Commit, out.Body.BuiltAt = version.Info()
+	// The database age is best-effort: About still says which build is
+	// running when the database cannot be read.
+	if h.searchService != nil {
+		if built, err := h.searchService.VulnDBBuiltAt(ctx); err == nil {
+			out.Body.VulnDBBuiltAt = built
+		}
+	}
 	return out, nil
 }

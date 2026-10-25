@@ -108,7 +108,7 @@ export default function Dashboard(): JSX.Element {
                 title="Workspace"
                 subtitle={
                     <Show when={user()} fallback="Your namespaces, ingests and alerts">
-                        {(u) => `Signed in as ${u().display_name}`}
+                        {(u) => `Signed in as ${u().displayName}`}
                     </Show>
                 }
             />

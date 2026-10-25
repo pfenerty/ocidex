@@ -29,7 +29,7 @@ NATS Worker ────────────► ScanRequest ──┘       
 
 ### Path A: Direct API Upload
 
-**Endpoint:** `POST /api/v1/sbom?version=&architecture=&build_date=`
+**Endpoint:** `POST /api/v1/sbom?version=&architecture=&buildDate=`
 
 **Handler:** `internal/api/sbom.go` → `IngestSBOM()`
 **Input type:** `internal/api/types.go` → `IngestSBOMInput`

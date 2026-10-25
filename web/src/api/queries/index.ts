@@ -2,7 +2,7 @@ export { useArtifacts, useArtifactsInfinite, useArtifact, useArtifactSBOMs, useA
 export type { ArtifactVulnQueryParams, ArtifactVulnSortKey } from "./artifacts";
 export { useSBOMs, useSBOM, useSBOMComponents, sbomComponents, useSBOMDependencies, useSBOMDriftHistory, useSBOMVulns } from "./sboms";
 export type { SBOMVulnQueryParams, SBOMVulnSortKey } from "./sboms";
-export { useDistinctComponents, useComponentPurlTypes, useComponentVersions, useComponent, useComponentVulns, useComponentsByPurl } from "./components";
+export { useDistinctComponents, useComponentPurlTypes, useComponentVersions, useComponentVersionSummaries, useComponent, useComponentVulns, useComponentsByPurl } from "./components";
 export { useLicenses, useLicenseComponents } from "./licenses";
 export { useDiff, useDiffTree } from "./diff";
 export { useDashboardStats } from "./stats";
@@ -42,4 +42,5 @@ export type {
 } from "./clusters";
 export { useListNamespaces, useNamespace, useCreateNamespace, useUpdateNamespace, useDeleteNamespace, useNamespaceMembers, useSetNamespaceMember, useRemoveNamespaceMember } from "./namespaces";
 export { useListRegistries, useCreateRegistry, useUpdateRegistry, useDeleteRegistry, useTestRegistryConnection, useScanRegistry, useRegenerateWebhookSecret, useRegistryTrustSummary, useRecentDrift, usePreviewRegistryConfig, useRegistryPreview, type RegistryPreviewBody } from "./registries";
-export { useListScanJobs, useGetScanJob, useRetryScanJob, useRetryAllFailedScanJobs, useListEnrichmentJobs, useEnrichmentJobsSummary, useRetryEnrichmentJob, useRetryAllFailedEnrichmentJobs } from "./jobs";
+export { useListScanJobs, useGetScanJob, useRetryScanJob, useRetryAllFailedScanJobs, useCancelScanJob, useListEnrichmentJobs, useEnrichmentJobsSummary, useRetryEnrichmentJob, useRetryAllFailedEnrichmentJobs } from "./jobs";
+export { useServerVersion } from "./meta";
