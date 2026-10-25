@@ -455,6 +455,13 @@ func (h *Handler) listArtifacts(ctx context.Context, input *ListArtifactsInput, 
 
 	out := &ListArtifactsOutput{}
 	out.Body.Data = result.Data
+	if !hasCursor {
+		total, err := h.searchService.CountArtifacts(ctx, filter)
+		if err != nil {
+			return nil, mapServiceError(err)
+		}
+		out.Body.Total = &total
+	}
 	if sortSeverity {
 		// The next page starts where this one ended. Encoding it through the
 		// same helper keeps the cursor opaque, so no client learns that this

@@ -68,6 +68,26 @@ SELECT a.id, a.type, a.name, a.group_name, a.purl, a.cpe, a.created_at,
 FROM artifact a
 WHERE a.id = $1;
 
+-- name: CountArtifacts :one
+-- The total behind ListArtifacts' first page, under the same filters and
+-- visibility rule, so the list can say "20 of 126" (ocidex-nps9.18). Keyset
+-- pages carry no total of their own (ADR-043).
+SELECT COUNT(*)::bigint
+FROM artifact a
+WHERE (sqlc.narg('type')::text IS NULL OR a.type = sqlc.narg('type'))
+  AND (sqlc.narg('name')::text IS NULL OR a.name ILIKE '%' || sqlc.narg('name')::text || '%')
+  AND (sqlc.narg('require_sufficient')::boolean IS NULL
+       OR NOT sqlc.narg('require_sufficient')::boolean
+       OR EXISTS (SELECT 1 FROM sbom s2 WHERE s2.artifact_id = a.id AND s2.enrichment_sufficient))
+  AND CASE WHEN COALESCE(sqlc.narg('owned_only')::boolean, false)
+           THEN EXISTS (
+               SELECT 1 FROM artifact_namespace an
+               WHERE an.artifact_id = a.id
+                 AND an.namespace_id IN (
+                       SELECT owned_namespace_ids(sqlc.narg('user_id')::uuid)))
+           ELSE artifact_visible(a.id, sqlc.narg('user_id')::uuid, sqlc.narg('is_admin')::boolean)
+      END;
+
 -- name: ListArtifacts :many
 -- Same worst-case-first rollup precedence as GetArtifact above — see that
 -- query's comment. The two ladders are duplicated rather than shared, so a

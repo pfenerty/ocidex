@@ -3017,6 +3017,11 @@ export interface components {
             readonly $schema?: string;
             data: components["schemas"]["ArtifactSummary"][] | null;
             pagination: components["schemas"]["CursorMeta"];
+            /**
+             * Format: int64
+             * @description Artifacts matching the filters, on the first page only
+             */
+            total?: number;
         };
         ListClusterImagesOutputBody: {
             /**

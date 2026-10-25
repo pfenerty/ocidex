@@ -310,6 +310,23 @@ func paginateVersions(vs []ArtifactVersion, limit, offset int32) []ArtifactVersi
 	return vs[start:end]
 }
 
+// CountArtifacts returns how many artifacts ListArtifacts would page through
+// under filter, ignoring its cursor.
+func (s *searchService) CountArtifacts(ctx context.Context, filter ArtifactFilter) (int64, error) {
+	n, err := repository.New(s.db).CountArtifacts(ctx, repository.CountArtifactsParams{
+		Type:              textOrNull(filter.Type),
+		Name:              textOrNull(filter.Name),
+		RequireSufficient: boolOrNull(filter.RequireSufficient),
+		IsAdmin:           visAdminBool(filter.Visibility),
+		UserID:            filter.Visibility.UserID,
+		OwnedOnly:         filter.Visibility.ownedFlag(),
+	})
+	if err != nil {
+		return 0, fmt.Errorf("counting artifacts: %w", err)
+	}
+	return n, nil
+}
+
 func (s *searchService) ListArtifacts(ctx context.Context, filter ArtifactFilter) (CursorPage[ArtifactSummary], error) {
 	q := repository.New(s.db)
 

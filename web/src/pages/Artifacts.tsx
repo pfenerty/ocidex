@@ -230,8 +230,19 @@ export default function Artifacts() {
                 map.set(mapKey, { key, kind, items: [a] });
             }
         }
-        return [...map.values()];
+        // Sorted by heading, so a group's place does not depend on which of
+        // its rows happened to load first (ocidex-nps9.18).
+        return [...map.values()].sort((a, b) => a.key.localeCompare(b.key));
     });
+
+    // The group holding the last loaded row may continue on the next page, so
+    // its count is marked as partial rather than read as a total.
+    const partialGroup = (): string | undefined => {
+        if (query.hasNextPage !== true) return undefined;
+        const rows = rawArtifacts();
+        const last = rows.length > 0 ? rows[rows.length - 1] : undefined;
+        return last === undefined ? undefined : groupKey(last);
+    };
 
     // A single heading spanning the whole table is noise — it repeats what the
     // filters already say. Headings earn their row only once there is more than
@@ -278,7 +289,13 @@ export default function Artifacts() {
                                   return (
                                       <>
                                           {kind === "type" ? <TypeBadge type={label} /> : label}{" "}
-                                          <span class="group-header-count">{count}</span>
+                                          <span
+                                              class="group-header-count"
+                                              title={key === partialGroup() ? "More may load" : undefined}
+                                          >
+                                              {count}
+                                              {key === partialGroup() ? "+" : ""}
+                                          </span>
                                       </>
                                   );
                               },
@@ -289,6 +306,7 @@ export default function Artifacts() {
                     hasMore: query.hasNextPage,
                     loading: query.isFetchingNextPage,
                     onClick: () => void query.fetchNextPage(),
+                    total: query.data?.pages[0]?.total,
                 }}
             />
         </>

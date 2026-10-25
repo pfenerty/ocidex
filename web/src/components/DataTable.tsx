@@ -66,6 +66,8 @@ export interface DataTableProps<T> {
         hasMore: boolean;
         loading: boolean;
         onClick: () => void;
+        /** The whole list's size, when the API reports one. */
+        total?: number;
     };
     /** Number of shimmer rows to show on first load. Default 8. */
     skeletonRows?: number;
@@ -363,6 +365,7 @@ export default function DataTable<T>(props: DataTableProps<T>): JSX.Element {
                         // rather than from the caller: a keyset response has no
                         // total to pass, and the table already knows.
                         loaded={props.rows?.length}
+                        total={lm().total}
                     />
                 )}
             </Show>

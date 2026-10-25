@@ -23,6 +23,7 @@ type SearchService interface {
 	ListComponentsByLicense(ctx context.Context, licenseID pgtype.UUID, limit, offset int32, vis VisibilityFilter) (PagedResult[ComponentSummary], error)
 	GetArtifact(ctx context.Context, id pgtype.UUID, vis VisibilityFilter) (ArtifactDetail, error)
 	ListArtifacts(ctx context.Context, filter ArtifactFilter) (CursorPage[ArtifactSummary], error)
+	CountArtifacts(ctx context.Context, filter ArtifactFilter) (int64, error)
 	ListSBOMsByArtifact(ctx context.Context, artifactID pgtype.UUID, subjectVersion, imageVersion string, page SBOMByArtifactPage, vis VisibilityFilter) (CursorPage[SBOMSummary], error)
 	ListVersionsByArtifact(ctx context.Context, artifactID pgtype.UUID, limit, offset int32, mode VersionSortMode, colSort VersionColumnSort, vis VisibilityFilter) (ArtifactVersionsPage, error)
 	GetArtifactChangelog(ctx context.Context, artifactID pgtype.UUID, query ChangelogQuery, vis VisibilityFilter) (Changelog, error)

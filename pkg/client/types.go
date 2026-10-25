@@ -2752,6 +2752,9 @@ type ListArtifactsOutputBody struct {
 	Schema     *string            `json:"$schema,omitempty"`
 	Data       *[]ArtifactSummary `json:"data"`
 	Pagination CursorMeta         `json:"pagination"`
+
+	// Total Artifacts matching the filters, on the first page only
+	Total *int64 `json:"total,omitempty"`
 }
 
 // ListClusterImagesOutputBody defines model for ListClusterImagesOutputBody.

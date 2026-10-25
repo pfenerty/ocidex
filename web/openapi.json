@@ -3373,6 +3373,11 @@
           },
           "pagination": {
             "$ref": "#/components/schemas/CursorMeta"
+          },
+          "total": {
+            "description": "Artifacts matching the filters, on the first page only",
+            "format": "int64",
+            "type": "integer"
           }
         },
         "required": [

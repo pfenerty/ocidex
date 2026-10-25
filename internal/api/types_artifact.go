@@ -35,6 +35,10 @@ type ListArtifactsOutput struct {
 	Body struct {
 		Data       []service.ArtifactSummary `json:"data"`
 		Pagination CursorMeta                `json:"pagination"`
+		// Total rides beside the keyset envelope rather than in it (ADR-043
+		// keyset pages carry no total), and only on the first page, which is
+		// where a list says "20 of 126" (ocidex-nps9.18).
+		Total *int64 `json:"total,omitempty" doc:"Artifacts matching the filters, on the first page only"`
 	}
 }
 

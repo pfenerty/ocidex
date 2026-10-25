@@ -508,10 +508,10 @@
     }
 
     /* Tables */
+    /* Sideways scroll only. A 70vh vertical box nested a second scrollbar
+       inside the page's, and rows below it were easy to miss (ocidex-nps9.18). */
     .table-wrapper {
         overflow-x: auto;
-        overflow-y: auto;
-        max-height: 70vh;
     }
 
     table {

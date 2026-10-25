@@ -2,6 +2,7 @@ package api_test
 
 import (
 	"context"
+	"encoding/base64"
 	"encoding/json"
 	"net/http"
 	"net/http/httptest"
@@ -233,6 +234,10 @@ func (f *fakeSearchService) ListVersionsByArtifact(_ context.Context, _ pgtype.U
 
 func (f *fakeSearchService) ListTopVulnerabilities(_ context.Context, filter service.TopVulnFilter) (service.PagedResult[service.TopVulnEntry], error) {
 	return service.PagedResult[service.TopVulnEntry]{Data: []service.TopVulnEntry{}, Limit: filter.Limit, Offset: filter.Offset}, nil
+}
+
+func (f *fakeSearchService) CountArtifacts(_ context.Context, _ service.ArtifactFilter) (int64, error) {
+	return 1, nil
 }
 
 func (f *fakeSearchService) VulnDBBuiltAt(_ context.Context) (*time.Time, error) {
@@ -1125,4 +1130,32 @@ func TestListSBOMComponents_DefaultSortKeepsKeyset(t *testing.T) {
 	is.Equal(w2.Code, http.StatusOK)
 	is.True(spy.got.HasCursor)
 	is.Equal(spy.got.CursorName, "test-lib")
+}
+
+// The artifacts list says "20 of 126" (ocidex-nps9.18): the first page carries
+// the total, later pages do not recount it.
+func TestListArtifactsTotalOnFirstPageOnly(t *testing.T) {
+	is := is.New(t)
+	router := newTestRouter(&fakeSBOMService{}, &fakeSearchService{})
+
+	w := httptest.NewRecorder()
+	router.ServeHTTP(w, httptest.NewRequest(http.MethodGet, "/api/v1/artifacts", nil))
+	is.Equal(w.Code, http.StatusOK)
+	var first struct {
+		Total *int64 `json:"total"`
+	}
+	is.NoErr(json.Unmarshal(w.Body.Bytes(), &first))
+	is.True(first.Total != nil)
+	is.Equal(*first.Total, int64(1))
+
+	w = httptest.NewRecorder()
+	// The cursor is opaque to clients; built here the way the server builds it.
+	cursor := base64.RawURLEncoding.EncodeToString([]byte(`["a","container","00000000-0000-0000-0000-000000000001"]`))
+	router.ServeHTTP(w, httptest.NewRequest(http.MethodGet, "/api/v1/artifacts?cursor="+url.QueryEscape(cursor), nil))
+	is.Equal(w.Code, http.StatusOK)
+	var next struct {
+		Total *int64 `json:"total"`
+	}
+	is.NoErr(json.Unmarshal(w.Body.Bytes(), &next))
+	is.True(next.Total == nil)
 }
