@@ -56,7 +56,7 @@ func wl(ns, name, container, ref, dgst string, pods int) map[string]any {
 		"podCount":      pods,
 	}
 	if dgst != "" {
-		w["image_digest"] = dgst
+		w["imageDigest"] = dgst
 	}
 	return w
 }
@@ -107,7 +107,7 @@ func TestClusterInventoryAPI(t *testing.T) {
 	cluster := mustPostJSON(t, srv.URL+"/api/v1/clusters",
 		`{"namespaceId":"`+nsID+`","name":"prod","description":"east"}`, ownerKey, http.StatusCreated)
 	clusterID := cluster["id"].(string)
-	is.Equal(cluster["last_seen_at"], nil) // never reported
+	is.Equal(cluster["lastSeenAt"], nil) // never reported
 	inventoryURL := srv.URL + "/api/v1/clusters/" + clusterID + "/inventory"
 	workloadsURL := srv.URL + "/api/v1/clusters/" + clusterID + "/workloads"
 
@@ -161,7 +161,7 @@ func TestClusterInventoryAPI(t *testing.T) {
 		out := mustPostJSON(t, inventoryURL, first, ownerKey, http.StatusOK)
 		is.Equal(out["accepted"], float64(2))
 		is.Equal(out["pruned"], float64(0))
-		is.True(out["seen_at"] != "")
+		is.True(out["seenAt"] != "")
 	})
 
 	t.Run("second snapshot prunes what it omits", func(t *testing.T) {
@@ -238,7 +238,7 @@ func TestClusterInventoryAPI(t *testing.T) {
 		is.NoErr(json.NewDecoder(resp.Body).Decode(&got))
 		// last_seen_at is what separates a cluster running nothing from a cluster
 		// whose agent has died (K2), so an empty snapshot must still stamp it.
-		is.True(got["last_seen_at"] != nil && got["last_seen_at"] != "")
+		is.True(got["lastSeenAt"] != nil && got["lastSeenAt"] != "")
 	})
 
 	t.Run("non-owner may still read a public cluster", func(t *testing.T) {

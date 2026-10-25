@@ -294,7 +294,7 @@ func TestVulnAliasDedup(t *testing.T) {
 	var statsResp map[string]any
 	is.NoErr(json.NewDecoder(resp.Body).Decode(&statsResp))
 	resp.Body.Close()
-	is.Equal(statsResp["vuln_count"], float64(1))
+	is.Equal(statsResp["vulnCount"], float64(1))
 
 	// Per-component decoration (GET /api/v1/sboms/{id}/components) must also
 	// dedupe by canonical_id — regression for the reported bug where a single
