@@ -15,6 +15,10 @@ type NamespaceResponse struct {
 	OwnerUsername *string `json:"owner_username,omitempty" doc:"GitHub username of the namespace owner"`
 	CreatedAt     string  `json:"created_at"`
 	UpdatedAt     string  `json:"updated_at"`
+	// Capabilities lets a page offer only the actions the caller can take:
+	// Sources showed Edit/Scan/Delete to a viewer whose every click was a 403
+	// (ocidex-nps9.15). Set on the list endpoints.
+	Capabilities []string `json:"capabilities,omitempty" doc:"Capabilities the caller holds in this namespace (ADR-046)"`
 }
 
 // ListNamespacesInput is the request for GET /api/v1/namespaces.

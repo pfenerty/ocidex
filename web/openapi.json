@@ -4513,6 +4513,16 @@
             "readOnly": true,
             "type": "string"
           },
+          "capabilities": {
+            "description": "Capabilities the caller holds in this namespace (ADR-046)",
+            "items": {
+              "type": "string"
+            },
+            "type": [
+              "array",
+              "null"
+            ]
+          },
           "created_at": {
             "type": "string"
           },

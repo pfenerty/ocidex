@@ -3406,6 +3406,8 @@ export interface components {
              * @example https://example.com/schemas/NamespaceResponse.json
              */
             readonly $schema?: string;
+            /** @description Capabilities the caller holds in this namespace (ADR-046) */
+            capabilities?: string[] | null;
             created_at: string;
             id: string;
             name: string;

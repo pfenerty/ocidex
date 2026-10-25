@@ -3085,10 +3085,13 @@ type NamespaceMemberResponseRole string
 // NamespaceResponse defines model for NamespaceResponse.
 type NamespaceResponse struct {
 	// Schema A URL to the JSON Schema for this object.
-	Schema    *string `json:"$schema,omitempty"`
-	CreatedAt string  `json:"created_at"`
-	Id        string  `json:"id"`
-	Name      string  `json:"name"`
+	Schema *string `json:"$schema,omitempty"`
+
+	// Capabilities Capabilities the caller holds in this namespace (ADR-046)
+	Capabilities *[]string `json:"capabilities,omitempty"`
+	CreatedAt    string    `json:"created_at"`
+	Id           string    `json:"id"`
+	Name         string    `json:"name"`
 
 	// OwnerId UUID of the namespace owner
 	OwnerId *string `json:"owner_id,omitempty"`

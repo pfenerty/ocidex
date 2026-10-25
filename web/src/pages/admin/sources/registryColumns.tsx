@@ -23,6 +23,8 @@ export function registryColumns(opts: {
     trustByRegistry: Accessor<Map<string, Map<string, number>>>;
     onEdit: (reg: Registry) => void;
     onSecretRevealed: (secret: string) => void;
+    /** The caller's capabilities in the registry's namespace (ADR-046). */
+    capsFor: (registryID: string) => Set<string>;
 }): Column<Registry>[] {
     const toast = useToast();
     const deleteReg = useDeleteRegistry();
@@ -130,6 +132,7 @@ export function registryColumns(opts: {
                         >
                             Copy URL
                         </Button>
+                        <Show when={opts.capsFor(reg.id).has("read_secret")}>
                         <Button
                             size="sm"
                             title="Generate a new webhook secret (invalidates the old one)"
@@ -141,56 +144,77 @@ export function registryColumns(opts: {
                         >
                             Regen Secret
                         </Button>
+                        </Show>
                     </Show>
                 </div>
             ),
         },
         {
             header: "",
-            render: (reg) => (
-                <div class="flex gap-[0.4rem]">
-                    <Button onClick={() => opts.onEdit(reg)}>
-                        Edit
-                    </Button>
-                    <Button
-                        title="Scan new/changed images; already-scanned digests are skipped"
-                        onClick={() => scanReg.mutate({ id: reg.id }, {
-                            onSuccess: (data) => toast(data.message, "success"),
-                            onError: () => toast("Failed to start scan", "error"),
-                        })}
-                        disabled={scanReg.isPending}
+            render: (reg) => {
+                const caps = () => opts.capsFor(reg.id);
+                const canManage = () => caps().has("manage_source");
+                const canScan = () => caps().has("trigger_scan");
+                return (
+                    <Show
+                        when={canManage() || canScan()}
+                        fallback={
+                            <span class="text-muted text-sm whitespace-nowrap" title="Your role in this namespace does not allow changing or scanning it">
+                                Read only
+                            </span>
+                        }
                     >
-                        Scan
-                    </Button>
-                    <Button
-                        title="Re-scan every image, including already-scanned digests (repopulates enrichment)"
-                        onClick={() => {
-                            if (!confirm("Force a full re-scan of every image in this registry, including digests already ingested? This re-pulls and re-scans everything.")) return;
-                            scanReg.mutate({ id: reg.id, force: true }, {
-                                onSuccess: (data) => toast(data.message, "success"),
-                                onError: () => toast("Failed to start scan", "error"),
-                            });
-                        }}
-                        disabled={scanReg.isPending}
-                    >
-                        Force
-                    </Button>
-                    <Show when={(opts.activeByRegistry().get(reg.id) ?? 0) > 0}>
-                        <span class="badge badge-primary text-xs">
-                            {opts.activeByRegistry().get(reg.id)} active
-                        </span>
+                        <div class="flex gap-[0.4rem]">
+                            <Show when={canManage()}>
+                                <Button onClick={() => opts.onEdit(reg)}>
+                                    Edit
+                                </Button>
+                            </Show>
+                            <Show when={canScan()}>
+                                <Button
+                                    title="Scan new/changed images; already-scanned digests are skipped"
+                                    onClick={() => scanReg.mutate({ id: reg.id }, {
+                                        onSuccess: (data) => toast(data.message, "success"),
+                                        onError: () => toast("Failed to start scan", "error"),
+                                    })}
+                                    disabled={scanReg.isPending}
+                                >
+                                    Scan
+                                </Button>
+                                <Button
+                                    title="Re-scan every image, including already-scanned digests (repopulates enrichment)"
+                                    onClick={() => {
+                                        if (!confirm("Force a full re-scan of every image in this registry, including digests already ingested? This re-pulls and re-scans everything.")) return;
+                                        scanReg.mutate({ id: reg.id, force: true }, {
+                                            onSuccess: (data) => toast(data.message, "success"),
+                                            onError: () => toast("Failed to start scan", "error"),
+                                        });
+                                    }}
+                                    disabled={scanReg.isPending}
+                                >
+                                    Force
+                                </Button>
+                            </Show>
+                            <Show when={(opts.activeByRegistry().get(reg.id) ?? 0) > 0}>
+                                <span class="badge badge-primary text-xs">
+                                    {opts.activeByRegistry().get(reg.id)} active
+                                </span>
+                            </Show>
+                            <Show when={canManage()}>
+                                <Button
+                                    onClick={() => deleteReg.mutate(reg.id, {
+                                        onSuccess: () => toast("Registry deleted", "success"),
+                                        onError: () => toast("Failed to delete registry", "error"),
+                                    })}
+                                    disabled={deleteReg.isPending}
+                                >
+                                    Delete
+                                </Button>
+                            </Show>
+                        </div>
                     </Show>
-                    <Button
-                        onClick={() => deleteReg.mutate(reg.id, {
-                            onSuccess: () => toast("Registry deleted", "success"),
-                            onError: () => toast("Failed to delete registry", "error"),
-                        })}
-                        disabled={deleteReg.isPending}
-                    >
-                        Delete
-                    </Button>
-                </div>
-            ),
+                );
+            },
         },
     ];
 }

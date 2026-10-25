@@ -139,6 +139,6 @@ describe("Admin", () => {
         const { container } = render(() => <Admin />);
         expect(container.textContent).toContain("panel:sources");
         expect(container.textContent).not.toContain("panel:jobs");
-        expect(container.textContent).toContain("Registries and other ingest channels you own");
+        expect(container.textContent).toContain("Registries and other ingest channels you can see");
     });
 });

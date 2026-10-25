@@ -35,7 +35,8 @@ func (h *Handler) ListMyNamespaces(ctx context.Context, _ *ListMyNamespacesInput
 }
 
 func (h *Handler) listNamespaces(ctx context.Context, vis service.VisibilityFilter) (*ListNamespacesOutput, error) {
-	if _, ok := UserFromContext(ctx); !ok {
+	user, ok := UserFromContext(ctx)
+	if !ok {
 		return nil, huma.Error401Unauthorized("not authenticated")
 	}
 	rows, err := h.namespaceService.List(ctx, vis)
@@ -60,8 +61,21 @@ func (h *Handler) listNamespaces(ctx context.Context, vis service.VisibilityFilt
 			}
 		}
 		out.Body.Data[i] = toNamespaceResponse(ns, ownerUsername)
+		out.Body.Data[i].Capabilities = callerCapabilities(user, ns.ID)
 	}
 	return out, nil
+}
+
+// callerCapabilities lists every capability user holds in the namespace, by the
+// same rule a request is authorized with.
+func callerCapabilities(user service.AuthUser, namespaceID string) []string {
+	var out []string
+	for _, c := range authz.AllCapabilities() {
+		if can(user, namespaceID, c) {
+			out = append(out, string(c))
+		}
+	}
+	return out
 }
 
 // GetNamespace returns a single namespace. A private namespace the caller does

@@ -68,7 +68,7 @@ const TABS: AdminTab[] = [
  * to be spelled out here.
  */
 const NON_ADMIN_SUBTITLES: Record<string, string> = {
-    "/admin/sources": "Registries and other ingest channels you own",
+    "/admin/sources": "Registries and other ingest channels you can see; actions follow your role in each namespace",
     "/admin/account": "The issuers you can sign in with",
 };
 

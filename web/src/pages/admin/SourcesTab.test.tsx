@@ -84,9 +84,19 @@ function sourceFor(reg: { id: string; name: string }, namespace = "acme") {
     };
 }
 
+/** OWNER_CAPS is what an owner holds; the default fixture renders as one. */
+const OWNER_CAPS = ["read_private", "ingest", "trigger_scan", "manage_source", "read_secret"];
+
 function renderTab(rows: ({ id: string; name: string } & Record<string, unknown>)[], sources?: unknown[], namespaces?: unknown[]) {
+    const srcs = (sources ?? rows.map((r) => sourceFor(r))) as { namespace_id: string; namespace_name?: string }[];
+    const defaultNamespaces = [...new Set(srcs.map((x) => x.namespace_id))].map((id) => ({
+        id,
+        name: srcs.find((x) => x.namespace_id === id)?.namespace_name ?? id,
+        visibility: "private",
+        capabilities: OWNER_CAPS,
+    }));
     mockUseListNamespaces.mockImplementation((() => ({
-        data: { data: namespaces ?? [] },
+        data: { data: namespaces ?? defaultNamespaces },
         isLoading: false,
         isError: false,
         error: null,
@@ -98,7 +108,7 @@ function renderTab(rows: ({ id: string; name: string } & Record<string, unknown>
         error: null,
     })) as unknown as typeof useListRegistries);
     mockUseListSources.mockImplementation((() => ({
-        data: { data: sources ?? rows.map((r) => sourceFor(r)) },
+        data: { data: srcs },
         isLoading: false,
         isError: false,
         error: null,
@@ -211,7 +221,7 @@ describe("SourcesTab namespace grouping", () => {
         const { container } = renderTab([baseRegistry, managedRegistry], [
             sourceFor(baseRegistry, "acme"),
             sourceFor(managedRegistry, "widgets"),
-        ]);
+        ], []);
 
         expect(headings(container).sort()).toEqual(["acme", "widgets"]);
     });
@@ -222,7 +232,7 @@ describe("SourcesTab namespace grouping", () => {
         const { container } = renderTab([baseRegistry, managedRegistry], [
             sourceFor(baseRegistry, "acme"),
             sourceFor(managedRegistry, "widgets"),
-        ]);
+        ], []);
 
         expect(container.querySelectorAll("thead").length).toBe(1);
         expect(container.querySelectorAll("table").length).toBe(1);
@@ -265,7 +275,7 @@ describe("SourcesTab namespace grouping", () => {
                 namespace_id: "ns-acme",
                 namespace_name: "acme",
             },
-        ]);
+        ], []);
 
         expect(headings(container)).toEqual(["acme"]);
         expect(container.querySelectorAll('[data-testid="upload-source"]').length).toBe(1);
@@ -482,5 +492,43 @@ describe("SourcesTab last walk (ADR-0053)", () => {
         const { container } = renderTab([baseRegistry]);
         expect(container.querySelector("[data-testid=last-walk]")).toBeNull();
         expect(container.textContent).toContain("never");
+    });
+});
+
+// ocidex-nps9.15: a viewer saw Edit/Scan/Force/Delete and Add Registry on
+// registries they could not touch; every click was a 403.
+describe("SourcesTab permissions", () => {
+    beforeEach(() => {
+        searchParams = {};
+    });
+
+    const buttons = (container: HTMLElement) =>
+        Array.from(container.querySelectorAll("button")).map((b) => b.textContent.trim());
+
+    it("labels a registry read-only and offers no actions without a role that allows them", () => {
+        const { container } = renderTab([baseRegistry], [sourceFor(baseRegistry, "acme")], [
+            { id: "ns-acme", name: "acme", visibility: "public", capabilities: [] },
+        ]);
+        expect(container.textContent).toContain("Read only");
+        for (const label of ["Edit", "Scan", "Force", "Delete", "Add Registry"]) {
+            expect(buttons(container)).not.toContain(label);
+        }
+    });
+
+    it("offers scanning alone to a role that may scan but not manage", () => {
+        const { container } = renderTab([baseRegistry], [sourceFor(baseRegistry, "acme")], [
+            { id: "ns-acme", name: "acme", visibility: "private", capabilities: ["read_private", "trigger_scan"] },
+        ]);
+        expect(buttons(container)).toContain("Scan");
+        expect(buttons(container)).not.toContain("Edit");
+        expect(buttons(container)).not.toContain("Delete");
+        expect(container.textContent).not.toContain("Read only");
+    });
+
+    it("offers every action to an owner", () => {
+        const { container } = renderTab([baseRegistry]);
+        for (const label of ["Edit", "Scan", "Force", "Delete", "Add Registry"]) {
+            expect(buttons(container)).toContain(label);
+        }
     });
 });
