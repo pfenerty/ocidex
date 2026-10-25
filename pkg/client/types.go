@@ -3924,8 +3924,17 @@ type VersionOutputBody struct {
 	// Build Version of the running server build: a release tag, a Go module version, or 'dev'
 	Build string `json:"build"`
 
+	// BuiltAt When the server was built, or 'unknown'
+	BuiltAt string `json:"builtAt"`
+
+	// Commit VCS revision the server was built from, or 'unknown'
+	Commit string `json:"commit"`
+
 	// Version API version
 	Version string `json:"version"`
+
+	// VulnDbBuiltAt Build time of the vulnerability database the stored matches come from
+	VulnDbBuiltAt *time.Time `json:"vulnDbBuiltAt,omitempty"`
 }
 
 // VulnDetail defines model for VulnDetail.

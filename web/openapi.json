@@ -6704,17 +6704,32 @@
             ],
             "type": "string"
           },
+          "builtAt": {
+            "description": "When the server was built, or 'unknown'",
+            "type": "string"
+          },
+          "commit": {
+            "description": "VCS revision the server was built from, or 'unknown'",
+            "type": "string"
+          },
           "version": {
             "description": "API version",
             "examples": [
               "v1"
             ],
             "type": "string"
+          },
+          "vulnDbBuiltAt": {
+            "description": "Build time of the vulnerability database the stored matches come from",
+            "format": "date-time",
+            "type": "string"
           }
         },
         "required": [
           "version",
-          "build"
+          "build",
+          "commit",
+          "builtAt"
         ],
         "type": "object"
       },

@@ -4297,11 +4297,20 @@ export interface components {
              * @example v1.0.0
              */
             build: string;
+            /** @description When the server was built, or 'unknown' */
+            builtAt: string;
+            /** @description VCS revision the server was built from, or 'unknown' */
+            commit: string;
             /**
              * @description API version
              * @example v1
              */
             version: string;
+            /**
+             * Format: date-time
+             * @description Build time of the vulnerability database the stored matches come from
+             */
+            vulnDbBuiltAt?: string;
         };
         VulnDetail: {
             aliases: string[] | null;

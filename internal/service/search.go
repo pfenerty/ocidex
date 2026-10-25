@@ -40,6 +40,7 @@ type SearchService interface {
 	WarmDiscovery(ctx context.Context) (*Discovery, error)
 	ListTopVulnerabilities(ctx context.Context, filter TopVulnFilter) (PagedResult[TopVulnEntry], error)
 	GetArtifactVulnSummary(ctx context.Context, artifactID pgtype.UUID, vis VisibilityFilter) (ArtifactVulnSummary, error)
+	VulnDBBuiltAt(ctx context.Context) (*time.Time, error)
 	GetArtifactUsages(ctx context.Context, artifactID pgtype.UUID, vis VisibilityFilter) ([]ArtifactRelation, error)
 	GetArtifactContains(ctx context.Context, artifactID pgtype.UUID, vis VisibilityFilter) ([]ArtifactRelation, error)
 	GetVulnerabilityDetail(ctx context.Context, id string, limit, offset int32, vis VisibilityFilter) (VulnerabilityDetailResult, error)

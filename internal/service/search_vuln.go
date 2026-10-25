@@ -3,7 +3,9 @@ package service
 import (
 	"context"
 	"errors"
+	"fmt"
 	"strings"
+	"time"
 
 	"github.com/jackc/pgx/v5"
 	"github.com/jackc/pgx/v5/pgtype"
@@ -242,4 +244,21 @@ func float4ToPtr(f pgtype.Float4) *float32 {
 		return nil
 	}
 	return &f.Float32
+}
+
+// VulnDBBuiltAt returns when the grype database the stored matches came from
+// was built, or nil before the first match run.
+func (s *searchService) VulnDBBuiltAt(ctx context.Context) (*time.Time, error) {
+	ts, err := repository.New(s.db).GetVulnMatchedDBBuilt(ctx)
+	if errors.Is(err, pgx.ErrNoRows) {
+		return nil, nil
+	}
+	if err != nil {
+		return nil, fmt.Errorf("reading vulnerability database build time: %w", err)
+	}
+	if !ts.Valid {
+		return nil, nil
+	}
+	t := ts.Time
+	return &t, nil
 }
