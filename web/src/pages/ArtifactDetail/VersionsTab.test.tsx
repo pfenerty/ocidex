@@ -100,3 +100,25 @@ describe("VersionsTab severity column", () => {
         expect(calls).toEqual([["severity", "desc"]]);
     });
 });
+
+// ocidex-nps9.23: one SBOM per architecture is one build, so Build History
+// led to a page with nothing to compare.
+describe("VersionsTab build history", () => {
+    const hasButton = (container: HTMLElement) =>
+        [...container.querySelectorAll("a, button")].some((el) => el.textContent.trim() === "Build History");
+
+    it("offers no history for a single multi-arch build", () => {
+        const { container } = renderTab(true, [{ ...version, sbomCount: 2, architectures: ["amd64", "arm64"] }]);
+        expect(hasButton(container)).toBe(false);
+    });
+
+    it("offers history once an architecture was built more than once", () => {
+        const { container } = renderTab(true, [{ ...version, sbomCount: 3, architectures: ["amd64", "arm64"] }]);
+        expect(hasButton(container)).toBe(true);
+    });
+
+    it("offers no history for one build", () => {
+        const { container } = renderTab(true, [version]);
+        expect(hasButton(container)).toBe(false);
+    });
+});

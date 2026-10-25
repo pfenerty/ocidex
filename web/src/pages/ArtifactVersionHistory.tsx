@@ -1,5 +1,5 @@
 import { For, Show, createSignal } from "solid-js";
-import { useParams } from "@solidjs/router";
+import { A, useParams } from "@solidjs/router";
 import { useArtifact, useArtifactSBOMs } from "~/api/queries";
 import { EmptyState } from "~/components/Feedback";
 import { SkeletonText } from "~/components/Skeleton";
@@ -89,7 +89,12 @@ export default function ArtifactVersionHistory() {
                                 fallback={
                                     <EmptyState
                                         title="Only one build"
-                                        message="No previous build to compare against for this version."
+                                        message={
+                                            <>
+                                                No previous build to compare against for this version.{" "}
+                                                <A href={`/sboms/${builds()[0].id}`}>View this build's SBOM</A>
+                                            </>
+                                        }
                                     />
                                 }
                             >
