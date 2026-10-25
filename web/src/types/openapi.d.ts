@@ -81,6 +81,26 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/v1/admin/jobs/{id}/cancel": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Cancel a queued scan job
+         * @description Marks a 'queued' scan_jobs row failed so no worker picks it up. Admin-only.
+         */
+        post: operations["cancel-scan-job"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/v1/admin/jobs/{id}/retry": {
         parameters: {
             query?: never;
@@ -4584,6 +4604,36 @@ export interface operations {
                 content: {
                     "application/json": components["schemas"]["RetryAllFailedScanJobsOutputBody"];
                 };
+            };
+            /** @description Error */
+            default: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["ErrorModel"];
+                };
+            };
+        };
+    };
+    "cancel-scan-job": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                /** @description Queued scan job UUID to cancel */
+                id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description No Content */
+            204: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
             };
             /** @description Error */
             default: {

@@ -281,6 +281,7 @@ var authRules = map[string]AuthRule{
 	"list-scan-jobs":                   {Class: ClassAuthenticated, Notes: noteNamespaceScoped},
 	"get-scan-job":                     {Class: ClassAuthenticated, Notes: "A job outside the caller's visible namespaces 404s."},
 	"retry-scan-job":                   {Class: ClassAdmin, Write: true},
+	"cancel-scan-job":                  {Class: ClassAdmin, Write: true},
 	"retry-all-failed-scan-jobs":       {Class: ClassAdmin, Write: true},
 	"list-enrichment-jobs":             {Class: ClassAuthenticated, Notes: noteNamespaceScoped},
 	"enrichment-jobs-summary":          {Class: ClassAuthenticated, Notes: noteNamespaceScoped},

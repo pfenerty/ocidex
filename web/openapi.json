@@ -7305,6 +7305,44 @@
         ]
       }
     },
+    "/api/v1/admin/jobs/{id}/cancel": {
+      "post": {
+        "description": "Marks a 'queued' scan_jobs row failed so no worker picks it up. Admin-only.",
+        "operationId": "cancel-scan-job",
+        "parameters": [
+          {
+            "description": "Queued scan job UUID to cancel",
+            "in": "path",
+            "name": "id",
+            "required": true,
+            "schema": {
+              "description": "Queued scan job UUID to cancel",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "204": {
+            "description": "No Content"
+          },
+          "default": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorModel"
+                }
+              }
+            },
+            "description": "Error"
+          }
+        },
+        "summary": "Cancel a queued scan job",
+        "tags": [
+          "Jobs",
+          "Admin"
+        ]
+      }
+    },
     "/api/v1/admin/jobs/{id}/retry": {
       "post": {
         "description": "Resets a 'failed' scan_jobs row back to 'queued' so it gets reprocessed. Admin-only.",

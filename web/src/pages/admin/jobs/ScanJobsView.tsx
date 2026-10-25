@@ -8,6 +8,7 @@ import {
     useListScanJobs,
     useRetryScanJob,
     useRetryAllFailedScanJobs,
+    useCancelScanJob,
 } from "~/api/queries";
 import {
     DigestLine,
@@ -30,6 +31,7 @@ export function ScanJobsView() {
     const [repoFilter, setRepoFilter] = createSignal("");
     const [registryFilter, setRegistryFilter] = createSignal("");
     const retry = useRetryScanJob();
+    const cancel = useCancelScanJob();
     const retryAll = useRetryAllFailedScanJobs();
 
     createEffect(() => { stateFilter(); repoFilter(); registryFilter(); setOffset(0); });
@@ -90,7 +92,7 @@ export function ScanJobsView() {
         createdColumn(),
         lastErrorColumn(expandedErrors),
         sbomColumn(),
-        retryColumn(retry),
+        retryColumn(retry, cancel),
     ];
 
     return (

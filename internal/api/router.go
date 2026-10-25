@@ -1169,6 +1169,16 @@ func registerJobOps(api huma.API, h *Handler) {
 	}, h.RetryScanJob)
 
 	huma.Register(api, huma.Operation{
+		OperationID: "cancel-scan-job",
+		Method:      http.MethodPost,
+		Path:        "/api/v1/admin/jobs/{id}/cancel",
+		Summary:     "Cancel a queued scan job",
+		Description: "Marks a 'queued' scan_jobs row failed so no worker picks it up. Admin-only.",
+		Tags:        []string{tagJobs, tagAdmin},
+		Middlewares: huma.Middlewares{adminMW, writeMW},
+	}, h.CancelScanJob)
+
+	huma.Register(api, huma.Operation{
 		OperationID: "retry-all-failed-scan-jobs",
 		Method:      http.MethodPost,
 		Path:        "/api/v1/admin/jobs/retry-failed",

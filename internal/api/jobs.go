@@ -2,6 +2,7 @@ package api
 
 import (
 	"context"
+	"errors"
 	"fmt"
 
 	"github.com/danielgtaylor/huma/v2"
@@ -42,6 +43,17 @@ func (h *Handler) GetScanJob(ctx context.Context, in *GetScanJobInput) (*GetScan
 func (h *Handler) RetryScanJob(ctx context.Context, in *RetryScanJobInput) (*struct{}, error) {
 	if err := h.jobService.Retry(ctx, in.ID); err != nil {
 		return nil, huma.Error500InternalServerError(fmt.Sprintf("retry job: %v", err))
+	}
+	return nil, nil
+}
+
+// CancelScanJob fails a queued scan job. Admin-only.
+func (h *Handler) CancelScanJob(ctx context.Context, in *CancelScanJobInput) (*struct{}, error) {
+	if err := h.jobService.Cancel(ctx, in.ID); err != nil {
+		if errors.Is(err, service.ErrNotFound) {
+			return nil, huma.Error404NotFound("no queued scan job with that id")
+		}
+		return nil, huma.Error500InternalServerError(fmt.Sprintf("cancel job: %v", err))
 	}
 	return nil, nil
 }

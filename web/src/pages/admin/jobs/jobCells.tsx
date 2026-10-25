@@ -43,9 +43,11 @@ export function stateColumn<T extends JobRow>(): Column<T> {
 export function workerColumn<T extends JobRow>(): Column<T> {
     return {
         header: "Worker",
+        // Only a running job holds a lease. A worker beside "queued" read as a
+        // job one worker had claimed and never let go (ocidex-nps9.26).
         render: (job) => (
             <span class="text-[0.8rem] whitespace-nowrap text-[var(--color-text-muted)]">
-                {job.worker_id ?? "—"}
+                {job.state === "running" ? (job.worker_id ?? "—") : "—"}
             </span>
         ),
     };
@@ -106,23 +108,45 @@ export function sbomColumn<T extends JobRow>(): Column<T> {
     };
 }
 
-/** retryColumn is only offered for failed rows — the only retryable state. */
-export function retryColumn<T extends JobRow>(retry: {
-    isPending: boolean;
-    mutate: (id: string) => void;
-}): Column<T> {
+/**
+ * retryColumn offers Retry on failed rows, and Cancel on queued ones when the
+ * queue supports it (scan jobs do).
+ */
+export function retryColumn<T extends JobRow>(
+    retry: {
+        isPending: boolean;
+        mutate: (id: string) => void;
+    },
+    cancel?: {
+        isPending: boolean;
+        mutate: (id: string) => void;
+    },
+): Column<T> {
     return {
         header: "Actions",
         render: (job) => (
-            <Show when={job.state === "failed"}>
-                <Button
-                    size="sm"
-                    disabled={retry.isPending}
-                    onClick={() => retry.mutate(job.id)}
-                >
-                    Retry
-                </Button>
-            </Show>
+            <>
+                <Show when={job.state === "failed"}>
+                    <Button
+                        size="sm"
+                        disabled={retry.isPending}
+                        onClick={() => retry.mutate(job.id)}
+                    >
+                        Retry
+                    </Button>
+                </Show>
+                <Show when={cancel !== undefined && job.state === "queued" ? cancel : undefined}>
+                    {(c) => (
+                        <Button
+                            size="sm"
+                            disabled={c().isPending}
+                            onClick={() => c().mutate(job.id)}
+                        >
+                            Cancel
+                        </Button>
+                    )}
+                </Show>
+            </>
         ),
     };
 }

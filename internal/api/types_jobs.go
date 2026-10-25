@@ -52,6 +52,11 @@ type RetryScanJobInput struct {
 	ID string `path:"id" doc:"Failed scan job UUID to reset back to 'queued'"`
 }
 
+// CancelScanJobInput is the request for POST /api/v1/admin/jobs/{id}/cancel.
+type CancelScanJobInput struct {
+	ID string `path:"id" doc:"Queued scan job UUID to cancel"`
+}
+
 // RetryAllFailedScanJobsOutput is the response for POST /api/v1/admin/jobs/retry-failed.
 type RetryAllFailedScanJobsOutput struct {
 	Body struct {

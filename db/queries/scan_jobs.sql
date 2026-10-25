@@ -223,6 +223,12 @@ SET state       = CASE
     finished_at = CASE
         WHEN attempts >= @max_attempts::int THEN now()
         ELSE NULL
+    END,
+    -- A queued row holds no lease, so it names no worker: "queued" beside a
+    -- worker id read as a job one worker had and never let go (ocidex-nps9.26).
+    worker_id   = CASE
+        WHEN attempts >= @max_attempts::int THEN worker_id
+        ELSE NULL
     END
 WHERE id = @id::uuid
   AND state NOT IN ('succeeded', 'failed', 'pruned')
@@ -234,6 +240,7 @@ RETURNING state;
 -- name: RetryScanJob :exec
 UPDATE scan_jobs
 SET state       = 'queued',
+    worker_id   = NULL,
     attempts    = 0,
     last_error  = NULL,
     finished_at = NULL,
@@ -247,6 +254,7 @@ WHERE id = @id::uuid
 -- name: RetryAllFailedScanJobs :execrows
 UPDATE scan_jobs
 SET state       = 'queued',
+    worker_id   = NULL,
     attempts    = 0,
     last_error  = NULL,
     finished_at = NULL,
@@ -279,9 +287,36 @@ SET state = CASE
     finished_at = CASE
         WHEN attempts >= @max_attempts::int THEN now()
         ELSE NULL
+    END,
+    worker_id = CASE
+        WHEN attempts >= @max_attempts::int THEN worker_id
+        ELSE NULL
     END
 WHERE state = 'running'
   AND last_attempt_at < @stuck_before::timestamptz;
+
+-- name: FailStaleRequeuedScanJobs :exec
+-- A job requeued for retry is claimed again within seconds while any worker is
+-- consuming. One still queued long after its last attempt means none is, and
+-- it sat "queued" for days with no way to tell that from a fresh backlog
+-- (ocidex-nps9.26). It fails, keeping its last error, so Retry is on offer.
+-- Never-attempted rows are left alone: a large walk's backlog is legitimate.
+UPDATE scan_jobs
+SET state       = 'failed',
+    finished_at = now(),
+    last_error  = 'stale: requeued for retry and not picked up again'
+                  || COALESCE('; last error: ' || last_error, '')
+WHERE state = 'queued'
+  AND attempts > 0
+  AND last_attempt_at < @stale_before::timestamptz;
+
+-- name: CancelQueuedScanJob :execrows
+-- An operator's cancel. Queued only: a running job's worker would finish it
+-- anyway and overwrite the state.
+UPDATE scan_jobs
+SET state = 'failed', finished_at = now(), last_error = 'cancelled by an administrator', worker_id = NULL
+WHERE id = @id::uuid
+  AND state = 'queued';
 
 -- name: PruneScanJobsForSBOM :execrows
 -- ADR-0053 S6: tombstones the scan job behind a registry-sourced SBOM that is

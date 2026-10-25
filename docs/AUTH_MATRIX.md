@@ -152,6 +152,7 @@ cookies carry no ceiling and are unaffected.
 | POST | `/api/v1/admin/enrichment-jobs/retry-failed` | `retry-all-failed-enrichment-jobs` | `admin` | — | ✓ |  |
 | POST | `/api/v1/admin/enrichment-jobs/{id}/retry` | `retry-enrichment-job` | `admin` | — | ✓ |  |
 | POST | `/api/v1/admin/jobs/retry-failed` | `retry-all-failed-scan-jobs` | `admin` | — | ✓ |  |
+| POST | `/api/v1/admin/jobs/{id}/cancel` | `cancel-scan-job` | `admin` | — | ✓ |  |
 | POST | `/api/v1/admin/jobs/{id}/retry` | `retry-scan-job` | `admin` | — | ✓ |  |
 | GET | `/api/v1/enrichment-jobs` | `list-enrichment-jobs` | `authenticated` | — |  | Rows filtered via visible_namespace_ids; admins see every namespace. |
 | GET | `/api/v1/enrichment-jobs/summary` | `enrichment-jobs-summary` | `authenticated` | — |  | Rows filtered via visible_namespace_ids; admins see every namespace. |

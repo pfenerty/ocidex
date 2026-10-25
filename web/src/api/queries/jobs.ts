@@ -34,6 +34,15 @@ export function useRetryScanJob() {
     }));
 }
 
+export function useCancelScanJob() {
+    const qc = useQueryClient();
+    return createMutation(() => ({
+        mutationFn: (id: string) =>
+            unwrap(client.POST("/api/v1/admin/jobs/{id}/cancel", { params: { path: { id } } })),
+        onSuccess: () => qc.invalidateQueries({ queryKey: ["jobs"] }),
+    }));
+}
+
 export function useRetryAllFailedScanJobs() {
     const qc = useQueryClient();
     return createMutation(() => ({
