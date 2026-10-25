@@ -1128,6 +1128,7 @@ const (
 	ListClusterVulnsParamsSeverityHIGH     ListClusterVulnsParamsSeverity = "HIGH"
 	ListClusterVulnsParamsSeverityLOW      ListClusterVulnsParamsSeverity = "LOW"
 	ListClusterVulnsParamsSeverityMEDIUM   ListClusterVulnsParamsSeverity = "MEDIUM"
+	ListClusterVulnsParamsSeverityUNKNOWN  ListClusterVulnsParamsSeverity = "UNKNOWN"
 )
 
 // Valid indicates whether the value is a known member of the ListClusterVulnsParamsSeverity enum.
@@ -1140,6 +1141,8 @@ func (e ListClusterVulnsParamsSeverity) Valid() bool {
 	case ListClusterVulnsParamsSeverityLOW:
 		return true
 	case ListClusterVulnsParamsSeverityMEDIUM:
+		return true
+	case ListClusterVulnsParamsSeverityUNKNOWN:
 		return true
 	default:
 		return false

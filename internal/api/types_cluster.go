@@ -301,7 +301,7 @@ type RunningVulnResponse struct {
 // ListClusterVulnsInput is the request for GET /api/v1/clusters/{id}/vulns.
 type ListClusterVulnsInput struct {
 	ID       string `path:"id" doc:"Cluster UUID" format:"uuid"`
-	Severity string `query:"severity" enum:"CRITICAL,HIGH,MEDIUM,LOW" doc:"Filter by severity"`
+	Severity string `query:"severity" enum:"CRITICAL,HIGH,MEDIUM,LOW,UNKNOWN" doc:"Filter by severity"`
 	Sort     string `query:"sort" enum:"severity,cvss_score,workload_count,canonical_id" doc:"Column to sort by. Unset means worst first: severity, then CVSS."`
 	Dir      string `query:"dir" enum:"asc,desc" doc:"Sort direction (default asc). Applies to sort only — with sort unset the worst-first default ordering ignores it."`
 	PaginationParams

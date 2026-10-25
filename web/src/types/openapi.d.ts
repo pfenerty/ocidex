@@ -5668,7 +5668,7 @@ export interface operations {
         parameters: {
             query?: {
                 /** @description Filter by severity */
-                severity?: "CRITICAL" | "HIGH" | "MEDIUM" | "LOW";
+                severity?: "CRITICAL" | "HIGH" | "MEDIUM" | "LOW" | "UNKNOWN";
                 /** @description Column to sort by. Unset means worst first: severity, then CVSS. */
                 sort?: "severity" | "cvss_score" | "workload_count" | "canonical_id";
                 /** @description Sort direction (default asc). Applies to sort only — with sort unset the worst-first default ordering ignores it. */

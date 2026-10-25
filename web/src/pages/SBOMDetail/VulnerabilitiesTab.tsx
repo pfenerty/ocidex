@@ -14,7 +14,9 @@ import { noFixLabel } from "~/utils/vuln";
 import { componentHref } from "./componentHref";
 import "./VulnerabilitiesTab.css";
 
-const SEVERITY_TABS = ["All", "CRITICAL", "HIGH", "MEDIUM", "LOW"] as const;
+// UNKNOWN is a filter like the others: an artifact whose only finding has no
+// severity offered no way to isolate it (ocidex-nps9.19).
+const SEVERITY_TABS = ["All", "CRITICAL", "HIGH", "MEDIUM", "LOW", "UNKNOWN"] as const;
 
 const SORT_KEYS: SBOMVulnSortKey[] = [
     "severity",
@@ -23,7 +25,7 @@ const SORT_KEYS: SBOMVulnSortKey[] = [
     "canonical_id",
 ];
 
-const SEVERITIES: VulnSeverityFilter[] = ["CRITICAL", "HIGH", "MEDIUM", "LOW"];
+const SEVERITIES: VulnSeverityFilter[] = ["CRITICAL", "HIGH", "MEDIUM", "LOW", "UNKNOWN"];
 
 /**
  * AffectedPackagesList names the packages one finding lands on.

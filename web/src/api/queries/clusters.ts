@@ -170,7 +170,7 @@ export function useClusterNamespaces(id: Accessor<string | undefined>) {
 }
 
 /** Filters and paging for the running-vulnerability list. */
-export type VulnSeverityFilter = "CRITICAL" | "HIGH" | "MEDIUM" | "LOW";
+export type VulnSeverityFilter = "CRITICAL" | "HIGH" | "MEDIUM" | "LOW" | "UNKNOWN";
 
 export interface ClusterVulnQueryParams {
     severity?: VulnSeverityFilter;

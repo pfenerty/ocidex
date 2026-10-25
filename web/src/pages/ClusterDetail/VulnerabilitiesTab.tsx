@@ -11,7 +11,9 @@ import { useClusterVulns } from "~/api/queries";
 import type { ClusterVulnSortKey, VulnSeverityFilter } from "~/api/queries";
 import { RunningWorkloadsList } from "./RunningWorkloads";
 
-const SEVERITY_TABS = ["All", "CRITICAL", "HIGH", "MEDIUM", "LOW"] as const;
+// UNKNOWN is a filter like the others: an artifact whose only finding has no
+// severity offered no way to isolate it (ocidex-nps9.19).
+const SEVERITY_TABS = ["All", "CRITICAL", "HIGH", "MEDIUM", "LOW", "UNKNOWN"] as const;
 
 const SORT_KEYS: ClusterVulnSortKey[] = [
     "severity",
@@ -20,7 +22,7 @@ const SORT_KEYS: ClusterVulnSortKey[] = [
     "canonical_id",
 ];
 
-const SEVERITIES: VulnSeverityFilter[] = ["CRITICAL", "HIGH", "MEDIUM", "LOW"];
+const SEVERITIES: VulnSeverityFilter[] = ["CRITICAL", "HIGH", "MEDIUM", "LOW", "UNKNOWN"];
 
 /**
  * VulnerabilitiesTab lists what the cluster is actually running, not what the

@@ -10,7 +10,9 @@ import { useArtifactVulns } from "~/api/queries";
 import type { ArtifactVulnSortKey, VulnSeverityFilter } from "~/api/queries";
 import "./VulnerabilitiesTab.css";
 
-const SEVERITY_TABS = ["All", "CRITICAL", "HIGH", "MEDIUM", "LOW"] as const;
+// UNKNOWN is a filter like the others: an artifact whose only finding has no
+// severity offered no way to isolate it (ocidex-nps9.19).
+const SEVERITY_TABS = ["All", "CRITICAL", "HIGH", "MEDIUM", "LOW", "UNKNOWN"] as const;
 
 const SORT_KEYS: ArtifactVulnSortKey[] = [
     "severity",
@@ -20,7 +22,7 @@ const SORT_KEYS: ArtifactVulnSortKey[] = [
     "canonical_id",
 ];
 
-const SEVERITIES: VulnSeverityFilter[] = ["CRITICAL", "HIGH", "MEDIUM", "LOW"];
+const SEVERITIES: VulnSeverityFilter[] = ["CRITICAL", "HIGH", "MEDIUM", "LOW", "UNKNOWN"];
 
 /**
  * AffectedVersionsList names the versions one finding reaches.

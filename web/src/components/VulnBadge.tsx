@@ -83,7 +83,13 @@ export function VulnCountBadges(props: {
         <Show when={total() > 0} fallback={<span class="text-muted">—</span>}>
             <span class="vuln-chip" title={title()}>
                 <For each={counts()}>
-                    {(c) => <span class={`vuln-chip-n ${severityColorClass(c.severity)}`}>{c.count}</span>}
+                    {/* A zero takes no severity colour: a red "0" read as an
+                        alarm at a glance (ocidex-nps9.19). */}
+                    {(c) => (
+                        <span class={`vuln-chip-n ${c.count > 0 ? severityColorClass(c.severity) : "vuln-chip-zero"}`}>
+                            {c.count}
+                        </span>
+                    )}
                 </For>
             </span>
         </Show>
