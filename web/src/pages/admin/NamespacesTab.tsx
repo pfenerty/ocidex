@@ -4,7 +4,7 @@ import type { Column } from "~/components/DataTable";
 import { Button, Card, CardHeader, FormField } from "~/components/ui";
 import { NamespaceMembers } from "./NamespaceMembers";
 import { useToast } from "~/context/toast";
-import { relativeDate } from "~/utils/format";
+import { relativeDate, formatDateTime } from "~/utils/format";
 import type { Namespace, Source } from "~/api/client";
 import {
     useListNamespaces,
@@ -174,7 +174,7 @@ export function NamespacesTab() {
             sortKey: "created",
             sortValue: (ns) => ns.created_at,
             render: (ns) => (
-                <span title={new Date(ns.created_at).toLocaleString()}>{relativeDate(ns.created_at)}</span>
+                <span title={formatDateTime(ns.created_at)}>{relativeDate(ns.created_at)}</span>
             ),
         },
         {

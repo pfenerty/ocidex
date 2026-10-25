@@ -81,7 +81,7 @@ export function ArtifactUsageTable(props: { groups: ArtifactGroup[] }) {
                 row.kind === "artifact" ? (
                     plural(row.ag.entries.length, "SBOM")
                 ) : (
-                    <span title={new Date(row.entry.sbomCreatedAt).toLocaleString()}>
+                    <span title={formatDateTime(row.entry.sbomCreatedAt)}>
                         {relativeDate(row.entry.sbomCreatedAt)}
                     </span>
                 ),

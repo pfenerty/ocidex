@@ -10,6 +10,7 @@ import {
     useStartIdentityLink,
     useUnlinkIdentity,
 } from "~/api/queries";
+import { TimestampCell } from "~/components/cells";
 
 /** One issuer this account can sign in with. */
 interface Identity {
@@ -93,7 +94,7 @@ export function AccountTab() {
         },
         {
             header: "Linked",
-            render: (i) => <>{new Date(i.created_at).toLocaleDateString()}</>,
+            render: (i) => <TimestampCell iso={i.created_at} />,
         },
         {
             header: "",

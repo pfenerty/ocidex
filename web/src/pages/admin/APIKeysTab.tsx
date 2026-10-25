@@ -6,6 +6,7 @@ import type { Column } from "~/components/DataTable";
 import type { APIKey, Capability } from "~/api/client";
 import { useListAPIKeys, useCreateAPIKey, useDeleteAPIKey } from "~/api/queries";
 import { Button, Card, CardHeader } from "~/components/ui";
+import { TimestampCell } from "~/components/cells";
 
 /**
  * Every capability a key may declare, in the order the role table grants them:
@@ -111,12 +112,12 @@ export function APIKeysTab() {
                 );
             },
         },
-        { header: "Created", render: (k) => <>{new Date(k.created_at).toLocaleDateString()}</> },
+        { header: "Created", render: (k) => <TimestampCell iso={k.created_at} /> },
         {
             header: "Last Used",
             render: (k) =>
                 k.last_used_at !== undefined
-                    ? <>{new Date(k.last_used_at).toLocaleDateString()}</>
+                    ? <TimestampCell iso={k.last_used_at} />
                     : <span class="text-muted">Never</span>,
         },
         {

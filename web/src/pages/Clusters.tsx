@@ -4,7 +4,7 @@ import DataTable from "~/components/DataTable";
 import type { Column } from "~/components/DataTable";
 import { Button, FormField, Modal, PageHeader, StatusPill } from "~/components/ui";
 import { useToast } from "~/context/toast";
-import { relativeDate } from "~/utils/format";
+import { relativeDate, formatDateTime } from "~/utils/format";
 import type { Cluster } from "~/api/client";
 import {
     useListClusters,
@@ -48,11 +48,11 @@ export function StalenessPill(props: { lastSeenAt: string | undefined }) {
             {(s) => (
                 <Show
                     when={isStale()}
-                    fallback={<span title={new Date(s()).toLocaleString()}>{relativeDate(s())}</span>}
+                    fallback={<span title={formatDateTime(s())}>{relativeDate(s())}</span>}
                 >
                     <StatusPill
                         variant="warning"
-                        title={`Last snapshot ${new Date(s()).toLocaleString()} — the inventory below may not be what is running now`}
+                        title={`Last snapshot ${formatDateTime(s())} — the inventory below may not be what is running now`}
                     >
                         stale · {relativeDate(s())}
                     </StatusPill>

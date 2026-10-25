@@ -3,7 +3,7 @@ import { A } from "@solidjs/router";
 import DataTable from "~/components/DataTable";
 import type { Column, SortDir } from "~/components/DataTable";
 import { VulnCountBadges } from "~/components/VulnBadge";
-import { relativeDate, shortDigest } from "~/utils/format";
+import { relativeDate, shortDigest, formatDateTime } from "~/utils/format";
 import { splitImageRef } from "~/utils/oci";
 import type {
     ClusterImage,
@@ -133,7 +133,7 @@ export const workloadColumns: Column<ClusterWorkload>[] = [
         sortKey: "workload_name",
         sortValue: (w) => w.workload_name,
         render: (w) => (
-            <div class="inventory-cell" title={`Last seen ${new Date(w.last_seen_at).toLocaleString()}`}>
+            <div class="inventory-cell" title={`Last seen ${formatDateTime(w.last_seen_at)}`}>
                 <span>
                     <span class="text-muted">{w.k8s_namespace}/</span>
                     {w.workload_name}

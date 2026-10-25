@@ -11,6 +11,7 @@ import {
 } from "~/api/queries";
 import { hasWebhook, regTypeLabel } from "./registryTypes";
 import { Button } from "~/components/ui";
+import { formatDateTime } from "~/utils/format";
 
 /**
  * registryColumns builds the registry table's columns. It is a function rather
@@ -77,7 +78,7 @@ export function registryColumns(opts: {
                         >
                             <span
                                 data-testid="last-walk"
-                                title={`${w().repositories} repositories, ${w().matched} matching tags, ${w().skipped_by_age} too old. ${new Date(w().at).toLocaleString()}`}
+                                title={`${w().repositories} repositories, ${w().matched} matching tags, ${w().skipped_by_age} too old. ${formatDateTime(w().at)}`}
                             >
                                 {w().selected} tags
                                 <Show when={w().skipped_by_limit > 0}>
