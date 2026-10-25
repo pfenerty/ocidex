@@ -40,7 +40,9 @@ describe("command palette route coverage", () => {
         // tabs has its own entry — listing the bare path as well would put a
         // duplicate destination in the list under a vaguer name.
         // /compare is an alias that redirects to /diff, which has its entry.
-        const exempt = new Set(["/admin", "/admin/registries", "/compare"]);
+        // /components/overview needs ?name= and sends a bare visit to
+        // /components (ocidex-nps9.24).
+        const exempt = new Set(["/admin", "/admin/registries", "/compare", "/components/overview"]);
         const missing = reachable.filter((p) => !exempt.has(p) && !entryPaths.includes(p));
         expect(missing).toEqual([]);
     });

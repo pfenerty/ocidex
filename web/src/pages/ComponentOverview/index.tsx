@@ -1,5 +1,5 @@
 import { Show, createMemo, createSignal, createEffect, on } from "solid-js";
-import { A, useSearchParams } from "@solidjs/router";
+import { A, Navigate, useSearchParams } from "@solidjs/router";
 import { Breadcrumb, Button, ButtonGroup, PageHeader, QueryBoundary, type Crumb } from "~/components/ui";
 import { useComponent, useComponentVersions, useComponentVersionSummaries, useComponentVulns } from "~/api/queries";
 import { DEFAULT_PAGE_SIZE } from "~/api/client";
@@ -138,11 +138,10 @@ export default function ComponentOverview() {
 
     return (
         <>
-            <Show when={params.name === undefined}>
-                <EmptyState
-                    title="No component specified"
-                    message="Navigate here from the components search page."
-                />
+            {/* Without a name there is nothing to overview; the components list
+                is where a name is chosen (ocidex-nps9.24). */}
+            <Show when={params.name === undefined || params.name === ""}>
+                <Navigate href="/components" />
             </Show>
 
             <Show when={params.name !== undefined}>

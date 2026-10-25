@@ -222,10 +222,10 @@ describe("CommandPalette", () => {
         );
         expect(headings).toEqual(["Explore", "Workspace", "Manage"]);
 
-        // Six steps down from Home lands on Compare, the seventh entry overall
+        // Five steps down from Home lands on Compare, the sixth entry overall
         // and the last one under Explore: the highlight counts entries, not
         // groups, and does not stall at a heading.
-        for (let i = 0; i < 6; i++) fireEvent.keyDown(input(), { key: "ArrowDown" });
+        for (let i = 0; i < 5; i++) fireEvent.keyDown(input(), { key: "ArrowDown" });
         fireEvent.keyDown(input(), { key: "Enter" });
         expect(mockNavigate).toHaveBeenCalledWith("/diff");
     });

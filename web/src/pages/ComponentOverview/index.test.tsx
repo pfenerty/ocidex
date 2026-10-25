@@ -2,7 +2,7 @@
 import { describe, it, expect, vi, beforeEach } from "vitest";
 import { createRenderEffect } from "solid-js";
 import { Router, Route } from "@solidjs/router";
-import { render, fireEvent } from "@solidjs/testing-library";
+import { render, fireEvent, waitFor } from "@solidjs/testing-library";
 import { useComponent, useComponentVersions, useComponentVersionSummaries, useComponentVulns } from "~/api/queries";
 import { DEFAULT_PAGE_SIZE } from "~/api/client";
 import ComponentOverview from "~/pages/ComponentOverview";
@@ -164,5 +164,23 @@ describe("ComponentOverview pagination", () => {
         const { container } = renderAt("/components/overview?name=lodash&version=4.17.1");
 
         expect(container.textContent).toContain("2 artifacts");
+    });
+});
+
+// ocidex-nps9.24: a bare /components/overview was a dead end.
+describe("ComponentOverview without a name", () => {
+    it("sends the reader to the components list", async () => {
+        mockVersions.mockReturnValue(queryState({}));
+        mockSummaries.mockReturnValue(queryState({}));
+        mockComponent.mockReturnValue(queryState({}));
+        mockVulns.mockReturnValue(queryState({}));
+        window.history.replaceState({}, "", "/components/overview");
+        render(() => (
+            <Router root={(props) => <>{props.children}</>}>
+                <Route path="/components/overview" component={ComponentOverview} />
+                <Route path="/components" component={() => <p>components list</p>} />
+            </Router>
+        ));
+        await waitFor(() => expect(window.location.pathname).toBe("/components"));
     });
 });
