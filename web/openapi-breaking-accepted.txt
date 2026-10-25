@@ -276,3 +276,41 @@ POST /api/v1/sources removed the required property `namespace_id` from the respo
 POST /api/v1/sources removed the required property `updated_at` from the response with the `201` status
 PUT /api/v1/namespaces/{id}/members/{user_id} removed the required property `created_at` from the response with the `200` status
 PUT /api/v1/namespaces/{id}/members/{user_id} removed the required property `user_id` from the response with the `200` status
+
+# Since v0.2.0, before 1.0 (ocidex-nps9.34): query parameter names, path placeholders and
+# sort keys are camelCase too. The server still accepts the snake_case spellings for one
+# release (LegacyQueryNames, internal/api/naming.go), so these break the spec, not callers.
+GET /api/v1/artifacts/{id}/vulns removed the enum value `affected_package_count` from the `query` request parameter `sort`
+GET /api/v1/artifacts/{id}/vulns removed the enum value `affected_version_count` from the `query` request parameter `sort`
+GET /api/v1/artifacts/{id}/vulns removed the enum value `canonical_id` from the `query` request parameter `sort`
+GET /api/v1/artifacts/{id}/vulns removed the enum value `cvss_score` from the `query` request parameter `sort`
+GET /api/v1/clusters/{id}/images removed the enum value `image_ref` from the `query` request parameter `sort`
+GET /api/v1/clusters/{id}/images removed the enum value `last_seen_at` from the `query` request parameter `sort`
+GET /api/v1/clusters/{id}/images removed the enum value `match_state` from the `query` request parameter `sort`
+GET /api/v1/clusters/{id}/images removed the enum value `pod_count` from the `query` request parameter `sort`
+GET /api/v1/clusters/{id}/images removed the enum value `vuln_count` from the `query` request parameter `sort`
+GET /api/v1/clusters/{id}/images removed the enum value `workload_count` from the `query` request parameter `sort`
+GET /api/v1/clusters/{id}/vulns removed the enum value `canonical_id` from the `query` request parameter `sort`
+GET /api/v1/clusters/{id}/vulns removed the enum value `cvss_score` from the `query` request parameter `sort`
+GET /api/v1/clusters/{id}/vulns removed the enum value `workload_count` from the `query` request parameter `sort`
+GET /api/v1/clusters/{id}/workloads removed the enum value `container_name` from the `query` request parameter `sort`
+GET /api/v1/clusters/{id}/workloads removed the enum value `image_ref` from the `query` request parameter `sort`
+GET /api/v1/clusters/{id}/workloads removed the enum value `k8s_namespace` from the `query` request parameter `sort`
+GET /api/v1/clusters/{id}/workloads removed the enum value `last_seen_at` from the `query` request parameter `sort`
+GET /api/v1/clusters/{id}/workloads removed the enum value `match_state` from the `query` request parameter `sort`
+GET /api/v1/clusters/{id}/workloads removed the enum value `pod_count` from the `query` request parameter `sort`
+GET /api/v1/clusters/{id}/workloads removed the enum value `vuln_count` from the `query` request parameter `sort`
+GET /api/v1/clusters/{id}/workloads removed the enum value `workload_name` from the `query` request parameter `sort`
+GET /api/v1/sboms/{id}/vulns removed the enum value `affected_package_count` from the `query` request parameter `sort`
+GET /api/v1/sboms/{id}/vulns removed the enum value `canonical_id` from the `query` request parameter `sort`
+GET /api/v1/sboms/{id}/vulns removed the enum value `cvss_score` from the `query` request parameter `sort`
+GET /api/v1/users/me/vulns removed the enum value `affected_purl_count` from the `query` request parameter `sort`
+GET /api/v1/users/me/vulns removed the enum value `affected_sbom_count` from the `query` request parameter `sort`
+GET /api/v1/users/me/vulns removed the enum value `canonical_id` from the `query` request parameter `sort`
+GET /api/v1/users/me/vulns removed the enum value `cvss_score` from the `query` request parameter `sort`
+GET /api/v1/users/me/vulns removed the enum value `published_at` from the `query` request parameter `sort`
+GET /api/v1/vulns removed the enum value `affected_purl_count` from the `query` request parameter `sort`
+GET /api/v1/vulns removed the enum value `affected_sbom_count` from the `query` request parameter `sort`
+GET /api/v1/vulns removed the enum value `canonical_id` from the `query` request parameter `sort`
+GET /api/v1/vulns removed the enum value `cvss_score` from the `query` request parameter `sort`
+GET /api/v1/vulns removed the enum value `published_at` from the `query` request parameter `sort`

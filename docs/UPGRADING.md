@@ -123,8 +123,13 @@ Newest first. Each entry names the issue that made the change, so its full conte
 - **Every `/api/v1` JSON field is camelCase (ocidex-nps9.32, decided in ocidex-nps9.7).** The
   admin, auth, cluster, discovery, job, namespace, registry, source, stats and status
   endpoints returned and accepted some snake_case fields; each is renamed by the same rule
-  (`artifact_count` → `artifactCount`), in responses and in request bodies. Query parameters
-  are unchanged. What to do:
+  (`artifact_count` → `artifactCount`), in responses and in request bodies. Query parameter
+  names and sort keys follow the same rule (ocidex-nps9.34): `?subject_version=` is now
+  `?subjectVersion=`, `?sort=cvss_score` is `?sort=cvssScore`. The server still accepts the
+  old query spellings through 1.0 and drops that in the next release (ocidex-6hfs), so a
+  CI image pinning an older `ocidex-cli` keeps ingesting correctly; bump it before then.
+  Bookmarked cluster pages that filter with `?k8s_namespace=` or `?match_state=` open
+  unfiltered; the page now uses `?k8sNamespace=` and `?matchState=`. What to do:
   - API clients and scripts: rename the fields you read or send. The full list:
     `artifact_count`→`artifactCount`, `artifact_id`→`artifactId`,
     `artifact_name`→`artifactName`, `artifact_type`→`artifactType`,

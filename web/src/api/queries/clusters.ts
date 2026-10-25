@@ -13,11 +13,11 @@ import { hasText } from "~/utils/format";
 
 /** useListClusters — clusters the caller can see, optionally one namespace's. */
 export function useListClusters(namespaceId?: Accessor<string | undefined>) {
-    // An unset filter has to send no namespace_id at all rather than an empty
+    // An unset filter has to send no namespaceId at all rather than an empty
     // one, which the API would read as "a namespace named ''".
-    const filter = (): { namespace_id?: string } => {
+    const filter = (): { namespaceId?: string } => {
         const ns = namespaceId?.();
-        return hasText(ns) ? { namespace_id: ns } : {};
+        return hasText(ns) ? { namespaceId: ns } : {};
     };
     return createQuery(() => ({
         queryKey: ["clusters", namespaceId?.()] as const,
@@ -38,8 +38,8 @@ export function useCluster(id: Accessor<string | undefined>) {
 
 /** Filters and paging for the workload table. */
 export interface WorkloadQueryParams {
-    k8s_namespace?: string;
-    match_state?: WorkloadMatchState;
+    k8sNamespace?: string;
+    matchState?: WorkloadMatchState;
     q?: string;
     sort?: WorkloadSortKey;
     dir?: SortDir;
@@ -66,13 +66,13 @@ export function useClusterWorkloads(
     params?: Accessor<WorkloadQueryParams>,
 ) {
     // Empty strings are dropped rather than sent: the API would read
-    // `match_state=` as a filter for a state named "".
+    // `matchState=` as a filter for a state named "".
     const query = (): WorkloadQueryParams => {
         const p = params?.() ?? {};
-        const state = p.match_state;
+        const state = p.matchState;
         return {
-            ...(hasText(p.k8s_namespace) ? { k8s_namespace: p.k8s_namespace } : {}),
-            ...(state !== undefined ? { match_state: state } : {}),
+            ...(hasText(p.k8sNamespace) ? { k8sNamespace: p.k8sNamespace } : {}),
+            ...(state !== undefined ? { matchState: state } : {}),
             ...(hasText(p.q) ? { q: p.q } : {}),
             ...(p.sort !== undefined ? { sort: p.sort } : {}),
             ...(p.dir !== undefined ? { dir: p.dir } : {}),
@@ -94,8 +94,8 @@ export function useClusterWorkloads(
 }
 
 export interface ImageQueryParams {
-    k8s_namespace?: string;
-    match_state?: WorkloadMatchState;
+    k8sNamespace?: string;
+    matchState?: WorkloadMatchState;
     q?: string;
     sort?: ImageSortKey;
     dir?: SortDir;
@@ -124,10 +124,10 @@ export function useClusterImages(
 ) {
     const query = (): ImageQueryParams => {
         const p = params?.() ?? {};
-        const state = p.match_state;
+        const state = p.matchState;
         return {
-            ...(hasText(p.k8s_namespace) ? { k8s_namespace: p.k8s_namespace } : {}),
-            ...(state !== undefined ? { match_state: state } : {}),
+            ...(hasText(p.k8sNamespace) ? { k8sNamespace: p.k8sNamespace } : {}),
+            ...(state !== undefined ? { matchState: state } : {}),
             ...(hasText(p.q) ? { q: p.q } : {}),
             ...(p.sort !== undefined ? { sort: p.sort } : {}),
             ...(p.dir !== undefined ? { dir: p.dir } : {}),
@@ -236,11 +236,11 @@ export function useVulnWorkloads(
     clusterId?: Accessor<string | undefined>,
     options?: Accessor<{ enabled?: boolean; limit?: number }>,
 ) {
-    const query = (): { cluster_id?: string; limit?: number } => {
+    const query = (): { clusterId?: string; limit?: number } => {
         const cid = clusterId?.();
         const limit = options?.().limit;
         return {
-            ...(hasText(cid) ? { cluster_id: cid } : {}),
+            ...(hasText(cid) ? { clusterId: cid } : {}),
             ...(limit !== undefined ? { limit } : {}),
         };
     };

@@ -31,11 +31,14 @@ The version of the running server is reported by `GET /api/v1/`:
 
 Decided before the 1.0 compatibility freeze (ocidex-nps9.7):
 
-- **JSON field names are camelCase** throughout `/api/v1`, in request and response bodies
-  (renamed before 1.0 in ocidex-nps9.32; `TestOpenAPIPropertiesAreCamelCase` keeps it so).
-  Query parameter names are not covered by this rule yet: several are snake_case, and the
-  ingest ones are sent by `ocidex-cli` in CI, so renaming them is a separate decision
-  (ocidex-nps9.34).
+- **Names are camelCase** throughout `/api/v1`: JSON fields in request and response
+  bodies, query parameter names, path placeholders, and the values a `sort` parameter
+  accepts (they name fields). Renamed before 1.0 in ocidex-nps9.32 and ocidex-nps9.34;
+  `TestOpenAPIPropertiesAreCamelCase` and `TestOpenAPIParametersAreCamelCase` keep it so.
+  Enum values that name a *state* rather than a field (`egress_denied`,
+  `verification_failed`) are not names and keep their spelling. Through 1.0 the server
+  still accepts the old snake_case query parameter names and sort keys, for an
+  `ocidex-cli` older than the server; that shim goes in the release after 1.0 (ocidex-6hfs).
 - **Two pagination envelopes, on purpose** ([ADR-043](adr/0043-pagination-convention.md)). Numbered
   pages over computed aggregates use offset pagination: `?limit=&offset=` in, `{total,
   limit, offset}` out. Append-only lists use keyset pagination: `?limit=&cursor=` in,

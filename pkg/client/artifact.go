@@ -48,7 +48,7 @@ func (c *httpClient) GetArtifact(ctx context.Context, id string) (ArtifactDetail
 func (c *httpClient) GetArtifactChangelog(ctx context.Context, id string, params GetArtifactChangelogParams) (Changelog, error) {
 	p := url.Values{}
 	if params.SubjectVersion != nil {
-		p.Set("subject_version", *params.SubjectVersion)
+		p.Set("subjectVersion", *params.SubjectVersion)
 	}
 	if params.Arch != nil {
 		p.Set("arch", *params.Arch)

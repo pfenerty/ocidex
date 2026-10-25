@@ -659,7 +659,7 @@ func TestListLicenses(t *testing.T) {
 	is := is.New(t)
 	router := newTestRouter(&fakeSBOMService{}, &fakeSearchService{})
 
-	r := httptest.NewRequest(http.MethodGet, "/api/v1/licenses?spdx_id=MIT", nil)
+	r := httptest.NewRequest(http.MethodGet, "/api/v1/licenses?spdxId=MIT", nil)
 	w := httptest.NewRecorder()
 	router.ServeHTTP(w, r)
 

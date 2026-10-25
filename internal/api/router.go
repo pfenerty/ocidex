@@ -114,7 +114,7 @@ const (
 	pathNamespaceByID = "/api/v1/namespaces/{id}"
 
 	pathNamespaceMembers      = "/api/v1/namespaces/{id}/members"
-	pathNamespaceMemberByUser = "/api/v1/namespaces/{id}/members/{user_id}"
+	pathNamespaceMemberByUser = "/api/v1/namespaces/{id}/members/{userId}"
 	pathSourceByID            = "/api/v1/sources/{id}"
 	pathClusterByID           = "/api/v1/clusters/{id}"
 )
@@ -152,6 +152,7 @@ func NewRouter(h *Handler, corsOrigins, frontendURL, apiBaseURL string) chi.Rout
 	r.Use(RequestMetrics(h.meterProvider))
 	r.Use(middleware.Recoverer)
 	r.Use(SecurityHeaders)
+	r.Use(LegacyQueryNames)
 	allowedOrigins := parseCORSOrigins(corsOrigins, frontendURL)
 	r.Use(cors.Handler(cors.Options{
 		AllowedOrigins:   allowedOrigins,

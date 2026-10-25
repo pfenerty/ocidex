@@ -99,11 +99,11 @@ afterEach(() => {
 
 describe("Artifact VulnerabilitiesTab", () => {
     it("asks the API for the caller's severity, advisory filter, sort and page", () => {
-        renderTab({ severity: "HIGH", vuln: "CVE-2026-1", sortBy: "cvss_score", sortDir: "asc", offset: 50 });
+        renderTab({ severity: "HIGH", vuln: "CVE-2026-1", sortBy: "cvssScore", sortDir: "asc", offset: 50 });
         expect(lastParams).toMatchObject({
             severity: "HIGH",
             vuln: "CVE-2026-1",
-            sort: "cvss_score",
+            sort: "cvssScore",
             dir: "asc",
             offset: 50,
         });

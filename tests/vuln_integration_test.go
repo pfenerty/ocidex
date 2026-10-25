@@ -1151,7 +1151,7 @@ func TestArtifactVulnsList(t *testing.T) {
 	}
 
 	// Sort ascending by version count puts the single-version finding first.
-	data = listVulns("?sort=affected_version_count&dir=asc")["data"].([]any)
+	data = listVulns("?sort=affectedVersionCount&dir=asc")["data"].([]any)
 	is.Equal(data[0].(map[string]any)["canonicalId"], "CVE-2025-4000")
 
 	// Paging.

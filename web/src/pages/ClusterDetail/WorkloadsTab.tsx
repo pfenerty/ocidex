@@ -130,7 +130,7 @@ export function ImageCell(props: { row: ImageIdentity }) {
 export const workloadColumns: Column<ClusterWorkload>[] = [
     {
         header: "Workload",
-        sortKey: "workload_name",
+        sortKey: "workloadName",
         sortValue: (w) => w.workloadName,
         render: (w) => (
             <div class="inventory-cell" title={`Last seen ${formatDateTime(w.lastSeenAt)}`}>
@@ -146,19 +146,19 @@ export const workloadColumns: Column<ClusterWorkload>[] = [
     },
     {
         header: "Image",
-        sortKey: "image_ref",
+        sortKey: "imageRef",
         sortValue: (w) => w.imageRef,
         render: (w) => <ImageCell row={w} />,
     },
     {
         header: "Match",
-        sortKey: "match_state",
+        sortKey: "matchState",
         sortValue: (w) => w.matchState,
         render: (w) => <MatchStatePill state={w.matchState} />,
     },
     {
         header: "Vulnerabilities",
-        sortKey: "vuln_count",
+        sortKey: "vulnCount",
         sortType: "numeric",
         sortValue: (w) => vulnSortValue(w.vulns),
         render: (w) => <InventoryVulnCell vulns={w.vulns} />,
@@ -166,7 +166,7 @@ export const workloadColumns: Column<ClusterWorkload>[] = [
     {
         header: "Pods",
         align: "right",
-        sortKey: "pod_count",
+        sortKey: "podCount",
         sortType: "numeric",
         sortValue: (w) => w.podCount,
         render: (w) => w.podCount.toLocaleString(),
@@ -185,19 +185,19 @@ export const workloadColumns: Column<ClusterWorkload>[] = [
 export const imageColumns: Column<ClusterImage>[] = [
     {
         header: "Image",
-        sortKey: "image_ref",
+        sortKey: "imageRef",
         sortValue: (i) => i.imageRef,
         render: (i) => <ImageCell row={i} />,
     },
     {
         header: "Match",
-        sortKey: "match_state",
+        sortKey: "matchState",
         sortValue: (i) => i.matchState,
         render: (i) => <MatchStatePill state={i.matchState} />,
     },
     {
         header: "Vulnerabilities",
-        sortKey: "vuln_count",
+        sortKey: "vulnCount",
         sortType: "numeric",
         sortValue: (i) => vulnSortValue(i.vulns),
         render: (i) => <InventoryVulnCell vulns={i.vulns} />,
@@ -205,7 +205,7 @@ export const imageColumns: Column<ClusterImage>[] = [
     {
         header: "Workloads",
         align: "right",
-        sortKey: "workload_count",
+        sortKey: "workloadCount",
         sortType: "numeric",
         sortValue: (i) => i.workloadCount,
         render: (i) => (
@@ -231,7 +231,7 @@ export const imageColumns: Column<ClusterImage>[] = [
     {
         header: "Pods",
         align: "right",
-        sortKey: "pod_count",
+        sortKey: "podCount",
         sortType: "numeric",
         sortValue: (i) => i.podCount,
         render: (i) => i.podCount.toLocaleString(),

@@ -40,7 +40,7 @@ export default function Licenses() {
 
     const query = useLicenses(() => ({
         name: param("name") !== "" ? param("name") : undefined,
-        spdx_id: param("spdx") !== "" ? param("spdx") : undefined,
+        spdxId: param("spdx") !== "" ? param("spdx") : undefined,
         category: param("category") !== "" ? param("category") : undefined,
         limit,
         offset: offset(),

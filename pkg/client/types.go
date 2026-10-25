@@ -1007,10 +1007,10 @@ func (e ListArtifactVulnsParamsSeverity) Valid() bool {
 
 // Defines values for ListArtifactVulnsParamsSort.
 const (
-	ListArtifactVulnsParamsSortAffectedPackageCount ListArtifactVulnsParamsSort = "affected_package_count"
-	ListArtifactVulnsParamsSortAffectedVersionCount ListArtifactVulnsParamsSort = "affected_version_count"
-	ListArtifactVulnsParamsSortCanonicalId          ListArtifactVulnsParamsSort = "canonical_id"
-	ListArtifactVulnsParamsSortCvssScore            ListArtifactVulnsParamsSort = "cvss_score"
+	ListArtifactVulnsParamsSortAffectedPackageCount ListArtifactVulnsParamsSort = "affectedPackageCount"
+	ListArtifactVulnsParamsSortAffectedVersionCount ListArtifactVulnsParamsSort = "affectedVersionCount"
+	ListArtifactVulnsParamsSortCanonicalId          ListArtifactVulnsParamsSort = "canonicalId"
+	ListArtifactVulnsParamsSortCvssScore            ListArtifactVulnsParamsSort = "cvssScore"
 	ListArtifactVulnsParamsSortSeverity             ListArtifactVulnsParamsSort = "severity"
 )
 
@@ -1076,12 +1076,12 @@ func (e ListClusterImagesParamsMatchState) Valid() bool {
 
 // Defines values for ListClusterImagesParamsSort.
 const (
-	ListClusterImagesParamsSortImageRef      ListClusterImagesParamsSort = "image_ref"
-	ListClusterImagesParamsSortLastSeenAt    ListClusterImagesParamsSort = "last_seen_at"
-	ListClusterImagesParamsSortMatchState    ListClusterImagesParamsSort = "match_state"
-	ListClusterImagesParamsSortPodCount      ListClusterImagesParamsSort = "pod_count"
-	ListClusterImagesParamsSortVulnCount     ListClusterImagesParamsSort = "vuln_count"
-	ListClusterImagesParamsSortWorkloadCount ListClusterImagesParamsSort = "workload_count"
+	ListClusterImagesParamsSortImageRef      ListClusterImagesParamsSort = "imageRef"
+	ListClusterImagesParamsSortLastSeenAt    ListClusterImagesParamsSort = "lastSeenAt"
+	ListClusterImagesParamsSortMatchState    ListClusterImagesParamsSort = "matchState"
+	ListClusterImagesParamsSortPodCount      ListClusterImagesParamsSort = "podCount"
+	ListClusterImagesParamsSortVulnCount     ListClusterImagesParamsSort = "vulnCount"
+	ListClusterImagesParamsSortWorkloadCount ListClusterImagesParamsSort = "workloadCount"
 )
 
 // Valid indicates whether the value is a known member of the ListClusterImagesParamsSort enum.
@@ -1151,10 +1151,10 @@ func (e ListClusterVulnsParamsSeverity) Valid() bool {
 
 // Defines values for ListClusterVulnsParamsSort.
 const (
-	ListClusterVulnsParamsSortCanonicalId   ListClusterVulnsParamsSort = "canonical_id"
-	ListClusterVulnsParamsSortCvssScore     ListClusterVulnsParamsSort = "cvss_score"
+	ListClusterVulnsParamsSortCanonicalId   ListClusterVulnsParamsSort = "canonicalId"
+	ListClusterVulnsParamsSortCvssScore     ListClusterVulnsParamsSort = "cvssScore"
 	ListClusterVulnsParamsSortSeverity      ListClusterVulnsParamsSort = "severity"
-	ListClusterVulnsParamsSortWorkloadCount ListClusterVulnsParamsSort = "workload_count"
+	ListClusterVulnsParamsSortWorkloadCount ListClusterVulnsParamsSort = "workloadCount"
 )
 
 // Valid indicates whether the value is a known member of the ListClusterVulnsParamsSort enum.
@@ -1217,14 +1217,14 @@ func (e ListClusterWorkloadsParamsMatchState) Valid() bool {
 
 // Defines values for ListClusterWorkloadsParamsSort.
 const (
-	ListClusterWorkloadsParamsSortContainerName ListClusterWorkloadsParamsSort = "container_name"
-	ListClusterWorkloadsParamsSortImageRef      ListClusterWorkloadsParamsSort = "image_ref"
-	ListClusterWorkloadsParamsSortK8sNamespace  ListClusterWorkloadsParamsSort = "k8s_namespace"
-	ListClusterWorkloadsParamsSortLastSeenAt    ListClusterWorkloadsParamsSort = "last_seen_at"
-	ListClusterWorkloadsParamsSortMatchState    ListClusterWorkloadsParamsSort = "match_state"
-	ListClusterWorkloadsParamsSortPodCount      ListClusterWorkloadsParamsSort = "pod_count"
-	ListClusterWorkloadsParamsSortVulnCount     ListClusterWorkloadsParamsSort = "vuln_count"
-	ListClusterWorkloadsParamsSortWorkloadName  ListClusterWorkloadsParamsSort = "workload_name"
+	ListClusterWorkloadsParamsSortContainerName ListClusterWorkloadsParamsSort = "containerName"
+	ListClusterWorkloadsParamsSortImageRef      ListClusterWorkloadsParamsSort = "imageRef"
+	ListClusterWorkloadsParamsSortK8sNamespace  ListClusterWorkloadsParamsSort = "k8sNamespace"
+	ListClusterWorkloadsParamsSortLastSeenAt    ListClusterWorkloadsParamsSort = "lastSeenAt"
+	ListClusterWorkloadsParamsSortMatchState    ListClusterWorkloadsParamsSort = "matchState"
+	ListClusterWorkloadsParamsSortPodCount      ListClusterWorkloadsParamsSort = "podCount"
+	ListClusterWorkloadsParamsSortVulnCount     ListClusterWorkloadsParamsSort = "vulnCount"
+	ListClusterWorkloadsParamsSortWorkloadName  ListClusterWorkloadsParamsSort = "workloadName"
 )
 
 // Valid indicates whether the value is a known member of the ListClusterWorkloadsParamsSort enum.
@@ -1403,9 +1403,9 @@ func (e ListSbomVulnsParamsSeverity) Valid() bool {
 
 // Defines values for ListSbomVulnsParamsSort.
 const (
-	ListSbomVulnsParamsSortAffectedPackageCount ListSbomVulnsParamsSort = "affected_package_count"
-	ListSbomVulnsParamsSortCanonicalId          ListSbomVulnsParamsSort = "canonical_id"
-	ListSbomVulnsParamsSortCvssScore            ListSbomVulnsParamsSort = "cvss_score"
+	ListSbomVulnsParamsSortAffectedPackageCount ListSbomVulnsParamsSort = "affectedPackageCount"
+	ListSbomVulnsParamsSortCanonicalId          ListSbomVulnsParamsSort = "canonicalId"
+	ListSbomVulnsParamsSortCvssScore            ListSbomVulnsParamsSort = "cvssScore"
 	ListSbomVulnsParamsSortSeverity             ListSbomVulnsParamsSort = "severity"
 )
 
@@ -1502,11 +1502,11 @@ func (e ListMyVulnerabilitiesParamsSeverity) Valid() bool {
 
 // Defines values for ListMyVulnerabilitiesParamsSort.
 const (
-	ListMyVulnerabilitiesParamsSortAffectedPurlCount ListMyVulnerabilitiesParamsSort = "affected_purl_count"
-	ListMyVulnerabilitiesParamsSortAffectedSbomCount ListMyVulnerabilitiesParamsSort = "affected_sbom_count"
-	ListMyVulnerabilitiesParamsSortCanonicalId       ListMyVulnerabilitiesParamsSort = "canonical_id"
-	ListMyVulnerabilitiesParamsSortCvssScore         ListMyVulnerabilitiesParamsSort = "cvss_score"
-	ListMyVulnerabilitiesParamsSortPublishedAt       ListMyVulnerabilitiesParamsSort = "published_at"
+	ListMyVulnerabilitiesParamsSortAffectedPurlCount ListMyVulnerabilitiesParamsSort = "affectedPurlCount"
+	ListMyVulnerabilitiesParamsSortAffectedSbomCount ListMyVulnerabilitiesParamsSort = "affectedSbomCount"
+	ListMyVulnerabilitiesParamsSortCanonicalId       ListMyVulnerabilitiesParamsSort = "canonicalId"
+	ListMyVulnerabilitiesParamsSortCvssScore         ListMyVulnerabilitiesParamsSort = "cvssScore"
+	ListMyVulnerabilitiesParamsSortPublishedAt       ListMyVulnerabilitiesParamsSort = "publishedAt"
 	ListMyVulnerabilitiesParamsSortSeverity          ListMyVulnerabilitiesParamsSort = "severity"
 )
 
@@ -1574,11 +1574,11 @@ func (e ListTopVulnerabilitiesParamsSeverity) Valid() bool {
 
 // Defines values for ListTopVulnerabilitiesParamsSort.
 const (
-	ListTopVulnerabilitiesParamsSortAffectedPurlCount ListTopVulnerabilitiesParamsSort = "affected_purl_count"
-	ListTopVulnerabilitiesParamsSortAffectedSbomCount ListTopVulnerabilitiesParamsSort = "affected_sbom_count"
-	ListTopVulnerabilitiesParamsSortCanonicalId       ListTopVulnerabilitiesParamsSort = "canonical_id"
-	ListTopVulnerabilitiesParamsSortCvssScore         ListTopVulnerabilitiesParamsSort = "cvss_score"
-	ListTopVulnerabilitiesParamsSortPublishedAt       ListTopVulnerabilitiesParamsSort = "published_at"
+	ListTopVulnerabilitiesParamsSortAffectedPurlCount ListTopVulnerabilitiesParamsSort = "affectedPurlCount"
+	ListTopVulnerabilitiesParamsSortAffectedSbomCount ListTopVulnerabilitiesParamsSort = "affectedSbomCount"
+	ListTopVulnerabilitiesParamsSortCanonicalId       ListTopVulnerabilitiesParamsSort = "canonicalId"
+	ListTopVulnerabilitiesParamsSortCvssScore         ListTopVulnerabilitiesParamsSort = "cvssScore"
+	ListTopVulnerabilitiesParamsSortPublishedAt       ListTopVulnerabilitiesParamsSort = "publishedAt"
 	ListTopVulnerabilitiesParamsSortSeverity          ListTopVulnerabilitiesParamsSort = "severity"
 )
 
@@ -4084,7 +4084,7 @@ type WorkloadVulnCounts struct {
 // RetryAllFailedEnrichmentJobsParams defines parameters for RetryAllFailedEnrichmentJobs.
 type RetryAllFailedEnrichmentJobsParams struct {
 	// EnricherName Limit the reset to a single enricher; omit to reset all
-	EnricherName *RetryAllFailedEnrichmentJobsParamsEnricherName `form:"enricher_name,omitempty" json:"enricher_name,omitempty"`
+	EnricherName *RetryAllFailedEnrichmentJobsParamsEnricherName `form:"enricherName,omitempty" json:"enricherName,omitempty"`
 }
 
 // RetryAllFailedEnrichmentJobsParamsEnricherName defines parameters for RetryAllFailedEnrichmentJobs.
@@ -4135,7 +4135,7 @@ type LookupArtifactParams struct {
 // GetArtifactChangelogParams defines parameters for GetArtifactChangelog.
 type GetArtifactChangelogParams struct {
 	// SubjectVersion Filter by subject version
-	SubjectVersion *string `form:"subject_version,omitempty" json:"subject_version,omitempty"`
+	SubjectVersion *string `form:"subjectVersion,omitempty" json:"subjectVersion,omitempty"`
 
 	// Arch Architecture to show timeline for (e.g. amd64)
 	Arch *string `form:"arch,omitempty" json:"arch,omitempty"`
@@ -4165,10 +4165,10 @@ type ListArtifactSbomsParams struct {
 	Cursor *string `form:"cursor,omitempty" json:"cursor,omitempty"`
 
 	// SubjectVersion Filter by subject version
-	SubjectVersion *string `form:"subject_version,omitempty" json:"subject_version,omitempty"`
+	SubjectVersion *string `form:"subjectVersion,omitempty" json:"subjectVersion,omitempty"`
 
 	// ImageVersion Filter by image version
-	ImageVersion *string `form:"image_version,omitempty" json:"image_version,omitempty"`
+	ImageVersion *string `form:"imageVersion,omitempty" json:"imageVersion,omitempty"`
 }
 
 // ListArtifactVersionsParams defines parameters for ListArtifactVersions.
@@ -4234,21 +4234,21 @@ type ListArtifactVulnsParamsDir string
 // ListClustersParams defines parameters for ListClusters.
 type ListClustersParams struct {
 	// NamespaceId Limit to clusters in one namespace
-	NamespaceId *string `form:"namespace_id,omitempty" json:"namespace_id,omitempty"`
+	NamespaceId *string `form:"namespaceId,omitempty" json:"namespaceId,omitempty"`
 }
 
 // ListClusterImagesParams defines parameters for ListClusterImages.
 type ListClusterImagesParams struct {
 	// K8sNamespace Filter to one Kubernetes namespace
-	K8sNamespace *string `form:"k8s_namespace,omitempty" json:"k8s_namespace,omitempty"`
+	K8sNamespace *string `form:"k8sNamespace,omitempty" json:"k8sNamespace,omitempty"`
 
 	// MatchState Filter by SBOM match state
-	MatchState *ListClusterImagesParamsMatchState `form:"match_state,omitempty" json:"match_state,omitempty"`
+	MatchState *ListClusterImagesParamsMatchState `form:"matchState,omitempty" json:"matchState,omitempty"`
 
 	// Q Substring match over workload name, container name and image reference
 	Q *string `form:"q,omitempty" json:"q,omitempty"`
 
-	// Sort Column to sort by. vuln_count orders by severity, worst first, and sorts unassessed images last in either direction. Unset means image reference order.
+	// Sort Column to sort by. vulnCount orders by severity, worst first, and sorts unassessed images last in either direction. Unset means image reference order.
 	Sort *ListClusterImagesParamsSort `form:"sort,omitempty" json:"sort,omitempty"`
 
 	// Dir Sort direction (default asc). Applies to sort only — with sort unset the default ordering ignores it.
@@ -4309,15 +4309,15 @@ type ListClusterVulnsParamsDir string
 // ListClusterWorkloadsParams defines parameters for ListClusterWorkloads.
 type ListClusterWorkloadsParams struct {
 	// K8sNamespace Filter to one Kubernetes namespace
-	K8sNamespace *string `form:"k8s_namespace,omitempty" json:"k8s_namespace,omitempty"`
+	K8sNamespace *string `form:"k8sNamespace,omitempty" json:"k8sNamespace,omitempty"`
 
 	// MatchState Filter by SBOM match state
-	MatchState *ListClusterWorkloadsParamsMatchState `form:"match_state,omitempty" json:"match_state,omitempty"`
+	MatchState *ListClusterWorkloadsParamsMatchState `form:"matchState,omitempty" json:"matchState,omitempty"`
 
 	// Q Substring match over workload name, container name and image reference
 	Q *string `form:"q,omitempty" json:"q,omitempty"`
 
-	// Sort Column to sort by. vuln_count orders by severity, worst first, and sorts unmatched workloads last in either direction. Unset means namespace, then workload, then container.
+	// Sort Column to sort by. vulnCount orders by severity, worst first, and sorts unmatched workloads last in either direction. Unset means namespace, then workload, then container.
 	Sort *ListClusterWorkloadsParamsSort `form:"sort,omitempty" json:"sort,omitempty"`
 
 	// Dir Sort direction (default asc). Applies to sort only — with sort unset the default ordering ignores it.
@@ -4378,13 +4378,13 @@ type SearchDistinctComponentsParams struct {
 	Type *string `form:"type,omitempty" json:"type,omitempty"`
 
 	// PurlType Filter by purl type
-	PurlType *string `form:"purl_type,omitempty" json:"purl_type,omitempty"`
+	PurlType *string `form:"purlType,omitempty" json:"purlType,omitempty"`
 
-	// Sort Sort field: name, version_count, sbom_count, or severity (worst first, ranked critical to unknown). Unrecognised values fall back to name.
+	// Sort Sort field: name, versionCount, sbomCount, or severity (worst first, ranked critical to unknown). Unrecognised values fall back to name.
 	Sort *string `form:"sort,omitempty" json:"sort,omitempty"`
 
 	// SortDir Sort direction (asc or desc)
-	SortDir *string `form:"sort_dir,omitempty" json:"sort_dir,omitempty"`
+	SortDir *string `form:"sortDir,omitempty" json:"sortDir,omitempty"`
 }
 
 // ListComponentVersionSummariesParams defines parameters for ListComponentVersionSummaries.
@@ -4438,7 +4438,7 @@ type ListEnrichmentJobsParams struct {
 	State *ListEnrichmentJobsParamsState `form:"state,omitempty" json:"state,omitempty"`
 
 	// EnricherName Filter by enricher
-	EnricherName *ListEnrichmentJobsParamsEnricherName `form:"enricher_name,omitempty" json:"enricher_name,omitempty"`
+	EnricherName *ListEnrichmentJobsParamsEnricherName `form:"enricherName,omitempty" json:"enricherName,omitempty"`
 }
 
 // ListEnrichmentJobsParamsState defines parameters for ListEnrichmentJobs.
@@ -4471,7 +4471,7 @@ type ListLicensesParams struct {
 	Offset *int32 `form:"offset,omitempty" json:"offset,omitempty"`
 
 	// SpdxId Filter by SPDX identifier
-	SpdxId *string `form:"spdx_id,omitempty" json:"spdx_id,omitempty"`
+	SpdxId *string `form:"spdxId,omitempty" json:"spdxId,omitempty"`
 
 	// Name Filter by license name
 	Name *string `form:"name,omitempty" json:"name,omitempty"`
@@ -4533,7 +4533,7 @@ type ListSbomsParams struct {
 	Cursor *string `form:"cursor,omitempty" json:"cursor,omitempty"`
 
 	// SerialNumber Filter by serial number
-	SerialNumber *string `form:"serial_number,omitempty" json:"serial_number,omitempty"`
+	SerialNumber *string `form:"serialNumber,omitempty" json:"serialNumber,omitempty"`
 
 	// Digest Filter by image digest
 	Digest *string `form:"digest,omitempty" json:"digest,omitempty"`
@@ -4544,26 +4544,26 @@ type IngestSbomParams struct {
 	// Source Ingest channel this SBOM arrived through, as a source UUID or <namespace>/<name>. Required — the source's namespace owns the SBOM.
 	Source *string `form:"source,omitempty" json:"source,omitempty"`
 
-	// Version Image version/tag (overrides BOM-extracted value for subject_version and imageVersion)
+	// Version Image version/tag (overrides BOM-extracted value for subjectVersion and imageVersion)
 	Version *string `form:"version,omitempty" json:"version,omitempty"`
 
 	// Architecture Image architecture (e.g. amd64, arm64)
 	Architecture *string `form:"architecture,omitempty" json:"architecture,omitempty"`
 
 	// BuildDate Image build date (RFC3339 or date string)
-	BuildDate *string `form:"build_date,omitempty" json:"build_date,omitempty"`
+	BuildDate *string `form:"buildDate,omitempty" json:"buildDate,omitempty"`
 
 	// SubjectType CycloneDX component type of the subject (e.g. application, library, file)
-	SubjectType *string `form:"subject_type,omitempty" json:"subject_type,omitempty"`
+	SubjectType *string `form:"subjectType,omitempty" json:"subjectType,omitempty"`
 
 	// SubjectName Subject name (e.g. ocidex)
-	SubjectName *string `form:"subject_name,omitempty" json:"subject_name,omitempty"`
+	SubjectName *string `form:"subjectName,omitempty" json:"subjectName,omitempty"`
 
 	// SubjectGroup Subject group/namespace (e.g. github.com/pfenerty)
-	SubjectGroup *string `form:"subject_group,omitempty" json:"subject_group,omitempty"`
+	SubjectGroup *string `form:"subjectGroup,omitempty" json:"subjectGroup,omitempty"`
 
 	// SubjectPurl Subject package URL (e.g. pkg:golang/github.com/pfenerty/ocidex@v1.2.3)
-	SubjectPurl *string `form:"subject_purl,omitempty" json:"subject_purl,omitempty"`
+	SubjectPurl *string `form:"subjectPurl,omitempty" json:"subjectPurl,omitempty"`
 
 	// Digest sha256 of the artifact file itself, not of this SBOM document. Required for a non-container subject.
 	Digest *string `form:"digest,omitempty" json:"digest,omitempty"`
@@ -4674,7 +4674,7 @@ type ListSbomVulnsParamsDir string
 // ListSourcesParams defines parameters for ListSources.
 type ListSourcesParams struct {
 	// NamespaceId Limit to sources in this namespace
-	NamespaceId *string `form:"namespace_id,omitempty" json:"namespace_id,omitempty"`
+	NamespaceId *string `form:"namespaceId,omitempty" json:"namespaceId,omitempty"`
 }
 
 // ListMyActivityParams defines parameters for ListMyActivity.
@@ -4752,7 +4752,7 @@ type ListMyVulnerabilitiesParams struct {
 	Sort *ListMyVulnerabilitiesParamsSort `form:"sort,omitempty" json:"sort,omitempty"`
 
 	// SortDir Sort direction (asc or desc)
-	SortDir *ListMyVulnerabilitiesParamsSortDir `form:"sort_dir,omitempty" json:"sort_dir,omitempty"`
+	SortDir *ListMyVulnerabilitiesParamsSortDir `form:"sortDir,omitempty" json:"sortDir,omitempty"`
 }
 
 // ListMyVulnerabilitiesParamsSeverity defines parameters for ListMyVulnerabilities.
@@ -4800,7 +4800,7 @@ type ListTopVulnerabilitiesParams struct {
 	Sort *ListTopVulnerabilitiesParamsSort `form:"sort,omitempty" json:"sort,omitempty"`
 
 	// SortDir Sort direction (asc or desc)
-	SortDir *ListTopVulnerabilitiesParamsSortDir `form:"sort_dir,omitempty" json:"sort_dir,omitempty"`
+	SortDir *ListTopVulnerabilitiesParamsSortDir `form:"sortDir,omitempty" json:"sortDir,omitempty"`
 }
 
 // ListTopVulnerabilitiesParamsSeverity defines parameters for ListTopVulnerabilities.
@@ -4824,7 +4824,7 @@ type GetVulnerabilityParams struct {
 // ListVulnerabilityWorkloadsParams defines parameters for ListVulnerabilityWorkloads.
 type ListVulnerabilityWorkloadsParams struct {
 	// ClusterId Limit to one cluster. Omitted, the answer spans every cluster the caller can see.
-	ClusterId *string `form:"cluster_id,omitempty" json:"cluster_id,omitempty"`
+	ClusterId *string `form:"clusterId,omitempty" json:"clusterId,omitempty"`
 	Limit     *int32  `form:"limit,omitempty" json:"limit,omitempty"`
 }
 

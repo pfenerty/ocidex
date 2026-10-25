@@ -7211,7 +7211,7 @@
             "description": "Limit the reset to a single enricher; omit to reset all",
             "explode": false,
             "in": "query",
-            "name": "enricher_name",
+            "name": "enricherName",
             "schema": {
               "description": "Limit the reset to a single enricher; omit to reset all",
               "enum": [
@@ -7708,7 +7708,7 @@
             "description": "Filter by subject version",
             "explode": false,
             "in": "query",
-            "name": "subject_version",
+            "name": "subjectVersion",
             "schema": {
               "description": "Filter by subject version",
               "type": "string"
@@ -7936,7 +7936,7 @@
             "description": "Filter by subject version",
             "explode": false,
             "in": "query",
-            "name": "subject_version",
+            "name": "subjectVersion",
             "schema": {
               "description": "Filter by subject version",
               "type": "string"
@@ -7946,7 +7946,7 @@
             "description": "Filter by image version",
             "explode": false,
             "in": "query",
-            "name": "image_version",
+            "name": "imageVersion",
             "schema": {
               "description": "Filter by image version",
               "type": "string"
@@ -8235,10 +8235,10 @@
               "description": "Column to sort by. Unset means worst first: severity, then CVSS.",
               "enum": [
                 "severity",
-                "cvss_score",
-                "affected_package_count",
-                "affected_version_count",
-                "canonical_id"
+                "cvssScore",
+                "affectedPackageCount",
+                "affectedVersionCount",
+                "canonicalId"
               ],
               "type": "string"
             }
@@ -8592,7 +8592,7 @@
             "description": "Limit to clusters in one namespace",
             "explode": false,
             "in": "query",
-            "name": "namespace_id",
+            "name": "namespaceId",
             "schema": {
               "description": "Limit to clusters in one namespace",
               "type": "string"
@@ -8819,7 +8819,7 @@
             "description": "Filter to one Kubernetes namespace",
             "explode": false,
             "in": "query",
-            "name": "k8s_namespace",
+            "name": "k8sNamespace",
             "schema": {
               "description": "Filter to one Kubernetes namespace",
               "type": "string"
@@ -8829,7 +8829,7 @@
             "description": "Filter by SBOM match state",
             "explode": false,
             "in": "query",
-            "name": "match_state",
+            "name": "matchState",
             "schema": {
               "description": "Filter by SBOM match state",
               "enum": [
@@ -8852,19 +8852,19 @@
             }
           },
           {
-            "description": "Column to sort by. vuln_count orders by severity, worst first, and sorts unassessed images last in either direction. Unset means image reference order.",
+            "description": "Column to sort by. vulnCount orders by severity, worst first, and sorts unassessed images last in either direction. Unset means image reference order.",
             "explode": false,
             "in": "query",
             "name": "sort",
             "schema": {
-              "description": "Column to sort by. vuln_count orders by severity, worst first, and sorts unassessed images last in either direction. Unset means image reference order.",
+              "description": "Column to sort by. vulnCount orders by severity, worst first, and sorts unassessed images last in either direction. Unset means image reference order.",
               "enum": [
-                "image_ref",
-                "match_state",
-                "workload_count",
-                "pod_count",
-                "last_seen_at",
-                "vuln_count"
+                "imageRef",
+                "matchState",
+                "workloadCount",
+                "podCount",
+                "lastSeenAt",
+                "vulnCount"
               ],
               "type": "string"
             }
@@ -9208,9 +9208,9 @@
               "description": "Column to sort by. Unset means worst first: severity, then CVSS.",
               "enum": [
                 "severity",
-                "cvss_score",
-                "workload_count",
-                "canonical_id"
+                "cvssScore",
+                "workloadCount",
+                "canonicalId"
               ],
               "type": "string"
             }
@@ -9305,7 +9305,7 @@
             "description": "Filter to one Kubernetes namespace",
             "explode": false,
             "in": "query",
-            "name": "k8s_namespace",
+            "name": "k8sNamespace",
             "schema": {
               "description": "Filter to one Kubernetes namespace",
               "type": "string"
@@ -9315,7 +9315,7 @@
             "description": "Filter by SBOM match state",
             "explode": false,
             "in": "query",
-            "name": "match_state",
+            "name": "matchState",
             "schema": {
               "description": "Filter by SBOM match state",
               "enum": [
@@ -9338,21 +9338,21 @@
             }
           },
           {
-            "description": "Column to sort by. vuln_count orders by severity, worst first, and sorts unmatched workloads last in either direction. Unset means namespace, then workload, then container.",
+            "description": "Column to sort by. vulnCount orders by severity, worst first, and sorts unmatched workloads last in either direction. Unset means namespace, then workload, then container.",
             "explode": false,
             "in": "query",
             "name": "sort",
             "schema": {
-              "description": "Column to sort by. vuln_count orders by severity, worst first, and sorts unmatched workloads last in either direction. Unset means namespace, then workload, then container.",
+              "description": "Column to sort by. vulnCount orders by severity, worst first, and sorts unmatched workloads last in either direction. Unset means namespace, then workload, then container.",
               "enum": [
-                "k8s_namespace",
-                "workload_name",
-                "container_name",
-                "image_ref",
-                "match_state",
-                "pod_count",
-                "last_seen_at",
-                "vuln_count"
+                "k8sNamespace",
+                "workloadName",
+                "containerName",
+                "imageRef",
+                "matchState",
+                "podCount",
+                "lastSeenAt",
+                "vulnCount"
               ],
               "type": "string"
             }
@@ -9592,19 +9592,19 @@
             "description": "Filter by purl type",
             "explode": false,
             "in": "query",
-            "name": "purl_type",
+            "name": "purlType",
             "schema": {
               "description": "Filter by purl type",
               "type": "string"
             }
           },
           {
-            "description": "Sort field: name, version_count, sbom_count, or severity (worst first, ranked critical to unknown). Unrecognised values fall back to name.",
+            "description": "Sort field: name, versionCount, sbomCount, or severity (worst first, ranked critical to unknown). Unrecognised values fall back to name.",
             "explode": false,
             "in": "query",
             "name": "sort",
             "schema": {
-              "description": "Sort field: name, version_count, sbom_count, or severity (worst first, ranked critical to unknown). Unrecognised values fall back to name.",
+              "description": "Sort field: name, versionCount, sbomCount, or severity (worst first, ranked critical to unknown). Unrecognised values fall back to name.",
               "type": "string"
             }
           },
@@ -9612,7 +9612,7 @@
             "description": "Sort direction (asc or desc)",
             "explode": false,
             "in": "query",
-            "name": "sort_dir",
+            "name": "sortDir",
             "schema": {
               "description": "Sort direction (asc or desc)",
               "type": "string"
@@ -10050,7 +10050,7 @@
             "description": "Filter by enricher",
             "explode": false,
             "in": "query",
-            "name": "enricher_name",
+            "name": "enricherName",
             "schema": {
               "description": "Filter by enricher",
               "enum": [
@@ -10278,7 +10278,7 @@
             "description": "Filter by SPDX identifier",
             "explode": false,
             "in": "query",
-            "name": "spdx_id",
+            "name": "spdxId",
             "schema": {
               "description": "Filter by SPDX identifier",
               "type": "string"
@@ -10740,7 +10740,7 @@
         ]
       }
     },
-    "/api/v1/namespaces/{id}/members/{user_id}": {
+    "/api/v1/namespaces/{id}/members/{userId}": {
       "delete": {
         "description": "Removes a member's role in this namespace. Removing the owner is a 409.",
         "operationId": "remove-namespace-member",
@@ -10759,7 +10759,7 @@
           {
             "description": "UUID of the member to remove",
             "in": "path",
-            "name": "user_id",
+            "name": "userId",
             "required": true,
             "schema": {
               "description": "UUID of the member to remove",
@@ -10806,7 +10806,7 @@
           {
             "description": "UUID of the user to grant a role to",
             "in": "path",
-            "name": "user_id",
+            "name": "userId",
             "required": true,
             "schema": {
               "description": "UUID of the user to grant a role to",
@@ -11533,7 +11533,7 @@
             "description": "Filter by serial number",
             "explode": false,
             "in": "query",
-            "name": "serial_number",
+            "name": "serialNumber",
             "schema": {
               "description": "Filter by serial number",
               "type": "string"
@@ -11592,12 +11592,12 @@
             }
           },
           {
-            "description": "Image version/tag (overrides BOM-extracted value for subject_version and imageVersion)",
+            "description": "Image version/tag (overrides BOM-extracted value for subjectVersion and imageVersion)",
             "explode": false,
             "in": "query",
             "name": "version",
             "schema": {
-              "description": "Image version/tag (overrides BOM-extracted value for subject_version and imageVersion)",
+              "description": "Image version/tag (overrides BOM-extracted value for subjectVersion and imageVersion)",
               "type": "string"
             }
           },
@@ -11615,7 +11615,7 @@
             "description": "Image build date (RFC3339 or date string)",
             "explode": false,
             "in": "query",
-            "name": "build_date",
+            "name": "buildDate",
             "schema": {
               "description": "Image build date (RFC3339 or date string)",
               "type": "string"
@@ -11625,7 +11625,7 @@
             "description": "CycloneDX component type of the subject (e.g. application, library, file)",
             "explode": false,
             "in": "query",
-            "name": "subject_type",
+            "name": "subjectType",
             "schema": {
               "description": "CycloneDX component type of the subject (e.g. application, library, file)",
               "type": "string"
@@ -11635,7 +11635,7 @@
             "description": "Subject name (e.g. ocidex)",
             "explode": false,
             "in": "query",
-            "name": "subject_name",
+            "name": "subjectName",
             "schema": {
               "description": "Subject name (e.g. ocidex)",
               "type": "string"
@@ -11645,7 +11645,7 @@
             "description": "Subject group/namespace (e.g. github.com/pfenerty)",
             "explode": false,
             "in": "query",
-            "name": "subject_group",
+            "name": "subjectGroup",
             "schema": {
               "description": "Subject group/namespace (e.g. github.com/pfenerty)",
               "type": "string"
@@ -11655,7 +11655,7 @@
             "description": "Subject package URL (e.g. pkg:golang/github.com/pfenerty/ocidex@v1.2.3)",
             "explode": false,
             "in": "query",
-            "name": "subject_purl",
+            "name": "subjectPurl",
             "schema": {
               "description": "Subject package URL (e.g. pkg:golang/github.com/pfenerty/ocidex@v1.2.3)",
               "type": "string"
@@ -12260,9 +12260,9 @@
               "description": "Column to sort by. Unset means worst first: severity, then CVSS.",
               "enum": [
                 "severity",
-                "cvss_score",
-                "affected_package_count",
-                "canonical_id"
+                "cvssScore",
+                "affectedPackageCount",
+                "canonicalId"
               ],
               "type": "string"
             }
@@ -12346,7 +12346,7 @@
             "description": "Limit to sources in this namespace",
             "explode": false,
             "in": "query",
-            "name": "namespace_id",
+            "name": "namespaceId",
             "schema": {
               "description": "Limit to sources in this namespace",
               "type": "string"
@@ -13102,11 +13102,11 @@
               "description": "Sort field",
               "enum": [
                 "severity",
-                "cvss_score",
-                "affected_sbom_count",
-                "affected_purl_count",
-                "published_at",
-                "canonical_id"
+                "cvssScore",
+                "affectedSbomCount",
+                "affectedPurlCount",
+                "publishedAt",
+                "canonicalId"
               ],
               "type": "string"
             }
@@ -13115,7 +13115,7 @@
             "description": "Sort direction (asc or desc)",
             "explode": false,
             "in": "query",
-            "name": "sort_dir",
+            "name": "sortDir",
             "schema": {
               "description": "Sort direction (asc or desc)",
               "enum": [
@@ -13270,7 +13270,7 @@
         ]
       }
     },
-    "/api/v1/users/me/watches/{artifact_id}": {
+    "/api/v1/users/me/watches/{artifactId}": {
       "delete": {
         "description": "Idempotent: removing a watch that is not there succeeds.",
         "operationId": "unwatch-artifact",
@@ -13278,7 +13278,7 @@
           {
             "description": "Artifact UUID",
             "in": "path",
-            "name": "artifact_id",
+            "name": "artifactId",
             "required": true,
             "schema": {
               "description": "Artifact UUID",
@@ -13314,7 +13314,7 @@
           {
             "description": "Artifact UUID",
             "in": "path",
-            "name": "artifact_id",
+            "name": "artifactId",
             "required": true,
             "schema": {
               "description": "Artifact UUID",
@@ -13466,11 +13466,11 @@
               "description": "Sort field",
               "enum": [
                 "severity",
-                "cvss_score",
-                "affected_sbom_count",
-                "affected_purl_count",
-                "published_at",
-                "canonical_id"
+                "cvssScore",
+                "affectedSbomCount",
+                "affectedPurlCount",
+                "publishedAt",
+                "canonicalId"
               ],
               "type": "string"
             }
@@ -13479,7 +13479,7 @@
             "description": "Sort direction (asc or desc)",
             "explode": false,
             "in": "query",
-            "name": "sort_dir",
+            "name": "sortDir",
             "schema": {
               "description": "Sort direction (asc or desc)",
               "enum": [
@@ -13607,7 +13607,7 @@
             "description": "Limit to one cluster. Omitted, the answer spans every cluster the caller can see.",
             "explode": false,
             "in": "query",
-            "name": "cluster_id",
+            "name": "clusterId",
             "schema": {
               "description": "Limit to one cluster. Omitted, the answer spans every cluster the caller can see.",
               "type": "string"

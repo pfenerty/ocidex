@@ -19,6 +19,7 @@ import (
 // list had before sorting was configurable. The query interpolates neither
 // value, so this is about honest defaults rather than injection.
 func normalizeTopVulnSort(sort, dir string) (string, string) {
+	sort = columnName(sort)
 	switch sort {
 	case sortBySeverity, sortByCVSS, "affected_sbom_count", "affected_purl_count", "published_at", sortByCanonicalID:
 	default:

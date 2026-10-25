@@ -46,8 +46,8 @@ type ListTopVulnerabilitiesInput struct {
 	PaginationParams
 	Q        string `query:"q" maxLength:"128" doc:"Filter by vulnerability id (CVE/GHSA/OSV), substring match against the canonical id and its aliases"`
 	Severity string `query:"severity" enum:"CRITICAL,HIGH,MEDIUM,LOW" doc:"Filter by severity"`
-	Sort     string `query:"sort" enum:"severity,cvss_score,affected_sbom_count,affected_purl_count,published_at,canonical_id" doc:"Sort field"`
-	SortDir  string `query:"sort_dir" enum:"asc,desc" doc:"Sort direction (asc or desc)"`
+	Sort     string `query:"sort" enum:"severity,cvssScore,affectedSbomCount,affectedPurlCount,publishedAt,canonicalId" doc:"Sort field"`
+	SortDir  string `query:"sortDir" enum:"asc,desc" doc:"Sort direction (asc or desc)"`
 }
 
 // ListMyVulnerabilitiesInput is the request for GET /api/v1/users/me/vulns. It

@@ -52,9 +52,9 @@ func TestSearchDistinctComponents_FilterPassthrough(t *testing.T) {
 		is.Equal(q.Get("type"), "library")
 		// Snake case on the wire, camel case on the struct: the server names
 		// these, and a silent rename here would just return unfiltered rows.
-		is.Equal(q.Get("purl_type"), "deb")
+		is.Equal(q.Get("purlType"), "deb")
 		is.Equal(q.Get("sort"), "name")
-		is.Equal(q.Get("sort_dir"), "desc")
+		is.Equal(q.Get("sortDir"), "desc")
 		w.Header().Set("Content-Type", "application/json")
 		_, _ = w.Write([]byte(`{"data":[],"pagination":{"total":0,"limit":50,"offset":0}}`))
 	}))

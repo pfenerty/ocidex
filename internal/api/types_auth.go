@@ -77,7 +77,7 @@ type ListMyWatchFeedOutput struct {
 // by both verbs because a watch has no body — the pair (caller, artifact) is
 // the whole resource.
 type WatchArtifactInput struct {
-	ArtifactID string `path:"artifact_id" format:"uuid" doc:"Artifact UUID"`
+	ArtifactID string `path:"artifactId" format:"uuid" doc:"Artifact UUID"`
 }
 
 // ---------------------------------------------------------------------------

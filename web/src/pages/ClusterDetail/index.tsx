@@ -62,7 +62,7 @@ export default function ClusterDetail() {
     // A hand-edited URL can say anything; an unrecognised state is dropped
     // rather than forwarded, so the table shows everything instead of nothing.
     const matchState = (): WorkloadMatchState | undefined => {
-        const raw = one(searchParams.match_state);
+        const raw = one(searchParams.matchState);
         return MATCH_STATES.find((candidate) => candidate === raw);
     };
 
@@ -122,12 +122,12 @@ export default function ClusterDetail() {
                 active={tab()}
                 onSelect={(id) => {
                     // Filters belong to the tab that owns them; carrying a
-                    // match_state onto the vulnerability list would silently
+                    // matchState onto the vulnerability list would silently
                     // apply to nothing.
                     setSearchParams({
                         tab: id,
-                        match_state: undefined,
-                        k8s_namespace: undefined,
+                        matchState: undefined,
+                        k8sNamespace: undefined,
                         q: undefined,
                         severity: undefined,
                         sort: undefined,
@@ -195,16 +195,16 @@ export default function ClusterDetail() {
  */
 const SORT_KEYS: Record<InventoryGrouping, string[]> = {
     workload: [
-        "k8s_namespace",
-        "workload_name",
-        "container_name",
-        "image_ref",
-        "match_state",
-        "pod_count",
-        "last_seen_at",
-        "vuln_count",
+        "k8sNamespace",
+        "workloadName",
+        "containerName",
+        "imageRef",
+        "matchState",
+        "podCount",
+        "lastSeenAt",
+        "vulnCount",
     ],
-    image: ["image_ref", "match_state", "workload_count", "pod_count", "last_seen_at", "vuln_count"],
+    image: ["imageRef", "matchState", "workloadCount", "podCount", "lastSeenAt", "vulnCount"],
 };
 
 /**
@@ -214,7 +214,7 @@ const SORT_KEYS: Record<InventoryGrouping, string[]> = {
  * actionable: it opened on whatever happens to be called "argocd". The first
  * screen should be the one worth acting on.
  */
-const DEFAULT_SORT = "vuln_count";
+const DEFAULT_SORT = "vulnCount";
 
 /**
  * WorkloadsTabPanel owns the grouping, filters, sort and page offset, all of
@@ -231,7 +231,7 @@ function WorkloadsTabPanel(props: {
     setSearchParams: (params: Record<string, string | number | undefined>) => void;
 }) {
     const q = () => one(props.searchParams.q) ?? "";
-    const k8sNamespace = () => one(props.searchParams.k8s_namespace) ?? "";
+    const k8sNamespace = () => one(props.searchParams.k8sNamespace) ?? "";
     // By image is the default because an image is the unit of the remedy: a
     // rollout of one unscanned image across fourteen deployments is one SBOM to
     // ingest, and fourteen near-identical rows to read.
@@ -269,8 +269,8 @@ function WorkloadsTabPanel(props: {
     // cluster id is withheld from the inactive one, which is what its `enabled`
     // gate reads. Both hooks must still be called on every render.
     const listParams = () => ({
-        match_state: props.matchState,
-        ...(k8sNamespace() === "" ? {} : { k8s_namespace: k8sNamespace() }),
+        matchState: props.matchState,
+        ...(k8sNamespace() === "" ? {} : { k8sNamespace: k8sNamespace() }),
         ...(q() === "" ? {} : { q: q() }),
         dir: sortDir(),
         limit: 50,
@@ -309,10 +309,10 @@ function WorkloadsTabPanel(props: {
                 namespaces={namespacesQuery.data?.data}
                 onQueryInput={onQueryInput}
                 onNamespaceChange={(value) =>
-                    props.setSearchParams({ k8s_namespace: value, offset: undefined })
+                    props.setSearchParams({ k8sNamespace: value, offset: undefined })
                 }
                 onMatchStateChange={(value) =>
-                    props.setSearchParams({ match_state: value, offset: undefined })
+                    props.setSearchParams({ matchState: value, offset: undefined })
                 }
                 onGroupChange={(value) =>
                     props.setSearchParams({
@@ -379,7 +379,7 @@ function VulnerabilitiesTabPanel(props: {
     const sortDir = (): SortDir => {
         const raw = one(props.searchParams.dir);
         if (raw === "asc" || raw === "desc") return raw;
-        return sortBy() === "canonical_id" ? "asc" : "desc";
+        return sortBy() === "canonicalId" ? "asc" : "desc";
     };
     const offset = () => {
         const parsed = Number(one(props.searchParams.offset));

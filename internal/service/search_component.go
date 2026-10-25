@@ -55,7 +55,7 @@ func (s *searchService) SearchDistinctComponents(ctx context.Context, filter Com
 	if filter.Name != "" {
 		namePat = pgtype.Text{String: "%" + filter.Name + "%", Valid: true}
 	}
-	sortBy := filter.Sort
+	sortBy := columnName(filter.Sort)
 	switch sortBy {
 	// "severity" (ocidex-unn8.10) orders by the rollup's five per-severity
 	// counts, ranked worst-first; the query, not this list, decides how they

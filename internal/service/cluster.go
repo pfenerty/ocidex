@@ -3,7 +3,9 @@ package service
 import (
 	"context"
 	"fmt"
+	"strings"
 	"time"
+	"unicode"
 
 	"github.com/jackc/pgx/v5"
 	"github.com/jackc/pgx/v5/pgtype"
@@ -822,6 +824,9 @@ func optionalText(v string) pgtype.Text {
 // unknown key becomes the empty string, which matches no CASE branch and so
 // leaves the query's default ordering in place.
 func clampSort(sortBy, sortDir string, allowed map[string]bool) (string, string) {
+	// The API names sort keys in camelCase (ocidex-nps9.34); the keys here name
+	// the SQL columns they order by, so cvssScore is looked up as cvss_score.
+	sortBy = columnName(sortBy)
 	if !allowed[sortBy] {
 		sortBy = ""
 	}
@@ -829,6 +834,22 @@ func clampSort(sortBy, sortDir string, allowed map[string]bool) (string, string)
 		sortDir = "asc"
 	}
 	return sortBy, sortDir
+}
+
+// columnName turns a camelCase key into the snake_case column it names:
+// affectedSbomCount → affected_sbom_count. A key already in snake_case, or with
+// no capitals, is returned unchanged.
+func columnName(s string) string {
+	var b strings.Builder
+	for _, r := range s {
+		if unicode.IsUpper(r) {
+			b.WriteByte('_')
+			b.WriteRune(unicode.ToLower(r))
+			continue
+		}
+		b.WriteRune(r)
+	}
+	return b.String()
 }
 
 func clampPage(limit, offset int32) (int32, int32) {

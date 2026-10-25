@@ -26,7 +26,7 @@ interface QueryParams {
     q?: string;
     severity?: string;
     sort?: string;
-    sort_dir?: string;
+    sortDir?: string;
 }
 
 const rows = [
@@ -128,7 +128,7 @@ describe("Vulnerabilities sorting", () => {
     it("defaults to the severity ranking", () => {
         const { params } = renderPage();
         expect(params().sort).toBe("severity");
-        expect(params().sort_dir).toBe("desc");
+        expect(params().sortDir).toBe("desc");
     });
 
     // The page is server-paginated: a client-side sort would order only the 25
@@ -138,8 +138,8 @@ describe("Vulnerabilities sorting", () => {
 
         fireEvent.click(getByText("Affected SBOMs"));
 
-        expect(params().sort).toBe("affected_sbom_count");
-        expect(params().sort_dir).toBe("desc");
+        expect(params().sort).toBe("affectedSbomCount");
+        expect(params().sortDir).toBe("desc");
         // A new ordering invalidates the current page window.
         expect(params().offset).toBe(0);
     });
@@ -148,11 +148,11 @@ describe("Vulnerabilities sorting", () => {
         const { getByText, params } = renderPage();
 
         fireEvent.click(getByText("CVSS"));
-        expect(params().sort_dir).toBe("desc");
+        expect(params().sortDir).toBe("desc");
 
         fireEvent.click(getByText("CVSS"));
-        expect(params().sort).toBe("cvss_score");
-        expect(params().sort_dir).toBe("asc");
+        expect(params().sort).toBe("cvssScore");
+        expect(params().sortDir).toBe("asc");
     });
 
     it("leaves the free-text summary column unsortable", () => {

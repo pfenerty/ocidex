@@ -40,8 +40,8 @@ let searchParams: Record<string, string | undefined> = {};
 /** The last query params the workload hook was asked for. */
 let lastWorkloadParams:
     | {
-          match_state?: string;
-          k8s_namespace?: string;
+          matchState?: string;
+          k8sNamespace?: string;
           q?: string;
           sort?: string;
           dir?: string;
@@ -54,8 +54,8 @@ let lastWorkloadParams:
 /** The last query params the image hook was asked for. */
 let lastImageParams:
     | {
-          match_state?: string;
-          k8s_namespace?: string;
+          matchState?: string;
+          k8sNamespace?: string;
           q?: string;
           sort?: string;
           dir?: string;
@@ -67,8 +67,8 @@ let lastImageParams:
 interface ParamWrite {
     tab?: string;
     group?: string;
-    k8s_namespace?: string;
-    match_state?: string;
+    k8sNamespace?: string;
+    matchState?: string;
     q?: string;
     sort?: string;
     dir?: string;
@@ -566,15 +566,15 @@ describe("ClusterDetail", () => {
 
     // An unrecognised state would otherwise be forwarded to the API, which
     // would match nothing and show an empty table as if the cluster were empty.
-    it("ignores a match_state the API does not define", () => {
-        searchParams = { tab: "workloads", group: "workload", match_state: "bogus" };
+    it("ignores a matchState the API does not define", () => {
+        searchParams = { tab: "workloads", group: "workload", matchState: "bogus" };
         renderPage([workload()], GAPPY);
 
-        expect(lastWorkloadParams?.match_state).toBeUndefined();
+        expect(lastWorkloadParams?.matchState).toBeUndefined();
     });
 
     it("marks the tile whose rows are on screen", () => {
-        searchParams = { tab: "workloads", match_state: "exact" };
+        searchParams = { tab: "workloads", matchState: "exact" };
         const { container } = renderPage([workload()], GAPPY);
 
         const tiles = [...container.querySelectorAll(".coverage-tile")];
@@ -660,20 +660,20 @@ describe("ClusterDetail", () => {
         searchParams = {
             tab: "workloads",
             group: "workload",
-            k8s_namespace: "kube-system",
-            match_state: "unknown",
+            k8sNamespace: "kube-system",
+            matchState: "unknown",
             q: "redis",
-            sort: "vuln_count",
+            sort: "vulnCount",
             dir: "desc",
             offset: "50",
         };
         renderPage([workload()], GAPPY);
 
         expect(lastWorkloadParams).toMatchObject({
-            k8s_namespace: "kube-system",
-            match_state: "unknown",
+            k8sNamespace: "kube-system",
+            matchState: "unknown",
             q: "redis",
-            sort: "vuln_count",
+            sort: "vulnCount",
             dir: "desc",
             offset: 50,
         });
@@ -685,7 +685,7 @@ describe("ClusterDetail", () => {
         searchParams = { tab: "workloads", group: "workload", sort: "whatever", dir: "sideways" };
         renderPage([workload()], GAPPY);
 
-        expect(lastWorkloadParams?.sort).toBe("vuln_count");
+        expect(lastWorkloadParams?.sort).toBe("vulnCount");
         expect(lastWorkloadParams?.dir).toBe("desc");
     });
 
@@ -701,7 +701,7 @@ describe("ClusterDetail", () => {
         namespaceSelect.dispatchEvent(new Event("change", { bubbles: true }));
 
         const filterWrite = lastWrite();
-        expect(filterWrite.k8s_namespace).toBe("kube-system");
+        expect(filterWrite.k8sNamespace).toBe("kube-system");
         // The key must be *present* and undefined — an absent key would leave
         // the stale offset in the URL rather than clearing it.
         expect("offset" in filterWrite).toBe(true);
@@ -718,7 +718,7 @@ describe("ClusterDetail", () => {
         );
 
         const sortWrite = lastWrite();
-        expect(sortWrite.sort).toBe("vuln_count");
+        expect(sortWrite.sort).toBe("vulnCount");
         expect("offset" in sortWrite).toBe(true);
         expect(sortWrite.offset).toBeUndefined();
     });
@@ -765,12 +765,12 @@ describe("ClusterDetail", () => {
         searchParams = { tab: "workloads" };
         renderPage([workload()], GAPPY);
 
-        expect(lastImageParams?.sort).toBe("vuln_count");
+        expect(lastImageParams?.sort).toBe("vulnCount");
         expect(lastImageParams?.dir).toBe("desc");
     });
 
     it("keeps the filters when the grouping changes", () => {
-        searchParams = { tab: "workloads", k8s_namespace: "kube-system", q: "redis" };
+        searchParams = { tab: "workloads", k8sNamespace: "kube-system", q: "redis" };
         const { container } = renderPage([workload()], GAPPY);
 
         const select = must(
@@ -790,7 +790,7 @@ describe("ClusterDetail", () => {
         expect(write.offset).toBeUndefined();
         // The narrowing itself survives: the write does not mention those keys
         // at all, so the merge leaves them in the URL.
-        expect("k8s_namespace" in write).toBe(false);
+        expect("k8sNamespace" in write).toBe(false);
         expect("q" in write).toBe(false);
     });
 
@@ -798,10 +798,10 @@ describe("ClusterDetail", () => {
     // namespace column to order by, and the SQL CASE it would reach matches no
     // branch, producing an arbitrary order that looks like a sort.
     it("drops a sort key that only the other grouping has", () => {
-        searchParams = { tab: "workloads", sort: "k8s_namespace", dir: "asc" };
+        searchParams = { tab: "workloads", sort: "k8sNamespace", dir: "asc" };
         renderPage([workload()], GAPPY);
 
-        expect(lastImageParams?.sort).toBe("vuln_count");
+        expect(lastImageParams?.sort).toBe("vulnCount");
     });
 
     // ADR-044 K5 holds in both groupings or it holds in neither: the same cell
@@ -862,13 +862,13 @@ describe("ClusterDetail", () => {
         searchParams = {
             tab: "vulnerabilities",
             severity: "HIGH",
-            sort: "workload_count",
+            sort: "workloadCount",
             dir: "asc",
         };
         renderPage([workload()], GAPPY, [vuln()]);
 
         expect(lastVulnParams?.severity).toBe("HIGH");
-        expect(lastVulnParams?.sort).toBe("workload_count");
+        expect(lastVulnParams?.sort).toBe("workloadCount");
         expect(lastVulnParams?.dir).toBe("asc");
     });
 

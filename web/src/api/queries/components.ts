@@ -9,9 +9,9 @@ export interface DistinctComponentParams {
     name?: string;
     group?: string;
     type?: string;
-    purl_type?: string;
+    purlType?: string;
     sort?: string;
-    sort_dir?: string;
+    sortDir?: string;
 }
 
 /** Parameters for fetching component version history. */
@@ -37,9 +37,9 @@ export function useDistinctComponents(
                 p.name,
                 p.group,
                 p.type,
-                p.purl_type,
+                p.purlType,
                 p.sort,
-                p.sort_dir,
+                p.sortDir,
                 p.limit,
                 p.offset,
             ] as const,
@@ -51,9 +51,9 @@ export function useDistinctComponents(
                                 name: p.name !== "" ? p.name : undefined,
                                 group: p.group !== "" ? p.group : undefined,
                                 type: p.type !== "" ? p.type : undefined,
-                                purl_type: p.purl_type !== "" ? p.purl_type : undefined,
+                                purlType: p.purlType !== "" ? p.purlType : undefined,
                                 sort: p.sort,
-                                sort_dir: p.sort_dir,
+                                sortDir: p.sortDir,
                                 limit: p.limit,
                                 offset: p.offset,
                             },

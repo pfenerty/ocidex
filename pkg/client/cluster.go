@@ -11,7 +11,7 @@ import (
 func (c *httpClient) ListClusters(ctx context.Context, namespaceID string) ([]ClusterResponse, error) {
 	var q url.Values
 	if namespaceID != "" {
-		q = url.Values{"namespace_id": []string{namespaceID}}
+		q = url.Values{"namespaceId": []string{namespaceID}}
 	}
 	var out ListClustersOutputBody
 	if err := c.request(ctx, http.MethodGet, "/api/v1/clusters", q, nil, &out); err != nil {

@@ -19,7 +19,7 @@ type SourceResponse struct {
 
 // ListSourcesInput is the request for GET /api/v1/sources.
 type ListSourcesInput struct {
-	NamespaceID string `query:"namespace_id" doc:"Limit to sources in this namespace"`
+	NamespaceID string `query:"namespaceId" doc:"Limit to sources in this namespace"`
 }
 
 // ListMySourcesInput is the request for GET /api/v1/users/me/sources. There is

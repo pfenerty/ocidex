@@ -116,26 +116,26 @@ type ListNamespaceMembersOutput struct {
 }
 
 // SetNamespaceMemberInput is the request for
-// PUT /api/v1/namespaces/{id}/members/{user_id}. It is a PUT rather than a
+// PUT /api/v1/namespaces/{id}/members/{userId}. It is a PUT rather than a
 // POST/PATCH pair because the caller states the membership they want: adding a
 // member and changing one's role are the same statement.
 type SetNamespaceMemberInput struct {
 	ID     string `path:"id" doc:"Namespace UUID" format:"uuid"`
-	UserID string `path:"user_id" doc:"UUID of the user to grant a role to" format:"uuid"`
+	UserID string `path:"userId" doc:"UUID of the user to grant a role to" format:"uuid"`
 	Body   struct {
 		Role string `json:"role" enum:"owner,maintainer,security,developer,viewer" doc:"Role to grant in this namespace"`
 	}
 }
 
 // SetNamespaceMemberOutput is the response for
-// PUT /api/v1/namespaces/{id}/members/{user_id}.
+// PUT /api/v1/namespaces/{id}/members/{userId}.
 type SetNamespaceMemberOutput struct {
 	Body NamespaceMemberResponse
 }
 
 // RemoveNamespaceMemberInput is the request for
-// DELETE /api/v1/namespaces/{id}/members/{user_id}.
+// DELETE /api/v1/namespaces/{id}/members/{userId}.
 type RemoveNamespaceMemberInput struct {
 	ID     string `path:"id" doc:"Namespace UUID" format:"uuid"`
-	UserID string `path:"user_id" doc:"UUID of the member to remove" format:"uuid"`
+	UserID string `path:"userId" doc:"UUID of the member to remove" format:"uuid"`
 }

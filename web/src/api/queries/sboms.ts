@@ -10,7 +10,7 @@ export function useSBOMs(
     params: Accessor<{
         limit?: number;
         cursor?: string;
-        serial_number?: string;
+        serialNumber?: string;
         digest?: string;
     }>,
 ) {
@@ -19,7 +19,7 @@ export function useSBOMs(
         return {
             queryKey: [
                 "sboms",
-                p.serial_number,
+                p.serialNumber,
                 p.digest,
                 p.limit,
                 p.cursor,

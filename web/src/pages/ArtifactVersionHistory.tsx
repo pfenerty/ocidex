@@ -14,7 +14,7 @@ export default function ArtifactVersionHistory() {
     const artifactQuery = useArtifact(() => params.id);
     const sbomsQuery = useArtifactSBOMs(
         () => params.id,
-        () => ({ image_version: version(), limit: 200 }),
+        () => ({ imageVersion: version(), limit: 200 }),
     );
 
     const [selectedArch, setSelectedArch] = createSignal<string | undefined>("amd64");

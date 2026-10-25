@@ -435,7 +435,7 @@ func registerAuthOps(r chi.Router, api huma.API, h *Handler) {
 	huma.Register(api, huma.Operation{
 		OperationID:   "watch-artifact",
 		Method:        http.MethodPut,
-		Path:          "/api/v1/users/me/watches/{artifact_id}",
+		Path:          "/api/v1/users/me/watches/{artifactId}",
 		Summary:       "Watch an artifact",
 		Description:   "Idempotent. Returns 404 for an artifact you cannot see, which is the same answer as one that does not exist.",
 		Tags:          []string{tagAuth},
@@ -446,7 +446,7 @@ func registerAuthOps(r chi.Router, api huma.API, h *Handler) {
 	huma.Register(api, huma.Operation{
 		OperationID:   "unwatch-artifact",
 		Method:        http.MethodDelete,
-		Path:          "/api/v1/users/me/watches/{artifact_id}",
+		Path:          "/api/v1/users/me/watches/{artifactId}",
 		Summary:       "Unwatch an artifact",
 		Description:   "Idempotent: removing a watch that is not there succeeds.",
 		Tags:          []string{tagAuth},

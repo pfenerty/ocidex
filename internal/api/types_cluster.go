@@ -21,7 +21,7 @@ type ClusterResponse struct {
 
 // ListClustersInput is the request for GET /api/v1/clusters.
 type ListClustersInput struct {
-	NamespaceID string `query:"namespace_id" doc:"Limit to clusters in one namespace"`
+	NamespaceID string `query:"namespaceId" doc:"Limit to clusters in one namespace"`
 }
 
 // ListMyClustersInput is the request for GET /api/v1/users/me/clusters.
@@ -177,10 +177,10 @@ type WorkloadCoverageResponse struct {
 // ListClusterWorkloadsInput is the request for GET /api/v1/clusters/{id}/workloads.
 type ListClusterWorkloadsInput struct {
 	ID           string `path:"id" doc:"Cluster UUID" format:"uuid"`
-	K8sNamespace string `query:"k8s_namespace" doc:"Filter to one Kubernetes namespace"`
-	MatchState   string `query:"match_state" enum:"exact,index,unknown,unresolvable" doc:"Filter by SBOM match state"`
+	K8sNamespace string `query:"k8sNamespace" doc:"Filter to one Kubernetes namespace"`
+	MatchState   string `query:"matchState" enum:"exact,index,unknown,unresolvable" doc:"Filter by SBOM match state"`
 	Q            string `query:"q" doc:"Substring match over workload name, container name and image reference"`
-	Sort         string `query:"sort" enum:"k8s_namespace,workload_name,container_name,image_ref,match_state,pod_count,last_seen_at,vuln_count" doc:"Column to sort by. vuln_count orders by severity, worst first, and sorts unmatched workloads last in either direction. Unset means namespace, then workload, then container."`
+	Sort         string `query:"sort" enum:"k8sNamespace,workloadName,containerName,imageRef,matchState,podCount,lastSeenAt,vulnCount" doc:"Column to sort by. vulnCount orders by severity, worst first, and sorts unmatched workloads last in either direction. Unset means namespace, then workload, then container."`
 	Dir          string `query:"dir" enum:"asc,desc" doc:"Sort direction (default asc). Applies to sort only — with sort unset the default ordering ignores it."`
 	PaginationParams
 }
@@ -238,10 +238,10 @@ type ClusterImageResponse struct {
 // client keeps whatever the reader had narrowed to.
 type ListClusterImagesInput struct {
 	ID           string `path:"id" doc:"Cluster UUID" format:"uuid"`
-	K8sNamespace string `query:"k8s_namespace" doc:"Filter to one Kubernetes namespace"`
-	MatchState   string `query:"match_state" enum:"exact,index,unknown,unresolvable" doc:"Filter by SBOM match state"`
+	K8sNamespace string `query:"k8sNamespace" doc:"Filter to one Kubernetes namespace"`
+	MatchState   string `query:"matchState" enum:"exact,index,unknown,unresolvable" doc:"Filter by SBOM match state"`
 	Q            string `query:"q" doc:"Substring match over workload name, container name and image reference"`
-	Sort         string `query:"sort" enum:"image_ref,match_state,workload_count,pod_count,last_seen_at,vuln_count" doc:"Column to sort by. vuln_count orders by severity, worst first, and sorts unassessed images last in either direction. Unset means image reference order."`
+	Sort         string `query:"sort" enum:"imageRef,matchState,workloadCount,podCount,lastSeenAt,vulnCount" doc:"Column to sort by. vulnCount orders by severity, worst first, and sorts unassessed images last in either direction. Unset means image reference order."`
 	Dir          string `query:"dir" enum:"asc,desc" doc:"Sort direction (default asc). Applies to sort only — with sort unset the default ordering ignores it."`
 	PaginationParams
 }
@@ -302,7 +302,7 @@ type RunningVulnResponse struct {
 type ListClusterVulnsInput struct {
 	ID       string `path:"id" doc:"Cluster UUID" format:"uuid"`
 	Severity string `query:"severity" enum:"CRITICAL,HIGH,MEDIUM,LOW,UNKNOWN" doc:"Filter by severity"`
-	Sort     string `query:"sort" enum:"severity,cvss_score,workload_count,canonical_id" doc:"Column to sort by. Unset means worst first: severity, then CVSS."`
+	Sort     string `query:"sort" enum:"severity,cvssScore,workloadCount,canonicalId" doc:"Column to sort by. Unset means worst first: severity, then CVSS."`
 	Dir      string `query:"dir" enum:"asc,desc" doc:"Sort direction (default asc). Applies to sort only — with sort unset the worst-first default ordering ignores it."`
 	PaginationParams
 }
@@ -331,7 +331,7 @@ type RunningWorkloadResponse struct {
 // ListVulnWorkloadsInput is the request for GET /api/v1/vulns/{id}/workloads.
 type ListVulnWorkloadsInput struct {
 	ID        string `path:"id" doc:"Vulnerability id (CVE or GHSA); aliases of the same advisory resolve to the same workloads"`
-	ClusterID string `query:"cluster_id" doc:"Limit to one cluster. Omitted, the answer spans every cluster the caller can see."`
+	ClusterID string `query:"clusterId" doc:"Limit to one cluster. Omitted, the answer spans every cluster the caller can see."`
 	Limit     int32  `query:"limit" default:"50" minimum:"1" maximum:"200"`
 }
 

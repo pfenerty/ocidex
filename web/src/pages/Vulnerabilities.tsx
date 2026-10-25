@@ -49,7 +49,7 @@ export default function Vulnerabilities() {
         q: param("q"),
         severity: param("severity"),
         sort: sortBy(),
-        sort_dir: sortDir(),
+        sortDir: sortDir(),
     }));
 
     // The query wants "" for no filter; the strip wants a tab id. "All" is the
@@ -71,7 +71,7 @@ export default function Vulnerabilities() {
     const columns: Column<TopVulnEntry>[] = [
         {
             header: "Vulnerability",
-            sortKey: "canonical_id",
+            sortKey: "canonicalId",
             sortType: "text",
             render: (row) => (
                 <VulnId canonicalId={row.canonicalId} nativeId={row.id} />
@@ -90,7 +90,7 @@ export default function Vulnerabilities() {
         {
             header: "CVSS",
             align: "right",
-            sortKey: "cvss_score",
+            sortKey: "cvssScore",
             sortType: "numeric",
             render: (row) =>
                 row.cvssScore !== undefined ? row.cvssScore.toFixed(1) : "—",
@@ -105,14 +105,14 @@ export default function Vulnerabilities() {
         {
             header: "Affected SBOMs",
             align: "right",
-            sortKey: "affected_sbom_count",
+            sortKey: "affectedSbomCount",
             sortType: "numeric",
             render: (row) => row.affectedSbomCount.toLocaleString(),
         },
         {
             header: "Affected Packages",
             align: "right",
-            sortKey: "affected_purl_count",
+            sortKey: "affectedPurlCount",
             sortType: "numeric",
             render: (row) => row.affectedPurlCount.toLocaleString(),
         },

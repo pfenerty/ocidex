@@ -39,7 +39,7 @@ export function EnrichmentJobsView() {
 
     const q = useListEnrichmentJobs(() => ({
         state: stateFilter() || undefined,
-        enricher_name: enricherFilter() || undefined,
+        enricherName: enricherFilter() || undefined,
         limit: DEFAULT_PAGE_SIZE,
         offset: offset(),
     }));

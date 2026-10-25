@@ -297,7 +297,7 @@ export function GapsTab(props: {
     );
     const unresolvable = useClusterWorkloads(
         () => props.clusterId,
-        () => ({ match_state: "unresolvable" as const, limit: PAGE_SIZE, offset: workloadOffset() }),
+        () => ({ matchState: "unresolvable" as const, limit: PAGE_SIZE, offset: workloadOffset() }),
     );
 
     // From the server's tally of the whole gap, not from the page in hand: the

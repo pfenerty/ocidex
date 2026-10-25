@@ -982,7 +982,7 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
-    "/api/v1/namespaces/{id}/members/{user_id}": {
+    "/api/v1/namespaces/{id}/members/{userId}": {
         parameters: {
             query?: never;
             header?: never;
@@ -1687,7 +1687,7 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
-    "/api/v1/users/me/watches/{artifact_id}": {
+    "/api/v1/users/me/watches/{artifactId}": {
         parameters: {
             query?: never;
             header?: never;
@@ -4540,7 +4540,7 @@ export interface operations {
         parameters: {
             query?: {
                 /** @description Limit the reset to a single enricher; omit to reset all */
-                enricher_name?: "user" | "oci-metadata" | "provenance";
+                enricherName?: "user" | "oci-metadata" | "provenance";
             };
             header?: never;
             path?: never;
@@ -4862,7 +4862,7 @@ export interface operations {
         parameters: {
             query?: {
                 /** @description Filter by subject version */
-                subject_version?: string;
+                subjectVersion?: string;
                 /** @description Architecture to show timeline for (e.g. amd64) */
                 arch?: string;
                 /** @description Flavor to show timeline for (e.g. standard, fips) */
@@ -4975,9 +4975,9 @@ export interface operations {
                 /** @description Opaque cursor from a previous response's nextCursor; omit for the first page */
                 cursor?: string;
                 /** @description Filter by subject version */
-                subject_version?: string;
+                subjectVersion?: string;
                 /** @description Filter by image version */
-                image_version?: string;
+                imageVersion?: string;
             };
             header?: never;
             path: {
@@ -5123,7 +5123,7 @@ export interface operations {
                 /** @description Filter to a single advisory, by canonical id or native OSV id */
                 vuln?: string;
                 /** @description Column to sort by. Unset means worst first: severity, then CVSS. */
-                sort?: "severity" | "cvss_score" | "affected_package_count" | "affected_version_count" | "canonical_id";
+                sort?: "severity" | "cvssScore" | "affectedPackageCount" | "affectedVersionCount" | "canonicalId";
                 /** @description Sort direction (default asc). Applies to sort only — with sort unset the worst-first default ordering ignores it. */
                 dir?: "asc" | "desc";
                 /** @description How many of the artifact's most recent versions to scan */
@@ -5380,7 +5380,7 @@ export interface operations {
         parameters: {
             query?: {
                 /** @description Limit to clusters in one namespace */
-                namespace_id?: string;
+                namespaceId?: string;
             };
             header?: never;
             path?: never;
@@ -5543,13 +5543,13 @@ export interface operations {
         parameters: {
             query?: {
                 /** @description Filter to one Kubernetes namespace */
-                k8s_namespace?: string;
+                k8sNamespace?: string;
                 /** @description Filter by SBOM match state */
-                match_state?: "exact" | "index" | "unknown" | "unresolvable";
+                matchState?: "exact" | "index" | "unknown" | "unresolvable";
                 /** @description Substring match over workload name, container name and image reference */
                 q?: string;
-                /** @description Column to sort by. vuln_count orders by severity, worst first, and sorts unassessed images last in either direction. Unset means image reference order. */
-                sort?: "image_ref" | "match_state" | "workload_count" | "pod_count" | "last_seen_at" | "vuln_count";
+                /** @description Column to sort by. vulnCount orders by severity, worst first, and sorts unassessed images last in either direction. Unset means image reference order. */
+                sort?: "imageRef" | "matchState" | "workloadCount" | "podCount" | "lastSeenAt" | "vulnCount";
                 /** @description Sort direction (default asc). Applies to sort only — with sort unset the default ordering ignores it. */
                 dir?: "asc" | "desc";
                 /** @description Maximum number of results per page */
@@ -5733,7 +5733,7 @@ export interface operations {
                 /** @description Filter by severity */
                 severity?: "CRITICAL" | "HIGH" | "MEDIUM" | "LOW" | "UNKNOWN";
                 /** @description Column to sort by. Unset means worst first: severity, then CVSS. */
-                sort?: "severity" | "cvss_score" | "workload_count" | "canonical_id";
+                sort?: "severity" | "cvssScore" | "workloadCount" | "canonicalId";
                 /** @description Sort direction (default asc). Applies to sort only — with sort unset the worst-first default ordering ignores it. */
                 dir?: "asc" | "desc";
                 /** @description Maximum number of results per page */
@@ -5774,13 +5774,13 @@ export interface operations {
         parameters: {
             query?: {
                 /** @description Filter to one Kubernetes namespace */
-                k8s_namespace?: string;
+                k8sNamespace?: string;
                 /** @description Filter by SBOM match state */
-                match_state?: "exact" | "index" | "unknown" | "unresolvable";
+                matchState?: "exact" | "index" | "unknown" | "unresolvable";
                 /** @description Substring match over workload name, container name and image reference */
                 q?: string;
-                /** @description Column to sort by. vuln_count orders by severity, worst first, and sorts unmatched workloads last in either direction. Unset means namespace, then workload, then container. */
-                sort?: "k8s_namespace" | "workload_name" | "container_name" | "image_ref" | "match_state" | "pod_count" | "last_seen_at" | "vuln_count";
+                /** @description Column to sort by. vulnCount orders by severity, worst first, and sorts unmatched workloads last in either direction. Unset means namespace, then workload, then container. */
+                sort?: "k8sNamespace" | "workloadName" | "containerName" | "imageRef" | "matchState" | "podCount" | "lastSeenAt" | "vulnCount";
                 /** @description Sort direction (default asc). Applies to sort only — with sort unset the default ordering ignores it. */
                 dir?: "asc" | "desc";
                 /** @description Maximum number of results per page */
@@ -5873,11 +5873,11 @@ export interface operations {
                 /** @description Filter by component type */
                 type?: string;
                 /** @description Filter by purl type */
-                purl_type?: string;
-                /** @description Sort field: name, version_count, sbom_count, or severity (worst first, ranked critical to unknown). Unrecognised values fall back to name. */
+                purlType?: string;
+                /** @description Sort field: name, versionCount, sbomCount, or severity (worst first, ranked critical to unknown). Unrecognised values fall back to name. */
                 sort?: string;
                 /** @description Sort direction (asc or desc) */
-                sort_dir?: string;
+                sortDir?: string;
             };
             header?: never;
             path?: never;
@@ -6120,7 +6120,7 @@ export interface operations {
                 /** @description Filter by job state */
                 state?: "queued" | "running" | "succeeded" | "failed";
                 /** @description Filter by enricher */
-                enricher_name?: "user" | "oci-metadata" | "provenance";
+                enricherName?: "user" | "oci-metadata" | "provenance";
             };
             header?: never;
             path?: never;
@@ -6253,7 +6253,7 @@ export interface operations {
                 /** @description Number of results to skip */
                 offset?: number;
                 /** @description Filter by SPDX identifier */
-                spdx_id?: string;
+                spdxId?: string;
                 /** @description Filter by license name */
                 name?: string;
                 /** @description Filter by license category */
@@ -6586,7 +6586,7 @@ export interface operations {
                 /** @description Namespace UUID */
                 id: string;
                 /** @description UUID of the user to grant a role to */
-                user_id: string;
+                userId: string;
             };
             cookie?: never;
         };
@@ -6624,7 +6624,7 @@ export interface operations {
                 /** @description Namespace UUID */
                 id: string;
                 /** @description UUID of the member to remove */
-                user_id: string;
+                userId: string;
             };
             cookie?: never;
         };
@@ -7117,7 +7117,7 @@ export interface operations {
                 /** @description Opaque cursor from a previous response's nextCursor; omit for the first page */
                 cursor?: string;
                 /** @description Filter by serial number */
-                serial_number?: string;
+                serialNumber?: string;
                 /** @description Filter by image digest */
                 digest?: string;
             };
@@ -7152,20 +7152,20 @@ export interface operations {
             query?: {
                 /** @description Ingest channel this SBOM arrived through, as a source UUID or <namespace>/<name>. Required — the source's namespace owns the SBOM. */
                 source?: string;
-                /** @description Image version/tag (overrides BOM-extracted value for subject_version and imageVersion) */
+                /** @description Image version/tag (overrides BOM-extracted value for subjectVersion and imageVersion) */
                 version?: string;
                 /** @description Image architecture (e.g. amd64, arm64) */
                 architecture?: string;
                 /** @description Image build date (RFC3339 or date string) */
-                build_date?: string;
+                buildDate?: string;
                 /** @description CycloneDX component type of the subject (e.g. application, library, file) */
-                subject_type?: string;
+                subjectType?: string;
                 /** @description Subject name (e.g. ocidex) */
-                subject_name?: string;
+                subjectName?: string;
                 /** @description Subject group/namespace (e.g. github.com/pfenerty) */
-                subject_group?: string;
+                subjectGroup?: string;
                 /** @description Subject package URL (e.g. pkg:golang/github.com/pfenerty/ocidex@v1.2.3) */
-                subject_purl?: string;
+                subjectPurl?: string;
                 /** @description sha256 of the artifact file itself, not of this SBOM document. Required for a non-container subject. */
                 digest?: string;
             };
@@ -7490,7 +7490,7 @@ export interface operations {
                 /** @description Filter by severity */
                 severity?: "CRITICAL" | "HIGH" | "MEDIUM" | "LOW" | "UNKNOWN";
                 /** @description Column to sort by. Unset means worst first: severity, then CVSS. */
-                sort?: "severity" | "cvss_score" | "affected_package_count" | "canonical_id";
+                sort?: "severity" | "cvssScore" | "affectedPackageCount" | "canonicalId";
                 /** @description Sort direction (default asc). Applies to sort only — with sort unset the worst-first default ordering ignores it. */
                 dir?: "asc" | "desc";
                 /** @description Maximum number of results per page */
@@ -7531,7 +7531,7 @@ export interface operations {
         parameters: {
             query?: {
                 /** @description Limit to sources in this namespace */
-                namespace_id?: string;
+                namespaceId?: string;
             };
             header?: never;
             path?: never;
@@ -8022,9 +8022,9 @@ export interface operations {
                 /** @description Filter by severity */
                 severity?: "CRITICAL" | "HIGH" | "MEDIUM" | "LOW";
                 /** @description Sort field */
-                sort?: "severity" | "cvss_score" | "affected_sbom_count" | "affected_purl_count" | "published_at" | "canonical_id";
+                sort?: "severity" | "cvssScore" | "affectedSbomCount" | "affectedPurlCount" | "publishedAt" | "canonicalId";
                 /** @description Sort direction (asc or desc) */
-                sort_dir?: "asc" | "desc";
+                sortDir?: "asc" | "desc";
             };
             header?: never;
             path?: never;
@@ -8126,7 +8126,7 @@ export interface operations {
             header?: never;
             path: {
                 /** @description Artifact UUID */
-                artifact_id: string;
+                artifactId: string;
             };
             cookie?: never;
         };
@@ -8156,7 +8156,7 @@ export interface operations {
             header?: never;
             path: {
                 /** @description Artifact UUID */
-                artifact_id: string;
+                artifactId: string;
             };
             cookie?: never;
         };
@@ -8228,9 +8228,9 @@ export interface operations {
                 /** @description Filter by severity */
                 severity?: "CRITICAL" | "HIGH" | "MEDIUM" | "LOW";
                 /** @description Sort field */
-                sort?: "severity" | "cvss_score" | "affected_sbom_count" | "affected_purl_count" | "published_at" | "canonical_id";
+                sort?: "severity" | "cvssScore" | "affectedSbomCount" | "affectedPurlCount" | "publishedAt" | "canonicalId";
                 /** @description Sort direction (asc or desc) */
-                sort_dir?: "asc" | "desc";
+                sortDir?: "asc" | "desc";
             };
             header?: never;
             path?: never;
@@ -8299,7 +8299,7 @@ export interface operations {
         parameters: {
             query?: {
                 /** @description Limit to one cluster. Omitted, the answer spans every cluster the caller can see. */
-                cluster_id?: string;
+                clusterId?: string;
                 limit?: number;
             };
             header?: never;

@@ -92,8 +92,8 @@ export function useSetNamespaceMember() {
     return createMutation(() => ({
         mutationFn: ({ id, userID, role }: { id: string; userID: string; role: NamespaceRole }) =>
             unwrap(
-                client.PUT("/api/v1/namespaces/{id}/members/{user_id}", {
-                    params: { path: { id, user_id: userID } },
+                client.PUT("/api/v1/namespaces/{id}/members/{userId}", {
+                    params: { path: { id, userId: userID } },
                     body: { role },
                 }),
             ),
@@ -108,8 +108,8 @@ export function useRemoveNamespaceMember() {
     return createMutation(() => ({
         mutationFn: ({ id, userID }: { id: string; userID: string }) =>
             unwrap(
-                client.DELETE("/api/v1/namespaces/{id}/members/{user_id}", {
-                    params: { path: { id, user_id: userID } },
+                client.DELETE("/api/v1/namespaces/{id}/members/{userId}", {
+                    params: { path: { id, userId: userID } },
                 }),
             ),
         onSuccess: (_data, vars) =>

@@ -35,7 +35,7 @@ export function useWatchFeed(opts?: SelfScopedOptions) {
 }
 
 /**
- * useToggleWatch — PUT/DELETE /api/v1/users/me/watches/{artifact_id}.
+ * useToggleWatch — PUT/DELETE /api/v1/users/me/watches/{artifactId}.
  *
  * The star flips before the request lands, because a bookmark toggle that waits
  * on a round trip feels broken. The optimistic write goes into the *detail*
@@ -53,13 +53,13 @@ export function useToggleWatch() {
         mutationFn: ({ artifactId, watched }: { artifactId: string; watched: boolean }) =>
             watched
                 ? unwrap(
-                      client.PUT("/api/v1/users/me/watches/{artifact_id}", {
-                          params: { path: { artifact_id: artifactId } },
+                      client.PUT("/api/v1/users/me/watches/{artifactId}", {
+                          params: { path: { artifactId } },
                       }),
                   )
                 : unwrap(
-                      client.DELETE("/api/v1/users/me/watches/{artifact_id}", {
-                          params: { path: { artifact_id: artifactId } },
+                      client.DELETE("/api/v1/users/me/watches/{artifactId}", {
+                          params: { path: { artifactId } },
                       }),
                   ),
         onMutate: async ({ artifactId, watched }: { artifactId: string; watched: boolean }) => {

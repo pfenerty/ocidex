@@ -87,8 +87,8 @@ type DeleteArtifactInput struct {
 type ListArtifactSBOMsInput struct {
 	CursorParams
 	ID             string `path:"id" doc:"Artifact UUID" format:"uuid"`
-	SubjectVersion string `query:"subject_version" doc:"Filter by subject version"`
-	ImageVersion   string `query:"image_version"   doc:"Filter by image version"`
+	SubjectVersion string `query:"subjectVersion" doc:"Filter by subject version"`
+	ImageVersion   string `query:"imageVersion"   doc:"Filter by image version"`
 }
 
 // ListArtifactSBOMsOutput is the response for GET /api/v1/artifacts/{id}/sboms.
@@ -149,7 +149,7 @@ type ListArtifactVersionsOutput struct {
 // GetArtifactChangelogInput is the request for GET /api/v1/artifacts/{id}/changelog.
 type GetArtifactChangelogInput struct {
 	ID             string `path:"id"               doc:"Artifact UUID"    format:"uuid"`
-	SubjectVersion string `query:"subject_version" doc:"Filter by subject version"`
+	SubjectVersion string `query:"subjectVersion" doc:"Filter by subject version"`
 	Arch           string `query:"arch"            doc:"Architecture to show timeline for (e.g. amd64)"`
 	Flavor         string `query:"flavor"          doc:"Flavor to show timeline for (e.g. standard, fips)"`
 	Mode           string `query:"mode" enum:"semver,all" doc:"Sort/filter mode: 'semver' (semver versions, semver order), 'all' (every version, build-time order). Empty auto-selects semver when available."`
@@ -235,7 +235,7 @@ type ListArtifactVulnsInput struct {
 	// Vuln closes the reverse trail: /vulnerabilities/{id} links here for one
 	// advisory rather than dropping the reader into an unfiltered list.
 	Vuln string `query:"vuln" doc:"Filter to a single advisory, by canonical id or native OSV id"`
-	Sort string `query:"sort" enum:"severity,cvss_score,affected_package_count,affected_version_count,canonical_id" doc:"Column to sort by. Unset means worst first: severity, then CVSS."`
+	Sort string `query:"sort" enum:"severity,cvssScore,affectedPackageCount,affectedVersionCount,canonicalId" doc:"Column to sort by. Unset means worst first: severity, then CVSS."`
 	Dir  string `query:"dir" enum:"asc,desc" doc:"Sort direction (default asc). Applies to sort only — with sort unset the worst-first default ordering ignores it."`
 	// VersionScope bounds the versions scanned, newest version first. The list
 	// is computed over the newest SBOM of each version in scope, so its cost

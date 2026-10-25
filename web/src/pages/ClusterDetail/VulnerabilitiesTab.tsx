@@ -17,9 +17,9 @@ const SEVERITY_TABS = ["All", "CRITICAL", "HIGH", "MEDIUM", "LOW", "UNKNOWN"] as
 
 const SORT_KEYS: ClusterVulnSortKey[] = [
     "severity",
-    "cvss_score",
-    "workload_count",
-    "canonical_id",
+    "cvssScore",
+    "workloadCount",
+    "canonicalId",
 ];
 
 const SEVERITIES: VulnSeverityFilter[] = ["CRITICAL", "HIGH", "MEDIUM", "LOW", "UNKNOWN"];
@@ -61,7 +61,7 @@ export function VulnerabilitiesTab(props: {
     const columns: Column<RunningVuln>[] = [
         {
             header: "ID",
-            sortKey: "canonical_id",
+            sortKey: "canonicalId",
             render: (v) => <VulnId canonicalId={v.canonicalId} nativeId={v.id} />,
         },
         {
@@ -75,7 +75,7 @@ export function VulnerabilitiesTab(props: {
         {
             header: "CVSS",
             align: "right",
-            sortKey: "cvss_score",
+            sortKey: "cvssScore",
             sortType: "numeric",
             render: (v) => (
                 <Show when={v.cvssScore} fallback={<span class="text-muted">—</span>}>
@@ -88,7 +88,7 @@ export function VulnerabilitiesTab(props: {
             // its own is not actionable: "3 workloads" is only useful once you
             // know which three.
             header: "Running workloads",
-            sortKey: "workload_count",
+            sortKey: "workloadCount",
             sortType: "numeric",
             render: (v) => (
                 <>

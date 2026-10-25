@@ -38,7 +38,7 @@ function statTiles(data: Stats): StatTile[] {
             icon: <Package size={ICON} />,
             head: "Packages",
             value: data.packageCount.toLocaleString(),
-            // version_count is distinct *package* versions (db/queries/stats.sql
+            // versionCount is distinct *package* versions (db/queries/stats.sql
             // counts component_rollup.versions), not artifact versions — it
             // belongs here, not on the SBOM tile where it read as though the
             // catalog held more versions than SBOMs.

@@ -20,9 +20,9 @@ const SEVERITY_TABS = ["All", "CRITICAL", "HIGH", "MEDIUM", "LOW", "UNKNOWN"] as
 
 const SORT_KEYS: SBOMVulnSortKey[] = [
     "severity",
-    "cvss_score",
-    "affected_package_count",
-    "canonical_id",
+    "cvssScore",
+    "affectedPackageCount",
+    "canonicalId",
 ];
 
 const SEVERITIES: VulnSeverityFilter[] = ["CRITICAL", "HIGH", "MEDIUM", "LOW", "UNKNOWN"];
@@ -132,7 +132,7 @@ export function VulnerabilitiesTab(props: {
     const columns: Column<SBOMVulnEntry>[] = [
         {
             header: "ID",
-            sortKey: "canonical_id",
+            sortKey: "canonicalId",
             render: (v) => <VulnId canonicalId={v.canonicalId} nativeId={v.id} />,
         },
         {
@@ -144,7 +144,7 @@ export function VulnerabilitiesTab(props: {
         {
             header: "CVSS",
             align: "right",
-            sortKey: "cvss_score",
+            sortKey: "cvssScore",
             sortType: "numeric",
             render: (v) => (
                 <Show when={v.cvssScore} fallback={<span class="text-muted">—</span>}>
@@ -157,7 +157,7 @@ export function VulnerabilitiesTab(props: {
             // you know which three. The names are already on the row, so they
             // are simply shown; the count survives as the "+N more" tail.
             header: "Affected packages",
-            sortKey: "affected_package_count",
+            sortKey: "affectedPackageCount",
             sortType: "numeric",
             render: (v) => (
                 <>

@@ -39,10 +39,10 @@ func TestIngestSBOM_SubjectParams(t *testing.T) {
 	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		q := r.URL.Query()
 		is.Equal(q.Get("source"), "myorg/ci")
-		is.Equal(q.Get("subject_type"), "application")
-		is.Equal(q.Get("subject_name"), "ocidex")
-		is.Equal(q.Get("subject_group"), "github.com/pfenerty")
-		is.Equal(q.Get("subject_purl"), "pkg:golang/github.com/pfenerty/ocidex@v1.2.3")
+		is.Equal(q.Get("subjectType"), "application")
+		is.Equal(q.Get("subjectName"), "ocidex")
+		is.Equal(q.Get("subjectGroup"), "github.com/pfenerty")
+		is.Equal(q.Get("subjectPurl"), "pkg:golang/github.com/pfenerty/ocidex@v1.2.3")
 		is.Equal(q.Get("digest"), "sha256:abc")
 		// An unset optional parameter must be absent, not empty.
 		_, present := q["architecture"]
@@ -113,7 +113,7 @@ func TestListSBOMs_Filter(t *testing.T) {
 	is := is.New(t)
 	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		q := r.URL.Query()
-		is.Equal(q.Get("serial_number"), "urn:uuid:abc")
+		is.Equal(q.Get("serialNumber"), "urn:uuid:abc")
 		is.Equal(q.Get("digest"), "sha256:def")
 		is.Equal(q.Get("limit"), "5")
 		w.Header().Set("Content-Type", "application/json")

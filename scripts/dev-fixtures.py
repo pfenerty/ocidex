@@ -556,8 +556,8 @@ def upload(api, item):
     idx = digest_for(image, tag, "index")
     bom = build_sbom(image, tag, arch, item["os"][0], item["os"][1], item["components"])
     q = (f"?source={item['ns']}/uploads&version={tag}&architecture={arch}"
-         f"&digest={dig}&subject_type=container&subject_name={image}"
-         f"&build_date={item['built']}")
+         f"&digest={dig}&subjectType=container&subjectName={image}"
+         f"&buildDate={item['built']}")
     status, body = api.post("/api/v1/sboms" + q, json.dumps(bom).encode(),
                             "application/octet-stream")
     if status not in (200, 201, 409):

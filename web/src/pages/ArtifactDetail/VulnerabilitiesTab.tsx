@@ -16,10 +16,10 @@ const SEVERITY_TABS = ["All", "CRITICAL", "HIGH", "MEDIUM", "LOW", "UNKNOWN"] as
 
 const SORT_KEYS: ArtifactVulnSortKey[] = [
     "severity",
-    "cvss_score",
-    "affected_version_count",
-    "affected_package_count",
-    "canonical_id",
+    "cvssScore",
+    "affectedVersionCount",
+    "affectedPackageCount",
+    "canonicalId",
 ];
 
 const SEVERITIES: VulnSeverityFilter[] = ["CRITICAL", "HIGH", "MEDIUM", "LOW", "UNKNOWN"];
@@ -148,7 +148,7 @@ export function VulnerabilitiesTab(props: {
     const columns: Column<ArtifactVulnEntry>[] = [
         {
             header: "ID",
-            sortKey: "canonical_id",
+            sortKey: "canonicalId",
             render: (v) => <VulnId canonicalId={v.canonicalId} nativeId={v.id} />,
         },
         {
@@ -160,7 +160,7 @@ export function VulnerabilitiesTab(props: {
         {
             header: "CVSS",
             align: "right",
-            sortKey: "cvss_score",
+            sortKey: "cvssScore",
             sortType: "numeric",
             render: (v) => (
                 <Show when={v.cvssScore} fallback={<span class="text-muted">—</span>}>
@@ -173,7 +173,7 @@ export function VulnerabilitiesTab(props: {
             // you know which three — so the versions themselves are the cell,
             // each linking to the SBOM that carries it.
             header: "Affected versions",
-            sortKey: "affected_version_count",
+            sortKey: "affectedVersionCount",
             sortType: "numeric",
             render: (v) => (
                 <>
@@ -199,7 +199,7 @@ export function VulnerabilitiesTab(props: {
         {
             header: "Packages",
             align: "right",
-            sortKey: "affected_package_count",
+            sortKey: "affectedPackageCount",
             sortType: "numeric",
             render: (v) => <span class="font-mono text-sm">{v.affectedPackageCount.toLocaleString()}</span>,
         },

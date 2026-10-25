@@ -75,7 +75,7 @@ export default function ArtifactDetail() {
     const vulnSortDir = (): SortDir => {
         const raw = one(searchParams.dir);
         if (raw === "asc" || raw === "desc") return raw;
-        return vulnSortBy() === "canonical_id" ? "asc" : "desc";
+        return vulnSortBy() === "canonicalId" ? "asc" : "desc";
     };
     const vulnOffset = () => {
         const parsed = Number(one(searchParams.offset));
