@@ -273,6 +273,29 @@ func (q *Queries) GetComponentVersions(ctx context.Context, arg GetComponentVers
 	return items, nil
 }
 
+const getLatestSBOMRef = `-- name: GetLatestSBOMRef :one
+SELECT id, subject_version, created_at
+FROM sbom
+WHERE artifact_id = $1
+ORDER BY created_at DESC
+LIMIT 1
+`
+
+type GetLatestSBOMRefRow struct {
+	ID             pgtype.UUID        `json:"id"`
+	SubjectVersion pgtype.Text        `json:"subject_version"`
+	CreatedAt      pgtype.Timestamptz `json:"created_at"`
+}
+
+// The SBOM LicenseSummaryByArtifact counts, so the tab can say which build it
+// describes (ocidex-nps9.29). Same ordering as that query's subselect.
+func (q *Queries) GetLatestSBOMRef(ctx context.Context, artifactID pgtype.UUID) (GetLatestSBOMRefRow, error) {
+	row := q.db.QueryRow(ctx, getLatestSBOMRef, artifactID)
+	var i GetLatestSBOMRefRow
+	err := row.Scan(&i.ID, &i.SubjectVersion, &i.CreatedAt)
+	return i, err
+}
+
 const getSBOM = `-- name: GetSBOM :one
 SELECT s.id, s.serial_number, s.spec_version, s.version, s.artifact_id, s.subject_version,
        s.digest, s.created_at, s.namespace_id, s.source_id, s.index_digest,

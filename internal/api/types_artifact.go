@@ -178,6 +178,11 @@ type GetArtifactLicenseSummaryInput struct {
 type GetArtifactLicenseSummaryOutput struct {
 	Body struct {
 		Licenses []service.LicenseCount `json:"licenses"`
+		// The SBOM the counts come from, so the tab can say which build it
+		// describes rather than leave "latest? all?" to the reader.
+		SbomID         string     `json:"sbomId,omitempty" doc:"The SBOM the counts are taken from: the artifact's most recently ingested"`
+		SubjectVersion *string    `json:"subjectVersion,omitempty" doc:"That SBOM's subject version"`
+		SbomCreatedAt  *time.Time `json:"sbomCreatedAt,omitempty" doc:"When that SBOM was ingested"`
 	}
 }
 

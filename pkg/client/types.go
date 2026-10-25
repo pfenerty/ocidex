@@ -2494,6 +2494,15 @@ type GetArtifactLicenseSummaryOutputBody struct {
 	// Schema A URL to the JSON Schema for this object.
 	Schema   *string         `json:"$schema,omitempty"`
 	Licenses *[]LicenseCount `json:"licenses"`
+
+	// SbomCreatedAt When that SBOM was ingested
+	SbomCreatedAt *time.Time `json:"sbomCreatedAt,omitempty"`
+
+	// SbomId The SBOM the counts are taken from: the artifact's most recently ingested
+	SbomId *string `json:"sbomId,omitempty"`
+
+	// SubjectVersion That SBOM's subject version
+	SubjectVersion *string `json:"subjectVersion,omitempty"`
 }
 
 // GetArtifactUsagesOutputBody defines model for GetArtifactUsagesOutputBody.

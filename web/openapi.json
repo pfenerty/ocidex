@@ -2639,6 +2639,19 @@
               "array",
               "null"
             ]
+          },
+          "sbomCreatedAt": {
+            "description": "When that SBOM was ingested",
+            "format": "date-time",
+            "type": "string"
+          },
+          "sbomId": {
+            "description": "The SBOM the counts are taken from: the artifact's most recently ingested",
+            "type": "string"
+          },
+          "subjectVersion": {
+            "description": "That SBOM's subject version",
+            "type": "string"
           }
         },
         "required": [

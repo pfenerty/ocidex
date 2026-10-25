@@ -201,6 +201,15 @@ ORDER BY name,
          group_name, version, type, id
 LIMIT @row_limit OFFSET @row_offset;
 
+-- name: GetLatestSBOMRef :one
+-- The SBOM LicenseSummaryByArtifact counts, so the tab can say which build it
+-- describes (ocidex-nps9.29). Same ordering as that query's subselect.
+SELECT id, subject_version, created_at
+FROM sbom
+WHERE artifact_id = @artifact_id
+ORDER BY created_at DESC
+LIMIT 1;
+
 -- name: LicenseSummaryByArtifact :many
 SELECT l.id, l.spdx_id, l.name, l.url, COUNT(DISTINCT cl.component_id) AS component_count
 FROM sbom s

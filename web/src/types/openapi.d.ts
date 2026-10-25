@@ -2734,6 +2734,15 @@ export interface components {
              */
             readonly $schema?: string;
             licenses: components["schemas"]["LicenseCount"][] | null;
+            /**
+             * Format: date-time
+             * @description When that SBOM was ingested
+             */
+            sbomCreatedAt?: string;
+            /** @description The SBOM the counts are taken from: the artifact's most recently ingested */
+            sbomId?: string;
+            /** @description That SBOM's subject version */
+            subjectVersion?: string;
         };
         GetArtifactUsagesOutputBody: {
             /**

@@ -132,11 +132,11 @@ func (f *fakeSearchService) DiffSBOMsWithTree(_ context.Context, _, _ pgtype.UUI
 	}, nil
 }
 
-func (f *fakeSearchService) GetArtifactLicenseSummary(_ context.Context, _ pgtype.UUID, _ service.VisibilityFilter) ([]service.LicenseCount, error) {
+func (f *fakeSearchService) GetArtifactLicenseSummary(_ context.Context, _ pgtype.UUID, _ service.VisibilityFilter) (service.ArtifactLicenseSummary, error) {
 	mit := "MIT"
-	return []service.LicenseCount{
+	return service.ArtifactLicenseSummary{Licenses: []service.LicenseCount{
 		{ID: "lic1", SpdxID: &mit, Name: "MIT License", ComponentCount: 42, Category: "permissive"},
-	}, nil
+	}}, nil
 }
 
 func (f *fakeSearchService) GetSBOMDependencies(_ context.Context, _ pgtype.UUID, _ service.VisibilityFilter) (service.DependencyGraph, error) {

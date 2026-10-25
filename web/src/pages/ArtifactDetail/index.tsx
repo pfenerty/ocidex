@@ -318,6 +318,8 @@ export default function ArtifactDetail() {
                                 <Show when={tab() === "licenses"}>
                                     <LicensesTab
                                         licenses={licenseQuery.data?.licenses}
+                                        sbomId={licenseQuery.data?.sbomId}
+                                        subjectVersion={licenseQuery.data?.subjectVersion}
                                         loading={licenseQuery.isFetching}
                                         isError={licenseQuery.isError}
                                         error={licenseQuery.error}

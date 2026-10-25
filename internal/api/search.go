@@ -633,7 +633,10 @@ func (h *Handler) GetArtifactLicenseSummary(ctx context.Context, input *GetArtif
 	}
 
 	out := &GetArtifactLicenseSummaryOutput{}
-	out.Body.Licenses = summary
+	out.Body.Licenses = summary.Licenses
+	out.Body.SbomID = summary.SbomID
+	out.Body.SubjectVersion = summary.SubjectVersion
+	out.Body.SbomCreatedAt = summary.SbomCreatedAt
 	return out, nil
 }
 

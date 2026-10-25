@@ -407,8 +407,18 @@ func vulnSummaryOrNil(critical, high, medium, low, unknown int64) *VulnSummary {
 	}
 }
 
-// GetArtifactLicenseSummary returns aggregated license counts for an artifact's latest SBOM.
-func (s *searchService) GetArtifactLicenseSummary(ctx context.Context, artifactID pgtype.UUID, vis VisibilityFilter) ([]LicenseCount, error) {
+// ArtifactLicenseSummary is the license breakdown of one SBOM of an artifact,
+// and which SBOM that is. SbomID is empty when the artifact has none.
+type ArtifactLicenseSummary struct {
+	Licenses       []LicenseCount
+	SbomID         string
+	SubjectVersion *string
+	SbomCreatedAt  *time.Time
+}
+
+// GetArtifactLicenseSummary returns aggregated license counts for an artifact's
+// most recently ingested SBOM, and names that SBOM.
+func (s *searchService) GetArtifactLicenseSummary(ctx context.Context, artifactID pgtype.UUID, vis VisibilityFilter) (ArtifactLicenseSummary, error) {
 	q := repository.New(s.db)
 
 	// Access check.
@@ -418,15 +428,15 @@ func (s *searchService) GetArtifactLicenseSummary(ctx context.Context, artifactI
 		IsAdmin: visAdminBool(vis),
 	})
 	if err != nil {
-		return nil, fmt.Errorf("checking artifact visibility: %w", err)
+		return ArtifactLicenseSummary{}, fmt.Errorf("checking artifact visibility: %w", err)
 	}
 	if !visible {
-		return nil, ErrNotFound
+		return ArtifactLicenseSummary{}, ErrNotFound
 	}
 
 	rows, err := q.LicenseSummaryByArtifact(ctx, artifactID)
 	if err != nil {
-		return nil, fmt.Errorf("querying license summary: %w", err)
+		return ArtifactLicenseSummary{}, fmt.Errorf("querying license summary: %w", err)
 	}
 
 	items := make([]LicenseCount, 0, len(rows))
@@ -442,7 +452,21 @@ func (s *searchService) GetArtifactLicenseSummary(ctx context.Context, artifactI
 		})
 	}
 
-	return items, nil
+	out := ArtifactLicenseSummary{Licenses: items}
+	ref, err := q.GetLatestSBOMRef(ctx, artifactID)
+	switch {
+	case errors.Is(err, pgx.ErrNoRows):
+	case err != nil:
+		return ArtifactLicenseSummary{}, fmt.Errorf("finding latest sbom: %w", err)
+	default:
+		out.SbomID = uuidToString(ref.ID)
+		out.SubjectVersion = textToPtr(ref.SubjectVersion)
+		if ref.CreatedAt.Valid {
+			t := ref.CreatedAt.Time
+			out.SbomCreatedAt = &t
+		}
+	}
+	return out, nil
 }
 
 // ArtifactVulnSummary is the vulnerability tile's figure for one artifact:
