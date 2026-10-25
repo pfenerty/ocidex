@@ -9,8 +9,10 @@ export default function NotFound() {
       </h2>
       <strong>Page not found</strong>
       <p>The page you're looking for doesn't exist or has been moved.</p>
-      <Button as={A} href="/" variant="primary" class="mt-6">
-        Back to Dashboard
+      {/* `end`: without it the router marks "/" active on every path, and the
+          .active rule painted this primary button blue (ocidex-nps9.30). */}
+      <Button as={A} href="/" end variant="primary" class="mt-6">
+        Back to Home
       </Button>
     </div>
   );

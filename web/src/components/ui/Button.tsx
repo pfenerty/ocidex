@@ -61,6 +61,8 @@ type AnchorLike = Component<JSX.AnchorHTMLAttributes<HTMLAnchorElement> & { href
 type AnchorProps = Common &
     Omit<JSX.AnchorHTMLAttributes<HTMLAnchorElement>, "class" | "children"> & {
         as: "a" | AnchorLike;
+        /** Passed to the router's `<A>`: match the path exactly when marking it active. */
+        end?: boolean;
     };
 
 /**
