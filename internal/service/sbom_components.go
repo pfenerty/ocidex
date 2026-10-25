@@ -305,22 +305,34 @@ func copyComponentLicenses(ctx context.Context, tx copyFromer, q *repository.Que
 		}
 		seen := make(map[string]struct{})
 		for _, choice := range *fc.comp.Licenses {
-			if choice.License == nil {
+			var id, name, url string
+			if choice.License != nil {
+				id, name, url = choice.License.ID, choice.License.Name, choice.License.URL
+			} else if choice.Expression == "" {
 				continue
 			}
-			lic := choice.License
-			spdxID, displayName := NormalizeLicense(lic.ID, lic.Name)
-			key := licenseKey(spdxID, displayName)
-			if _, ok := refs[key]; !ok {
-				refs[key] = licenseRef{spdxID: spdxID, name: displayName, url: lic.URL}
+			// One choice can name several licenses (an expression) or none
+			// (a fragment or digest); see ExpandLicense.
+			defs := ExpandLicense(id, name, choice.Expression)
+			for _, def := range defs {
+				key := licenseKey(def.spdxID, def.name)
+				if _, ok := refs[key]; !ok {
+					// A URL describes the whole choice, so it only carries over
+					// when the choice is one license.
+					refURL := ""
+					if len(defs) == 1 {
+						refURL = url
+					}
+					refs[key] = licenseRef{spdxID: def.spdxID, name: def.name, url: refURL}
+				}
+				// Skip duplicate (component, license) pairs; the join table PK
+				// would otherwise reject them (CopyFrom has no ON CONFLICT).
+				if _, dup := seen[key]; dup {
+					continue
+				}
+				seen[key] = struct{}{}
+				pairs = append(pairs, pair{componentID: fc.id, key: key})
 			}
-			// Skip duplicate (component, license) pairs; the join table PK
-			// would otherwise reject them (CopyFrom has no ON CONFLICT).
-			if _, dup := seen[key]; dup {
-				continue
-			}
-			seen[key] = struct{}{}
-			pairs = append(pairs, pair{componentID: fc.id, key: key})
 		}
 	}
 
