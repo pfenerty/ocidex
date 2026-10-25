@@ -20,7 +20,9 @@ type OCIRegistrySpec struct {
 	// Namespace is the OCIDex namespace this registry belongs to — the
 	// ownership and visibility boundary (ADR-039), not a Kubernetes namespace.
 	// Defaults to the CR's own Kubernetes namespace, so every OCIRegistry in a
-	// K8s namespace shares one OCIDex tenancy boundary by default.
+	// K8s namespace shares one OCIDex tenancy boundary by default. Setting it on
+	// an existing registry moves the registry and its SBOMs into that
+	// namespace, which must already exist; leaving it unset never moves one.
 	// +optional
 	Namespace string `json:"namespace,omitempty"`
 

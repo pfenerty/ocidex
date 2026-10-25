@@ -261,3 +261,35 @@ DELETE FROM registry_window WHERE registry_id = @registry_id;
 -- name: InsertRegistryWindow :exec
 INSERT INTO registry_window (registry_id, repository, digests, walked_at)
 VALUES (@registry_id, @repository, @digests::text[], @walked_at);
+
+-- Moving a registry to another namespace (ocidex-nps9.33). Namespace was
+-- create-only, so a registry could not join the namespace a cluster resolves
+-- running images against. The four statements run in one transaction; rollups
+-- catch up on the refresher's next pass, which rebuilds them from scratch.
+
+-- name: GetSourceNamespace :one
+SELECT namespace_id FROM source WHERE id = @id::uuid FOR UPDATE;
+
+-- name: MoveSourceNamespace :exec
+UPDATE source SET namespace_id = @namespace_id::uuid, updated_at = now() WHERE id = @id::uuid;
+
+-- name: MoveSourceSBOMs :execrows
+UPDATE sbom SET namespace_id = @namespace_id::uuid WHERE source_id = @source_id::uuid;
+
+-- name: LinkSourceArtifacts :exec
+-- Every artifact the source's SBOMs belong to is visible in the new namespace.
+INSERT INTO artifact_namespace (artifact_id, namespace_id)
+SELECT DISTINCT s.artifact_id, @namespace_id::uuid
+FROM sbom s
+WHERE s.source_id = @source_id::uuid
+ON CONFLICT DO NOTHING;
+
+-- name: UnlinkEmptiedArtifacts :exec
+-- ...and stops being visible in the old one once none of its SBOMs is left there.
+DELETE FROM artifact_namespace an
+WHERE an.namespace_id = @old_namespace_id::uuid
+  AND an.artifact_id IN (SELECT DISTINCT s.artifact_id FROM sbom s WHERE s.source_id = @source_id::uuid)
+  AND NOT EXISTS (
+      SELECT 1 FROM sbom s2
+      WHERE s2.artifact_id = an.artifact_id AND s2.namespace_id = @old_namespace_id::uuid
+  );

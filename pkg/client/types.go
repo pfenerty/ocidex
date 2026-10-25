@@ -3853,6 +3853,9 @@ type UpdateRegistryInputBody struct {
 	MaxTagAgeDays *int64 `json:"max_tag_age_days,omitempty"`
 	Name          string `json:"name"`
 
+	// Namespace Move the registry, and every SBOM it is the source of, into this existing namespace. Requires manage_source there. Omit to leave it where it is
+	Namespace *string `json:"namespace,omitempty"`
+
 	// PollIntervalMinutes Minutes between polls
 	PollIntervalMinutes *int64    `json:"poll_interval_minutes,omitempty"`
 	Repositories        *[]string `json:"repositories,omitempty"`

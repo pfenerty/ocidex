@@ -507,23 +507,7 @@ func (h *Handler) UpdateRegistry(ctx context.Context, in *UpdateRegistryInput) (
 	if visibility == "" {
 		visibility = existing.Visibility
 	}
-	updateVerificationMode := in.Body.VerificationMode
-	if updateVerificationMode == "" {
-		updateVerificationMode = existing.VerificationMode
-	}
-	updateTrustPublicKey := in.Body.TrustPublicKey
-	if updateTrustPublicKey == nil {
-		updateTrustPublicKey = existing.TrustPublicKey
-	}
-	updateTrustIdentity := in.Body.TrustIdentity
-	if updateTrustIdentity == nil {
-		updateTrustIdentity = existing.TrustIdentity
-	}
-	updateTrustIssuer := in.Body.TrustIssuer
-	if updateTrustIssuer == nil {
-		updateTrustIssuer = existing.TrustIssuer
-	}
-	if err := validateVerificationConfig(updateVerificationMode, updateTrustPublicKey, updateTrustIdentity, updateTrustIssuer); err != nil {
+	if err := validateTrustUpdate(in, existing); err != nil {
 		return nil, err
 	}
 	var reg service.Registry
@@ -565,7 +549,75 @@ func (h *Handler) UpdateRegistry(ctx context.Context, in *UpdateRegistryInput) (
 	if err != nil {
 		return nil, huma.Error404NotFound("registry not found")
 	}
+	if reg, err = h.applyNamespaceMove(ctx, existing, reg, in.Body.Namespace); err != nil {
+		return nil, err
+	}
 	return &UpdateRegistryOutput{Body: toRegistryResponse(reg, h.cfg.APIBaseURL)}, nil
+}
+
+// validateTrustUpdate validates the verification config the update leaves in
+// place: each field the request omits keeps the stored value.
+func validateTrustUpdate(in *UpdateRegistryInput, existing service.Registry) error {
+	mode := in.Body.VerificationMode
+	if mode == "" {
+		mode = existing.VerificationMode
+	}
+	key := in.Body.TrustPublicKey
+	if key == nil {
+		key = existing.TrustPublicKey
+	}
+	identity := in.Body.TrustIdentity
+	if identity == nil {
+		identity = existing.TrustIdentity
+	}
+	issuer := in.Body.TrustIssuer
+	if issuer == nil {
+		issuer = existing.TrustIssuer
+	}
+	return validateVerificationConfig(mode, key, identity, issuer)
+}
+
+// applyNamespaceMove moves the registry when the update names a namespace and
+// returns the registry as it now stands; with no namespace it returns updated.
+func (h *Handler) applyNamespaceMove(ctx context.Context, existing, updated service.Registry, namespace *string) (service.Registry, error) {
+	if namespace == nil || *namespace == "" {
+		return updated, nil
+	}
+	moved, err := h.moveRegistryNamespace(ctx, existing, *namespace)
+	if err != nil || !moved {
+		return updated, err
+	}
+	reg, err := h.registryService.Get(ctx, existing.ID)
+	if err != nil {
+		return service.Registry{}, mapServiceError(err)
+	}
+	return reg, nil
+}
+
+// moveRegistryNamespace moves reg into the existing namespace called name,
+// reporting whether it moved. The route already required manage_source where
+// the registry is; the target needs it too, and as on create a non-member gets
+// 404 so names cannot be probed. A namespace that does not exist is 404 as
+// well: a move never mints one.
+func (h *Handler) moveRegistryNamespace(ctx context.Context, reg service.Registry, name string) (bool, error) {
+	user, ok := UserFromContext(ctx)
+	if !ok {
+		return false, huma.Error401Unauthorized("not authenticated")
+	}
+	nsID, err := h.authorizeExistingNamespace(ctx, user, name, authz.CapManageSource)
+	if err != nil {
+		return false, err
+	}
+	if nsID == "" {
+		return false, huma.Error404NotFound("namespace not found")
+	}
+	if nsID == reg.NamespaceID {
+		return false, nil
+	}
+	if err := h.registryService.MoveNamespace(ctx, reg.ID, nsID); err != nil {
+		return false, mapServiceError(err)
+	}
+	return true, nil
 }
 
 // DeleteRegistry deletes a registry. The route requires manage_source on the

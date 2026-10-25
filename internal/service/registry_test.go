@@ -739,6 +739,8 @@ func (f *fakeListRegistryService) RecordWalkStats(_ context.Context, _ string, _
 	return nil
 }
 
+func (f *fakeListRegistryService) MoveNamespace(_ context.Context, _, _ string) error { return nil }
+
 func (f *fakeListRegistryService) LastWalks(context.Context) (map[string]WalkStats, error) {
 	return nil, nil
 }

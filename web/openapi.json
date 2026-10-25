@@ -6530,6 +6530,11 @@
             "minLength": 1,
             "type": "string"
           },
+          "namespace": {
+            "description": "Move the registry, and every SBOM it is the source of, into this existing namespace. Requires manage_source there. Omit to leave it where it is",
+            "maxLength": 100,
+            "type": "string"
+          },
           "poll_interval_minutes": {
             "description": "Minutes between polls",
             "format": "int64",

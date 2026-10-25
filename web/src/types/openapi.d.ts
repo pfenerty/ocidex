@@ -4243,6 +4243,8 @@ export interface components {
              */
             max_tag_age_days?: number;
             name: string;
+            /** @description Move the registry, and every SBOM it is the source of, into this existing namespace. Requires manage_source there. Omit to leave it where it is */
+            namespace?: string;
             /**
              * Format: int64
              * @description Minutes between polls

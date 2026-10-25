@@ -161,6 +161,9 @@ type UpdateRegistryInput struct {
 		TagLimit            *int     `json:"tag_limit,omitempty" minimum:"0" maximum:"100000" doc:"Newest tags kept per repository; 0 = unlimited. Omit to keep the current value"`
 		TagOrder            *string  `json:"tag_order,omitempty" enum:"auto,semver,created,lexical" doc:"How 'newest' is decided; auto = semver when tag_patterns contains semver, created otherwise. Omit to keep the current value"`
 		MaxTagAgeDays       *int     `json:"max_tag_age_days,omitempty" minimum:"0" maximum:"36500" doc:"Skip tags whose image is older than this many days; 0 clears it. Omit to keep the current value"`
+		// Namespace moves the registry and its SBOMs, so it can join the
+		// namespace a cluster resolves running images against (ocidex-nps9.33).
+		Namespace *string `json:"namespace,omitempty" maxLength:"100" doc:"Move the registry, and every SBOM it is the source of, into this existing namespace. Requires manage_source there. Omit to leave it where it is"`
 	}
 }
 

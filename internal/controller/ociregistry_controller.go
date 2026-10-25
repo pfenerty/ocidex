@@ -289,6 +289,14 @@ func specToUpdateBody(spec v1alpha1.OCIRegistrySpec, ref, username, token string
 		v := ocidexclient.UpdateRegistryInputBodyVisibility(spec.Visibility)
 		body.Visibility = &v
 	}
+	// Only an explicit spec.namespace is sent, which moves the registry there
+	// (ocidex-nps9.33). The create-time default (the CR's Kubernetes namespace)
+	// is not: registries created before that default, or adopted, live in
+	// namespaces of their own, and re-asserting it would move every one of them.
+	if spec.Namespace != "" {
+		ns := spec.Namespace
+		body.Namespace = &ns
+	}
 	if spec.ScanMode != "" {
 		sm := ocidexclient.UpdateRegistryInputBodyScanMode(spec.ScanMode)
 		body.ScanMode = &sm
