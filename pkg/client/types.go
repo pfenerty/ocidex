@@ -1647,10 +1647,12 @@ type AffectedArtifact struct {
 
 // AffectedComponent defines model for AffectedComponent.
 type AffectedComponent struct {
-	AffectedVersionCount int64   `json:"affectedVersionCount"`
-	FixedVersion         *string `json:"fixedVersion,omitempty"`
-	Group                *string `json:"group,omitempty"`
-	Name                 string  `json:"name"`
+	AffectedVersionCount int64     `json:"affectedVersionCount"`
+	AffectedVersions     *[]string `json:"affectedVersions"`
+	FixedVersion         *string   `json:"fixedVersion,omitempty"`
+	FixedVersions        *[]string `json:"fixedVersions"`
+	Group                *string   `json:"group,omitempty"`
+	Name                 string    `json:"name"`
 }
 
 // ArtifactDetail defines model for ArtifactDetail.

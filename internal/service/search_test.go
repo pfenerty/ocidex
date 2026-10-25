@@ -9,6 +9,8 @@ import (
 	"github.com/jackc/pgx/v5"
 	"github.com/jackc/pgx/v5/pgtype"
 	"github.com/matryer/is"
+
+	"github.com/pfenerty/ocidex/internal/repository"
 )
 
 // newSearchSvc is a helper that builds a searchService with a fakeDB configured
@@ -668,4 +670,24 @@ func TestGetSBOMDependencies_DecoratesVulns(t *testing.T) {
 	is.Equal(graph.Nodes[0].VulnCount, 1)
 	is.Equal(graph.Nodes[0].HighCount, 1)
 	is.Equal(graph.Nodes[0].MaxSeverity, sevHigh)
+}
+
+// One row per component, carrying every fixed version oldest first: stdlib
+// fixed on two release lines used to be two rows that read as duplicates
+// (ocidex-nps9.21).
+func TestBuildAffectedComponents_OneRowPerComponent(t *testing.T) {
+	is := is.New(t)
+	rows := []repository.ListAffectedComponentsByVulnRow{{
+		Name:                 "stdlib",
+		FixedVersions:        []string{"1.25.7", "1.24.13"},
+		AffectedVersions:     []string{"go1.25.3", "go1.24.9"},
+		AffectedVersionCount: 2,
+		TotalCount:           1,
+	}}
+	got, total := buildAffectedComponents(rows)
+	is.Equal(total, int64(1))
+	is.Equal(len(got), 1)
+	is.Equal(got[0].FixedVersions, []string{"1.24.13", "1.25.7"})
+	is.Equal(*got[0].FixedVersion, "1.24.13")
+	is.Equal(got[0].AffectedVersions, []string{"go1.24.9", "go1.25.3"})
 }

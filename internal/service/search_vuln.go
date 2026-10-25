@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"sort"
 	"strings"
 	"time"
 
@@ -224,8 +225,10 @@ func buildAffectedComponents(rows []repository.ListAffectedComponentsByVulnRow) 
 		if r.GroupName.Valid {
 			c.Group = &r.GroupName.String
 		}
-		if r.FixedVersion.Valid {
-			c.FixedVersion = &r.FixedVersion.String
+		c.FixedVersions = sortedVersions(r.FixedVersions)
+		c.AffectedVersions = sortedVersions(r.AffectedVersions)
+		if len(c.FixedVersions) > 0 {
+			c.FixedVersion = &c.FixedVersions[0]
 		}
 		components = append(components, c)
 	}
@@ -261,4 +264,12 @@ func (s *searchService) VulnDBBuiltAt(ctx context.Context) (*time.Time, error) {
 	}
 	t := ts.Time
 	return &t, nil
+}
+
+// sortedVersions orders versions ascending by compareVersions' generic rules,
+// so release lines read oldest to newest.
+func sortedVersions(vs []string) []string {
+	out := append([]string{}, vs...)
+	sort.SliceStable(out, func(i, j int) bool { return compareVersions("", out[i], out[j]) < 0 })
+	return out
 }

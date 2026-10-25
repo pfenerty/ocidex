@@ -1833,7 +1833,9 @@ export interface components {
         AffectedComponent: {
             /** Format: int64 */
             affectedVersionCount: number;
+            affectedVersions: string[] | null;
             fixedVersion?: string;
+            fixedVersions: string[] | null;
             group?: string;
             name: string;
         };

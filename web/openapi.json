@@ -86,8 +86,26 @@
             "format": "int64",
             "type": "integer"
           },
+          "affectedVersions": {
+            "items": {
+              "type": "string"
+            },
+            "type": [
+              "array",
+              "null"
+            ]
+          },
           "fixedVersion": {
             "type": "string"
+          },
+          "fixedVersions": {
+            "items": {
+              "type": "string"
+            },
+            "type": [
+              "array",
+              "null"
+            ]
           },
           "group": {
             "type": "string"
@@ -98,6 +116,8 @@
         },
         "required": [
           "name",
+          "fixedVersions",
+          "affectedVersions",
           "affectedVersionCount"
         ],
         "type": "object"

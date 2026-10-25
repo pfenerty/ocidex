@@ -44,8 +44,12 @@ const IMPACT: Record<string, CvssMetric> = {
 };
 
 const V3_METRICS: Record<string, Record<string, CvssMetric>> = { AV, AC, PR, UI, S, C: IMPACT, I: IMPACT, A: IMPACT };
-// Human-readable prefix for impact chips: "High C" not just "High"
-const IMPACT_SUFFIX: Record<string, string> = { C: " C", I: " I", A: " A" };
+// Impact chips name what is impacted: "High C" was cryptic (ocidex-nps9.21).
+const IMPACT_SUFFIX: Record<string, string> = {
+    C: " confidentiality impact",
+    I: " integrity impact",
+    A: " availability impact",
+};
 
 // Metric decode tables for CVSS v4.0. AV/AC/PR share v3's semantics and tables;
 // AT is new (no v3 equivalent), UI's values differ from v3, Scope (S) is gone,
@@ -66,8 +70,8 @@ const V4_METRICS: Record<string, Record<string, CvssMetric>> = {
     SC: IMPACT, SI: IMPACT, SA: IMPACT,
 };
 const V4_IMPACT_SUFFIX: Record<string, string> = {
-    VC: " VC", VI: " VI", VA: " VA",
-    SC: " SC", SI: " SI", SA: " SA",
+    VC: " confidentiality impact", VI: " integrity impact", VA: " availability impact",
+    SC: " downstream confidentiality impact", SI: " downstream integrity impact", SA: " downstream availability impact",
 };
 
 export function parseCvssVector(vector: string): { version: string; metrics: CvssMetric[] } | null {

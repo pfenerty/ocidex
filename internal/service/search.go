@@ -164,10 +164,14 @@ type AffectedArtifact struct {
 
 // AffectedComponent is a distinct component (by name+group) affected by a vulnerability.
 type AffectedComponent struct {
-	Name                 string  `json:"name"`
-	Group                *string `json:"group,omitempty"`
-	FixedVersion         *string `json:"fixedVersion,omitempty"`
-	AffectedVersionCount int64   `json:"affectedVersionCount"`
+	Name  string  `json:"name"`
+	Group *string `json:"group,omitempty"`
+	// FixedVersion is the lowest of FixedVersions, kept for clients that read
+	// one value; FixedVersions has one entry per release line with a fix.
+	FixedVersion         *string  `json:"fixedVersion,omitempty"`
+	FixedVersions        []string `json:"fixedVersions"`
+	AffectedVersions     []string `json:"affectedVersions"`
+	AffectedVersionCount int64    `json:"affectedVersionCount"`
 }
 
 // ComponentVulnEntry is one vulnerability finding for a specific component purl.
