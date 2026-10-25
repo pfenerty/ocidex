@@ -1,5 +1,17 @@
 import type { JSX } from "solid-js";
-import { Show } from "solid-js";
+import { Show, onCleanup, onMount } from "solid-js";
+
+/** APP_TITLE is the document title's suffix, and the whole title off a page header. */
+export const APP_TITLE = "OCIDex";
+
+/**
+ * documentTitleFor builds "<page> · OCIDex" from a header's text, collapsing
+ * the whitespace JSX leaves between inline pieces.
+ */
+export function documentTitleFor(text: string): string {
+    const page = text.replace(/\s+/g, " ").trim();
+    return page === "" ? APP_TITLE : `${page} · ${APP_TITLE}`;
+}
 
 /**
  * PageHeader emits the `.page-header` / `.page-header-row` structure that 19
@@ -42,6 +54,26 @@ export function PageHeader(props: {
      */
     footer?: JSX.Element;
 }): JSX.Element {
+    // Every page was titled "OCIDex", so tabs, history and bookmarks could not
+    // tell an artifact from a CVE (ocidex-nps9.16). The header's own text is the
+    // page's name, so the document title follows it — observed rather than read
+    // once, because most titles fill in when their query resolves.
+    let heading: HTMLHeadingElement | undefined;
+    onMount(() => {
+        const el = heading;
+        if (el === undefined) return;
+        const sync = () => {
+            document.title = documentTitleFor(el.textContent);
+        };
+        sync();
+        const observer = new MutationObserver(sync);
+        observer.observe(el, { childList: true, subtree: true, characterData: true });
+        onCleanup(() => {
+            observer.disconnect();
+            document.title = APP_TITLE;
+        });
+    });
+
     return (
         <div class="page-header">
             <Show when={props.breadcrumb !== undefined}>
@@ -49,7 +81,7 @@ export function PageHeader(props: {
             </Show>
             <div class="page-header-row">
                 <div>
-                    <h2>{props.title}</h2>
+                    <h2 ref={heading}>{props.title}</h2>
                     <Show when={props.subtitle !== undefined}>
                         <p>{props.subtitle}</p>
                     </Show>
