@@ -12,6 +12,7 @@ import type { components } from "~/types/openapi";
 import DataTable from "~/components/DataTable";
 import type { Column, SortDir } from "~/components/DataTable";
 import { ComponentNameCell } from "~/components/cells";
+import { decodePurlText } from "~/utils/purl";
 import { VulnCountBadges } from "~/components/VulnBadge";
 import { Button, PageHeader, Toolbar } from "~/components/ui";
 import type { ToolbarField } from "~/components/ui";
@@ -65,7 +66,7 @@ function PurlOccurrences(props: { purl: string }) {
                 title="Component occurrences"
                 subtitle={
                     <>
-                        <span class="font-mono text-sm">{props.purl}</span>
+                        <span class="font-mono text-sm" title={props.purl}>{decodePurlText(props.purl)}</span>
                         <Show when={query.data}>
                             {(d) => (
                                 <span class="text-muted">
