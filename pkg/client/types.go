@@ -1704,7 +1704,7 @@ type ArtifactSummary struct {
 
 // ArtifactTypeCountEntry defines model for ArtifactTypeCountEntry.
 type ArtifactTypeCountEntry struct {
-	ArtifactCount int64  `json:"artifact_count"`
+	ArtifactCount int64  `json:"artifactCount"`
 	Type          string `json:"type"`
 }
 
@@ -1754,7 +1754,7 @@ type ArtifactVulnVersion struct {
 // CategoryCountEntry defines model for CategoryCountEntry.
 type CategoryCountEntry struct {
 	Category       string `json:"category"`
-	ComponentCount int64  `json:"component_count"`
+	ComponentCount int64  `json:"componentCount"`
 }
 
 // ChangeCounts defines model for ChangeCounts.
@@ -1800,29 +1800,29 @@ type ChangelogEntry struct {
 
 // ClusterImageResponse defines model for ClusterImageResponse.
 type ClusterImageResponse struct {
-	ArtifactId   *string `json:"artifact_id,omitempty"`
-	ArtifactName *string `json:"artifact_name,omitempty"`
-	ArtifactType *string `json:"artifact_type,omitempty"`
-	ImageDigest  *string `json:"image_digest,omitempty"`
-	ImageRef     string  `json:"image_ref"`
-	LastSeenAt   string  `json:"last_seen_at"`
+	ArtifactId   *string `json:"artifactId,omitempty"`
+	ArtifactName *string `json:"artifactName,omitempty"`
+	ArtifactType *string `json:"artifactType,omitempty"`
+	ImageDigest  *string `json:"imageDigest,omitempty"`
+	ImageRef     string  `json:"imageRef"`
+	LastSeenAt   string  `json:"lastSeenAt"`
 
 	// MatchState exact = digest matched an SBOM; index = matched a multi-arch image index, so the exact platform is unknown; unknown = real digest with no ingested SBOM (coverage gap); unresolvable = no digest could be read from the container (agent/runtime gap)
-	MatchState ClusterImageResponseMatchState `json:"match_state"`
+	MatchState ClusterImageResponseMatchState `json:"matchState"`
 
 	// NamespaceCount Kubernetes namespaces the image appears in
-	NamespaceCount int64 `json:"namespace_count"`
+	NamespaceCount int64 `json:"namespaceCount"`
 
 	// PodCount Running pods those workload-containers add up to
-	PodCount        int64               `json:"pod_count"`
-	SampleNamespace *string             `json:"sample_namespace,omitempty"`
-	SampleWorkload  *string             `json:"sample_workload,omitempty"`
-	SbomId          *string             `json:"sbom_id,omitempty"`
-	SubjectVersion  *string             `json:"subject_version,omitempty"`
+	PodCount        int64               `json:"podCount"`
+	SampleNamespace *string             `json:"sampleNamespace,omitempty"`
+	SampleWorkload  *string             `json:"sampleWorkload,omitempty"`
+	SbomId          *string             `json:"sbomId,omitempty"`
+	SubjectVersion  *string             `json:"subjectVersion,omitempty"`
 	Vulns           *WorkloadVulnCounts `json:"vulns,omitempty"`
 
 	// WorkloadCount Workload-containers running this image
-	WorkloadCount int64 `json:"workload_count"`
+	WorkloadCount int64 `json:"workloadCount"`
 }
 
 // ClusterImageResponseMatchState exact = digest matched an SBOM; index = matched a multi-arch image index, so the exact platform is unknown; unknown = real digest with no ingested SBOM (coverage gap); unresolvable = no digest could be read from the container (agent/runtime gap)
@@ -1834,43 +1834,43 @@ type ClusterResponse struct {
 	Schema *string `json:"$schema,omitempty"`
 
 	// AutoIngest Submit a scan job for every running image with no SBOM whose host resolves to a registry in this cluster's namespace, on every accepted snapshot.
-	AutoIngest  bool    `json:"auto_ingest"`
-	CreatedAt   string  `json:"created_at"`
+	AutoIngest  bool    `json:"autoIngest"`
+	CreatedAt   string  `json:"createdAt"`
 	Description *string `json:"description,omitempty"`
 	Id          string  `json:"id"`
 
 	// LastSeenAt When an agent last pushed a snapshot. Empty means no agent has ever reported: a cluster showing no workloads for this reason is not a cluster running nothing.
-	LastSeenAt  *string `json:"last_seen_at,omitempty"`
+	LastSeenAt  *string `json:"lastSeenAt,omitempty"`
 	Name        string  `json:"name"`
-	NamespaceId string  `json:"namespace_id"`
+	NamespaceId string  `json:"namespaceId"`
 
 	// NamespaceName Owning namespace name; populated on list responses
-	NamespaceName *string `json:"namespace_name,omitempty"`
-	UpdatedAt     string  `json:"updated_at"`
+	NamespaceName *string `json:"namespaceName,omitempty"`
+	UpdatedAt     string  `json:"updatedAt"`
 }
 
 // ClusterWorkloadResponse defines model for ClusterWorkloadResponse.
 type ClusterWorkloadResponse struct {
-	ArtifactId    *string `json:"artifact_id,omitempty"`
-	ArtifactName  *string `json:"artifact_name,omitempty"`
-	ArtifactType  *string `json:"artifact_type,omitempty"`
-	ClusterId     string  `json:"cluster_id"`
-	ContainerName string  `json:"container_name"`
-	FirstSeenAt   string  `json:"first_seen_at"`
+	ArtifactId    *string `json:"artifactId,omitempty"`
+	ArtifactName  *string `json:"artifactName,omitempty"`
+	ArtifactType  *string `json:"artifactType,omitempty"`
+	ClusterId     string  `json:"clusterId"`
+	ContainerName string  `json:"containerName"`
+	FirstSeenAt   string  `json:"firstSeenAt"`
 	Id            string  `json:"id"`
-	ImageDigest   *string `json:"image_digest,omitempty"`
-	ImageRef      string  `json:"image_ref"`
-	K8sNamespace  string  `json:"k8s_namespace"`
-	LastSeenAt    string  `json:"last_seen_at"`
+	ImageDigest   *string `json:"imageDigest,omitempty"`
+	ImageRef      string  `json:"imageRef"`
+	K8sNamespace  string  `json:"k8sNamespace"`
+	LastSeenAt    string  `json:"lastSeenAt"`
 
 	// MatchState exact = digest matched an SBOM; index = matched a multi-arch image index, so the exact platform is unknown; unknown = real digest with no ingested SBOM (coverage gap); unresolvable = no digest could be read from the container (agent/runtime gap)
-	MatchState     ClusterWorkloadResponseMatchState `json:"match_state"`
-	PodCount       int32                             `json:"pod_count"`
-	SbomId         *string                           `json:"sbom_id,omitempty"`
-	SubjectVersion *string                           `json:"subject_version,omitempty"`
+	MatchState     ClusterWorkloadResponseMatchState `json:"matchState"`
+	PodCount       int32                             `json:"podCount"`
+	SbomId         *string                           `json:"sbomId,omitempty"`
+	SubjectVersion *string                           `json:"subjectVersion,omitempty"`
 	Vulns          *WorkloadVulnCounts               `json:"vulns,omitempty"`
-	WorkloadKind   string                            `json:"workload_kind"`
-	WorkloadName   string                            `json:"workload_name"`
+	WorkloadKind   string                            `json:"workloadKind"`
+	WorkloadName   string                            `json:"workloadName"`
 }
 
 // ClusterWorkloadResponseMatchState exact = digest matched an SBOM; index = matched a multi-arch image index, so the exact platform is unknown; unknown = real digest with no ingested SBOM (coverage gap); unresolvable = no digest could be read from the container (agent/runtime gap)
@@ -2032,7 +2032,7 @@ type CreateClusterInputBody struct {
 	Name string `json:"name"`
 
 	// NamespaceId Owning namespace UUID
-	NamespaceId openapi_types.UUID `json:"namespace_id"`
+	NamespaceId openapi_types.UUID `json:"namespaceId"`
 }
 
 // CreateNamespaceInputBody defines model for CreateNamespaceInputBody.
@@ -2056,25 +2056,25 @@ type CreateRegistryInputBody struct {
 	Schema *string `json:"$schema,omitempty"`
 
 	// AuthToken Token or PAT for registry authentication; omit for anonymous access
-	AuthToken *string `json:"auth_token,omitempty"`
+	AuthToken *string `json:"authToken,omitempty"`
 
 	// AuthUsername Username for registry authentication; omit for anonymous access
-	AuthUsername *string `json:"auth_username,omitempty"`
+	AuthUsername *string `json:"authUsername,omitempty"`
 
 	// IncludeUntagged Scan untagged manifests via registry-specific APIs (supported: zot, harbor, ghcr)
-	IncludeUntagged *bool `json:"include_untagged,omitempty"`
+	IncludeUntagged *bool `json:"includeUntagged,omitempty"`
 
 	// Insecure Allow HTTP (non-TLS) connections
 	Insecure bool `json:"insecure"`
 
 	// ManagedBy External system that owns this registry's configuration (e.g. kubernetes); set by that system's controller, not by hand
-	ManagedBy *string `json:"managed_by,omitempty"`
+	ManagedBy *string `json:"managedBy,omitempty"`
 
 	// ManagedRef Identifier within the managing system, e.g. '<namespace>/<name>' of the OCIRegistry resource
-	ManagedRef *string `json:"managed_ref,omitempty"`
+	ManagedRef *string `json:"managedRef,omitempty"`
 
 	// MaxTagAgeDays Skip tags whose image is older than this many days; needs the created order. 0 = no age limit
-	MaxTagAgeDays *int64 `json:"max_tag_age_days,omitempty"`
+	MaxTagAgeDays *int64 `json:"maxTagAgeDays,omitempty"`
 
 	// Name Human-readable registry name
 	Name string `json:"name"`
@@ -2083,34 +2083,34 @@ type CreateRegistryInputBody struct {
 	Namespace *string `json:"namespace,omitempty"`
 
 	// PollIntervalMinutes Minutes between polls
-	PollIntervalMinutes *int64 `json:"poll_interval_minutes,omitempty"`
+	PollIntervalMinutes *int64 `json:"pollIntervalMinutes,omitempty"`
 
 	// Repositories Explicit repositories to walk; bypasses /v2/_catalog discovery when non-empty
 	Repositories *[]string `json:"repositories,omitempty"`
 
 	// RepositoryPatterns Glob patterns for repositories to ingest; empty = all
-	RepositoryPatterns *[]string `json:"repository_patterns,omitempty"`
+	RepositoryPatterns *[]string `json:"repositoryPatterns,omitempty"`
 
 	// ScanMode Scanning mode
-	ScanMode *CreateRegistryInputBodyScanMode `json:"scan_mode,omitempty"`
+	ScanMode *CreateRegistryInputBodyScanMode `json:"scanMode,omitempty"`
 
 	// TagLimit Newest tags kept per repository (ADR-0053); 0 = unlimited. Defaults to 50
-	TagLimit *int64 `json:"tag_limit,omitempty"`
+	TagLimit *int64 `json:"tagLimit,omitempty"`
 
-	// TagOrder How 'newest' is decided; auto (the default) = semver when tag_patterns contains semver, created otherwise
-	TagOrder *CreateRegistryInputBodyTagOrder `json:"tag_order,omitempty"`
+	// TagOrder How 'newest' is decided; auto (the default) = semver when tagPatterns contains semver, created otherwise
+	TagOrder *CreateRegistryInputBodyTagOrder `json:"tagOrder,omitempty"`
 
 	// TagPatterns Glob patterns or 'semver' for tags to ingest; empty = all
-	TagPatterns *[]string `json:"tag_patterns,omitempty"`
+	TagPatterns *[]string `json:"tagPatterns,omitempty"`
 
-	// TrustIdentity Regex matched against the Fulcio certificate SAN; required when verification_mode is keyless
-	TrustIdentity *string `json:"trust_identity,omitempty"`
+	// TrustIdentity Regex matched against the Fulcio certificate SAN; required when verificationMode is keyless
+	TrustIdentity *string `json:"trustIdentity,omitempty"`
 
-	// TrustIssuer Expected OIDC issuer URL; required when verification_mode is keyless
-	TrustIssuer *string `json:"trust_issuer,omitempty"`
+	// TrustIssuer Expected OIDC issuer URL; required when verificationMode is keyless
+	TrustIssuer *string `json:"trustIssuer,omitempty"`
 
-	// TrustPublicKey PEM-encoded EC public key; required when verification_mode is public_key
-	TrustPublicKey *string `json:"trust_public_key,omitempty"`
+	// TrustPublicKey PEM-encoded EC public key; required when verificationMode is public_key
+	TrustPublicKey *string `json:"trustPublicKey,omitempty"`
 
 	// Type Registry type
 	Type CreateRegistryInputBodyType `json:"type"`
@@ -2119,19 +2119,19 @@ type CreateRegistryInputBody struct {
 	Url string `json:"url"`
 
 	// VerificationMode Signature verification mode; defaults to none
-	VerificationMode *CreateRegistryInputBodyVerificationMode `json:"verification_mode,omitempty"`
+	VerificationMode *CreateRegistryInputBodyVerificationMode `json:"verificationMode,omitempty"`
 
 	// Visibility Registry visibility
 	Visibility *CreateRegistryInputBodyVisibility `json:"visibility,omitempty"`
 
 	// WebhookSecret Bearer token required on incoming webhooks; omit to disable auth
-	WebhookSecret *string `json:"webhook_secret,omitempty"`
+	WebhookSecret *string `json:"webhookSecret,omitempty"`
 }
 
 // CreateRegistryInputBodyScanMode Scanning mode
 type CreateRegistryInputBodyScanMode string
 
-// CreateRegistryInputBodyTagOrder How 'newest' is decided; auto (the default) = semver when tag_patterns contains semver, created otherwise
+// CreateRegistryInputBodyTagOrder How 'newest' is decided; auto (the default) = semver when tagPatterns contains semver, created otherwise
 type CreateRegistryInputBodyTagOrder string
 
 // CreateRegistryInputBodyType Registry type
@@ -2147,69 +2147,69 @@ type CreateRegistryInputBodyVisibility string
 type CreateRegistryResponseBody struct {
 	// Schema A URL to the JSON Schema for this object.
 	Schema    *string `json:"$schema,omitempty"`
-	CreatedAt string  `json:"created_at"`
+	CreatedAt string  `json:"createdAt"`
 	Enabled   bool    `json:"enabled"`
-	HasAuth   bool    `json:"has_auth"`
-	HasSecret bool    `json:"has_secret"`
+	HasAuth   bool    `json:"hasAuth"`
+	HasSecret bool    `json:"hasSecret"`
 	Id        string  `json:"id"`
 
 	// IncludeUntagged Scan untagged manifests via registry-specific APIs (supported: zot, harbor, ghcr)
-	IncludeUntagged bool       `json:"include_untagged"`
+	IncludeUntagged bool       `json:"includeUntagged"`
 	Insecure        bool       `json:"insecure"`
-	LastPolledAt    *string    `json:"last_polled_at,omitempty"`
-	LastWalk        *WalkStats `json:"last_walk,omitempty"`
+	LastPolledAt    *string    `json:"lastPolledAt,omitempty"`
+	LastWalk        *WalkStats `json:"lastWalk,omitempty"`
 
 	// ManagedBy External system that owns this registry's configuration (e.g. kubernetes); absent when managed through this API
-	ManagedBy *string `json:"managed_by,omitempty"`
+	ManagedBy *string `json:"managedBy,omitempty"`
 
 	// ManagedRef Identifier within the managing system, e.g. '<namespace>/<name>' of the OCIRegistry resource
-	ManagedRef *string `json:"managed_ref,omitempty"`
+	ManagedRef *string `json:"managedRef,omitempty"`
 
 	// MaxTagAgeDays Tags whose image is older than this many days are skipped; 0 = no age limit
-	MaxTagAgeDays       int64  `json:"max_tag_age_days"`
+	MaxTagAgeDays       int64  `json:"maxTagAgeDays"`
 	Name                string `json:"name"`
-	PollIntervalMinutes int64  `json:"poll_interval_minutes"`
+	PollIntervalMinutes int64  `json:"pollIntervalMinutes"`
 
 	// Repositories Explicit repositories to walk; overrides catalog discovery when non-empty
 	Repositories *[]string `json:"repositories"`
 
 	// RepositoryPatterns Glob patterns for repositories to ingest; empty = all
-	RepositoryPatterns *[]string `json:"repository_patterns"`
-	ScanMode           string    `json:"scan_mode"`
+	RepositoryPatterns *[]string `json:"repositoryPatterns"`
+	ScanMode           string    `json:"scanMode"`
 
 	// TagLimit Newest tags kept per repository (ADR-0053); 0 = unlimited
-	TagLimit int64 `json:"tag_limit"`
+	TagLimit int64 `json:"tagLimit"`
 
-	// TagOrder How 'newest' is decided; auto = semver when tag_patterns contains semver, created otherwise
-	TagOrder CreateRegistryResponseBodyTagOrder `json:"tag_order"`
+	// TagOrder How 'newest' is decided; auto = semver when tagPatterns contains semver, created otherwise
+	TagOrder CreateRegistryResponseBodyTagOrder `json:"tagOrder"`
 
 	// TagPatterns Glob patterns or 'semver' for tags to ingest; empty = all
-	TagPatterns *[]string `json:"tag_patterns"`
+	TagPatterns *[]string `json:"tagPatterns"`
 
 	// TrustIdentity Regex matched against the Fulcio certificate SAN; required for keyless verification mode
-	TrustIdentity *string `json:"trust_identity,omitempty"`
+	TrustIdentity *string `json:"trustIdentity,omitempty"`
 
 	// TrustIssuer Expected OIDC issuer URL; required for keyless verification mode
-	TrustIssuer *string `json:"trust_issuer,omitempty"`
+	TrustIssuer *string `json:"trustIssuer,omitempty"`
 
 	// TrustPublicKey PEM-encoded EC public key for public_key verification mode
-	TrustPublicKey *string `json:"trust_public_key,omitempty"`
+	TrustPublicKey *string `json:"trustPublicKey,omitempty"`
 	Type           string  `json:"type"`
-	UpdatedAt      string  `json:"updated_at"`
+	UpdatedAt      string  `json:"updatedAt"`
 	Url            string  `json:"url"`
 
 	// VerificationMode Signature verification mode
-	VerificationMode CreateRegistryResponseBodyVerificationMode `json:"verification_mode"`
+	VerificationMode CreateRegistryResponseBodyVerificationMode `json:"verificationMode"`
 
 	// Visibility Registry visibility: public or private
 	Visibility string `json:"visibility"`
 
 	// WebhookSecret Generated webhook secret — shown once only. Store it securely; it cannot be retrieved again.
-	WebhookSecret *string `json:"webhook_secret,omitempty"`
-	WebhookUrl    string  `json:"webhook_url"`
+	WebhookSecret *string `json:"webhookSecret,omitempty"`
+	WebhookUrl    string  `json:"webhookUrl"`
 }
 
-// CreateRegistryResponseBodyTagOrder How 'newest' is decided; auto = semver when tag_patterns contains semver, created otherwise
+// CreateRegistryResponseBodyTagOrder How 'newest' is decided; auto = semver when tagPatterns contains semver, created otherwise
 type CreateRegistryResponseBodyTagOrder string
 
 // CreateRegistryResponseBodyVerificationMode Signature verification mode
@@ -2224,7 +2224,7 @@ type CreateSourceInputBody struct {
 	Name string `json:"name"`
 
 	// NamespaceId Owning namespace UUID
-	NamespaceId openapi_types.UUID `json:"namespace_id"`
+	NamespaceId openapi_types.UUID `json:"namespaceId"`
 }
 
 // CursorMeta defines model for CursorMeta.
@@ -2241,7 +2241,7 @@ type CursorMeta struct {
 
 // DBStatus defines model for DBStatus.
 type DBStatus struct {
-	LatencyMs int64 `json:"latency_ms"`
+	LatencyMs int64 `json:"latencyMs"`
 	Ok        bool  `json:"ok"`
 }
 
@@ -2255,19 +2255,19 @@ type DailyCountEntry struct {
 type DashboardStatsOutputBody struct {
 	// Schema A URL to the JSON Schema for this object.
 	Schema                *string                   `json:"$schema,omitempty"`
-	ArtifactCount         int64                     `json:"artifact_count"`
-	ArtifactTypes         *[]ArtifactTypeCountEntry `json:"artifact_types"`
-	IngestionTimeline     *[]DailyCountEntry        `json:"ingestion_timeline"`
-	LicenseCategories     *[]CategoryCountEntry     `json:"license_categories"`
-	LicenseCount          int64                     `json:"license_count"`
-	PackageCount          int64                     `json:"package_count"`
-	PackageGrowthTimeline *[]DailyCountEntry        `json:"package_growth_timeline"`
-	SbomCount             int64                     `json:"sbom_count"`
-	TopPackages           *[]PackageSummaryEntry    `json:"top_packages"`
-	VersionCount          int64                     `json:"version_count"`
-	VersionGrowthTimeline *[]DailyCountEntry        `json:"version_growth_timeline"`
-	VulnCount             int64                     `json:"vuln_count"`
-	VulnSeverity          VulnSeverityEntry         `json:"vuln_severity"`
+	ArtifactCount         int64                     `json:"artifactCount"`
+	ArtifactTypes         *[]ArtifactTypeCountEntry `json:"artifactTypes"`
+	IngestionTimeline     *[]DailyCountEntry        `json:"ingestionTimeline"`
+	LicenseCategories     *[]CategoryCountEntry     `json:"licenseCategories"`
+	LicenseCount          int64                     `json:"licenseCount"`
+	PackageCount          int64                     `json:"packageCount"`
+	PackageGrowthTimeline *[]DailyCountEntry        `json:"packageGrowthTimeline"`
+	SbomCount             int64                     `json:"sbomCount"`
+	TopPackages           *[]PackageSummaryEntry    `json:"topPackages"`
+	VersionCount          int64                     `json:"versionCount"`
+	VersionGrowthTimeline *[]DailyCountEntry        `json:"versionGrowthTimeline"`
+	VulnCount             int64                     `json:"vulnCount"`
+	VulnSeverity          VulnSeverityEntry         `json:"vulnSeverity"`
 
 	// Warming No snapshot is available yet and every count is a zero placeholder; render a loading state and retry
 	Warming bool `json:"warming"`
@@ -2355,19 +2355,19 @@ type DiscoveryOutputBody struct {
 	Schema *string `json:"$schema,omitempty"`
 
 	// GeneratedAt When this snapshot was computed; absent while warming
-	GeneratedAt *string `json:"generated_at,omitempty"`
+	GeneratedAt *string `json:"generatedAt,omitempty"`
 
 	// LicenseSpread License distribution across public content, by distinct package identity
-	LicenseSpread *[]DiscoverLicense `json:"license_spread"`
+	LicenseSpread *[]DiscoverLicense `json:"licenseSpread"`
 
 	// RecentArtifacts Most recently updated public artifacts, one row per artifact
-	RecentArtifacts *[]DiscoverRecent `json:"recent_artifacts"`
+	RecentArtifacts *[]DiscoverRecent `json:"recentArtifacts"`
 
 	// TopArtifacts Artifacts ranked by how widely they are used, how many versions are tracked, and how recently they were seen
-	TopArtifacts *[]DiscoverArtifact `json:"top_artifacts"`
+	TopArtifacts *[]DiscoverArtifact `json:"topArtifacts"`
 
 	// TopVulnerabilities Vulnerabilities ranked by how many public artifacts they affect
-	TopVulnerabilities *[]DiscoverVuln `json:"top_vulnerabilities"`
+	TopVulnerabilities *[]DiscoverVuln `json:"topVulnerabilities"`
 
 	// Warming No snapshot is available yet, so every section is empty because nothing is known — not because the catalog is empty; render a loading state and retry
 	Warming bool `json:"warming"`
@@ -2387,29 +2387,29 @@ type DistinctComponentSummary struct {
 // EnrichmentJobResponse defines model for EnrichmentJobResponse.
 type EnrichmentJobResponse struct {
 	// ArtifactName Name of the artifact, for display
-	ArtifactName *string `json:"artifact_name,omitempty"`
+	ArtifactName *string `json:"artifactName,omitempty"`
 	Attempts     int32   `json:"attempts"`
-	CreatedAt    string  `json:"created_at"`
+	CreatedAt    string  `json:"createdAt"`
 
 	// EnricherName Which enricher this job runs
-	EnricherName EnrichmentJobResponseEnricherName `json:"enricher_name"`
-	FinishedAt   *string                           `json:"finished_at,omitempty"`
+	EnricherName EnrichmentJobResponseEnricherName `json:"enricherName"`
+	FinishedAt   *string                           `json:"finishedAt,omitempty"`
 
 	// Id Job UUID
 	Id            string  `json:"id"`
-	LastAttemptAt *string `json:"last_attempt_at,omitempty"`
-	LastError     *string `json:"last_error,omitempty"`
+	LastAttemptAt *string `json:"lastAttemptAt,omitempty"`
+	LastError     *string `json:"lastError,omitempty"`
 
 	// SbomDigest Digest of the SBOM's image, for display
-	SbomDigest *string `json:"sbom_digest,omitempty"`
+	SbomDigest *string `json:"sbomDigest,omitempty"`
 
 	// SbomId SBOM being enriched
-	SbomId    *string                    `json:"sbom_id,omitempty"`
-	StartedAt *string                    `json:"started_at,omitempty"`
+	SbomId    *string                    `json:"sbomId,omitempty"`
+	StartedAt *string                    `json:"startedAt,omitempty"`
 	State     EnrichmentJobResponseState `json:"state"`
 
 	// WorkerId Pod hostname that is processing this job
-	WorkerId *string `json:"worker_id,omitempty"`
+	WorkerId *string `json:"workerId,omitempty"`
 }
 
 // EnrichmentJobResponseEnricherName Which enricher this job runs
@@ -2421,7 +2421,7 @@ type EnrichmentJobResponseState string
 // EnrichmentJobSummaryRow defines model for EnrichmentJobSummaryRow.
 type EnrichmentJobSummaryRow struct {
 	Count        int64  `json:"count"`
-	EnricherName string `json:"enricher_name"`
+	EnricherName string `json:"enricherName"`
 	State        string `json:"state"`
 }
 
@@ -2435,7 +2435,7 @@ type EnrichmentJobsSummaryOutputBody struct {
 // EnrichmentStatus defines model for EnrichmentStatus.
 type EnrichmentStatus struct {
 	Enabled   bool  `json:"enabled"`
-	QueueSize int64 `json:"queue_size"`
+	QueueSize int64 `json:"queueSize"`
 	Workers   int64 `json:"workers"`
 }
 
@@ -2584,10 +2584,10 @@ type HealthCheckOutputBody struct {
 
 // IdentityResponse defines model for IdentityResponse.
 type IdentityResponse struct {
-	CreatedAt time.Time `json:"created_at"`
+	CreatedAt time.Time `json:"createdAt"`
 
 	// DisplayName Label for the issuer
-	DisplayName string `json:"display_name"`
+	DisplayName string `json:"displayName"`
 
 	// Email Address this issuer released, if any
 	Email *string `json:"email,omitempty"`
@@ -2629,7 +2629,7 @@ type IngestUnknownInputBody struct {
 	Schema *string `json:"$schema,omitempty"`
 
 	// ImageDigests Limit the run to these running image digests. Omit to ingest every unknown image the cluster reports.
-	ImageDigests *[]string `json:"image_digests,omitempty"`
+	ImageDigests *[]string `json:"imageDigests,omitempty"`
 }
 
 // IngestUnknownOutputBody defines model for IngestUnknownOutputBody.
@@ -2641,7 +2641,7 @@ type IngestUnknownOutputBody struct {
 	Considered int64 `json:"considered"`
 
 	// EgressDenied The host is in an address range the egress policy refuses; not retried
-	EgressDenied int64 `json:"egress_denied"`
+	EgressDenied int64 `json:"egressDenied"`
 
 	// Failed Submission errored: a manifest that is not there, or a transient registry or queue problem
 	Failed int64 `json:"failed"`
@@ -2650,13 +2650,13 @@ type IngestUnknownOutputBody struct {
 	Queued int64 `json:"queued"`
 
 	// SkippedExisting Already has a scan job: scanning, failed, or deleted on purpose. A repeat snapshot lands here.
-	SkippedExisting int64 `json:"skipped_existing"`
+	SkippedExisting int64 `json:"skippedExisting"`
 
 	// SkippedRegistryDisabled The host matches a registry that is switched off
-	SkippedRegistryDisabled int64 `json:"skipped_registry_disabled"`
+	SkippedRegistryDisabled int64 `json:"skippedRegistryDisabled"`
 
 	// SkippedUnparseableRef The reported reference carries no host to resolve against
-	SkippedUnparseableRef int64 `json:"skipped_unparseable_ref"`
+	SkippedUnparseableRef int64 `json:"skippedUnparseableRef"`
 
 	// Unauthorized The host refused the pull, in this run or a recorded earlier one; not retried
 	Unauthorized int64 `json:"unauthorized"`
@@ -2664,34 +2664,34 @@ type IngestUnknownOutputBody struct {
 
 // InventoryWorkload defines model for InventoryWorkload.
 type InventoryWorkload struct {
-	ContainerName string `json:"container_name"`
+	ContainerName string `json:"containerName"`
 
 	// ImageDigest Normalized digest from status.containerStatuses[].imageID. Omit when the agent could not extract one — that is reported as 'unresolvable', not silently dropped.
-	ImageDigest *string `json:"image_digest,omitempty"`
+	ImageDigest *string `json:"imageDigest,omitempty"`
 
 	// ImageRef Image reference, for display only. Never used as an identity: a tag is mutable.
-	ImageRef string `json:"image_ref"`
+	ImageRef string `json:"imageRef"`
 
 	// K8sNamespace Kubernetes namespace the workload runs in
-	K8sNamespace string `json:"k8s_namespace"`
+	K8sNamespace string `json:"k8sNamespace"`
 
 	// PodCount Running pods carrying this container at this digest
-	PodCount int32 `json:"pod_count"`
+	PodCount int32 `json:"podCount"`
 
 	// WorkloadKind Owning workload kind (Deployment, StatefulSet, DaemonSet, Job, CronJob, Pod)
-	WorkloadKind string `json:"workload_kind"`
-	WorkloadName string `json:"workload_name"`
+	WorkloadKind string `json:"workloadKind"`
+	WorkloadName string `json:"workloadName"`
 }
 
 // KeyMetaResponse defines model for KeyMetaResponse.
 type KeyMetaResponse struct {
 	// Capabilities Capabilities this key may exercise, before intersection with the owner's live namespace roles
 	Capabilities *[]string `json:"capabilities"`
-	CreatedAt    time.Time `json:"created_at"`
+	CreatedAt    time.Time `json:"createdAt"`
 
 	// Id Key UUID
 	Id         string     `json:"id"`
-	LastUsedAt *time.Time `json:"last_used_at,omitempty"`
+	LastUsedAt *time.Time `json:"lastUsedAt,omitempty"`
 	Name       string     `json:"name"`
 
 	// Prefix First 8 characters of the key
@@ -3039,7 +3039,7 @@ type MeOutputBody struct {
 	Schema *string `json:"$schema,omitempty"`
 
 	// DisplayName Name to show for this user; supplied by whichever issuer last signed them in
-	DisplayName string `json:"display_name"`
+	DisplayName string `json:"displayName"`
 
 	// Id User UUID
 	Id string `json:"id"`
@@ -3054,7 +3054,7 @@ type MeOutputBody struct {
 // MyMembership defines model for MyMembership.
 type MyMembership struct {
 	// NamespaceId Namespace UUID
-	NamespaceId string `json:"namespace_id"`
+	NamespaceId string `json:"namespaceId"`
 
 	// Role The caller's role in that namespace
 	Role MyMembershipRole `json:"role"`
@@ -3071,10 +3071,10 @@ type NATSStatus struct {
 
 // NamespaceFacetResponse defines model for NamespaceFacetResponse.
 type NamespaceFacetResponse struct {
-	K8sNamespace string `json:"k8s_namespace"`
+	K8sNamespace string `json:"k8sNamespace"`
 
 	// WorkloadCount Containers reported in this namespace
-	WorkloadCount int64 `json:"workload_count"`
+	WorkloadCount int64 `json:"workloadCount"`
 }
 
 // NamespaceMemberResponse defines model for NamespaceMemberResponse.
@@ -3084,13 +3084,13 @@ type NamespaceMemberResponse struct {
 
 	// Capabilities Capabilities the role grants, for display
 	Capabilities *[]string `json:"capabilities"`
-	CreatedAt    string    `json:"created_at"`
+	CreatedAt    string    `json:"createdAt"`
 
 	// Role The member's role in this namespace
 	Role NamespaceMemberResponseRole `json:"role"`
 
 	// UserId UUID of the member
-	UserId string `json:"user_id"`
+	UserId string `json:"userId"`
 
 	// Username GitHub username of the member
 	Username string `json:"username"`
@@ -3106,16 +3106,16 @@ type NamespaceResponse struct {
 
 	// Capabilities Capabilities the caller holds in this namespace (ADR-046)
 	Capabilities *[]string `json:"capabilities,omitempty"`
-	CreatedAt    string    `json:"created_at"`
+	CreatedAt    string    `json:"createdAt"`
 	Id           string    `json:"id"`
 	Name         string    `json:"name"`
 
 	// OwnerId UUID of the namespace owner
-	OwnerId *string `json:"owner_id,omitempty"`
+	OwnerId *string `json:"ownerId,omitempty"`
 
 	// OwnerUsername GitHub username of the namespace owner
-	OwnerUsername *string `json:"owner_username,omitempty"`
-	UpdatedAt     string  `json:"updated_at"`
+	OwnerUsername *string `json:"ownerUsername,omitempty"`
+	UpdatedAt     string  `json:"updatedAt"`
 
 	// Visibility Namespace visibility: public or private
 	Visibility NamespaceResponseVisibility `json:"visibility"`
@@ -3128,9 +3128,9 @@ type NamespaceResponseVisibility string
 type PackageSummaryEntry struct {
 	Group        *string `json:"group,omitempty"`
 	Name         string  `json:"name"`
-	SbomCount    int64   `json:"sbom_count"`
+	SbomCount    int64   `json:"sbomCount"`
 	Type         string  `json:"type"`
-	VersionCount int64   `json:"version_count"`
+	VersionCount int64   `json:"versionCount"`
 }
 
 // PageMeta defines model for PageMeta.
@@ -3158,34 +3158,34 @@ type PreviewRegistryConfigInputBody struct {
 	Schema *string `json:"$schema,omitempty"`
 
 	// AuthToken Token or PAT for registry authentication; omit for anonymous access
-	AuthToken *string `json:"auth_token,omitempty"`
+	AuthToken *string `json:"authToken,omitempty"`
 
 	// AuthUsername Username for registry authentication; omit for anonymous access
-	AuthUsername *string `json:"auth_username,omitempty"`
+	AuthUsername *string `json:"authUsername,omitempty"`
 
 	// IncludeUntagged Scan untagged manifests via registry-specific APIs (supported: zot, harbor, ghcr)
-	IncludeUntagged *bool `json:"include_untagged,omitempty"`
+	IncludeUntagged *bool `json:"includeUntagged,omitempty"`
 
 	// Insecure Allow HTTP (non-TLS) connections
 	Insecure bool `json:"insecure"`
 
 	// MaxTagAgeDays Skip tags whose image is older than this many days; needs the created order
-	MaxTagAgeDays *int64 `json:"max_tag_age_days,omitempty"`
+	MaxTagAgeDays *int64 `json:"maxTagAgeDays,omitempty"`
 
 	// Repositories Explicit repositories to walk; bypasses /v2/_catalog discovery when non-empty
 	Repositories *[]string `json:"repositories,omitempty"`
 
 	// RepositoryPatterns Glob patterns for repositories to ingest; empty = all
-	RepositoryPatterns *[]string `json:"repository_patterns,omitempty"`
+	RepositoryPatterns *[]string `json:"repositoryPatterns,omitempty"`
 
 	// TagLimit Newest tags kept per repository; 0 = unlimited. Defaults to 50
-	TagLimit *int64 `json:"tag_limit,omitempty"`
+	TagLimit *int64 `json:"tagLimit,omitempty"`
 
 	// TagOrder How 'newest' is decided; defaults to auto
-	TagOrder *PreviewRegistryConfigInputBodyTagOrder `json:"tag_order,omitempty"`
+	TagOrder *PreviewRegistryConfigInputBodyTagOrder `json:"tagOrder,omitempty"`
 
 	// TagPatterns Glob patterns or 'semver' for tags to ingest; empty = all
-	TagPatterns *[]string `json:"tag_patterns,omitempty"`
+	TagPatterns *[]string `json:"tagPatterns,omitempty"`
 
 	// Type Registry type
 	Type PreviewRegistryConfigInputBodyType `json:"type"`
@@ -3212,10 +3212,10 @@ type ProvenanceDriftSummary struct {
 // ProviderResponse defines model for ProviderResponse.
 type ProviderResponse struct {
 	// DisplayName Label for a sign-in button
-	DisplayName string `json:"display_name"`
+	DisplayName string `json:"displayName"`
 
 	// LoginPath Path on the API to begin a sign-in through this issuer
-	LoginPath string `json:"login_path"`
+	LoginPath string `json:"loginPath"`
 
 	// Name Issuer key: 'github', or 'oidc:<name>'
 	Name string `json:"name"`
@@ -3242,7 +3242,7 @@ type PutInventoryOutputBody struct {
 	Pruned int64 `json:"pruned"`
 
 	// SeenAt Timestamp recorded on the cluster
-	SeenAt string `json:"seen_at"`
+	SeenAt string `json:"seenAt"`
 }
 
 // ReadinessCheckOutputBody defines model for ReadinessCheckOutputBody.
@@ -3278,83 +3278,83 @@ type RegenerateWebhookSecretOutputBody struct {
 	Schema *string `json:"$schema,omitempty"`
 
 	// WebhookSecret New webhook secret — shown once only. The previous secret is immediately invalidated.
-	WebhookSecret string `json:"webhook_secret"`
+	WebhookSecret string `json:"webhookSecret"`
 }
 
 // RegistryPreview defines model for RegistryPreview.
 type RegistryPreview struct {
 	// Schema A URL to the JSON Schema for this object.
 	Schema         *string        `json:"$schema,omitempty"`
-	EstimatedSboms int64          `json:"estimated_sboms"`
+	EstimatedSboms int64          `json:"estimatedSboms"`
 	Repositories   *[]RepoPreview `json:"repositories"`
 	Selected       int64          `json:"selected"`
-	SkippedByLimit int64          `json:"skipped_by_limit"`
+	SkippedByLimit int64          `json:"skippedByLimit"`
 }
 
 // RegistryResponse defines model for RegistryResponse.
 type RegistryResponse struct {
 	// Schema A URL to the JSON Schema for this object.
 	Schema    *string `json:"$schema,omitempty"`
-	CreatedAt string  `json:"created_at"`
+	CreatedAt string  `json:"createdAt"`
 	Enabled   bool    `json:"enabled"`
-	HasAuth   bool    `json:"has_auth"`
-	HasSecret bool    `json:"has_secret"`
+	HasAuth   bool    `json:"hasAuth"`
+	HasSecret bool    `json:"hasSecret"`
 	Id        string  `json:"id"`
 
 	// IncludeUntagged Scan untagged manifests via registry-specific APIs (supported: zot, harbor, ghcr)
-	IncludeUntagged bool       `json:"include_untagged"`
+	IncludeUntagged bool       `json:"includeUntagged"`
 	Insecure        bool       `json:"insecure"`
-	LastPolledAt    *string    `json:"last_polled_at,omitempty"`
-	LastWalk        *WalkStats `json:"last_walk,omitempty"`
+	LastPolledAt    *string    `json:"lastPolledAt,omitempty"`
+	LastWalk        *WalkStats `json:"lastWalk,omitempty"`
 
 	// ManagedBy External system that owns this registry's configuration (e.g. kubernetes); absent when managed through this API
-	ManagedBy *string `json:"managed_by,omitempty"`
+	ManagedBy *string `json:"managedBy,omitempty"`
 
 	// ManagedRef Identifier within the managing system, e.g. '<namespace>/<name>' of the OCIRegistry resource
-	ManagedRef *string `json:"managed_ref,omitempty"`
+	ManagedRef *string `json:"managedRef,omitempty"`
 
 	// MaxTagAgeDays Tags whose image is older than this many days are skipped; 0 = no age limit
-	MaxTagAgeDays       int64  `json:"max_tag_age_days"`
+	MaxTagAgeDays       int64  `json:"maxTagAgeDays"`
 	Name                string `json:"name"`
-	PollIntervalMinutes int64  `json:"poll_interval_minutes"`
+	PollIntervalMinutes int64  `json:"pollIntervalMinutes"`
 
 	// Repositories Explicit repositories to walk; overrides catalog discovery when non-empty
 	Repositories *[]string `json:"repositories"`
 
 	// RepositoryPatterns Glob patterns for repositories to ingest; empty = all
-	RepositoryPatterns *[]string `json:"repository_patterns"`
-	ScanMode           string    `json:"scan_mode"`
+	RepositoryPatterns *[]string `json:"repositoryPatterns"`
+	ScanMode           string    `json:"scanMode"`
 
 	// TagLimit Newest tags kept per repository (ADR-0053); 0 = unlimited
-	TagLimit int64 `json:"tag_limit"`
+	TagLimit int64 `json:"tagLimit"`
 
-	// TagOrder How 'newest' is decided; auto = semver when tag_patterns contains semver, created otherwise
-	TagOrder RegistryResponseTagOrder `json:"tag_order"`
+	// TagOrder How 'newest' is decided; auto = semver when tagPatterns contains semver, created otherwise
+	TagOrder RegistryResponseTagOrder `json:"tagOrder"`
 
 	// TagPatterns Glob patterns or 'semver' for tags to ingest; empty = all
-	TagPatterns *[]string `json:"tag_patterns"`
+	TagPatterns *[]string `json:"tagPatterns"`
 
 	// TrustIdentity Regex matched against the Fulcio certificate SAN; required for keyless verification mode
-	TrustIdentity *string `json:"trust_identity,omitempty"`
+	TrustIdentity *string `json:"trustIdentity,omitempty"`
 
 	// TrustIssuer Expected OIDC issuer URL; required for keyless verification mode
-	TrustIssuer *string `json:"trust_issuer,omitempty"`
+	TrustIssuer *string `json:"trustIssuer,omitempty"`
 
 	// TrustPublicKey PEM-encoded EC public key for public_key verification mode
-	TrustPublicKey *string `json:"trust_public_key,omitempty"`
+	TrustPublicKey *string `json:"trustPublicKey,omitempty"`
 	Type           string  `json:"type"`
-	UpdatedAt      string  `json:"updated_at"`
+	UpdatedAt      string  `json:"updatedAt"`
 	Url            string  `json:"url"`
 
 	// VerificationMode Signature verification mode
-	VerificationMode RegistryResponseVerificationMode `json:"verification_mode"`
+	VerificationMode RegistryResponseVerificationMode `json:"verificationMode"`
 
 	// Visibility Registry visibility: public or private
 	Visibility string `json:"visibility"`
-	WebhookUrl string `json:"webhook_url"`
+	WebhookUrl string `json:"webhookUrl"`
 }
 
-// RegistryResponseTagOrder How 'newest' is decided; auto = semver when tag_patterns contains semver, created otherwise
+// RegistryResponseTagOrder How 'newest' is decided; auto = semver when tagPatterns contains semver, created otherwise
 type RegistryResponseTagOrder string
 
 // RegistryResponseVerificationMode Signature verification mode
@@ -3384,7 +3384,7 @@ type RepoPreview struct {
 	Error *string `json:"error,omitempty"`
 
 	// EstimatedSboms (selected tags x platforms) + untagged manifests; an estimate, since tags can share digests and platforms vary
-	EstimatedSboms int64 `json:"estimated_sboms"`
+	EstimatedSboms int64 `json:"estimatedSboms"`
 
 	// Matched Tags that pass the filter
 	Matched int64 `json:"matched"`
@@ -3396,13 +3396,13 @@ type RepoPreview struct {
 	// Selected Tags inside the window
 	Selected int64 `json:"selected"`
 
-	// SkippedByAge Matching tags older than max_tag_age_days, or with no build date while it is set
-	SkippedByAge int64 `json:"skipped_by_age"`
+	// SkippedByAge Matching tags older than maxTagAgeDays, or with no build date while it is set
+	SkippedByAge int64 `json:"skippedByAge"`
 
-	// SkippedByLimit Matching tags past tag_limit
-	SkippedByLimit int64 `json:"skipped_by_limit"`
+	// SkippedByLimit Matching tags past tagLimit
+	SkippedByLimit int64 `json:"skippedByLimit"`
 
-	// Untagged Untagged manifests inside the untagged window (include_untagged only)
+	// Untagged Untagged manifests inside the untagged window (includeUntagged only)
 	Untagged int64 `json:"untagged"`
 }
 
@@ -3427,8 +3427,8 @@ type RetryAllFailedScanJobsOutputBody struct {
 // RunningVulnResponse defines model for RunningVulnResponse.
 type RunningVulnResponse struct {
 	// CanonicalId The id this finding is keyed and linked by, normally a CVE. Aliased advisories are collapsed into one row.
-	CanonicalId string   `json:"canonical_id"`
-	CvssScore   *float32 `json:"cvss_score,omitempty"`
+	CanonicalId string   `json:"canonicalId"`
+	CvssScore   *float32 `json:"cvssScore,omitempty"`
 
 	// Id Native advisory id of the representative record (OSV, GHSA, …)
 	Id       string  `json:"id"`
@@ -3436,32 +3436,32 @@ type RunningVulnResponse struct {
 	Summary  *string `json:"summary,omitempty"`
 
 	// WorkloadCount Distinct running workloads affected in this cluster
-	WorkloadCount int64 `json:"workload_count"`
+	WorkloadCount int64 `json:"workloadCount"`
 }
 
 // RunningWorkloadResponse defines model for RunningWorkloadResponse.
 type RunningWorkloadResponse struct {
-	ArtifactId    *string `json:"artifact_id,omitempty"`
-	ArtifactName  *string `json:"artifact_name,omitempty"`
-	ArtifactType  *string `json:"artifact_type,omitempty"`
-	ClusterId     string  `json:"cluster_id"`
-	ClusterName   string  `json:"cluster_name"`
-	ContainerName string  `json:"container_name"`
-	FirstSeenAt   string  `json:"first_seen_at"`
+	ArtifactId    *string `json:"artifactId,omitempty"`
+	ArtifactName  *string `json:"artifactName,omitempty"`
+	ArtifactType  *string `json:"artifactType,omitempty"`
+	ClusterId     string  `json:"clusterId"`
+	ClusterName   string  `json:"clusterName"`
+	ContainerName string  `json:"containerName"`
+	FirstSeenAt   string  `json:"firstSeenAt"`
 	Id            string  `json:"id"`
-	ImageDigest   *string `json:"image_digest,omitempty"`
-	ImageRef      string  `json:"image_ref"`
-	K8sNamespace  string  `json:"k8s_namespace"`
-	LastSeenAt    string  `json:"last_seen_at"`
+	ImageDigest   *string `json:"imageDigest,omitempty"`
+	ImageRef      string  `json:"imageRef"`
+	K8sNamespace  string  `json:"k8sNamespace"`
+	LastSeenAt    string  `json:"lastSeenAt"`
 
 	// MatchState exact = digest matched an SBOM; index = matched a multi-arch image index, so the exact platform is unknown; unknown = real digest with no ingested SBOM (coverage gap); unresolvable = no digest could be read from the container (agent/runtime gap)
-	MatchState     RunningWorkloadResponseMatchState `json:"match_state"`
-	PodCount       int32                             `json:"pod_count"`
-	SbomId         *string                           `json:"sbom_id,omitempty"`
-	SubjectVersion *string                           `json:"subject_version,omitempty"`
+	MatchState     RunningWorkloadResponseMatchState `json:"matchState"`
+	PodCount       int32                             `json:"podCount"`
+	SbomId         *string                           `json:"sbomId,omitempty"`
+	SubjectVersion *string                           `json:"subjectVersion,omitempty"`
 	Vulns          *WorkloadVulnCounts               `json:"vulns,omitempty"`
-	WorkloadKind   string                            `json:"workload_kind"`
-	WorkloadName   string                            `json:"workload_name"`
+	WorkloadKind   string                            `json:"workloadKind"`
+	WorkloadName   string                            `json:"workloadName"`
 }
 
 // RunningWorkloadResponseMatchState exact = digest matched an SBOM; index = matched a multi-arch image index, so the exact platform is unknown; unknown = real digest with no ingested SBOM (coverage gap); unresolvable = no digest could be read from the container (agent/runtime gap)
@@ -3552,30 +3552,30 @@ type ScanJobResponse struct {
 	// Schema A URL to the JSON Schema for this object.
 	Schema     *string `json:"$schema,omitempty"`
 	Attempts   int32   `json:"attempts"`
-	CreatedAt  string  `json:"created_at"`
+	CreatedAt  string  `json:"createdAt"`
 	Digest     string  `json:"digest"`
-	FinishedAt *string `json:"finished_at,omitempty"`
+	FinishedAt *string `json:"finishedAt,omitempty"`
 
 	// Id Job UUID
 	Id            string  `json:"id"`
-	LastAttemptAt *string `json:"last_attempt_at,omitempty"`
-	LastError     *string `json:"last_error,omitempty"`
+	LastAttemptAt *string `json:"lastAttemptAt,omitempty"`
+	LastError     *string `json:"lastError,omitempty"`
 
 	// NatsMsgId NATS deduplication message ID
-	NatsMsgId *string `json:"nats_msg_id,omitempty"`
+	NatsMsgId *string `json:"natsMsgId,omitempty"`
 
 	// RegistryId Source registry UUID
-	RegistryId *string `json:"registry_id,omitempty"`
+	RegistryId *string `json:"registryId,omitempty"`
 	Repository string  `json:"repository"`
 
 	// SbomId Resulting SBOM UUID on success
-	SbomId    *string              `json:"sbom_id,omitempty"`
-	StartedAt *string              `json:"started_at,omitempty"`
+	SbomId    *string              `json:"sbomId,omitempty"`
+	StartedAt *string              `json:"startedAt,omitempty"`
 	State     ScanJobResponseState `json:"state"`
 	Tag       *string              `json:"tag,omitempty"`
 
 	// WorkerId Pod hostname that is processing this job
-	WorkerId *string `json:"worker_id,omitempty"`
+	WorkerId *string `json:"workerId,omitempty"`
 }
 
 // ScanJobResponseState defines model for ScanJobResponse.State.
@@ -3583,10 +3583,10 @@ type ScanJobResponseState string
 
 // ScanJobsStatus defines model for ScanJobsStatus.
 type ScanJobsStatus struct {
-	Failed24h    int64 `json:"failed_24h"`
+	Failed24h    int64 `json:"failed24h"`
 	Queued       int64 `json:"queued"`
 	Running      int64 `json:"running"`
-	Succeeded24h int64 `json:"succeeded_24h"`
+	Succeeded24h int64 `json:"succeeded24h"`
 }
 
 // ScanRegistryOutputBody defines model for ScanRegistryOutputBody.
@@ -3601,7 +3601,7 @@ type ScanRegistryOutputBody struct {
 // ScannerStatus defines model for ScannerStatus.
 type ScannerStatus struct {
 	Enabled       bool `json:"enabled"`
-	PollerEnabled bool `json:"poller_enabled"`
+	PollerEnabled bool `json:"pollerEnabled"`
 }
 
 // SearchComponentsOutputBody defines model for SearchComponentsOutputBody.
@@ -3636,17 +3636,17 @@ type SetNamespaceMemberInputBodyRole string
 type SourceResponse struct {
 	// Schema A URL to the JSON Schema for this object.
 	Schema    *string `json:"$schema,omitempty"`
-	CreatedAt string  `json:"created_at"`
+	CreatedAt string  `json:"createdAt"`
 	Id        string  `json:"id"`
 
 	// Kind Ingest channel kind
 	Kind        SourceResponseKind `json:"kind"`
 	Name        string             `json:"name"`
-	NamespaceId string             `json:"namespace_id"`
+	NamespaceId string             `json:"namespaceId"`
 
 	// NamespaceName Owning namespace name; populated on list responses
-	NamespaceName *string `json:"namespace_name,omitempty"`
-	UpdatedAt     string  `json:"updated_at"`
+	NamespaceName *string `json:"namespaceName,omitempty"`
+	UpdatedAt     string  `json:"updatedAt"`
 }
 
 // SourceResponseKind Ingest channel kind
@@ -3667,7 +3667,7 @@ type StartIdentityLinkOutputBody struct {
 	Schema *string `json:"$schema,omitempty"`
 
 	// AuthorizeUrl Navigate the browser here to continue linking
-	AuthorizeUrl string `json:"authorize_url"`
+	AuthorizeUrl string `json:"authorizeUrl"`
 }
 
 // SystemStatusOutputBody defines model for SystemStatusOutputBody.
@@ -3677,7 +3677,7 @@ type SystemStatusOutputBody struct {
 	Db         DBStatus         `json:"db"`
 	Enrichment EnrichmentStatus `json:"enrichment"`
 	Nats       NATSStatus       `json:"nats"`
-	ScanJobs   ScanJobsStatus   `json:"scan_jobs"`
+	ScanJobs   ScanJobsStatus   `json:"scanJobs"`
 	Scanner    ScannerStatus    `json:"scanner"`
 }
 
@@ -3687,10 +3687,10 @@ type TestRegistryConnectionInputBody struct {
 	Schema *string `json:"$schema,omitempty"`
 
 	// AuthToken Token or PAT for registry authentication
-	AuthToken *string `json:"auth_token,omitempty"`
+	AuthToken *string `json:"authToken,omitempty"`
 
 	// AuthUsername Username for registry authentication
-	AuthUsername *string `json:"auth_username,omitempty"`
+	AuthUsername *string `json:"authUsername,omitempty"`
 
 	// Insecure Use HTTP instead of HTTPS
 	Insecure bool `json:"insecure"`
@@ -3728,25 +3728,25 @@ type TopVulnEntry struct {
 type UnknownHostResponse struct {
 	// Host Normalized registry host the images in this group name, and the address a registry for it would use
 	Host       string `json:"host"`
-	ImageCount int64  `json:"image_count"`
-	PodCount   int64  `json:"pod_count"`
+	ImageCount int64  `json:"imageCount"`
+	PodCount   int64  `json:"podCount"`
 
 	// Reason The worst remedy seen for this group: a registry to add or fix credentials for, or one to switch on. Other states name no registry to configure and are not grouped here
 	Reason UnknownHostResponseReason `json:"reason"`
 
 	// RegistryId Registry that serves this group, when one was matched at all
-	RegistryId   *string `json:"registry_id,omitempty"`
-	RegistryName *string `json:"registry_name,omitempty"`
+	RegistryId   *string `json:"registryId,omitempty"`
+	RegistryName *string `json:"registryName,omitempty"`
 
 	// Repositories Distinct repositories a registry would have to cover to close this group's gap, sorted; capped, so compare against repository_count
 	Repositories *[]string `json:"repositories"`
 
 	// RepositoryCount Distinct repository total, which may exceed the length of repositories
-	RepositoryCount int64 `json:"repository_count"`
+	RepositoryCount int64 `json:"repositoryCount"`
 
 	// Scope The group: the host plus any leading repository segments that belong to the registry rather than the image, e.g. ghcr.io/pfenerty
 	Scope         string `json:"scope"`
-	WorkloadCount int64  `json:"workload_count"`
+	WorkloadCount int64  `json:"workloadCount"`
 }
 
 // UnknownHostResponseReason The worst remedy seen for this group: a registry to add or fix credentials for, or one to switch on. Other states name no registry to configure and are not grouped here
@@ -3758,7 +3758,7 @@ type UnknownImageReasonCounts struct {
 	Deleted int64 `json:"deleted"`
 
 	// EgressDenied The host is in an address range the egress policy refuses
-	EgressDenied int64 `json:"egress_denied"`
+	EgressDenied int64 `json:"egressDenied"`
 
 	// Failed The manifest was not there, or the scan used up its attempts; ingesting the row retries it
 	Failed int64 `json:"failed"`
@@ -3767,7 +3767,7 @@ type UnknownImageReasonCounts struct {
 	Ready int64 `json:"ready"`
 
 	// RegistryDisabled The host matches a registry that is switched off
-	RegistryDisabled int64 `json:"registry_disabled"`
+	RegistryDisabled int64 `json:"registryDisabled"`
 
 	// Scanning A scan job is queued or running
 	Scanning int64 `json:"scanning"`
@@ -3776,30 +3776,30 @@ type UnknownImageReasonCounts struct {
 	Unauthorized int64 `json:"unauthorized"`
 
 	// UnparseableRef The reported reference carries no host to resolve against
-	UnparseableRef int64 `json:"unparseable_ref"`
+	UnparseableRef int64 `json:"unparseableRef"`
 }
 
 // UnknownImageResponse defines model for UnknownImageResponse.
 type UnknownImageResponse struct {
-	ImageDigest string `json:"image_digest"`
-	ImageRef    string `json:"image_ref"`
-	PodCount    int64  `json:"pod_count"`
+	ImageDigest string `json:"imageDigest"`
+	ImageRef    string `json:"imageRef"`
+	PodCount    int64  `json:"podCount"`
 
 	// Reason Where this image stands: ready to queue, already has a job, or why it cannot be ingested (ADR-0044 K10)
 	Reason UnknownImageResponseReason `json:"reason"`
 
-	// RegistryHost Host parsed out of image_ref; empty when the reference carries none
-	RegistryHost *string `json:"registry_host,omitempty"`
+	// RegistryHost Host parsed out of imageRef; empty when the reference carries none
+	RegistryHost *string `json:"registryHost,omitempty"`
 
 	// RegistryId Registry whose credentials pull this image, or the disabled one blocking it; absent on a ready image means an anonymous pull
-	RegistryId         *string `json:"registry_id,omitempty"`
-	RegistryName       *string `json:"registry_name,omitempty"`
+	RegistryId         *string `json:"registryId,omitempty"`
+	RegistryName       *string `json:"registryName,omitempty"`
 	Repository         *string `json:"repository,omitempty"`
-	SampleK8sNamespace *string `json:"sample_k8s_namespace,omitempty"`
-	SampleWorkloadName *string `json:"sample_workload_name,omitempty"`
+	SampleK8sNamespace *string `json:"sampleK8sNamespace,omitempty"`
+	SampleWorkloadName *string `json:"sampleWorkloadName,omitempty"`
 
 	// WorkloadCount Containers running this image
-	WorkloadCount int64 `json:"workload_count"`
+	WorkloadCount int64 `json:"workloadCount"`
 }
 
 // UnknownImageResponseReason Where this image stands: ready to queue, already has a job, or why it cannot be ingested (ADR-0044 K10)
@@ -3811,7 +3811,7 @@ type UpdateClusterInputBody struct {
 	Schema *string `json:"$schema,omitempty"`
 
 	// AutoIngest Auto-ingest unknown running images on every accepted snapshot. Omit to leave unchanged.
-	AutoIngest  *bool   `json:"auto_ingest,omitempty"`
+	AutoIngest  *bool   `json:"autoIngest,omitempty"`
 	Description *string `json:"description,omitempty"`
 	Name        string  `json:"name"`
 }
@@ -3835,55 +3835,55 @@ type UpdateNamespaceInputBodyVisibility string
 type UpdateRegistryInputBody struct {
 	// Schema A URL to the JSON Schema for this object.
 	Schema       *string `json:"$schema,omitempty"`
-	AuthToken    *string `json:"auth_token,omitempty"`
-	AuthUsername *string `json:"auth_username,omitempty"`
+	AuthToken    *string `json:"authToken,omitempty"`
+	AuthUsername *string `json:"authUsername,omitempty"`
 	Enabled      bool    `json:"enabled"`
 
 	// IncludeUntagged Scan untagged manifests via registry-specific APIs (supported: zot, harbor, ghcr)
-	IncludeUntagged *bool `json:"include_untagged,omitempty"`
+	IncludeUntagged *bool `json:"includeUntagged,omitempty"`
 	Insecure        bool  `json:"insecure"`
 
 	// ManagedBy External system that owns this registry's configuration; omit to leave the existing marker untouched
-	ManagedBy *string `json:"managed_by,omitempty"`
+	ManagedBy *string `json:"managedBy,omitempty"`
 
 	// ManagedRef Identifier within the managing system; omit to leave the existing value untouched
-	ManagedRef *string `json:"managed_ref,omitempty"`
+	ManagedRef *string `json:"managedRef,omitempty"`
 
 	// MaxTagAgeDays Skip tags whose image is older than this many days; 0 clears it. Omit to keep the current value
-	MaxTagAgeDays *int64 `json:"max_tag_age_days,omitempty"`
+	MaxTagAgeDays *int64 `json:"maxTagAgeDays,omitempty"`
 	Name          string `json:"name"`
 
 	// Namespace Move the registry, and every SBOM it is the source of, into this existing namespace. Requires manage_source there. Omit to leave it where it is
 	Namespace *string `json:"namespace,omitempty"`
 
 	// PollIntervalMinutes Minutes between polls
-	PollIntervalMinutes *int64    `json:"poll_interval_minutes,omitempty"`
+	PollIntervalMinutes *int64    `json:"pollIntervalMinutes,omitempty"`
 	Repositories        *[]string `json:"repositories,omitempty"`
-	RepositoryPatterns  *[]string `json:"repository_patterns,omitempty"`
+	RepositoryPatterns  *[]string `json:"repositoryPatterns,omitempty"`
 
 	// ScanMode Scanning mode
-	ScanMode *UpdateRegistryInputBodyScanMode `json:"scan_mode,omitempty"`
+	ScanMode *UpdateRegistryInputBodyScanMode `json:"scanMode,omitempty"`
 
 	// TagLimit Newest tags kept per repository; 0 = unlimited. Omit to keep the current value
-	TagLimit *int64 `json:"tag_limit,omitempty"`
+	TagLimit *int64 `json:"tagLimit,omitempty"`
 
-	// TagOrder How 'newest' is decided; auto = semver when tag_patterns contains semver, created otherwise. Omit to keep the current value
-	TagOrder    *UpdateRegistryInputBodyTagOrder `json:"tag_order,omitempty"`
-	TagPatterns *[]string                        `json:"tag_patterns,omitempty"`
+	// TagOrder How 'newest' is decided; auto = semver when tagPatterns contains semver, created otherwise. Omit to keep the current value
+	TagOrder    *UpdateRegistryInputBodyTagOrder `json:"tagOrder,omitempty"`
+	TagPatterns *[]string                        `json:"tagPatterns,omitempty"`
 
-	// TrustIdentity Regex matched against the Fulcio certificate SAN; required when verification_mode is keyless
-	TrustIdentity *string `json:"trust_identity,omitempty"`
+	// TrustIdentity Regex matched against the Fulcio certificate SAN; required when verificationMode is keyless
+	TrustIdentity *string `json:"trustIdentity,omitempty"`
 
-	// TrustIssuer Expected OIDC issuer URL; required when verification_mode is keyless
-	TrustIssuer *string `json:"trust_issuer,omitempty"`
+	// TrustIssuer Expected OIDC issuer URL; required when verificationMode is keyless
+	TrustIssuer *string `json:"trustIssuer,omitempty"`
 
-	// TrustPublicKey PEM-encoded EC public key; required when verification_mode is public_key
-	TrustPublicKey *string                     `json:"trust_public_key,omitempty"`
+	// TrustPublicKey PEM-encoded EC public key; required when verificationMode is public_key
+	TrustPublicKey *string                     `json:"trustPublicKey,omitempty"`
 	Type           UpdateRegistryInputBodyType `json:"type"`
 	Url            string                      `json:"url"`
 
 	// VerificationMode Signature verification mode; defaults to none
-	VerificationMode *UpdateRegistryInputBodyVerificationMode `json:"verification_mode,omitempty"`
+	VerificationMode *UpdateRegistryInputBodyVerificationMode `json:"verificationMode,omitempty"`
 
 	// Visibility Registry visibility
 	Visibility *UpdateRegistryInputBodyVisibility `json:"visibility,omitempty"`
@@ -3892,7 +3892,7 @@ type UpdateRegistryInputBody struct {
 // UpdateRegistryInputBodyScanMode Scanning mode
 type UpdateRegistryInputBodyScanMode string
 
-// UpdateRegistryInputBodyTagOrder How 'newest' is decided; auto = semver when tag_patterns contains semver, created otherwise. Omit to keep the current value
+// UpdateRegistryInputBodyTagOrder How 'newest' is decided; auto = semver when tagPatterns contains semver, created otherwise. Omit to keep the current value
 type UpdateRegistryInputBodyTagOrder string
 
 // UpdateRegistryInputBodyType defines model for UpdateRegistryInputBody.Type.
@@ -3931,7 +3931,7 @@ type UserResponse struct {
 	Schema *string `json:"$schema,omitempty"`
 
 	// DisplayName Name to show for this user; supplied by whichever issuer last signed them in
-	DisplayName string `json:"display_name"`
+	DisplayName string `json:"displayName"`
 	Id          string `json:"id"`
 	Role        string `json:"role"`
 }
@@ -4017,11 +4017,11 @@ type WalkStats struct {
 	// Selected Tags inside the window
 	Selected int64 `json:"selected"`
 
-	// SkippedByAge Matching tags older than max_tag_age_days
-	SkippedByAge int64 `json:"skipped_by_age"`
+	// SkippedByAge Matching tags older than maxTagAgeDays
+	SkippedByAge int64 `json:"skippedByAge"`
 
-	// SkippedByLimit Matching tags past tag_limit
-	SkippedByLimit int64 `json:"skipped_by_limit"`
+	// SkippedByLimit Matching tags past tagLimit
+	SkippedByLimit int64 `json:"skippedByLimit"`
 }
 
 // WatchEntry defines model for WatchEntry.

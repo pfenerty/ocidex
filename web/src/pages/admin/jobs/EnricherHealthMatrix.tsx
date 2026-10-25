@@ -27,8 +27,8 @@ export function EnricherHealthMatrix(props: {
         const m: Record<string, Record<string, number>> = {};
         for (const e of ENRICHERS) m[e] = { queued: 0, running: 0, succeeded: 0, failed: 0 };
         for (const row of summary.data?.data ?? []) {
-            if ((ENRICHERS as readonly string[]).includes(row.enricher_name)) {
-                m[row.enricher_name][row.state] = row.count;
+            if ((ENRICHERS as readonly string[]).includes(row.enricherName)) {
+                m[row.enricherName][row.state] = row.count;
             }
         }
         return m;

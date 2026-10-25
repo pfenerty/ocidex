@@ -113,38 +113,38 @@ function IngestTargetCell(props: {
                 <Button
                     size="sm"
                     disabled={props.pending}
-                    onClick={() => props.onIngest(props.image.image_digest)}
+                    onClick={() => props.onIngest(props.image.imageDigest)}
                 >
                     {props.pending ? "Queueing…" : props.image.reason === "ready" ? "Ingest" : "Retry"}
                 </Button>
             </Show>
-            <Show when={props.image.reason === "ready" && props.image.registry_id === undefined}>
+            <Show when={props.image.reason === "ready" && props.image.registryId === undefined}>
                 <span class="text-muted text-sm">anonymous pull</span>
             </Show>
             {/* Registries are managed on the Sources tab. These used to point at
                 a top-level /registries route that has never existed, so both
                 links 404'd — the tab tells a reader exactly what to fix and
                 then sent them nowhere. */}
-            <Show when={props.image.registry_id}>
+            <Show when={props.image.registryId}>
                 {(id) => (
                     <A href={`/admin/sources?registry=${id()}`} class="text-sm">
-                        {props.image.registry_name ?? "registry"}
+                        {props.image.registryName ?? "registry"}
                     </A>
                 )}
             </Show>
             <Show when={props.image.reason === "unauthorized"}>
                 <span class="text-muted text-sm">
-                    <span class="font-mono">{props.image.registry_host}</span> refused the pull —{" "}
+                    <span class="font-mono">{props.image.registryHost}</span> refused the pull —{" "}
                     <A
                         href={addRegistryHref(
-                            props.image.registry_host ?? "",
+                            props.image.registryHost ?? "",
                             props.image.repository === undefined || props.image.repository === ""
                                 ? []
                                 : [props.image.repository],
                             props.namespace,
                             scopeForImage(
                                 props.hosts,
-                                props.image.registry_host ?? "",
+                                props.image.registryHost ?? "",
                                 props.image.repository ?? "",
                             ),
                         )}
@@ -156,7 +156,7 @@ function IngestTargetCell(props: {
             </Show>
             <Show when={props.image.reason === "egress_denied"}>
                 <span class="text-muted text-sm">
-                    <span class="font-mono">{props.image.registry_host}</span> resolves to an
+                    <span class="font-mono">{props.image.registryHost}</span> resolves to an
                     address the egress policy refuses
                 </span>
             </Show>
@@ -195,7 +195,7 @@ function unknownImageColumns(
         // unbreakable token, and uncapped it took the whole table.
         header: "Image",
         class: "col-ref",
-        sortValue: (i) => i.image_ref,
+        sortValue: (i) => i.imageRef,
         render: (i) => <ImageCell row={i} />,
     },
     {
@@ -203,12 +203,12 @@ function unknownImageColumns(
         class: "col-ref",
         render: (i) => (
             <>
-                <span class="text-muted">{i.sample_k8s_namespace}/</span>
-                {i.sample_workload_name}
-                <Show when={i.workload_count > 1}>
+                <span class="text-muted">{i.sampleK8sNamespace}/</span>
+                {i.sampleWorkloadName}
+                <Show when={i.workloadCount > 1}>
                     <span class="text-muted text-sm">
                         {" "}
-                        and {plural(i.workload_count - 1, "other container")}
+                        and {plural(i.workloadCount - 1, "other container")}
                     </span>
                 </Show>
             </>
@@ -217,8 +217,8 @@ function unknownImageColumns(
     {
         header: "Pods",
         align: "right",
-        sortValue: (i) => i.pod_count,
-        render: (i) => i.pod_count.toLocaleString(),
+        sortValue: (i) => i.podCount,
+        render: (i) => i.podCount.toLocaleString(),
     },
     {
         header: "Ingest",
@@ -230,7 +230,7 @@ function unknownImageColumns(
                 hosts={hosts()}
                 namespace={namespace}
                 onIngest={onIngest}
-                pending={pendingDigest() === i.image_digest}
+                pending={pendingDigest() === i.imageDigest}
             />
         ),
     },
@@ -247,11 +247,11 @@ function unknownImageColumns(
 function ingestSummary(res: IngestResult): string {
     const parts: string[] = [`Queued ${plural(res.queued, "scan job")}`];
     const skips: [number, string][] = [
-        [res.skipped_existing, "already scanning, failed or deleted"],
+        [res.skippedExisting, "already scanning, failed or deleted"],
         [res.unauthorized, "pull refused by the host"],
-        [res.egress_denied, "address refused by the egress policy"],
-        [res.skipped_registry_disabled, "registry disabled"],
-        [res.skipped_unparseable_ref, "no host in the reference"],
+        [res.egressDenied, "address refused by the egress policy"],
+        [res.skippedRegistryDisabled, "registry disabled"],
+        [res.skippedUnparseableRef, "no host in the reference"],
         [res.failed, "submission failed"],
     ];
     for (const [n, label] of skips) {

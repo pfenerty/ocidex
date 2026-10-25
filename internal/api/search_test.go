@@ -793,14 +793,14 @@ func TestGetDashboardStats(t *testing.T) {
 	is.Equal(w.Code, http.StatusOK)
 
 	var body struct {
-		VulnCount    int64 `json:"vuln_count"`
+		VulnCount    int64 `json:"vulnCount"`
 		VulnSeverity struct {
 			Critical int64 `json:"critical"`
 			High     int64 `json:"high"`
 			Medium   int64 `json:"medium"`
 			Low      int64 `json:"low"`
 			Unknown  int64 `json:"unknown"`
-		} `json:"vuln_severity"`
+		} `json:"vulnSeverity"`
 	}
 	is.NoErr(json.Unmarshal(w.Body.Bytes(), &body))
 	// fakeSearchService returns zero-valued DashboardStats; fields must be present
@@ -839,11 +839,11 @@ func TestGetDiscoveryCacheControl(t *testing.T) {
 			is.Equal(w.Header().Get("Cache-Control"), tt.wantCache)
 
 			var body struct {
-				TopArtifacts       []struct{ Name string } `json:"top_artifacts"`
-				RecentArtifacts    []struct{ Name string } `json:"recent_artifacts"`
-				TopVulnerabilities []struct{ ID string }   `json:"top_vulnerabilities"`
-				LicenseSpread      []struct{ Name string } `json:"license_spread"`
-				GeneratedAt        string                  `json:"generated_at"`
+				TopArtifacts       []struct{ Name string } `json:"topArtifacts"`
+				RecentArtifacts    []struct{ Name string } `json:"recentArtifacts"`
+				TopVulnerabilities []struct{ ID string }   `json:"topVulnerabilities"`
+				LicenseSpread      []struct{ Name string } `json:"licenseSpread"`
+				GeneratedAt        string                  `json:"generatedAt"`
 				Warming            bool                    `json:"warming"`
 			}
 			is.NoErr(json.Unmarshal(w.Body.Bytes(), &body))

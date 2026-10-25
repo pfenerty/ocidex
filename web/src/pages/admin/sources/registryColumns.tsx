@@ -44,12 +44,12 @@ export function registryColumns(opts: {
             render: (reg) => (
                 <div class="flex flex-wrap items-center gap-[0.4rem]">
                     {reg.name}
-                    <Show when={(reg.managed_by ?? "") !== ""}>
+                    <Show when={(reg.managedBy ?? "") !== ""}>
                         <span
                             class="badge text-[0.7rem]"
-                            title={`Configured by ${reg.managed_by ?? ""}${(reg.managed_ref ?? "") === "" ? "" : ` (${reg.managed_ref ?? ""})`} — edits made here are reverted on the next reconcile`}
+                            title={`Configured by ${reg.managedBy ?? ""}${(reg.managedRef ?? "") === "" ? "" : ` (${reg.managedRef ?? ""})`} — edits made here are reverted on the next reconcile`}
                         >
-                            {reg.managed_by === "kubernetes" ? "Managed by Kubernetes" : `Managed by ${reg.managed_by ?? ""}`}
+                            {reg.managedBy === "kubernetes" ? "Managed by Kubernetes" : `Managed by ${reg.managedBy ?? ""}`}
                         </span>
                     </Show>
                 </div>
@@ -70,7 +70,7 @@ export function registryColumns(opts: {
             // What the scan window selected on the latest walk (ADR-0053).
             header: "Last walk",
             render: (reg) => (
-                <Show when={reg.last_walk} fallback={<span class="text-[var(--color-text-muted)]">never</span>}>
+                <Show when={reg.lastWalk} fallback={<span class="text-[var(--color-text-muted)]">never</span>}>
                     {(w) => (
                         <Show
                             when={w().error === undefined || w().error === ""}
@@ -78,11 +78,11 @@ export function registryColumns(opts: {
                         >
                             <span
                                 data-testid="last-walk"
-                                title={`${w().repositories} repositories, ${w().matched} matching tags, ${w().skipped_by_age} too old. ${formatDateTime(w().at)}`}
+                                title={`${w().repositories} repositories, ${w().matched} matching tags, ${w().skippedByAge} too old. ${formatDateTime(w().at)}`}
                             >
                                 {w().selected} tags
-                                <Show when={w().skipped_by_limit > 0}>
-                                    <span class="text-[var(--color-text-muted)]"> (+{w().skipped_by_limit} past limit)</span>
+                                <Show when={w().skippedByLimit > 0}>
+                                    <span class="text-[var(--color-text-muted)]"> (+{w().skippedByLimit} past limit)</span>
                                 </Show>
                                 {/* Jobs that walk submitted, not jobs still waiting:
                                     the "N active" badge counts those, and the two
@@ -125,7 +125,7 @@ export function registryColumns(opts: {
                 </Show>
             ),
         },
-        { header: "Scan Mode", render: (reg) => <code>{reg.scan_mode}</code> },
+        { header: "Scan Mode", render: (reg) => <code>{reg.scanMode}</code> },
         {
             header: "Webhook URL",
             render: (reg) => (
@@ -133,7 +133,7 @@ export function registryColumns(opts: {
                     <Show when={hasWebhook(reg)} fallback={<span class="text-muted">—</span>}>
                         <Button
                             size="sm"
-                            onClick={() => copyWebhookURL(reg.webhook_url)}
+                            onClick={() => copyWebhookURL(reg.webhookUrl)}
                         >
                             Copy URL
                         </Button>
@@ -143,7 +143,7 @@ export function registryColumns(opts: {
                             title="Generate a new webhook secret (invalidates the old one)"
                             disabled={regenSecret.isPending}
                             onClick={() => regenSecret.mutate(reg.id, {
-                                onSuccess: (data) => opts.onSecretRevealed(data.webhook_secret),
+                                onSuccess: (data) => opts.onSecretRevealed(data.webhookSecret),
                                 onError: () => toast("Failed to regenerate secret", "error"),
                             })}
                         >

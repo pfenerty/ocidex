@@ -63,7 +63,7 @@ func (h *Handler) resolveRegistryType(regType, scanMode string) (string, error) 
 		}
 	}
 	if (scanMode == scanModePoll || scanMode == scanModeBoth) && !h.cfg.RegistryPollerEnabled {
-		return "", huma.Error422UnprocessableEntity("scan_mode 'poll' and 'both' require REGISTRY_POLLER_ENABLED=true")
+		return "", huma.Error422UnprocessableEntity("scanMode 'poll' and 'both' require REGISTRY_POLLER_ENABLED=true")
 	}
 	return scanMode, nil
 }
@@ -161,11 +161,11 @@ func validateVerificationConfig(verificationMode string, trustPublicKey, trustId
 	switch verificationMode {
 	case trust.ModeKeyless:
 		if trustIdentity == nil || *trustIdentity == "" || trustIssuer == nil || *trustIssuer == "" {
-			return huma.Error400BadRequest("trust_identity and trust_issuer are required when verification_mode is keyless")
+			return huma.Error400BadRequest("trustIdentity and trustIssuer are required when verificationMode is keyless")
 		}
 	case trust.ModePublicKey:
 		if trustPublicKey == nil || *trustPublicKey == "" {
-			return huma.Error400BadRequest("trust_public_key is required when verification_mode is public_key")
+			return huma.Error400BadRequest("trustPublicKey is required when verificationMode is public_key")
 		}
 	}
 	return nil

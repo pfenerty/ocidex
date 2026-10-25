@@ -91,11 +91,11 @@ export default function ClusterDetail() {
                         subtitle={cluster().description ?? "Kubernetes cluster inventory"}
                         footer={
                             <DetailGrid>
-                                <DetailField label="Namespace" when={cluster().namespace_name}>
-                                    {cluster().namespace_name}
+                                <DetailField label="Namespace" when={cluster().namespaceName}>
+                                    {cluster().namespaceName}
                                 </DetailField>
                                 <DetailField label="Last reported">
-                                    <StalenessPill lastSeenAt={cluster().last_seen_at} />
+                                    <StalenessPill lastSeenAt={cluster().lastSeenAt} />
                                 </DetailField>
                                 <DetailField label="Cluster ID" valueClass="font-mono text-sm">
                                     {cluster().id}
@@ -150,12 +150,12 @@ export default function ClusterDetail() {
                                 // first-run panel is what shows until the
                                 // timestamp says otherwise, rather than a
                                 // zeroed summary that would read as clean.
-                                lastSeenAt={clusterQuery.data?.last_seen_at}
+                                lastSeenAt={clusterQuery.data?.lastSeenAt}
                                 // Defaults to on server-side; treated as off
                                 // only while the cluster is still loading, so
                                 // the line never claims ingest is running
                                 // before it knows.
-                                autoIngest={clusterQuery.data?.auto_ingest ?? false}
+                                autoIngest={clusterQuery.data?.autoIngest ?? false}
                             />
                         </Show>
                         <Show when={tab() === "workloads"}>
@@ -177,7 +177,7 @@ export default function ClusterDetail() {
                         <Show when={tab() === "gaps"}>
                             <GapsTab
                                 clusterId={params.id}
-                                namespace={clusterQuery.data?.namespace_name ?? ""}
+                                namespace={clusterQuery.data?.namespaceName ?? ""}
                                 coverage={data().coverage}
                             />
                         </Show>

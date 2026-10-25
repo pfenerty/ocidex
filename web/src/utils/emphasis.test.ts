@@ -2,7 +2,7 @@ import { describe, it, expect } from "vitest";
 import { roleEmphasis, type Membership } from "./emphasis";
 
 const m = (...roles: string[]): Membership[] =>
-    roles.map((role, i) => ({ namespace_id: `n${String(i)}`, role }));
+    roles.map((role, i) => ({ namespaceId: `n${String(i)}`, role }));
 
 describe("roleEmphasis", () => {
     const cases: [string, Membership[] | undefined, string][] = [

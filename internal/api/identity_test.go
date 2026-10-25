@@ -70,7 +70,7 @@ func startLink(t *testing.T, router http.Handler, provider string) *http.Cookie 
 	is.Equal(rec.Code, http.StatusOK)
 
 	var out struct {
-		AuthorizeURL string `json:"authorize_url"`
+		AuthorizeURL string `json:"authorizeUrl"`
 	}
 	is.NoErr(json.Unmarshal(rec.Body.Bytes(), &out))
 	// The page navigates to this itself; a 3xx here would be followed into a
@@ -203,7 +203,7 @@ func TestListMyIdentitiesIsSelfScoped(t *testing.T) {
 	var out struct {
 		Identities []struct {
 			Provider    string `json:"provider"`
-			DisplayName string `json:"display_name"`
+			DisplayName string `json:"displayName"`
 			Subject     string `json:"subject"`
 		} `json:"identities"`
 	}
@@ -227,8 +227,8 @@ func TestListAuthProvidersIsPublic(t *testing.T) {
 	var out struct {
 		Providers []struct {
 			Name        string `json:"name"`
-			DisplayName string `json:"display_name"`
-			LoginPath   string `json:"login_path"`
+			DisplayName string `json:"displayName"`
+			LoginPath   string `json:"loginPath"`
 		} `json:"providers"`
 	}
 	is.NoErr(json.Unmarshal(rec.Body.Bytes(), &out))

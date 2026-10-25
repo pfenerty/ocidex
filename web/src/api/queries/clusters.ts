@@ -296,7 +296,7 @@ export function useClusterUnknownImages(
 export function useCreateCluster() {
     const queryClient = useQueryClient();
     return createMutation(() => ({
-        mutationFn: (body: { namespace_id: string; name: string; description?: string }) =>
+        mutationFn: (body: { namespaceId: string; name: string; description?: string }) =>
             unwrap(client.POST("/api/v1/clusters", { body })),
         onSuccess: () => {
             void queryClient.invalidateQueries({ queryKey: ["clusters"] });
@@ -316,9 +316,9 @@ export function useUpdateCluster() {
             name: string;
             description?: string;
             // Omitted rather than sent as false when the caller isn't editing
-            // it: the API reads an absent auto_ingest as "leave it alone", so a
+            // it: the API reads an absent autoIngest as "leave it alone", so a
             // rename cannot switch ingest off as a side effect.
-            auto_ingest?: boolean;
+            autoIngest?: boolean;
         }) => unwrap(client.PATCH("/api/v1/clusters/{id}", { params: { path: { id } }, body })),
         onSuccess: () => {
             void queryClient.invalidateQueries({ queryKey: ["clusters"] });
@@ -330,7 +330,7 @@ export function useUpdateCluster() {
 /**
  * useIngestUnknown — queue scans for the cluster's unscanned running images.
  *
- * Pass image_digests to ingest named images, or omit it for the whole gap. The
+ * Pass imageDigests to ingest named images, or omit it for the whole gap. The
  * per-row button passes one digest so it queues what it points at rather than
  * quietly queueing the cluster.
  *
@@ -344,7 +344,7 @@ export function useIngestUnknown() {
             unwrap(
                 client.POST("/api/v1/clusters/{id}/ingest-unknown", {
                     params: { path: { id } },
-                    body: imageDigests === undefined ? {} : { image_digests: imageDigests },
+                    body: imageDigests === undefined ? {} : { imageDigests },
                 }),
             ),
         // Queueing does not scan: the gap list, the workload states and the

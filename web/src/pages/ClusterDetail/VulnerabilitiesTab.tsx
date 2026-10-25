@@ -62,7 +62,7 @@ export function VulnerabilitiesTab(props: {
         {
             header: "ID",
             sortKey: "canonical_id",
-            render: (v) => <VulnId canonicalId={v.canonical_id} nativeId={v.id} />,
+            render: (v) => <VulnId canonicalId={v.canonicalId} nativeId={v.id} />,
         },
         {
             header: "Severity",
@@ -78,7 +78,7 @@ export function VulnerabilitiesTab(props: {
             sortKey: "cvss_score",
             sortType: "numeric",
             render: (v) => (
-                <Show when={v.cvss_score} fallback={<span class="text-muted">—</span>}>
+                <Show when={v.cvssScore} fallback={<span class="text-muted">—</span>}>
                     {(score) => <span class="font-mono text-sm">{score().toFixed(1)}</span>}
                 </Show>
             ),
@@ -95,16 +95,16 @@ export function VulnerabilitiesTab(props: {
                     <button
                         type="button"
                         class="link-button"
-                        aria-expanded={expanded.has(v.canonical_id)}
-                        onClick={() => expanded.toggle(v.canonical_id)}
+                        aria-expanded={expanded.has(v.canonicalId)}
+                        onClick={() => expanded.toggle(v.canonicalId)}
                     >
-                        {v.workload_count.toLocaleString()}{" "}
-                        {v.workload_count === 1 ? "workload" : "workloads"}
+                        {v.workloadCount.toLocaleString()}{" "}
+                        {v.workloadCount === 1 ? "workload" : "workloads"}
                     </button>
                     <RunningWorkloadsList
-                        canonicalId={v.canonical_id}
+                        canonicalId={v.canonicalId}
                         clusterId={props.clusterId}
-                        when={expanded.has(v.canonical_id)}
+                        when={expanded.has(v.canonicalId)}
                     />
                 </>
             ),

@@ -20,7 +20,7 @@ import (
 // server-side on each request (ADR-046 M1), so a client that lied about this
 // list would change nothing but its own layout.
 type MyMembership struct {
-	NamespaceID string `json:"namespace_id" doc:"Namespace UUID"`
+	NamespaceID string `json:"namespaceId" doc:"Namespace UUID"`
 	Role        string `json:"role" enum:"owner,maintainer,security,developer,viewer" doc:"The caller's role in that namespace"`
 }
 
@@ -28,7 +28,7 @@ type MyMembership struct {
 type MeOutput struct {
 	Body struct {
 		ID          string         `json:"id" doc:"User UUID"`
-		DisplayName string         `json:"display_name" doc:"Name to show for this user; supplied by whichever issuer last signed them in"`
+		DisplayName string         `json:"displayName" doc:"Name to show for this user; supplied by whichever issuer last signed them in"`
 		Role        string         `json:"role" doc:"User role: admin, member, or viewer"`
 		Memberships []MyMembership `json:"memberships" doc:"The caller's namespace memberships, for UI emphasis only"`
 	}
@@ -108,8 +108,8 @@ type KeyMetaResponse struct {
 	Name         string     `json:"name"`
 	Prefix       string     `json:"prefix" doc:"First 8 characters of the key"`
 	Capabilities []string   `json:"capabilities" doc:"Capabilities this key may exercise, before intersection with the owner's live namespace roles"`
-	CreatedAt    time.Time  `json:"created_at"`
-	LastUsedAt   *time.Time `json:"last_used_at,omitempty"`
+	CreatedAt    time.Time  `json:"createdAt"`
+	LastUsedAt   *time.Time `json:"lastUsedAt,omitempty"`
 }
 
 // ListAPIKeysOutput is the response for GET /api/v1/auth/keys.
@@ -131,7 +131,7 @@ type DeleteAPIKeyInput struct {
 // UserResponse is the public representation of a user.
 type UserResponse struct {
 	ID          string `json:"id"`
-	DisplayName string `json:"display_name" doc:"Name to show for this user; supplied by whichever issuer last signed them in"`
+	DisplayName string `json:"displayName" doc:"Name to show for this user; supplied by whichever issuer last signed them in"`
 	Role        string `json:"role"`
 }
 
@@ -162,8 +162,8 @@ type UpdateUserRoleOutput struct {
 // ProviderResponse is one issuer the deployment is configured with.
 type ProviderResponse struct {
 	Name        string `json:"name" doc:"Issuer key: 'github', or 'oidc:<name>'"`
-	DisplayName string `json:"display_name" doc:"Label for a sign-in button"`
-	LoginPath   string `json:"login_path" doc:"Path on the API to begin a sign-in through this issuer"`
+	DisplayName string `json:"displayName" doc:"Label for a sign-in button"`
+	LoginPath   string `json:"loginPath" doc:"Path on the API to begin a sign-in through this issuer"`
 }
 
 // ListProvidersOutput is the response for GET /api/v1/auth/providers.
@@ -181,10 +181,10 @@ type ListProvidersOutput struct {
 type IdentityResponse struct {
 	ID          string    `json:"id" doc:"Identity UUID"`
 	Provider    string    `json:"provider" doc:"Issuer key: 'github', or 'oidc:<name>'"`
-	DisplayName string    `json:"display_name" doc:"Label for the issuer"`
+	DisplayName string    `json:"displayName" doc:"Label for the issuer"`
 	Subject     string    `json:"subject" doc:"The issuer's stable identifier for this account"`
 	Email       string    `json:"email,omitempty" doc:"Address this issuer released, if any"`
-	CreatedAt   time.Time `json:"created_at"`
+	CreatedAt   time.Time `json:"createdAt"`
 }
 
 // ListIdentitiesOutput is the response for GET /api/v1/auth/identities.
@@ -209,7 +209,7 @@ type StartIdentityLinkInput struct {
 type StartIdentityLinkOutput struct {
 	SetCookie http.Cookie `header:"Set-Cookie"`
 	Body      struct {
-		AuthorizeURL string `json:"authorize_url" doc:"Navigate the browser here to continue linking"`
+		AuthorizeURL string `json:"authorizeUrl" doc:"Navigate the browser here to continue linking"`
 	}
 }
 

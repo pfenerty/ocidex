@@ -16,10 +16,10 @@ import { TimestampCell } from "~/components/cells";
 interface Identity {
     id: string;
     provider: string;
-    display_name: string;
+    displayName: string;
     subject: string;
     email?: string;
-    created_at: string;
+    createdAt: string;
 }
 
 /**
@@ -76,14 +76,14 @@ export function AccountTab() {
             // The issuer is a different origin, so this leaves the app. The
             // browser comes back to /admin/account with ?link= set.
             onSuccess: (data) => {
-                window.location.href = data.authorize_url;
+                window.location.href = data.authorizeUrl;
             },
             onError: () => toast("Could not start linking", "error"),
         });
     }
 
     const columns: Column<Identity>[] = [
-        { header: "Issuer", render: (i) => <>{i.display_name}</> },
+        { header: "Issuer", render: (i) => <>{i.displayName}</> },
         { header: "Subject", render: (i) => <code>{i.subject}</code> },
         {
             header: "Email",
@@ -94,7 +94,7 @@ export function AccountTab() {
         },
         {
             header: "Linked",
-            render: (i) => <TimestampCell iso={i.created_at} />,
+            render: (i) => <TimestampCell iso={i.createdAt} />,
         },
         {
             header: "",
@@ -140,7 +140,7 @@ export function AccountTab() {
                                 onChange={(e) => setSelected(e.currentTarget.value)}
                             >
                                 <For each={linkable()}>
-                                    {(p) => <option value={p.name}>{p.display_name}</option>}
+                                    {(p) => <option value={p.name}>{p.displayName}</option>}
                                 </For>
                             </select>
                             <Button variant="primary" type="submit" disabled={startLink.isPending}>

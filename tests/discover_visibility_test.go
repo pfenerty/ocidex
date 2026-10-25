@@ -139,23 +139,23 @@ type discoverPayload struct {
 		UsageCount   int64  `json:"usageCount"`
 		VersionCount int64  `json:"versionCount"`
 		SbomCount    int64  `json:"sbomCount"`
-	} `json:"top_artifacts"`
+	} `json:"topArtifacts"`
 	RecentArtifacts []struct {
 		ArtifactID     string `json:"artifactId"`
 		Name           string `json:"name"`
 		SbomID         string `json:"sbomId"`
 		SubjectVersion string `json:"subjectVersion"`
-	} `json:"recent_artifacts"`
+	} `json:"recentArtifacts"`
 	TopVulnerabilities []struct {
 		CanonicalID           string `json:"canonicalId"`
 		AffectedArtifactCount int64  `json:"affectedArtifactCount"`
 		AffectedSbomCount     int64  `json:"affectedSbomCount"`
-	} `json:"top_vulnerabilities"`
+	} `json:"topVulnerabilities"`
 	LicenseSpread []struct {
 		Name           string `json:"name"`
 		SpdxID         string `json:"spdxId"`
 		ComponentCount int64  `json:"componentCount"`
-	} `json:"license_spread"`
+	} `json:"licenseSpread"`
 	Warming bool `json:"warming"`
 }
 

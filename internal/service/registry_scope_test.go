@@ -3,6 +3,7 @@ package service
 import (
 	"encoding/json"
 	"errors"
+	"strings"
 	"testing"
 	"time"
 
@@ -156,4 +157,18 @@ func TestLastWalkRoundTrip(t *testing.T) {
 	is.Equal(r.LastWalk.At, at)
 
 	is.True(fromRepo(registryComposite{}).LastWalk == nil) // never walked
+}
+
+// Walk stats stored before the camelCase rename still read back (ocidex-nps9.32).
+func TestWalkStatsReadsLegacyKeys(t *testing.T) {
+	is := is.New(t)
+	var w WalkStats
+	is.NoErr(json.Unmarshal([]byte(`{"at":"2026-10-20T12:00:00Z","selected":10,"skipped_by_limit":20,"skipped_by_age":3,"queued":4}`), &w))
+	is.Equal(w.Selected, 10)
+	is.Equal(w.SkippedByLimit, 20)
+	is.Equal(w.SkippedByAge, 3)
+
+	b, err := json.Marshal(w)
+	is.NoErr(err)
+	is.True(strings.Contains(string(b), `"skippedByLimit":20`))
 }

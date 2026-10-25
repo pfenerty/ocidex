@@ -31,9 +31,11 @@ The version of the running server is reported by `GET /api/v1/`:
 
 Decided before the 1.0 compatibility freeze (ocidex-nps9.7):
 
-- **Field names are camelCase** throughout `/api/v1`, in request bodies, response bodies
-  and query parameters. The snake_case fields some endpoints still return are being renamed
-  before 1.0, not kept.
+- **JSON field names are camelCase** throughout `/api/v1`, in request and response bodies
+  (renamed before 1.0 in ocidex-nps9.32; `TestOpenAPIPropertiesAreCamelCase` keeps it so).
+  Query parameter names are not covered by this rule yet: several are snake_case, and the
+  ingest ones are sent by `ocidex-cli` in CI, so renaming them is a separate decision
+  (ocidex-nps9.34).
 - **Two pagination envelopes, on purpose** ([ADR-043](adr/0043-pagination-convention.md)). Numbered
   pages over computed aggregates use offset pagination: `?limit=&offset=` in, `{total,
   limit, offset}` out. Append-only lists use keyset pagination: `?limit=&cursor=` in,

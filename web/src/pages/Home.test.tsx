@@ -32,7 +32,7 @@ const mockUseStats = vi.mocked(useDashboardStats);
 const mockUseDiscovery = vi.mocked(useDiscovery);
 
 interface DiscoveryData {
-    top_artifacts: {
+    topArtifacts: {
         id: string;
         type: string;
         name: string;
@@ -42,7 +42,7 @@ interface DiscoveryData {
         score: number;
         purl?: string;
     }[];
-    recent_artifacts: {
+    recentArtifacts: {
         artifactId: string;
         type: string;
         name: string;
@@ -50,7 +50,7 @@ interface DiscoveryData {
         createdAt: string;
         subjectVersion?: string;
     }[];
-    top_vulnerabilities: {
+    topVulnerabilities: {
         id: string;
         canonicalId: string;
         severity: string;
@@ -58,7 +58,7 @@ interface DiscoveryData {
         affectedSbomCount: number;
         summary?: string;
     }[];
-    license_spread: {
+    licenseSpread: {
         id: string;
         name: string;
         category: string;
@@ -76,7 +76,7 @@ interface DiscoveryQuery {
 /** A snapshot with one row in each section — enough to assert every link. */
 function populatedDiscovery(): DiscoveryData {
     return {
-        top_artifacts: [
+        topArtifacts: [
             {
                 id: "art-1",
                 type: "container",
@@ -87,7 +87,7 @@ function populatedDiscovery(): DiscoveryData {
                 score: 12.5,
             },
         ],
-        recent_artifacts: [
+        recentArtifacts: [
             {
                 artifactId: "art-2",
                 type: "container",
@@ -97,7 +97,7 @@ function populatedDiscovery(): DiscoveryData {
                 subjectVersion: "1.27",
             },
         ],
-        top_vulnerabilities: [
+        topVulnerabilities: [
             {
                 id: "vuln-1",
                 canonicalId: "CVE-2024-1234",
@@ -106,17 +106,17 @@ function populatedDiscovery(): DiscoveryData {
                 affectedSbomCount: 21,
             },
         ],
-        license_spread: [
+        licenseSpread: [
             { id: "lic-1", name: "MIT License", category: "permissive", componentCount: 4210, spdxId: "MIT" },
         ],
     };
 }
 
 const emptyDiscovery: DiscoveryData = {
-    top_artifacts: [],
-    recent_artifacts: [],
-    top_vulnerabilities: [],
-    license_spread: [],
+    topArtifacts: [],
+    recentArtifacts: [],
+    topVulnerabilities: [],
+    licenseSpread: [],
 };
 
 interface StatsQuery {
@@ -124,13 +124,13 @@ interface StatsQuery {
     isError: boolean;
     data:
         | {
-              artifact_count: number;
-              sbom_count: number;
-              version_count: number;
-              package_count: number;
-              license_count: number;
-              vuln_count: number;
-              artifact_types?: { type: string; artifact_count: number }[] | null;
+              artifactCount: number;
+              sbomCount: number;
+              versionCount: number;
+              packageCount: number;
+              licenseCount: number;
+              vulnCount: number;
+              artifactTypes?: { type: string; artifactCount: number }[] | null;
               warming?: boolean;
           }
         | undefined;
@@ -160,12 +160,12 @@ describe("Home for signed-out visitors", () => {
                 isLoading: false,
                 isError: false,
                 data: {
-                    artifact_count: 38,
-                    sbom_count: 214,
-                    version_count: 57,
-                    package_count: 107868,
-                    license_count: 545,
-                    vuln_count: 12,
+                    artifactCount: 38,
+                    sbomCount: 214,
+                    versionCount: 57,
+                    packageCount: 107868,
+                    licenseCount: 545,
+                    vulnCount: 12,
                 },
             },
             { isError: false, data: populatedDiscovery() },
@@ -183,12 +183,12 @@ describe("Home catalog stats", () => {
             isLoading: false,
             isError: false,
             data: {
-                artifact_count: 38,
-                sbom_count: 214,
-                version_count: 57,
-                package_count: 107868,
-                license_count: 545,
-                vuln_count: 12,
+                artifactCount: 38,
+                sbomCount: 214,
+                versionCount: 57,
+                packageCount: 107868,
+                licenseCount: 545,
+                vulnCount: 12,
             },
         });
         // Head and value are separate spans in a StatBand, so assert on the
@@ -222,16 +222,16 @@ describe("Home catalog stats", () => {
             isLoading: false,
             isError: false,
             data: {
-                artifact_count: 38,
-                sbom_count: 214,
-                version_count: 57,
-                package_count: 0,
-                license_count: 0,
-                vuln_count: 0,
-                artifact_types: [
-                    { type: "container", artifact_count: 24 },
-                    { type: "library", artifact_count: 9 },
-                    { type: "application", artifact_count: 5 },
+                artifactCount: 38,
+                sbomCount: 214,
+                versionCount: 57,
+                packageCount: 0,
+                licenseCount: 0,
+                vulnCount: 0,
+                artifactTypes: [
+                    { type: "container", artifactCount: 24 },
+                    { type: "library", artifactCount: 9 },
+                    { type: "application", artifactCount: 5 },
                 ],
             },
         });
@@ -255,12 +255,12 @@ describe("Home catalog stats", () => {
             isLoading: false,
             isError: false,
             data: {
-                artifact_count: 38,
-                sbom_count: 214,
-                version_count: 57,
-                package_count: 107868,
-                license_count: 545,
-                vuln_count: 12,
+                artifactCount: 38,
+                sbomCount: 214,
+                versionCount: 57,
+                packageCount: 107868,
+                licenseCount: 545,
+                vulnCount: 12,
             },
         });
 
@@ -287,13 +287,13 @@ describe("Home catalog stats", () => {
             isLoading: false,
             isError: false,
             data: {
-                artifact_count: 0,
-                sbom_count: 0,
-                version_count: 0,
-                package_count: 0,
-                license_count: 0,
-                vuln_count: 0,
-                artifact_types: null,
+                artifactCount: 0,
+                sbomCount: 0,
+                versionCount: 0,
+                packageCount: 0,
+                licenseCount: 0,
+                vulnCount: 0,
+                artifactTypes: null,
             },
         });
 
@@ -309,12 +309,12 @@ describe("Home catalog stats", () => {
             isLoading: false,
             isError: false,
             data: {
-                artifact_count: 0,
-                sbom_count: 0,
-                version_count: 0,
-                package_count: 0,
-                license_count: 0,
-                vuln_count: 0,
+                artifactCount: 0,
+                sbomCount: 0,
+                versionCount: 0,
+                packageCount: 0,
+                licenseCount: 0,
+                vulnCount: 0,
                 warming: true,
             },
         });
@@ -328,7 +328,7 @@ describe("Home catalog stats", () => {
 const warmStats: StatsQuery = {
     isLoading: false,
     isError: false,
-    data: { artifact_count: 1, sbom_count: 1, version_count: 1, package_count: 1, license_count: 1, vuln_count: 1 },
+    data: { artifactCount: 1, sbomCount: 1, versionCount: 1, packageCount: 1, licenseCount: 1, vulnCount: 1 },
 };
 
 describe("Home discovery panels", () => {
@@ -386,7 +386,7 @@ describe("Home discovery panels", () => {
     // on every row (ocidex-nps9.5).
     it("leaves artifacts nothing ships out of Most depended on", () => {
         const data = populatedDiscovery();
-        data.top_artifacts.push({
+        data.topArtifacts.push({
             id: "art-0", type: "application", name: "lonely", usageCount: 0,
             versionCount: 150, sbomCount: 150, score: 20,
         });
@@ -398,7 +398,7 @@ describe("Home discovery panels", () => {
 
     it("says nothing ships another artifact when every use count is zero", () => {
         const data = populatedDiscovery();
-        data.top_artifacts[0].usageCount = 0;
+        data.topArtifacts[0].usageCount = 0;
         const { container } = renderHome(warmStats, { isError: false, data });
         expect(container.textContent).toContain("No tracked artifact ships another one yet.");
         expect(container.textContent).not.toContain("0 uses");

@@ -42,13 +42,13 @@ const mockDelete = vi.mocked(useDeleteCluster);
 const prod = {
     id: "c-prod",
     name: "prod-eu-west",
-    namespace_id: "ns-acme",
-    namespace_name: "acme",
+    namespaceId: "ns-acme",
+    namespaceName: "acme",
     description: "production",
-    auto_ingest: true,
-    last_seen_at: new Date().toISOString(),
-    created_at: "2026-01-01T00:00:00Z",
-    updated_at: "2026-01-01T00:00:00Z",
+    autoIngest: true,
+    lastSeenAt: new Date().toISOString(),
+    createdAt: "2026-01-01T00:00:00Z",
+    updatedAt: "2026-01-01T00:00:00Z",
 };
 
 function mutation(mutate: ReturnType<typeof vi.fn>) {
@@ -111,13 +111,13 @@ describe("Clusters", () => {
     // ADR-044 K5: a cluster that has never reported shows no workloads, which
     // must not be readable as "this cluster runs nothing".
     it("says so when a cluster has never reported", () => {
-        const { container } = renderPage([{ ...prod, last_seen_at: "" }]);
+        const { container } = renderPage([{ ...prod, lastSeenAt: "" }]);
         expect(container.textContent).toContain("never reported");
     });
 
     it("flags a cluster whose last snapshot is old as stale", () => {
         const { container } = renderPage([
-            { ...prod, last_seen_at: new Date(Date.now() - 6 * 60 * 60 * 1000).toISOString() },
+            { ...prod, lastSeenAt: new Date(Date.now() - 6 * 60 * 60 * 1000).toISOString() },
         ]);
         expect(container.textContent).toContain("stale");
     });
@@ -141,7 +141,7 @@ describe("Clusters", () => {
 
         expect(createMutate).toHaveBeenCalledTimes(1);
         expect(createMutate.mock.calls[0][0]).toEqual({
-            namespace_id: "ns-acme",
+            namespaceId: "ns-acme",
             name: "staging",
             description: "staging rig",
         });
@@ -173,14 +173,14 @@ describe("Clusters", () => {
             // Carried through unchanged: a rename that omitted this would be
             // read by the API as "leave it alone", but sending the value the
             // row was showing keeps the form honest either way.
-            auto_ingest: true,
+            autoIngest: true,
         });
     });
 
     // Ingest spends the namespace's registry credentials, so the state is
     // visible on every row rather than buried behind Edit.
     it("shows each cluster's auto-ingest state without entering edit mode", () => {
-        const { container } = renderPage([prod, { ...prod, id: "c-dev", auto_ingest: false }]);
+        const { container } = renderPage([prod, { ...prod, id: "c-dev", autoIngest: false }]);
 
         const rows = [...container.querySelectorAll("tbody tr")];
         expect(must(rows[0], "first row").textContent).toContain("On");
@@ -202,7 +202,7 @@ describe("Clusters", () => {
             id: "c-prod",
             name: "prod-eu-west",
             description: "production",
-            auto_ingest: false,
+            autoIngest: false,
         });
     });
 

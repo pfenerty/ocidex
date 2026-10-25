@@ -20,7 +20,7 @@ func TestListRegistries(t *testing.T) {
 		is.Equal(r.Method, http.MethodGet)
 		is.Equal(r.URL.Path, "/api/v1/registries")
 		w.Header().Set("Content-Type", "application/json")
-		_, _ = w.Write([]byte(`{"data":[{"id":"reg-1","name":"my-reg","type":"zot","url":"http://zot:5000","scan_mode":"poll","visibility":"private","enabled":true,"insecure":false,"include_untagged":false,"has_auth":false,"has_secret":false,"poll_interval_minutes":60,"created_at":"2024-01-01T00:00:00Z","updated_at":"2024-01-01T00:00:00Z","webhook_url":""}],"pagination":{"total":1,"limit":50,"offset":0}}`))
+		_, _ = w.Write([]byte(`{"data":[{"id":"reg-1","name":"my-reg","type":"zot","url":"http://zot:5000","scanMode":"poll","visibility":"private","enabled":true,"insecure":false,"includeUntagged":false,"hasAuth":false,"hasSecret":false,"pollIntervalMinutes":60,"createdAt":"2024-01-01T00:00:00Z","updatedAt":"2024-01-01T00:00:00Z","webhookUrl":""}],"pagination":{"total":1,"limit":50,"offset":0}}`))
 	}))
 	defer srv.Close()
 
@@ -37,7 +37,7 @@ func TestGetRegistry(t *testing.T) {
 	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		is.Equal(r.URL.Path, "/api/v1/registries/reg-1")
 		w.Header().Set("Content-Type", "application/json")
-		_, _ = w.Write([]byte(`{"id":"reg-1","name":"my-reg","type":"zot","url":"http://zot:5000","scan_mode":"poll","visibility":"private","enabled":true,"insecure":false,"include_untagged":false,"has_auth":false,"has_secret":false,"poll_interval_minutes":60,"created_at":"2024-01-01T00:00:00Z","updated_at":"2024-01-01T00:00:00Z","webhook_url":""}`))
+		_, _ = w.Write([]byte(`{"id":"reg-1","name":"my-reg","type":"zot","url":"http://zot:5000","scanMode":"poll","visibility":"private","enabled":true,"insecure":false,"includeUntagged":false,"hasAuth":false,"hasSecret":false,"pollIntervalMinutes":60,"createdAt":"2024-01-01T00:00:00Z","updatedAt":"2024-01-01T00:00:00Z","webhookUrl":""}`))
 	}))
 	defer srv.Close()
 
@@ -67,7 +67,7 @@ func TestCreateRegistry(t *testing.T) {
 		is.Equal(r.URL.Path, "/api/v1/registries")
 		w.Header().Set("Content-Type", "application/json")
 		w.WriteHeader(http.StatusCreated)
-		_, _ = w.Write([]byte(`{"id":"reg-2","name":"new-reg","type":"docker","url":"https://registry-1.docker.io","scan_mode":"poll","visibility":"private","enabled":true,"insecure":false,"include_untagged":false,"has_auth":false,"has_secret":true,"poll_interval_minutes":60,"created_at":"2024-01-01T00:00:00Z","updated_at":"2024-01-01T00:00:00Z","webhook_url":"http://host/webhook","webhook_secret":"secret-abc"}`))
+		_, _ = w.Write([]byte(`{"id":"reg-2","name":"new-reg","type":"docker","url":"https://registry-1.docker.io","scanMode":"poll","visibility":"private","enabled":true,"insecure":false,"includeUntagged":false,"hasAuth":false,"hasSecret":true,"pollIntervalMinutes":60,"createdAt":"2024-01-01T00:00:00Z","updatedAt":"2024-01-01T00:00:00Z","webhookUrl":"http://host/webhook","webhookSecret":"secret-abc"}`))
 	}))
 	defer srv.Close()
 
@@ -84,7 +84,7 @@ func TestUpdateRegistry(t *testing.T) {
 		is.Equal(r.Method, http.MethodPatch)
 		is.Equal(r.URL.Path, "/api/v1/registries/reg-1")
 		w.Header().Set("Content-Type", "application/json")
-		_, _ = w.Write([]byte(`{"id":"reg-1","name":"updated-reg","type":"zot","url":"http://zot:5000","scan_mode":"poll","visibility":"private","enabled":true,"insecure":false,"include_untagged":false,"has_auth":false,"has_secret":false,"poll_interval_minutes":60,"created_at":"2024-01-01T00:00:00Z","updated_at":"2024-01-02T00:00:00Z","webhook_url":""}`))
+		_, _ = w.Write([]byte(`{"id":"reg-1","name":"updated-reg","type":"zot","url":"http://zot:5000","scanMode":"poll","visibility":"private","enabled":true,"insecure":false,"includeUntagged":false,"hasAuth":false,"hasSecret":false,"pollIntervalMinutes":60,"createdAt":"2024-01-01T00:00:00Z","updatedAt":"2024-01-02T00:00:00Z","webhookUrl":""}`))
 	}))
 	defer srv.Close()
 
@@ -129,7 +129,7 @@ func TestGetRegistryPreview(t *testing.T) {
 		is.Equal(r.Method, http.MethodGet)
 		is.Equal(r.URL.Path, "/api/v1/registries/reg-1/preview")
 		w.Header().Set("Content-Type", "application/json")
-		_, _ = w.Write([]byte(`{"repositories":[{"repository":"app","matched":3,"selected":2,"skipped_by_limit":1,"skipped_by_age":0,"untagged":0,"platforms":1,"estimated_sboms":2}],"selected":2,"skipped_by_limit":1,"estimated_sboms":2}`))
+		_, _ = w.Write([]byte(`{"repositories":[{"repository":"app","matched":3,"selected":2,"skippedByLimit":1,"skippedByAge":0,"untagged":0,"platforms":1,"estimatedSboms":2}],"selected":2,"skippedByLimit":1,"estimatedSboms":2}`))
 	}))
 	defer srv.Close()
 
@@ -162,7 +162,7 @@ func TestRegenerateWebhookSecret(t *testing.T) {
 		is.Equal(r.Method, http.MethodPost)
 		is.Equal(r.URL.Path, "/api/v1/registries/reg-1/webhook-secret")
 		w.Header().Set("Content-Type", "application/json")
-		_, _ = w.Write([]byte(`{"webhook_secret":"new-secret-xyz"}`))
+		_, _ = w.Write([]byte(`{"webhookSecret":"new-secret-xyz"}`))
 	}))
 	defer srv.Close()
 

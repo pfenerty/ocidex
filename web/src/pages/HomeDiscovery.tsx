@@ -117,10 +117,10 @@ export function HomeDiscovery(): JSX.Element {
                                     and a list of "0 uses" rows ranks by version
                                     count while claiming to rank by use. */}
                                 <For
-                                    each={(data().top_artifacts ?? []).filter((a) => a.usageCount > 0)}
+                                    each={(data().topArtifacts ?? []).filter((a) => a.usageCount > 0)}
                                     fallback={
                                         <li class="landing-list-empty text-muted">
-                                            {(data().top_artifacts ?? []).length === 0
+                                            {(data().topArtifacts ?? []).length === 0
                                                 ? "Nothing indexed yet."
                                                 : "No tracked artifact ships another one yet."}
                                         </li>
@@ -157,7 +157,7 @@ export function HomeDiscovery(): JSX.Element {
                                 hrefLabel="all artifacts"
                             >
                                 <For
-                                    each={data().recent_artifacts}
+                                    each={data().recentArtifacts}
                                     fallback={
                                         <li class="landing-list-empty text-muted">
                                             No recent activity.
@@ -203,7 +203,7 @@ export function HomeDiscovery(): JSX.Element {
                                 hrefLabel="all vulnerabilities"
                             >
                                 <For
-                                    each={data().top_vulnerabilities}
+                                    each={data().topVulnerabilities}
                                     fallback={
                                         <li class="landing-list-empty text-muted">
                                             No known vulnerabilities.
@@ -237,7 +237,7 @@ export function HomeDiscovery(): JSX.Element {
                                 hrefLabel="all licenses"
                             >
                                 <For
-                                    each={data().license_spread}
+                                    each={data().licenseSpread}
                                     fallback={
                                         <li class="landing-list-empty text-muted">
                                             No licenses recorded.

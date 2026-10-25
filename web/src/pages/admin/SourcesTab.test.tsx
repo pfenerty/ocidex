@@ -56,10 +56,10 @@ const baseRegistry = {
     url: "https://a.example.com",
     insecure: false,
     enabled: true,
-    has_secret: false,
-    has_auth: false,
+    hasSecret: false,
+    hasAuth: false,
     visibility: "public",
-    scan_mode: "webhook",
+    scanMode: "webhook",
 };
 
 const managedRegistry = {
@@ -67,8 +67,8 @@ const managedRegistry = {
     id: "22222222-2222-2222-2222-222222222222",
     name: "operator-owned",
     url: "https://b.example.com",
-    managed_by: "kubernetes",
-    managed_ref: "ocidex-system/prod-registry",
+    managedBy: "kubernetes",
+    managedRef: "ocidex-system/prod-registry",
 };
 
 /** The `source` row that ADR-039 puts behind a registry. Migration 00053 makes
@@ -79,8 +79,8 @@ function sourceFor(reg: { id: string; name: string }, namespace = "acme") {
         id: reg.id,
         name: reg.name,
         kind: "oci_registry",
-        namespace_id: `ns-${namespace}`,
-        namespace_name: namespace,
+        namespaceId: `ns-${namespace}`,
+        namespaceName: namespace,
     };
 }
 
@@ -88,10 +88,10 @@ function sourceFor(reg: { id: string; name: string }, namespace = "acme") {
 const OWNER_CAPS = ["read_private", "ingest", "trigger_scan", "manage_source", "read_secret"];
 
 function renderTab(rows: ({ id: string; name: string } & Record<string, unknown>)[], sources?: unknown[], namespaces?: unknown[]) {
-    const srcs = (sources ?? rows.map((r) => sourceFor(r))) as { namespace_id: string; namespace_name?: string }[];
-    const defaultNamespaces = [...new Set(srcs.map((x) => x.namespace_id))].map((id) => ({
+    const srcs = (sources ?? rows.map((r) => sourceFor(r))) as { namespaceId: string; namespaceName?: string }[];
+    const defaultNamespaces = [...new Set(srcs.map((x) => x.namespaceId))].map((id) => ({
         id,
-        name: srcs.find((x) => x.namespace_id === id)?.namespace_name ?? id,
+        name: srcs.find((x) => x.namespaceId === id)?.namespaceName ?? id,
         visibility: "private",
         capabilities: OWNER_CAPS,
     }));
@@ -248,8 +248,8 @@ describe("SourcesTab namespace grouping", () => {
                 id: "33333333-3333-3333-3333-333333333333",
                 name: "ci-uploads",
                 kind: "upload",
-                namespace_id: "ns-acme",
-                namespace_name: "acme",
+                namespaceId: "ns-acme",
+                namespaceName: "acme",
             },
         ]);
 
@@ -272,8 +272,8 @@ describe("SourcesTab namespace grouping", () => {
                 id: "44444444-4444-4444-4444-444444444444",
                 name: "ci-uploads",
                 kind: "upload",
-                namespace_id: "ns-acme",
-                namespace_name: "acme",
+                namespaceId: "ns-acme",
+                namespaceName: "acme",
             },
         ], []);
 
@@ -291,9 +291,9 @@ describe("SourcesTab namespace grouping", () => {
                     id: "ns-acme",
                     name: "acme",
                     visibility: "private",
-                    owner_username: "octocat",
-                    created_at: "2026-01-01T00:00:00Z",
-                    updated_at: "2026-01-01T00:00:00Z",
+                    ownerUsername: "octocat",
+                    createdAt: "2026-01-01T00:00:00Z",
+                    updatedAt: "2026-01-01T00:00:00Z",
                 },
             ],
         );
@@ -439,7 +439,7 @@ describe("SourcesTab scan scope (ADR-0053)", () => {
         must(container.querySelector<HTMLSelectElement>("[data-testid=scope-preset]"), "scope preset select");
 
     it("hides the window fields behind a preset and shows them for custom", () => {
-        const { container } = renderTab([{ ...baseRegistry, tag_patterns: ["semver"], tag_limit: 50, tag_order: "auto", max_tag_age_days: 0 }]);
+        const { container } = renderTab([{ ...baseRegistry, tagPatterns: ["semver"], tagLimit: 50, tagOrder: "auto", maxTagAgeDays: 0 }]);
         clickEditFor(container, "unmanaged");
         expect(scopeSelect(container).value).toBe("releases");
         expect(container.textContent).not.toContain("Tags per repository");
@@ -449,17 +449,17 @@ describe("SourcesTab scan scope (ADR-0053)", () => {
     });
 
     it("opens an edited registry whose window matches no preset on custom", () => {
-        const { container } = renderTab([{ ...baseRegistry, tag_patterns: ["semver"], tag_limit: 7, tag_order: "auto", max_tag_age_days: 0 }]);
+        const { container } = renderTab([{ ...baseRegistry, tagPatterns: ["semver"], tagLimit: 7, tagOrder: "auto", maxTagAgeDays: 0 }]);
         clickEditFor(container, "unmanaged");
         expect(scopeSelect(container).value).toBe("custom");
     });
 
     it("shows the preview estimate and warns on a large scope", () => {
         vi.mocked(usePreviewRegistryConfig).mockImplementation((() => ({
-            data: { selected: 900, skipped_by_limit: 4000, estimated_sboms: 3600, repositories: [{}, {}] },
+            data: { selected: 900, skippedByLimit: 4000, estimatedSboms: 3600, repositories: [{}, {}] },
             isFetching: false, isError: false, error: null,
         })) as unknown as typeof usePreviewRegistryConfig);
-        const { container } = renderTab([{ ...baseRegistry, tag_patterns: ["semver"], tag_limit: 50, tag_order: "auto", max_tag_age_days: 0 }]);
+        const { container } = renderTab([{ ...baseRegistry, tagPatterns: ["semver"], tagLimit: 50, tagOrder: "auto", maxTagAgeDays: 0 }]);
         clickEditFor(container, "unmanaged");
         const preview = must(container.querySelector("[data-testid=scope-preview]"), "preview line");
         expect(preview.textContent).toContain("~3,600");
@@ -468,7 +468,7 @@ describe("SourcesTab scan scope (ADR-0053)", () => {
     });
 
     it("warns for an unlimited window before any preview arrives", () => {
-        const { container } = renderTab([{ ...baseRegistry, tag_patterns: [], tag_limit: 0, tag_order: "auto", max_tag_age_days: 0 }]);
+        const { container } = renderTab([{ ...baseRegistry, tagPatterns: [], tagLimit: 0, tagOrder: "auto", maxTagAgeDays: 0 }]);
         clickEditFor(container, "unmanaged");
         expect(container.querySelector("[data-testid=scope-warning]")?.textContent).toMatch(/No tag limit/);
     });
@@ -480,7 +480,7 @@ describe("SourcesTab last walk (ADR-0053)", () => {
     it("shows what the latest walk selected and queued", () => {
         const { container } = renderTab([{
             ...baseRegistry,
-            last_walk: { at: "2026-10-20T12:00:00Z", repositories: 2, matched: 30, selected: 10, skipped_by_limit: 20, skipped_by_age: 0, queued: 4 },
+            lastWalk: { at: "2026-10-20T12:00:00Z", repositories: 2, matched: 30, selected: 10, skippedByLimit: 20, skippedByAge: 0, queued: 4 },
         }]);
         const cell = must(container.querySelector("[data-testid=last-walk]"), "last walk cell");
         expect(cell.textContent).toContain("10 tags");

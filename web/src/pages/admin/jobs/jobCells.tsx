@@ -22,11 +22,11 @@ export const JOB_STATE_COLORS: Record<string, string> = {
 export interface JobRow {
     id: string;
     state: string;
-    worker_id?: string;
+    workerId?: string;
     attempts: number;
-    created_at: string;
-    last_error?: string;
-    sbom_id?: string;
+    createdAt: string;
+    lastError?: string;
+    sbomId?: string;
 }
 
 export function stateColumn<T extends JobRow>(): Column<T> {
@@ -47,7 +47,7 @@ export function workerColumn<T extends JobRow>(): Column<T> {
         // job one worker had claimed and never let go (ocidex-nps9.26).
         render: (job) => (
             <span class="text-[0.8rem] whitespace-nowrap text-[var(--color-text-muted)]">
-                {job.state === "running" ? (job.worker_id ?? "—") : "—"}
+                {job.state === "running" ? (job.workerId ?? "—") : "—"}
             </span>
         ),
     };
@@ -58,7 +58,7 @@ export function attemptsColumn<T extends JobRow>(): Column<T> {
 }
 
 export function createdColumn<T extends JobRow>(): Column<T> {
-    return { header: "Created", render: (job) => <TimestampCell iso={job.created_at} /> };
+    return { header: "Created", render: (job) => <TimestampCell iso={job.createdAt} /> };
 }
 
 /** DigestLine is the muted second line under an image name. */
@@ -78,7 +78,7 @@ export function lastErrorColumn<T extends JobRow>(expanded: {
     return {
         header: "Last Error",
         render: (job) => (
-            <Show when={job.last_error}>
+            <Show when={job.lastError}>
                 <button
                     class="cursor-pointer border-none bg-transparent p-0 text-[0.85rem] text-[var(--color-secondary)]"
                     onClick={() => expanded.toggle(job.id)}
@@ -87,7 +87,7 @@ export function lastErrorColumn<T extends JobRow>(expanded: {
                 </button>
                 <Show when={expanded.has(job.id)}>
                     <code class="mt-1 block text-[0.8rem] break-all">
-                        {job.last_error}
+                        {job.lastError}
                     </code>
                 </Show>
             </Show>
@@ -99,8 +99,8 @@ export function sbomColumn<T extends JobRow>(): Column<T> {
     return {
         header: "SBOM",
         render: (job) => (
-            <Show when={job.sbom_id}>
-                <A href={`/sboms/${job.sbom_id}`} class="text-sm">
+            <Show when={job.sbomId}>
+                <A href={`/sboms/${job.sbomId}`} class="text-sm">
                     View SBOM
                 </A>
             </Show>

@@ -39,22 +39,22 @@ export function useCreateRegistry() {
             type: "zot" | "harbor" | "docker" | "generic" | "ghcr";
             url: string;
             insecure: boolean;
-            auth_username?: string;
-            auth_token?: string;
+            authUsername?: string;
+            authToken?: string;
             repositories?: string[];
-            repository_patterns?: string[];
-            tag_patterns?: string[];
-            scan_mode?: "webhook" | "poll" | "both";
-            poll_interval_minutes?: number;
+            repositoryPatterns?: string[];
+            tagPatterns?: string[];
+            scanMode?: "webhook" | "poll" | "both";
+            pollIntervalMinutes?: number;
             visibility: "public" | "private";
-            include_untagged?: boolean;
-            verification_mode?: "none" | "public_key" | "keyless";
-            trust_public_key?: string;
-            trust_identity?: string;
-            trust_issuer?: string;
-            tag_limit?: number;
-            tag_order?: "auto" | "semver" | "created" | "lexical";
-            max_tag_age_days?: number;
+            includeUntagged?: boolean;
+            verificationMode?: "none" | "public_key" | "keyless";
+            trustPublicKey?: string;
+            trustIdentity?: string;
+            trustIssuer?: string;
+            tagLimit?: number;
+            tagOrder?: "auto" | "semver" | "created" | "lexical";
+            maxTagAgeDays?: number;
         }) => unwrap(client.POST("/api/v1/registries", { body })),
         onSuccess: () => queryClient.invalidateQueries({ queryKey: ["registries"] }),
     }));
@@ -72,23 +72,23 @@ export function useUpdateRegistry() {
             type: "zot" | "harbor" | "docker" | "generic" | "ghcr";
             url: string;
             insecure: boolean;
-            auth_username?: string;
-            auth_token?: string;
+            authUsername?: string;
+            authToken?: string;
             enabled: boolean;
             repositories?: string[];
-            repository_patterns?: string[];
-            tag_patterns?: string[];
-            scan_mode?: "webhook" | "poll" | "both";
-            poll_interval_minutes?: number;
+            repositoryPatterns?: string[];
+            tagPatterns?: string[];
+            scanMode?: "webhook" | "poll" | "both";
+            pollIntervalMinutes?: number;
             visibility?: "public" | "private";
-            include_untagged?: boolean;
-            verification_mode?: "none" | "public_key" | "keyless";
-            trust_public_key?: string;
-            trust_identity?: string;
-            trust_issuer?: string;
-            tag_limit?: number;
-            tag_order?: "auto" | "semver" | "created" | "lexical";
-            max_tag_age_days?: number;
+            includeUntagged?: boolean;
+            verificationMode?: "none" | "public_key" | "keyless";
+            trustPublicKey?: string;
+            trustIdentity?: string;
+            trustIssuer?: string;
+            tagLimit?: number;
+            tagOrder?: "auto" | "semver" | "created" | "lexical";
+            maxTagAgeDays?: number;
         }) =>
             unwrap(
                 client.PATCH("/api/v1/registries/{id}", {
@@ -102,8 +102,8 @@ export function useUpdateRegistry() {
 
 export function useTestRegistryConnection() {
     return createMutation(() => ({
-        mutationFn: ({ url, insecure, auth_username, auth_token }: { url: string; insecure: boolean; auth_username?: string; auth_token?: string }) =>
-            unwrap(client.POST("/api/v1/registries/test-connection", { body: { url, insecure, auth_username, auth_token } })),
+        mutationFn: ({ url, insecure, authUsername, authToken }: { url: string; insecure: boolean; authUsername?: string; authToken?: string }) =>
+            unwrap(client.POST("/api/v1/registries/test-connection", { body: { url, insecure, authUsername, authToken } })),
     }));
 }
 
@@ -138,15 +138,15 @@ export interface RegistryPreviewBody {
     type: "zot" | "harbor" | "docker" | "generic" | "ghcr";
     url: string;
     insecure: boolean;
-    auth_username?: string;
-    auth_token?: string;
+    authUsername?: string;
+    authToken?: string;
     repositories?: string[];
-    repository_patterns?: string[];
-    tag_patterns?: string[];
-    include_untagged?: boolean;
-    tag_limit?: number;
-    tag_order?: "auto" | "semver" | "created" | "lexical";
-    max_tag_age_days?: number;
+    repositoryPatterns?: string[];
+    tagPatterns?: string[];
+    includeUntagged?: boolean;
+    tagLimit?: number;
+    tagOrder?: "auto" | "semver" | "created" | "lexical";
+    maxTagAgeDays?: number;
 }
 
 /**

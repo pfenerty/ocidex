@@ -82,11 +82,11 @@ function setAll(query: Query) {
  * page shipped with.
  */
 function signedInAs(...roles: string[]) {
-    const memberships = roles.map((role, i) => ({ namespace_id: `n${String(i)}`, role }));
+    const memberships = roles.map((role, i) => ({ namespaceId: `n${String(i)}`, role }));
     vi.mocked(useAuth).mockReturnValue({
         user: (() => ({
             id: "u1",
-            display_name: "octocat",
+            displayName: "octocat",
             role: "member",
             memberships,
         })) as unknown as ReturnType<typeof useAuth>["user"],
@@ -133,7 +133,7 @@ describe("Dashboard", () => {
     it("links each row to the page that owns it", () => {
         mocks.namespaces.mockReturnValue(
             loaded([
-                { id: "n1", name: "workspace-ns", visibility: "private", created_at: new Date().toISOString(), updated_at: new Date().toISOString() },
+                { id: "n1", name: "workspace-ns", visibility: "private", createdAt: new Date().toISOString(), updatedAt: new Date().toISOString() },
             ]) as unknown as ReturnType<typeof useMyNamespaces>,
         );
         mocks.activity.mockReturnValue(
@@ -176,11 +176,11 @@ describe("Dashboard", () => {
                 {
                     id: "c1",
                     name: "prod-eu-west",
-                    namespace_id: "n1",
-                    namespace_name: "prod",
-                    last_seen_at: new Date().toISOString(),
-                    created_at: new Date().toISOString(),
-                    updated_at: new Date().toISOString(),
+                    namespaceId: "n1",
+                    namespaceName: "prod",
+                    lastSeenAt: new Date().toISOString(),
+                    createdAt: new Date().toISOString(),
+                    updatedAt: new Date().toISOString(),
                 },
             ]) as unknown as ReturnType<typeof useMyClusters>,
         );

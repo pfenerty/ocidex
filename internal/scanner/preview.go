@@ -16,11 +16,11 @@ type RepoPreview struct {
 	Repository     string `json:"repository"`
 	Matched        int    `json:"matched" doc:"Tags that pass the filter"`
 	Selected       int    `json:"selected" doc:"Tags inside the window"`
-	SkippedByLimit int    `json:"skipped_by_limit" doc:"Matching tags past tag_limit"`
-	SkippedByAge   int    `json:"skipped_by_age" doc:"Matching tags older than max_tag_age_days, or with no build date while it is set"`
-	Untagged       int    `json:"untagged" doc:"Untagged manifests inside the untagged window (include_untagged only)"`
+	SkippedByLimit int    `json:"skippedByLimit" doc:"Matching tags past tagLimit"`
+	SkippedByAge   int    `json:"skippedByAge" doc:"Matching tags older than maxTagAgeDays, or with no build date while it is set"`
+	Untagged       int    `json:"untagged" doc:"Untagged manifests inside the untagged window (includeUntagged only)"`
 	Platforms      int    `json:"platforms" doc:"Platforms of the newest selected tag, the sample the estimate multiplies by"`
-	EstimatedSBOMs int    `json:"estimated_sboms" doc:"(selected tags x platforms) + untagged manifests; an estimate, since tags can share digests and platforms vary"`
+	EstimatedSBOMs int    `json:"estimatedSboms" doc:"(selected tags x platforms) + untagged manifests; an estimate, since tags can share digests and platforms vary"`
 	Error          string `json:"error,omitempty" doc:"Why this repository could not be previewed; the others still are"`
 }
 
@@ -28,8 +28,8 @@ type RepoPreview struct {
 type RegistryPreview struct {
 	Repositories   []RepoPreview `json:"repositories"`
 	Selected       int           `json:"selected"`
-	SkippedByLimit int           `json:"skipped_by_limit"`
-	EstimatedSBOMs int           `json:"estimated_sboms"`
+	SkippedByLimit int           `json:"skippedByLimit"`
+	EstimatedSBOMs int           `json:"estimatedSboms"`
 }
 
 // PreviewRegistry runs the walk's selection for every repository and submits

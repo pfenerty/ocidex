@@ -43,7 +43,7 @@ export function NamespacesTab() {
     const sourceCounts = createMemo(() => {
         const counts = new Map<string, number>();
         for (const src of (sourcesQuery.data?.data ?? []) as Source[]) {
-            counts.set(src.namespace_id, (counts.get(src.namespace_id) ?? 0) + 1);
+            counts.set(src.namespaceId, (counts.get(src.namespaceId) ?? 0) + 1);
         }
         return counts;
     });
@@ -154,7 +154,7 @@ export function NamespacesTab() {
             header: "Owner",
             render: (ns) => (
                 <Show
-                    when={ns.owner_username ?? ns.owner_id}
+                    when={ns.ownerUsername ?? ns.ownerId}
                     fallback={<span class="text-muted">unowned</span>}
                 >
                     {(owner) => <span>{owner()}</span>}
@@ -172,9 +172,9 @@ export function NamespacesTab() {
         {
             header: "Created",
             sortKey: "created",
-            sortValue: (ns) => ns.created_at,
+            sortValue: (ns) => ns.createdAt,
             render: (ns) => (
-                <span title={formatDateTime(ns.created_at)}>{relativeDate(ns.created_at)}</span>
+                <span title={formatDateTime(ns.createdAt)}>{relativeDate(ns.createdAt)}</span>
             ),
         },
         {

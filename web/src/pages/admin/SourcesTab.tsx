@@ -82,8 +82,8 @@ export function SourcesTab() {
     const activeByRegistry = createMemo(() => {
         const counts = new Map<string, number>();
         for (const job of activeJobs.data?.data ?? []) {
-            if ((job.state === "running" || job.state === "queued") && job.registry_id !== undefined) {
-                counts.set(job.registry_id, (counts.get(job.registry_id) ?? 0) + 1);
+            if ((job.state === "running" || job.state === "queued") && job.registryId !== undefined) {
+                counts.set(job.registryId, (counts.get(job.registryId) ?? 0) + 1);
             }
         }
         return counts;
@@ -113,7 +113,7 @@ export function SourcesTab() {
         }
         const out = new Map<string, Set<string>>();
         for (const src of sourcesQuery.data?.data ?? []) {
-            out.set(src.id, capsByNamespace.get(src.namespace_id) ?? new Set());
+            out.set(src.id, capsByNamespace.get(src.namespaceId) ?? new Set());
         }
         return out;
     });

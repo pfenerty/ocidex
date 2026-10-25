@@ -31,8 +31,8 @@ const ROLES: NamespaceRole[] = ["owner", "maintainer", "security", "developer", 
  * joined in by the API from the user table and comes back empty if that lookup
  * fails, which is not a reason to render a nameless row.
  */
-function memberLabel(m: { username: string; user_id: string }): string {
-    return m.username !== "" ? m.username : m.user_id;
+function memberLabel(m: { username: string; userId: string }): string {
+    return m.username !== "" ? m.username : m.userId;
 }
 
 /**
@@ -47,7 +47,7 @@ function memberLabel(m: { username: string; user_id: string }): string {
  */
 function canManageMembers(role: string | undefined, userID: string | undefined, ns: Namespace): boolean {
     if (role === "admin") return true;
-    return userID !== undefined && ns.owner_id === userID;
+    return userID !== undefined && ns.ownerId === userID;
 }
 
 /**
@@ -80,7 +80,7 @@ export function NamespaceMembers(props: { namespace: Namespace; onClose: () => v
     // Only users who are not already members can be added; changing an existing
     // member's role is the row selector's job, not this form's.
     const candidates = createMemo(() => {
-        const taken = new Set((members.data?.data ?? []).map((m) => m.user_id));
+        const taken = new Set((members.data?.data ?? []).map((m) => m.userId));
         return (users.data?.users ?? []).filter((u) => !taken.has(u.id));
     });
 
@@ -149,7 +149,7 @@ export function NamespaceMembers(props: { namespace: Namespace; onClose: () => v
                         aria-label={`Role for ${memberLabel(m)}`}
                         value={m.role}
                         disabled={setMember.isPending}
-                        onChange={(e) => changeRole(m.user_id, e.currentTarget.value as NamespaceRole)}
+                        onChange={(e) => changeRole(m.userId, e.currentTarget.value as NamespaceRole)}
                     >
                         <For each={ROLES}>{(r) => <option value={r}>{r}</option>}</For>
                     </select>
@@ -169,7 +169,7 @@ export function NamespaceMembers(props: { namespace: Namespace; onClose: () => v
                         size="sm"
                         variant="danger"
                         disabled={removeMember.isPending}
-                        onClick={() => handleRemove(m.user_id, memberLabel(m))}
+                        onClick={() => handleRemove(m.userId, memberLabel(m))}
                     >
                         Remove
                     </Button>
@@ -214,7 +214,7 @@ export function NamespaceMembers(props: { namespace: Namespace; onClose: () => v
                         >
                             <option value="">Select a user…</option>
                             <For each={candidates()}>
-                                {(u) => <option value={u.id}>{u.display_name}</option>}
+                                {(u) => <option value={u.id}>{u.displayName}</option>}
                             </For>
                         </select>
                     </FormField>

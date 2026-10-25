@@ -52,16 +52,16 @@ vi.mock("~/context/auth", () => ({
     useAuth: () => ({ user: mockUserFn, refetch: mockRefetch }),
 }));
 
-interface Membership { namespace_id: string; role: string }
-interface User { id: string; display_name: string; role: string; memberships?: Membership[] }
+interface Membership { namespaceId: string; role: string }
+interface User { id: string; displayName: string; role: string; memberships?: Membership[] }
 
 function makeUser(overrides?: Partial<User>): User {
-    return { id: "1", display_name: "alice", role: "user", ...overrides };
+    return { id: "1", displayName: "alice", role: "user", ...overrides };
 }
 
 /** Memberships in the shape /users/me reports them, from role names. */
 function member(...roles: string[]): Membership[] {
-    return roles.map((role, i) => ({ namespace_id: `n${String(i)}`, role }));
+    return roles.map((role, i) => ({ namespaceId: `n${String(i)}`, role }));
 }
 
 // Layout mounts the command palette, which holds four search queries. They are
@@ -113,8 +113,8 @@ describe("Layout", () => {
         expect(queryByText("Admin")).toBeNull();
     });
 
-    it("shows display_name when authenticated", () => {
-        mockUserFn = asResource(makeUser({ display_name: "alice" }));
+    it("shows displayName when authenticated", () => {
+        mockUserFn = asResource(makeUser({ displayName: "alice" }));
         const { getByText } = render(() => <Wrapped>page</Wrapped>);
         expect(getByText("alice")).toBeDefined();
     });

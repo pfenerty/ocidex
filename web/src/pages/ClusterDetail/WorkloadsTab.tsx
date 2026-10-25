@@ -66,11 +66,11 @@ function vulnSortValue(vulns: VulnCounts): number {
 }
 
 interface ImageIdentity {
-    image_ref: string;
-    image_digest?: string;
-    artifact_id?: string;
-    artifact_name?: string;
-    sbom_id?: string;
+    imageRef: string;
+    imageDigest?: string;
+    artifactId?: string;
+    artifactName?: string;
+    sbomId?: string;
 }
 
 /**
@@ -82,10 +82,10 @@ interface ImageIdentity {
  * hide the host — the one part of the ref the Gaps tab needs a reader to see.
  */
 export function ImageCell(props: { row: ImageIdentity }) {
-    const parts = () => splitImageRef(props.row.image_ref);
+    const parts = () => splitImageRef(props.row.imageRef);
     return (
         <div class="inventory-cell">
-            <span class="font-mono text-sm" title={props.row.image_digest ?? props.row.image_ref}>
+            <span class="font-mono text-sm" title={props.row.imageDigest ?? props.row.imageRef}>
                 <Show
                     when={parts()}
                     fallback={<span class="text-muted italic">name not reported by runtime</span>}
@@ -97,15 +97,15 @@ export function ImageCell(props: { row: ImageIdentity }) {
                         </>
                     )}
                 </Show>
-                <Show when={props.row.image_digest}>
+                <Show when={props.row.imageDigest}>
                     {(d) => <span class="text-muted"> @ {shortDigest(d())}</span>}
                 </Show>
             </span>
-            <Show when={props.row.artifact_id}>
+            <Show when={props.row.artifactId}>
                 {(id) => (
                     <span class="inventory-cell-sub">
-                        <A href={`/artifacts/${id()}`}>{props.row.artifact_name ?? "artifact"}</A>
-                        <Show when={props.row.sbom_id}>
+                        <A href={`/artifacts/${id()}`}>{props.row.artifactName ?? "artifact"}</A>
+                        <Show when={props.row.sbomId}>
                             {(sbomID) => (
                                 <A href={`/sboms/${sbomID()}`} class="text-muted">
                                     SBOM
@@ -131,15 +131,15 @@ export const workloadColumns: Column<ClusterWorkload>[] = [
     {
         header: "Workload",
         sortKey: "workload_name",
-        sortValue: (w) => w.workload_name,
+        sortValue: (w) => w.workloadName,
         render: (w) => (
-            <div class="inventory-cell" title={`Last seen ${formatDateTime(w.last_seen_at)}`}>
+            <div class="inventory-cell" title={`Last seen ${formatDateTime(w.lastSeenAt)}`}>
                 <span>
-                    <span class="text-muted">{w.k8s_namespace}/</span>
-                    {w.workload_name}
+                    <span class="text-muted">{w.k8sNamespace}/</span>
+                    {w.workloadName}
                 </span>
                 <span class="inventory-cell-sub text-muted">
-                    {w.workload_kind} · {w.container_name} · seen {relativeDate(w.last_seen_at)}
+                    {w.workloadKind} · {w.containerName} · seen {relativeDate(w.lastSeenAt)}
                 </span>
             </div>
         ),
@@ -147,14 +147,14 @@ export const workloadColumns: Column<ClusterWorkload>[] = [
     {
         header: "Image",
         sortKey: "image_ref",
-        sortValue: (w) => w.image_ref,
+        sortValue: (w) => w.imageRef,
         render: (w) => <ImageCell row={w} />,
     },
     {
         header: "Match",
         sortKey: "match_state",
-        sortValue: (w) => w.match_state,
-        render: (w) => <MatchStatePill state={w.match_state} />,
+        sortValue: (w) => w.matchState,
+        render: (w) => <MatchStatePill state={w.matchState} />,
     },
     {
         header: "Vulnerabilities",
@@ -168,8 +168,8 @@ export const workloadColumns: Column<ClusterWorkload>[] = [
         align: "right",
         sortKey: "pod_count",
         sortType: "numeric",
-        sortValue: (w) => w.pod_count,
-        render: (w) => w.pod_count.toLocaleString(),
+        sortValue: (w) => w.podCount,
+        render: (w) => w.podCount.toLocaleString(),
     },
 ];
 
@@ -186,14 +186,14 @@ export const imageColumns: Column<ClusterImage>[] = [
     {
         header: "Image",
         sortKey: "image_ref",
-        sortValue: (i) => i.image_ref,
+        sortValue: (i) => i.imageRef,
         render: (i) => <ImageCell row={i} />,
     },
     {
         header: "Match",
         sortKey: "match_state",
-        sortValue: (i) => i.match_state,
-        render: (i) => <MatchStatePill state={i.match_state} />,
+        sortValue: (i) => i.matchState,
+        render: (i) => <MatchStatePill state={i.matchState} />,
     },
     {
         header: "Vulnerabilities",
@@ -207,20 +207,20 @@ export const imageColumns: Column<ClusterImage>[] = [
         align: "right",
         sortKey: "workload_count",
         sortType: "numeric",
-        sortValue: (i) => i.workload_count,
+        sortValue: (i) => i.workloadCount,
         render: (i) => (
             <div class="inventory-cell inventory-cell-right">
-                <span>{i.workload_count.toLocaleString()}</span>
-                <Show when={i.sample_workload}>
+                <span>{i.workloadCount.toLocaleString()}</span>
+                <Show when={i.sampleWorkload}>
                     {(sample) => (
                         <span
                             class="inventory-cell-sub text-muted"
-                            title={`Runs in ${i.namespace_count.toLocaleString()} Kubernetes namespace${i.namespace_count === 1 ? "" : "s"}`}
+                            title={`Runs in ${i.namespaceCount.toLocaleString()} Kubernetes namespace${i.namespaceCount === 1 ? "" : "s"}`}
                         >
-                            {i.sample_namespace ?? ""}/{sample()}
-                            <Show when={i.workload_count > 1}>
+                            {i.sampleNamespace ?? ""}/{sample()}
+                            <Show when={i.workloadCount > 1}>
                                 {" "}
-                                +{(i.workload_count - 1).toLocaleString()}
+                                +{(i.workloadCount - 1).toLocaleString()}
                             </Show>
                         </span>
                     )}
@@ -233,8 +233,8 @@ export const imageColumns: Column<ClusterImage>[] = [
         align: "right",
         sortKey: "pod_count",
         sortType: "numeric",
-        sortValue: (i) => i.pod_count,
-        render: (i) => i.pod_count.toLocaleString(),
+        sortValue: (i) => i.podCount,
+        render: (i) => i.podCount.toLocaleString(),
     },
 ];
 
@@ -283,8 +283,8 @@ export function WorkloadsFilterBar(props: {
                 <option value="">All namespaces</option>
                 <For each={props.namespaces ?? []}>
                     {(ns) => (
-                        <option value={ns.k8s_namespace}>
-                            {ns.k8s_namespace} ({ns.workload_count.toLocaleString()})
+                        <option value={ns.k8sNamespace}>
+                            {ns.k8sNamespace} ({ns.workloadCount.toLocaleString()})
                         </option>
                     )}
                 </For>

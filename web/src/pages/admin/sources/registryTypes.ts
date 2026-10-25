@@ -197,5 +197,5 @@ export function toPatternArray(s: string): string[] {
 }
 
 /** hasWebhook is true when a registry both supports and uses webhook ingest. */
-export const hasWebhook = (reg: { scan_mode?: string; type: string }): boolean =>
-    reg.scan_mode !== "poll" && TYPE_CAPS[reg.type as RegType].webhook;
+export const hasWebhook = (reg: { scanMode?: string; type: string }): boolean =>
+    reg.scanMode !== "poll" && TYPE_CAPS[reg.type as RegType].webhook;

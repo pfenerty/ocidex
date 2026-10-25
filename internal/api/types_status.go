@@ -10,7 +10,7 @@ type SystemStatusOutput struct {
 		Enrichment EnrichmentStatus `json:"enrichment"`
 		Scanner    ScannerStatus    `json:"scanner"`
 		NATS       NATSStatus       `json:"nats"`
-		ScanJobs   ScanJobsStatus   `json:"scan_jobs"`
+		ScanJobs   ScanJobsStatus   `json:"scanJobs"`
 		DB         DBStatus         `json:"db"`
 	}
 }
@@ -19,13 +19,13 @@ type SystemStatusOutput struct {
 type EnrichmentStatus struct {
 	Enabled   bool `json:"enabled"`
 	Workers   int  `json:"workers"`
-	QueueSize int  `json:"queue_size"`
+	QueueSize int  `json:"queueSize"`
 }
 
 // ScannerStatus describes the scanner configuration.
 type ScannerStatus struct {
 	Enabled       bool `json:"enabled"`
-	PollerEnabled bool `json:"poller_enabled"`
+	PollerEnabled bool `json:"pollerEnabled"`
 }
 
 // NATSStatus describes the NATS JetStream configuration.
@@ -38,12 +38,12 @@ type NATSStatus struct {
 type ScanJobsStatus struct {
 	Queued       int64 `json:"queued"`
 	Running      int64 `json:"running"`
-	Succeeded24h int64 `json:"succeeded_24h"`
-	Failed24h    int64 `json:"failed_24h"`
+	Succeeded24h int64 `json:"succeeded24h"`
+	Failed24h    int64 `json:"failed24h"`
 }
 
 // DBStatus reports database connectivity and latency.
 type DBStatus struct {
 	OK        bool  `json:"ok"`
-	LatencyMs int64 `json:"latency_ms"`
+	LatencyMs int64 `json:"latencyMs"`
 }

@@ -60,7 +60,7 @@ const twinSBOM = `{
 // the tenancy boundary rather than being visible to everyone.
 func privateRegistryBody(name string) string {
 	return `{"name":"` + name + `","type":"generic","url":"registry.example.com","insecure":false,` +
-		`"visibility":"private","scan_mode":"webhook","repositories":[],"repository_patterns":[],"tag_patterns":[]}`
+		`"visibility":"private","scanMode":"webhook","repositories":[],"repositoryPatterns":[],"tagPatterns":[]}`
 }
 
 // postJSON POSTs and returns the created resource's id, failing with the
@@ -131,7 +131,7 @@ func TestCrossTenantDenialIsNotFound(t *testing.T) {
 	ownerArtifact := artifactIDForSBOM(t, pool, ownerSBOM)
 	ownerReg := postJSON(t, srv.URL, "/api/v1/registries", privateRegistryBody("owner-reg"), ownerKey)
 	ownerCluster := postJSON(t, srv.URL, "/api/v1/clusters",
-		`{"namespace_id":"`+ownerNS+`","name":"owner-cluster"}`, ownerKey)
+		`{"namespaceId":"`+ownerNS+`","name":"owner-cluster"}`, ownerKey)
 
 	// devoutsider's own tenant. Without it the outsider owns nothing, and every
 	// 404 below would also be produced by a server that simply had no data.
@@ -186,7 +186,7 @@ func TestCrossTenantDenialIsNotFound(t *testing.T) {
 	// nothing.
 	t.Run("create registry into another tenant's namespace", func(t *testing.T) {
 		body := `{"name":"planted","namespace":"owner-tenant","type":"generic","url":"registry.example.com",` +
-			`"insecure":false,"scan_mode":"webhook","repositories":[],"repository_patterns":[],"tag_patterns":[]}`
+			`"insecure":false,"scanMode":"webhook","repositories":[],"repositoryPatterns":[],"tagPatterns":[]}`
 		resp, err := doWithAuth(t, http.MethodPost, srv.URL+"/api/v1/registries", body, outsiderKey)
 		is.NoErr(err)
 		resp.Body.Close()

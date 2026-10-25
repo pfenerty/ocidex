@@ -48,12 +48,12 @@ func inventoryBody(t *testing.T, workloads ...map[string]any) string {
 
 func wl(ns, name, container, ref, dgst string, pods int) map[string]any {
 	w := map[string]any{
-		"k8s_namespace":  ns,
-		"workload_kind":  "Deployment",
-		"workload_name":  name,
-		"container_name": container,
-		"image_ref":      ref,
-		"pod_count":      pods,
+		"k8sNamespace":  ns,
+		"workloadKind":  "Deployment",
+		"workloadName":  name,
+		"containerName": container,
+		"imageRef":      ref,
+		"podCount":      pods,
 	}
 	if dgst != "" {
 		w["image_digest"] = dgst
@@ -105,7 +105,7 @@ func TestClusterInventoryAPI(t *testing.T) {
 	nsID := ns["id"].(string)
 
 	cluster := mustPostJSON(t, srv.URL+"/api/v1/clusters",
-		`{"namespace_id":"`+nsID+`","name":"prod","description":"east"}`, ownerKey, http.StatusCreated)
+		`{"namespaceId":"`+nsID+`","name":"prod","description":"east"}`, ownerKey, http.StatusCreated)
 	clusterID := cluster["id"].(string)
 	is.Equal(cluster["last_seen_at"], nil) // never reported
 	inventoryURL := srv.URL + "/api/v1/clusters/" + clusterID + "/inventory"
@@ -183,10 +183,10 @@ func TestClusterInventoryAPI(t *testing.T) {
 
 		var body struct {
 			Data []struct {
-				WorkloadName string `json:"workload_name"`
-				ImageDigest  string `json:"image_digest"`
-				PodCount     int    `json:"pod_count"`
-				MatchState   string `json:"match_state"`
+				WorkloadName string `json:"workloadName"`
+				ImageDigest  string `json:"imageDigest"`
+				PodCount     int    `json:"podCount"`
+				MatchState   string `json:"matchState"`
 			} `json:"data"`
 			Coverage struct {
 				Total        int `json:"total"`

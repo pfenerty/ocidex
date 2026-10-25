@@ -14,18 +14,18 @@ describe("StatusTab", () => {
         isError: false,
         error: null,
         data: {
-            enrichment: { enabled: true, workers: 2, queue_size: 0 },
-            scanner: { enabled: false, poller_enabled: true },
+            enrichment: { enabled: true, workers: 2, queueSize: 0 },
+            scanner: { enabled: false, pollerEnabled: true },
             nats: { enabled: true, url: "nats://x" },
-            scan_jobs: { queued: 0, running: 0, succeeded_24h: 3, failed_24h: 1 },
-            db: { ok: true, latency_ms: 2 },
+            scanJobs: { queued: 0, running: 0, succeeded24h: 3, failed24h: 1 },
+            db: { ok: true, latencyMs: 2 },
         },
     } as never);
     vi.mocked(useListRegistries).mockReturnValue({
         isFetching: false,
         isError: false,
         error: null,
-        data: { data: [{ id: "r1", name: "ghcr.io/othercorp", scan_mode: "poll", last_polled_at: "2026-10-24T10:00:00Z" }] },
+        data: { data: [{ id: "r1", name: "ghcr.io/othercorp", scanMode: "poll", lastPolledAt: "2026-10-24T10:00:00Z" }] },
     } as never);
 
     it("colours each card's edge by its state", () => {

@@ -7,7 +7,7 @@ vi.mock("~/api/client", () => ({ API_BASE_URL: "" }));
 
 interface User {
     id: string;
-    display_name: string;
+    displayName: string;
     role: string;
 }
 
@@ -67,7 +67,7 @@ describe("PersonaSwitcher", () => {
 
     it("selects the current user, so the control shows who you are", () => {
         withRoster("devadmin,devviewer");
-        mockUser = { id: "1", display_name: "devviewer", role: "viewer" };
+        mockUser = { id: "1", displayName: "devviewer", role: "viewer" };
         const { container } = render(() => <PersonaSwitcher />);
         expect(personaSelect(container).value).toBe("devviewer");
     });

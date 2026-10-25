@@ -12,8 +12,8 @@ vi.mock("~/api/client", () => ({
 
 interface Provider {
     name: string;
-    display_name: string;
-    login_path: string;
+    displayName: string;
+    loginPath: string;
 }
 
 interface ProvidersQuery {
@@ -38,14 +38,14 @@ function withProviders(providers: Provider[]) {
 
 const github: Provider = {
     name: "github",
-    display_name: "GitHub",
-    login_path: "/auth/login/github",
+    displayName: "GitHub",
+    loginPath: "/auth/login/github",
 };
 
 const corp: Provider = {
     name: "oidc:corp",
-    display_name: "corp",
-    login_path: "/auth/login/oidc:corp",
+    displayName: "corp",
+    loginPath: "/auth/login/oidc:corp",
 };
 
 describe("Login", () => {

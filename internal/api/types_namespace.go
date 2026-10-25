@@ -11,10 +11,10 @@ type NamespaceResponse struct {
 	ID            string  `json:"id"`
 	Name          string  `json:"name"`
 	Visibility    string  `json:"visibility" enum:"public,private" doc:"Namespace visibility: public or private"`
-	OwnerID       *string `json:"owner_id,omitempty" doc:"UUID of the namespace owner"`
-	OwnerUsername *string `json:"owner_username,omitempty" doc:"GitHub username of the namespace owner"`
-	CreatedAt     string  `json:"created_at"`
-	UpdatedAt     string  `json:"updated_at"`
+	OwnerID       *string `json:"ownerId,omitempty" doc:"UUID of the namespace owner"`
+	OwnerUsername *string `json:"ownerUsername,omitempty" doc:"GitHub username of the namespace owner"`
+	CreatedAt     string  `json:"createdAt"`
+	UpdatedAt     string  `json:"updatedAt"`
 	// Capabilities lets a page offer only the actions the caller can take:
 	// Sources showed Edit/Scan/Delete to a viewer whose every click was a 403
 	// (ocidex-nps9.15). Set on the list endpoints.
@@ -96,11 +96,11 @@ type DeleteNamespaceInput struct {
 // for display; user_id is the identifier the mutating routes take, because a
 // GitHub username is a handle its owner can change.
 type NamespaceMemberResponse struct {
-	UserID    string   `json:"user_id" doc:"UUID of the member"`
+	UserID    string   `json:"userId" doc:"UUID of the member"`
 	Username  string   `json:"username" doc:"GitHub username of the member"`
 	Role      string   `json:"role" enum:"owner,maintainer,security,developer,viewer" doc:"The member's role in this namespace"`
 	Caps      []string `json:"capabilities" doc:"Capabilities the role grants, for display"`
-	CreatedAt string   `json:"created_at"`
+	CreatedAt string   `json:"createdAt"`
 }
 
 // ListNamespaceMembersInput is the request for GET /api/v1/namespaces/{id}/members.

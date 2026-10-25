@@ -127,11 +127,11 @@ let autoIngest = true;
 const cluster = {
     id: "c-prod",
     name: "prod-eu-west",
-    namespace_id: "ns-acme",
-    namespace_name: "acme",
-    last_seen_at: new Date().toISOString(),
-    created_at: "2026-01-01T00:00:00Z",
-    updated_at: "2026-01-01T00:00:00Z",
+    namespaceId: "ns-acme",
+    namespaceName: "acme",
+    lastSeenAt: new Date().toISOString(),
+    createdAt: "2026-01-01T00:00:00Z",
+    updatedAt: "2026-01-01T00:00:00Z",
 };
 
 /** Every ingest run the page asked for, in order. */
@@ -143,38 +143,38 @@ let ingestResult: Record<string, number> | undefined;
 function workload(overrides: Record<string, unknown> = {}) {
     return {
         id: "w1",
-        cluster_id: "c-prod",
-        k8s_namespace: "default",
-        workload_kind: "Deployment",
-        workload_name: "api",
-        container_name: "api",
-        image_ref: "ghcr.io/pfenerty/ocidex-api:v1",
-        image_digest: "sha256:aaaabbbbccccdddd0000111122223333444455556666777788889999aaaabbbb",
-        pod_count: 3,
-        first_seen_at: "2026-08-01T00:00:00Z",
-        last_seen_at: "2026-08-16T00:00:00Z",
-        match_state: "exact",
-        artifact_id: "a-1",
-        artifact_name: "ocidex-api",
-        sbom_id: "s-1",
+        clusterId: "c-prod",
+        k8sNamespace: "default",
+        workloadKind: "Deployment",
+        workloadName: "api",
+        containerName: "api",
+        imageRef: "ghcr.io/pfenerty/ocidex-api:v1",
+        imageDigest: "sha256:aaaabbbbccccdddd0000111122223333444455556666777788889999aaaabbbb",
+        podCount: 3,
+        firstSeenAt: "2026-08-01T00:00:00Z",
+        lastSeenAt: "2026-08-16T00:00:00Z",
+        matchState: "exact",
+        artifactId: "a-1",
+        artifactName: "ocidex-api",
+        sbomId: "s-1",
         ...overrides,
     };
 }
 
 function image(overrides: Record<string, unknown> = {}) {
     return {
-        image_ref: "ghcr.io/pfenerty/ocidex-api:v1",
-        image_digest: "sha256:aaaabbbbccccdddd0000111122223333444455556666777788889999aaaabbbb",
-        workload_count: 4,
-        pod_count: 12,
-        namespace_count: 2,
-        sample_namespace: "default",
-        sample_workload: "api",
-        last_seen_at: "2026-08-16T00:00:00Z",
-        match_state: "exact",
-        artifact_id: "a-1",
-        artifact_name: "ocidex-api",
-        sbom_id: "s-1",
+        imageRef: "ghcr.io/pfenerty/ocidex-api:v1",
+        imageDigest: "sha256:aaaabbbbccccdddd0000111122223333444455556666777788889999aaaabbbb",
+        workloadCount: 4,
+        podCount: 12,
+        namespaceCount: 2,
+        sampleNamespace: "default",
+        sampleWorkload: "api",
+        lastSeenAt: "2026-08-16T00:00:00Z",
+        matchState: "exact",
+        artifactId: "a-1",
+        artifactName: "ocidex-api",
+        sbomId: "s-1",
         ...overrides,
     };
 }
@@ -182,11 +182,11 @@ function image(overrides: Record<string, unknown> = {}) {
 function vuln(overrides: Record<string, unknown> = {}) {
     return {
         id: "GHSA-xxxx",
-        canonical_id: "CVE-2026-1000",
+        canonicalId: "CVE-2026-1000",
         severity: "CRITICAL",
-        cvss_score: 9.8,
+        cvssScore: 9.8,
         summary: "Remote code execution",
-        workload_count: 3,
+        workloadCount: 3,
         ...overrides,
     };
 }
@@ -214,11 +214,11 @@ function unknownHost(overrides: Record<string, unknown> = {}) {
         // multi-tenant, so scope === host is the common shape.
         scope: host,
         reason: "unauthorized",
-        image_count: 3,
-        pod_count: 9,
-        workload_count: 4,
+        imageCount: 3,
+        podCount: 9,
+        workloadCount: 4,
         repositories: ["team/api", "team/web"],
-        repository_count: 2,
+        repositoryCount: 2,
         ...overrides,
     };
 }
@@ -227,11 +227,11 @@ const NO_REASONS = {
     ready: 0,
     scanning: 0,
     unauthorized: 0,
-    egress_denied: 0,
+    egressDenied: 0,
     failed: 0,
     deleted: 0,
-    registry_disabled: 0,
-    unparseable_ref: 0,
+    registryDisabled: 0,
+    unparseableRef: 0,
 };
 
 /** Tallies the fixture the way the server tallies the gap. */
@@ -245,14 +245,14 @@ function reasonsOf(rows: unknown[]): Record<string, number> {
 
 function unknownImage(overrides: Record<string, unknown> = {}) {
     return {
-        image_ref: "ghcr.io/pfenerty/api:v1",
-        image_digest: "sha256:aaaabbbbccccdddd0000111122223333444455556666777788889999aaaabbbb",
-        registry_host: "ghcr.io",
+        imageRef: "ghcr.io/pfenerty/api:v1",
+        imageDigest: "sha256:aaaabbbbccccdddd0000111122223333444455556666777788889999aaaabbbb",
+        registryHost: "ghcr.io",
         repository: "pfenerty/api",
-        workload_count: 3,
-        pod_count: 9,
-        sample_k8s_namespace: "default",
-        sample_workload_name: "api",
+        workloadCount: 3,
+        podCount: 9,
+        sampleK8sNamespace: "default",
+        sampleWorkloadName: "api",
         reason: "ready",
         ...overrides,
     };
@@ -272,7 +272,7 @@ function renderPage(
         error: null,
     })) as never);
     mockCluster.mockImplementation((() => ({
-        data: { ...cluster, auto_ingest: autoIngest },
+        data: { ...cluster, autoIngest },
         isLoading: false,
         isError: false,
         error: null,
@@ -314,8 +314,8 @@ function renderPage(
     mockNamespaces.mockImplementation((() => ({
         data: {
             data: [
-                { k8s_namespace: "default", workload_count: 7 },
-                { k8s_namespace: "kube-system", workload_count: 3 },
+                { k8sNamespace: "default", workloadCount: 7 },
+                { k8sNamespace: "kube-system", workloadCount: 3 },
             ],
         },
         isLoading: false,
@@ -349,13 +349,13 @@ function renderPage(
             data: {
                 data: [
                     {
-                        cluster_id: "c-prod",
-                        cluster_name: "prod-eu-west",
-                        k8s_namespace: "payments",
-                        workload_name: "checkout",
-                        container_name: "app",
-                        image_ref: "ghcr.io/pfenerty/checkout:v2",
-                        pod_count: 2,
+                        clusterId: "c-prod",
+                        clusterName: "prod-eu-west",
+                        k8sNamespace: "payments",
+                        workloadName: "checkout",
+                        containerName: "app",
+                        imageRef: "ghcr.io/pfenerty/checkout:v2",
+                        podCount: 2,
                     },
                 ],
             },
@@ -516,7 +516,7 @@ describe("ClusterDetail", () => {
     it("says how much of the list the card is showing", () => {
         const { container } = renderPage([workload()], GAPPY, [
             vuln(),
-            vuln({ id: "GHSA-yyyy", canonical_id: "CVE-2026-1001" }),
+            vuln({ id: "GHSA-yyyy", canonicalId: "CVE-2026-1001" }),
         ]);
 
         const header = must(container.querySelector(".card-header"), "card header");
@@ -526,8 +526,8 @@ describe("ClusterDetail", () => {
     // ADR-044 K5 at the coarsest scale: a cluster nobody has reported on is not
     // a clean cluster, and a summary of an empty inventory would say it was.
     it("leads with agent setup when nothing has ever reported", () => {
-        const clusterLastSeen = cluster.last_seen_at;
-        cluster.last_seen_at = "";
+        const clusterLastSeen = cluster.lastSeenAt;
+        cluster.lastSeenAt = "";
         try {
             const { container } = renderPage([], EMPTY, []);
 
@@ -542,7 +542,7 @@ describe("ClusterDetail", () => {
             expect(container.querySelector(".overview-vuln-list")).toBeNull();
             expect(container.textContent).not.toContain("There is nothing to ingest");
         } finally {
-            cluster.last_seen_at = clusterLastSeen;
+            cluster.lastSeenAt = clusterLastSeen;
         }
     });
 
@@ -591,7 +591,7 @@ describe("ClusterDetail", () => {
         ] as const;
         for (const [state, label] of states) {
             searchParams = { tab: "workloads", group: "workload" };
-            const { container, unmount } = renderPage([workload({ match_state: state })], {
+            const { container, unmount } = renderPage([workload({ matchState: state })], {
                 total: 1,
                 matched: state === "exact" || state === "index" ? 1 : 0,
                 unknown: state === "unknown" ? 1 : 0,
@@ -636,7 +636,7 @@ describe("ClusterDetail", () => {
     it("distinguishes an unassessed image from an assessed clean one", () => {
         searchParams = { tab: "workloads", group: "workload" };
         const { container, unmount } = renderPage(
-            [workload({ match_state: "unknown", artifact_id: undefined, sbom_id: undefined })],
+            [workload({ matchState: "unknown", artifactId: undefined, sbomId: undefined })],
             GAPPY,
         );
         expect(must(container.querySelector("tbody tr"), "row").textContent).toContain(
@@ -727,7 +727,7 @@ describe("ClusterDetail", () => {
     // on screen would silently omit every namespace off the current page.
     it("offers namespaces the current page does not contain", () => {
         searchParams = { tab: "workloads" };
-        const { container } = renderPage([workload({ k8s_namespace: "default" })], GAPPY);
+        const { container } = renderPage([workload({ k8sNamespace: "default" })], GAPPY);
 
         const namespaceSelect = must(
             container.querySelector(".search-bar select"),
@@ -810,7 +810,7 @@ describe("ClusterDetail", () => {
     it("distinguishes an unassessed image from an assessed clean one by image", () => {
         searchParams = { tab: "workloads" };
         const { container, unmount } = renderPage([workload()], GAPPY, [], [
-            image({ match_state: "unknown", artifact_id: undefined, sbom_id: undefined }),
+            image({ matchState: "unknown", artifactId: undefined, sbomId: undefined }),
         ]);
         const row = must(container.querySelector("tbody tr"), "image row");
         expect(row.textContent).toContain("not assessed");
@@ -923,7 +923,7 @@ describe("ClusterDetail", () => {
     // rather than summed into one "not covered" number.
     it("separates the two gaps by remedy", () => {
         searchParams = { tab: "gaps" };
-        const { container } = renderPage([workload({ match_state: "unknown" })], GAPPY);
+        const { container } = renderPage([workload({ matchState: "unknown" })], GAPPY);
 
         expect(container.textContent).toContain("No SBOM ingested");
         expect(container.textContent).toContain("No digest readable");
@@ -935,8 +935,8 @@ describe("ClusterDetail", () => {
     // twelve copies of the same action.
     it("lists the No-SBOM gap by image, not by container", () => {
         searchParams = { tab: "gaps" };
-        unknownImages = [unknownImage({ workload_count: 3, pod_count: 9 })];
-        const { container } = renderPage([workload({ match_state: "unknown" })], GAPPY);
+        unknownImages = [unknownImage({ workloadCount: 3, podCount: 9 })];
+        const { container } = renderPage([workload({ matchState: "unknown" })], GAPPY);
 
         expect(container.textContent).toContain("ghcr.io/pfenerty/api:v1");
         expect(container.textContent).toContain("and 2 other containers");
@@ -948,12 +948,12 @@ describe("ClusterDetail", () => {
     it("names the remedy for each unresolved image", () => {
         searchParams = { tab: "gaps" };
         unknownImages = [
-            unknownImage({ image_ref: "ghcr.io/a:v1", reason: "ready", registry_id: "r-1", registry_name: "ghcr" }),
-            unknownImage({ image_ref: "gcr.io/b:v1", reason: "unauthorized", registry_host: "gcr.io" }),
-            unknownImage({ image_ref: "quay.io/c:v1", reason: "registry_disabled", registry_id: "r-2", registry_name: "quay" }),
-            unknownImage({ image_ref: "quay.io/d:v1", reason: "deleted", registry_id: "r-3", registry_name: "quay-team" }),
+            unknownImage({ imageRef: "ghcr.io/a:v1", reason: "ready", registryId: "r-1", registryName: "ghcr" }),
+            unknownImage({ imageRef: "gcr.io/b:v1", reason: "unauthorized", registryHost: "gcr.io" }),
+            unknownImage({ imageRef: "quay.io/c:v1", reason: "registry_disabled", registryId: "r-2", registryName: "quay" }),
+            unknownImage({ imageRef: "quay.io/d:v1", reason: "deleted", registryId: "r-3", registryName: "quay-team" }),
         ];
-        const { container } = renderPage([workload({ match_state: "unknown" })], GAPPY);
+        const { container } = renderPage([workload({ matchState: "unknown" })], GAPPY);
 
         expect(container.textContent).toContain("ready to ingest");
         expect(container.textContent).toContain("pull refused");
@@ -988,11 +988,11 @@ describe("ClusterDetail", () => {
     it("counts only the images the namespace's registries can serve", () => {
         searchParams = { tab: "gaps" };
         unknownImages = [
-            unknownImage({ image_ref: "ghcr.io/a:v1", reason: "ready" }),
-            unknownImage({ image_ref: "gcr.io/b:v1", reason: "unauthorized" }),
-            unknownImage({ image_ref: "gcr.io/c:v1", reason: "unauthorized" }),
+            unknownImage({ imageRef: "ghcr.io/a:v1", reason: "ready" }),
+            unknownImage({ imageRef: "gcr.io/b:v1", reason: "unauthorized" }),
+            unknownImage({ imageRef: "gcr.io/c:v1", reason: "unauthorized" }),
         ];
-        const { container } = renderPage([workload({ match_state: "unknown" })], GAPPY);
+        const { container } = renderPage([workload({ matchState: "unknown" })], GAPPY);
 
         expect(container.textContent).toContain("1 of 3 images can be ingested");
     });
@@ -1003,11 +1003,11 @@ describe("ClusterDetail", () => {
     it("offers a bulk ingest sized to what can actually be ingested", () => {
         searchParams = { tab: "gaps" };
         unknownImages = [
-            unknownImage({ image_ref: "ghcr.io/a:v1", reason: "ready" }),
-            unknownImage({ image_ref: "ghcr.io/b:v1", reason: "ready" }),
-            unknownImage({ image_ref: "gcr.io/c:v1", reason: "unauthorized" }),
+            unknownImage({ imageRef: "ghcr.io/a:v1", reason: "ready" }),
+            unknownImage({ imageRef: "ghcr.io/b:v1", reason: "ready" }),
+            unknownImage({ imageRef: "gcr.io/c:v1", reason: "unauthorized" }),
         ];
-        const { container } = renderPage([workload({ match_state: "unknown" })], GAPPY);
+        const { container } = renderPage([workload({ matchState: "unknown" })], GAPPY);
 
         const bulk = [...container.querySelectorAll("button")].find((b) =>
             b.textContent.startsWith("Ingest 2 images"),
@@ -1023,10 +1023,10 @@ describe("ClusterDetail", () => {
     it("ingests one image from its own row", () => {
         searchParams = { tab: "gaps" };
         unknownImages = [
-            unknownImage({ image_ref: "ghcr.io/a:v1", image_digest: "sha256:aaa", reason: "ready" }),
-            unknownImage({ image_ref: "ghcr.io/b:v1", image_digest: "sha256:bbb", reason: "ready" }),
+            unknownImage({ imageRef: "ghcr.io/a:v1", imageDigest: "sha256:aaa", reason: "ready" }),
+            unknownImage({ imageRef: "ghcr.io/b:v1", imageDigest: "sha256:bbb", reason: "ready" }),
         ];
-        const { container } = renderPage([workload({ match_state: "unknown" })], GAPPY);
+        const { container } = renderPage([workload({ matchState: "unknown" })], GAPPY);
 
         const rowButtons = [...container.querySelectorAll("button")].filter(
             (b) => b.textContent === "Ingest",
@@ -1045,16 +1045,16 @@ describe("ClusterDetail", () => {
         searchParams = { tab: "gaps" };
         unknownImages = [unknownImage({ reason: "unauthorized" })];
         unknownHosts = [
-            unknownHost({ host: "gcr.io", image_count: 12, pod_count: 30 }),
+            unknownHost({ host: "gcr.io", imageCount: 12, podCount: 30 }),
             unknownHost({
                 host: "quay.io",
                 reason: "registry_disabled",
-                registry_id: "r-2",
-                registry_name: "quay",
-                image_count: 3,
+                registryId: "r-2",
+                registryName: "quay",
+                imageCount: 3,
             }),
         ];
-        const { container } = renderPage([workload({ match_state: "unknown" })], GAPPY);
+        const { container } = renderPage([workload({ matchState: "unknown" })], GAPPY);
 
         expect(container.textContent).toContain("Registries to configure");
         // The whole gap behind the two hosts, not the one row on the page.
@@ -1095,18 +1095,18 @@ describe("ClusterDetail", () => {
                 host: "ghcr.io",
                 scope: "ghcr.io/orgA",
                 repositories: ["orgA/api"],
-                repository_count: 1,
-                image_count: 4,
+                repositoryCount: 1,
+                imageCount: 4,
             }),
             unknownHost({
                 host: "ghcr.io",
                 scope: "ghcr.io/orgB",
                 repositories: ["orgB/tool"],
-                repository_count: 1,
-                image_count: 1,
+                repositoryCount: 1,
+                imageCount: 1,
             }),
         ];
-        const { container } = renderPage([workload({ match_state: "unknown" })], GAPPY);
+        const { container } = renderPage([workload({ matchState: "unknown" })], GAPPY);
 
         expect(container.textContent).toContain("ghcr.io/orgA");
         expect(container.textContent).toContain("ghcr.io/orgB");
@@ -1130,14 +1130,14 @@ describe("ClusterDetail", () => {
         unknownImages = [
             unknownImage({
                 reason: "unauthorized",
-                registry_host: "ghcr.io",
+                registryHost: "ghcr.io",
                 repository: "orgA/api",
             }),
         ];
         unknownHosts = [
             unknownHost({ host: "ghcr.io", scope: "ghcr.io/orgA", repositories: ["orgA/api"] }),
         ];
-        const { container } = renderPage([workload({ match_state: "unknown" })], GAPPY);
+        const { container } = renderPage([workload({ matchState: "unknown" })], GAPPY);
 
         const rowLink = [...container.querySelectorAll("a")].find(
             (a) => a.textContent === "add a registry with credentials",
@@ -1151,8 +1151,8 @@ describe("ClusterDetail", () => {
     // quiet omission ADR-044 K5 exists to prevent.
     it("says when the repository list it shows is a prefix", () => {
         searchParams = { tab: "gaps" };
-        unknownHosts = [unknownHost({ repositories: ["team/api"], repository_count: 140 })];
-        const { container } = renderPage([workload({ match_state: "unknown" })], GAPPY);
+        unknownHosts = [unknownHost({ repositories: ["team/api"], repositoryCount: 140 })];
+        const { container } = renderPage([workload({ matchState: "unknown" })], GAPPY);
 
         expect(container.textContent).toContain("140 repositories");
         expect(container.textContent).toContain("showing 1 of 140");
@@ -1163,7 +1163,7 @@ describe("ClusterDetail", () => {
     it("renders no rollup when every gap has a registry already", () => {
         searchParams = { tab: "gaps" };
         unknownImages = [unknownImage({ reason: "ready" })];
-        const { container } = renderPage([workload({ match_state: "unknown" })], GAPPY);
+        const { container } = renderPage([workload({ matchState: "unknown" })], GAPPY);
 
         expect(container.textContent).not.toContain("Registries to configure");
     });
@@ -1173,7 +1173,7 @@ describe("ClusterDetail", () => {
     it("offers no row action for an image whose registry is switched off", () => {
         searchParams = { tab: "gaps" };
         unknownImages = [unknownImage({ reason: "registry_disabled" })];
-        const { container } = renderPage([workload({ match_state: "unknown" })], GAPPY);
+        const { container } = renderPage([workload({ matchState: "unknown" })], GAPPY);
 
         const rowButtons = [...container.querySelectorAll("button")].filter(
             (b) => b.textContent === "Ingest",
@@ -1189,14 +1189,14 @@ describe("ClusterDetail", () => {
         ingestResult = {
             considered: 3,
             queued: 1,
-            skipped_existing: 1,
+            skippedExisting: 1,
             unauthorized: 1,
-            egress_denied: 0,
-            skipped_registry_disabled: 0,
-            skipped_unparseable_ref: 0,
+            egressDenied: 0,
+            skippedRegistryDisabled: 0,
+            skippedUnparseableRef: 0,
             failed: 0,
         };
-        const { container } = renderPage([workload({ match_state: "unknown" })], GAPPY);
+        const { container } = renderPage([workload({ matchState: "unknown" })], GAPPY);
 
         expect(container.textContent).toContain("Queued 1 scan job");
         expect(container.textContent).toContain("1 skipped: pull refused by the host");
@@ -1209,10 +1209,10 @@ describe("ClusterDetail", () => {
     // the only way to know is to read the cluster list.
     it("states on the overview whether auto-ingest is closing the gap", () => {
         unknownImages = [
-            unknownImage({ image_ref: "ghcr.io/a:v1", reason: "ready" }),
-            unknownImage({ image_ref: "gcr.io/b:v1", reason: "unauthorized" }),
+            unknownImage({ imageRef: "ghcr.io/a:v1", reason: "ready" }),
+            unknownImage({ imageRef: "gcr.io/b:v1", reason: "unauthorized" }),
         ];
-        const { container } = renderPage([workload({ match_state: "unknown" })], GAPPY);
+        const { container } = renderPage([workload({ matchState: "unknown" })], GAPPY);
 
         expect(container.textContent).toContain("Auto-ingest is");
         expect(container.textContent).toContain("on");
@@ -1225,9 +1225,9 @@ describe("ClusterDetail", () => {
     // figure on the tab now comes from the server's tally of the whole gap.
     it("describes the whole gap rather than the page it was handed", () => {
         searchParams = { tab: "gaps" };
-        unknownImages = [unknownImage({ image_ref: "ghcr.io/a:v1", reason: "ready" })];
+        unknownImages = [unknownImage({ imageRef: "ghcr.io/a:v1", reason: "ready" })];
         unknownGap = { total: 412, reasons: { ...NO_REASONS, ready: 300, unauthorized: 112 } };
-        const { container } = renderPage([workload({ match_state: "unknown" })], GAPPY);
+        const { container } = renderPage([workload({ matchState: "unknown" })], GAPPY);
 
         expect(container.textContent).toContain("300 of 412 images can be ingested");
         // The bulk button ingests the whole gap, so it must name the whole
@@ -1241,9 +1241,9 @@ describe("ClusterDetail", () => {
 
     it("pages the gap instead of stopping at the end of the first screen", () => {
         searchParams = { tab: "gaps" };
-        unknownImages = [unknownImage({ image_ref: "ghcr.io/a:v1" })];
+        unknownImages = [unknownImage({ imageRef: "ghcr.io/a:v1" })];
         unknownGap = { total: 412, reasons: { ...NO_REASONS, ready: 412 } };
-        const { container } = renderPage([workload({ match_state: "unknown" })], GAPPY);
+        const { container } = renderPage([workload({ matchState: "unknown" })], GAPPY);
 
         // Two pagers: one per table. Their presence is the fix — a table that
         // holds one page of 412 with no pager is the silent truncation.
@@ -1255,7 +1255,7 @@ describe("ClusterDetail", () => {
     it("counts the overview's ready and blocked images across the whole gap", () => {
         unknownImages = [unknownImage({ reason: "ready" })];
         unknownGap = { total: 412, reasons: { ...NO_REASONS, ready: 300, unauthorized: 112 } };
-        const { container } = renderPage([workload({ match_state: "unknown" })], GAPPY);
+        const { container } = renderPage([workload({ matchState: "unknown" })], GAPPY);
 
         expect(container.textContent).toContain("300 images can be ingested now");
         expect(container.textContent).toContain("112 cannot");
@@ -1264,7 +1264,7 @@ describe("ClusterDetail", () => {
     it("says so on the overview when auto-ingest is off", () => {
         autoIngest = false;
         unknownImages = [unknownImage({ reason: "ready" })];
-        const { container } = renderPage([workload({ match_state: "unknown" })], GAPPY);
+        const { container } = renderPage([workload({ matchState: "unknown" })], GAPPY);
 
         expect(container.textContent).toContain("off");
         expect(container.textContent).toContain("stays unscanned");

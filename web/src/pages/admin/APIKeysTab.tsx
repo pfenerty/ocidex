@@ -112,12 +112,12 @@ export function APIKeysTab() {
                 );
             },
         },
-        { header: "Created", render: (k) => <TimestampCell iso={k.created_at} /> },
+        { header: "Created", render: (k) => <TimestampCell iso={k.createdAt} /> },
         {
             header: "Last Used",
             render: (k) =>
-                k.last_used_at !== undefined
-                    ? <TimestampCell iso={k.last_used_at} />
+                k.lastUsedAt !== undefined
+                    ? <TimestampCell iso={k.lastUsedAt} />
                     : <span class="text-muted">Never</span>,
         },
         {

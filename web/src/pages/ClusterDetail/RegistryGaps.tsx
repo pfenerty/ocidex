@@ -27,12 +27,12 @@ function remedyFor(host: UnknownHost, namespace: string): { label: string; href:
     const repos = host.repositories ?? [];
     switch (host.reason) {
         case "registry_disabled":
-            return { label: `Enable ${host.registry_name ?? "registry"}`, href: `/admin/sources?registry=${host.registry_id ?? ""}` };
+            return { label: `Enable ${host.registryName ?? "registry"}`, href: `/admin/sources?registry=${host.registryId ?? ""}` };
         case "unauthorized":
             // A registry that matched and was still refused has the wrong
             // credentials; one that never matched needs adding.
-            if (host.registry_id !== undefined) {
-                return { label: `Fix ${host.registry_name ?? "registry"} credentials`, href: `/admin/sources?registry=${host.registry_id}` };
+            if (host.registryId !== undefined) {
+                return { label: `Fix ${host.registryName ?? "registry"} credentials`, href: `/admin/sources?registry=${host.registryId}` };
             }
             return {
                 label: "Add registry",
@@ -51,7 +51,7 @@ function HostRow(props: { host: UnknownHost; namespace: string }) {
     const remedy = () => remedyFor(props.host, props.namespace);
     const repos = () => props.host.repositories ?? [];
     const shown = () => repos().length;
-    const total = () => props.host.repository_count;
+    const total = () => props.host.repositoryCount;
 
     return (
         <li class="registry-gap-row">
@@ -66,8 +66,8 @@ function HostRow(props: { host: UnknownHost; namespace: string }) {
             </div>
 
             <div class="registry-gap-counts text-muted text-sm">
-                {plural(props.host.image_count, "image")} ·{" "}
-                {plural(props.host.pod_count, "pod")} ·{" "}
+                {plural(props.host.imageCount, "image")} ·{" "}
+                {plural(props.host.podCount, "pod")} ·{" "}
                 {plural(total(), "repository", "repositories")}
             </div>
 
@@ -117,7 +117,7 @@ function HostRow(props: { host: UnknownHost; namespace: string }) {
  * groups only the reasons that name a registry to configure.
  */
 export function RegistryGaps(props: { hosts: UnknownHost[]; namespace: string }) {
-    const covered = () => props.hosts.reduce((n, h) => n + h.image_count, 0);
+    const covered = () => props.hosts.reduce((n, h) => n + h.imageCount, 0);
 
     return (
         <Show when={props.hosts.length > 0}>

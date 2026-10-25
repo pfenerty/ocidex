@@ -11,10 +11,10 @@ const WARMING_POLL_MS = 15_000;
 type DiscoveryResponse =
     paths["/api/v1/discover"]["get"]["responses"][200]["content"]["application/json"];
 
-export type DiscoverArtifact = NonNullable<DiscoveryResponse["top_artifacts"]>[number];
-export type DiscoverRecent = NonNullable<DiscoveryResponse["recent_artifacts"]>[number];
-export type DiscoverVuln = NonNullable<DiscoveryResponse["top_vulnerabilities"]>[number];
-export type DiscoverLicense = NonNullable<DiscoveryResponse["license_spread"]>[number];
+export type DiscoverArtifact = NonNullable<DiscoveryResponse["topArtifacts"]>[number];
+export type DiscoverRecent = NonNullable<DiscoveryResponse["recentArtifacts"]>[number];
+export type DiscoverVuln = NonNullable<DiscoveryResponse["topVulnerabilities"]>[number];
+export type DiscoverLicense = NonNullable<DiscoveryResponse["licenseSpread"]>[number];
 
 /**
  * useDiscovery reads the public landing-page aggregates.

@@ -541,9 +541,9 @@ def ensure_namespace(api, name, visibility):
 def ensure_source(api, ns_id, ns_name, name):
     status, body = api.get("/api/v1/sources")
     for s in ((body or {}).get("data") or []) if status == 200 else []:
-        if s.get("name") == name and s.get("namespace_id") == ns_id:
+        if s.get("name") == name and s.get("namespaceId") == ns_id:
             return
-    status, body = api.post("/api/v1/sources", {"namespace_id": ns_id, "name": name})
+    status, body = api.post("/api/v1/sources", {"namespaceId": ns_id, "name": name})
     if status not in (200, 201):
         die(f"create source {ns_name}/{name}: {status} {body}")
     log(f"created source {ns_name}/{name}")
@@ -596,7 +596,7 @@ def seed_cluster(api, ns_id, digests):
             cluster_id = c["id"]
     if cluster_id is None:
         status, body = api.post("/api/v1/clusters", {
-            "namespace_id": ns_id, "name": "dev-cluster",
+            "namespaceId": ns_id, "name": "dev-cluster",
             "description": "Seeded by scripts/dev-fixtures.py"})
         if status not in (200, 201):
             die(f"create cluster: {status} {body}")
@@ -610,44 +610,44 @@ def seed_cluster(api, ns_id, digests):
 
     workloads = [
         # exact: the digest is an ingested SBOM's own digest.
-        dict(k8s_namespace="ocidex", workload_kind="Deployment", workload_name="ocidex-api",
-             container_name="api", image_ref="ghcr.io/pfenerty/ocidex-api:v1.6.0",
-             image_digest=api_new, pod_count=3),
+        dict(k8sNamespace="ocidex", workloadKind="Deployment", workloadName="ocidex-api",
+             containerName="api", imageRef="ghcr.io/pfenerty/ocidex-api:v1.6.0",
+             imageDigest=api_new, podCount=3),
         # index: containerd reported the multi-arch index digest, tier 2.
-        dict(k8s_namespace="ocidex", workload_kind="Deployment", workload_name="ocidex-web",
-             container_name="web", image_ref="ghcr.io/pfenerty/ocidex-web:v1.6.0",
-             image_digest=web_index, pod_count=2),
-        dict(k8s_namespace="ocidex", workload_kind="StatefulSet", workload_name="postgres",
-             container_name="postgres", image_ref="docker.io/library/postgres:17.2",
-             image_digest=pg, pod_count=1),
+        dict(k8sNamespace="ocidex", workloadKind="Deployment", workloadName="ocidex-web",
+             containerName="web", imageRef="ghcr.io/pfenerty/ocidex-web:v1.6.0",
+             imageDigest=web_index, podCount=2),
+        dict(k8sNamespace="ocidex", workloadKind="StatefulSet", workloadName="postgres",
+             containerName="postgres", imageRef="docker.io/library/postgres:17.2",
+             imageDigest=pg, podCount=1),
         # Two releases behind what the artifact tracks: drift, not a gap.
-        dict(k8s_namespace="staging", workload_kind="Deployment", workload_name="ocidex-api",
-             container_name="api", image_ref="ghcr.io/pfenerty/ocidex-api:v1.4.0",
-             image_digest=api_old, pod_count=1),
+        dict(k8sNamespace="staging", workloadKind="Deployment", workloadName="ocidex-api",
+             containerName="api", imageRef="ghcr.io/pfenerty/ocidex-api:v1.4.0",
+             imageDigest=api_old, podCount=1),
         # unknown: a well-formed digest with no ingested SBOM behind it.
-        dict(k8s_namespace="kube-system", workload_kind="DaemonSet", workload_name="cilium",
-             container_name="cilium-agent", image_ref="quay.io/cilium/cilium:v1.16.3",
-             image_digest=digest_for("cilium", "v1.16.3"), pod_count=5),
-        dict(k8s_namespace="kube-system", workload_kind="Deployment", workload_name="coredns",
-             container_name="coredns", image_ref="registry.k8s.io/coredns/coredns:v1.11.3",
-             image_digest=digest_for("coredns", "v1.11.3"), pod_count=2),
+        dict(k8sNamespace="kube-system", workloadKind="DaemonSet", workloadName="cilium",
+             containerName="cilium-agent", imageRef="quay.io/cilium/cilium:v1.16.3",
+             imageDigest=digest_for("cilium", "v1.16.3"), podCount=5),
+        dict(k8sNamespace="kube-system", workloadKind="Deployment", workloadName="coredns",
+             containerName="coredns", imageRef="registry.k8s.io/coredns/coredns:v1.11.3",
+             imageDigest=digest_for("coredns", "v1.11.3"), podCount=2),
         # Deliberately long, so the coverage tile's sub-line and the mobile
         # card-stack are put under the load they are meant to survive
         # (ocidex-ag4q.58, .50). A registry path this long is ordinary on GKE.
-        dict(k8s_namespace="observability", workload_kind="StatefulSet",
-             workload_name="kube-prometheus-stack-grafana-agent-operator",
-             container_name="grafana-agent-operator-with-a-long-container-name",
-             image_ref="europe-west4-docker.pkg.dev/acme-platform-prod/observability-images/"
+        dict(k8sNamespace="observability", workloadKind="StatefulSet",
+             workloadName="kube-prometheus-stack-grafana-agent-operator",
+             containerName="grafana-agent-operator-with-a-long-container-name",
+             imageRef="europe-west4-docker.pkg.dev/acme-platform-prod/observability-images/"
                        "kube-prometheus-stack/grafana-agent-operator:v0.42.0-rc.3",
-             image_digest=digest_for("grafana-agent-operator", "v0.42.0"), pod_count=1),
+             imageDigest=digest_for("grafana-agent-operator", "v0.42.0"), podCount=1),
         # unresolvable: no digest at all -- an agent or runtime gap, and the
         # state most easily mistaken for "fine" if it is not styled apart.
-        dict(k8s_namespace="default", workload_kind="Deployment", workload_name="legacy-adapter",
-             container_name="adapter",
-             image_ref="internal-registry.acme.corp/legacy/adapter:latest", pod_count=2),
-        dict(k8s_namespace="default", workload_kind="CronJob", workload_name="nightly-export",
-             container_name="export",
-             image_ref="internal-registry.acme.corp/legacy/export:2024-11", pod_count=1),
+        dict(k8sNamespace="default", workloadKind="Deployment", workloadName="legacy-adapter",
+             containerName="adapter",
+             imageRef="internal-registry.acme.corp/legacy/adapter:latest", podCount=2),
+        dict(k8sNamespace="default", workloadKind="CronJob", workloadName="nightly-export",
+             containerName="export",
+             imageRef="internal-registry.acme.corp/legacy/export:2024-11", podCount=1),
     ]
     status, body = api.post(f"/api/v1/clusters/{cluster_id}/inventory", {"workloads": workloads})
     if status not in (200, 201):

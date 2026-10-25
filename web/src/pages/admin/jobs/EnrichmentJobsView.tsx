@@ -60,8 +60,8 @@ export function EnrichmentJobsView() {
         const t = textFilter().toLowerCase();
         return (q.data.data ?? []).filter(job =>
             !t ||
-            (job.artifact_name ?? "").toLowerCase().includes(t) ||
-            (job.sbom_digest ?? "").toLowerCase().includes(t)
+            (job.artifactName ?? "").toLowerCase().includes(t) ||
+            (job.sbomDigest ?? "").toLowerCase().includes(t)
         );
     };
 
@@ -69,15 +69,15 @@ export function EnrichmentJobsView() {
         stateColumn(),
         {
             header: "Enricher",
-            render: (job) => <code>{job.enricher_name}</code>,
+            render: (job) => <code>{job.enricherName}</code>,
         },
         {
             header: "Image",
             render: (job) => (
                 <>
-                    <code>{job.artifact_name ?? "—"}</code>
-                    <Show when={job.sbom_digest}>
-                        <DigestLine digest={job.sbom_digest ?? ""} />
+                    <code>{job.artifactName ?? "—"}</code>
+                    <Show when={job.sbomDigest}>
+                        <DigestLine digest={job.sbomDigest ?? ""} />
                     </Show>
                 </>
             ),

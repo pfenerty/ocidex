@@ -283,7 +283,7 @@
       "ArtifactTypeCountEntry": {
         "additionalProperties": false,
         "properties": {
-          "artifact_count": {
+          "artifactCount": {
             "format": "int64",
             "type": "integer"
           },
@@ -293,7 +293,7 @@
         },
         "required": [
           "type",
-          "artifact_count"
+          "artifactCount"
         ],
         "type": "object"
       },
@@ -451,14 +451,14 @@
           "category": {
             "type": "string"
           },
-          "component_count": {
+          "componentCount": {
             "format": "int64",
             "type": "integer"
           }
         },
         "required": [
           "category",
-          "component_count"
+          "componentCount"
         ],
         "type": "object"
       },
@@ -633,25 +633,25 @@
       "ClusterImageResponse": {
         "additionalProperties": false,
         "properties": {
-          "artifact_id": {
+          "artifactId": {
             "type": "string"
           },
-          "artifact_name": {
+          "artifactName": {
             "type": "string"
           },
-          "artifact_type": {
+          "artifactType": {
             "type": "string"
           },
-          "image_digest": {
+          "imageDigest": {
             "type": "string"
           },
-          "image_ref": {
+          "imageRef": {
             "type": "string"
           },
-          "last_seen_at": {
+          "lastSeenAt": {
             "type": "string"
           },
-          "match_state": {
+          "matchState": {
             "description": "exact = digest matched an SBOM; index = matched a multi-arch image index, so the exact platform is unknown; unknown = real digest with no ingested SBOM (coverage gap); unresolvable = no digest could be read from the container (agent/runtime gap)",
             "enum": [
               "exact",
@@ -661,45 +661,45 @@
             ],
             "type": "string"
           },
-          "namespace_count": {
+          "namespaceCount": {
             "description": "Kubernetes namespaces the image appears in",
             "format": "int64",
             "type": "integer"
           },
-          "pod_count": {
+          "podCount": {
             "description": "Running pods those workload-containers add up to",
             "format": "int64",
             "type": "integer"
           },
-          "sample_namespace": {
+          "sampleNamespace": {
             "type": "string"
           },
-          "sample_workload": {
+          "sampleWorkload": {
             "type": "string"
           },
-          "sbom_id": {
+          "sbomId": {
             "type": "string"
           },
-          "subject_version": {
+          "subjectVersion": {
             "type": "string"
           },
           "vulns": {
             "$ref": "#/components/schemas/WorkloadVulnCounts",
             "description": "Findings in the matched SBOM. Absent when no SBOM matched — absence is not zero"
           },
-          "workload_count": {
+          "workloadCount": {
             "description": "Workload-containers running this image",
             "format": "int64",
             "type": "integer"
           }
         },
         "required": [
-          "image_ref",
-          "workload_count",
-          "pod_count",
-          "namespace_count",
-          "last_seen_at",
-          "match_state"
+          "imageRef",
+          "workloadCount",
+          "podCount",
+          "namespaceCount",
+          "lastSeenAt",
+          "matchState"
         ],
         "type": "object"
       },
@@ -715,11 +715,11 @@
             "readOnly": true,
             "type": "string"
           },
-          "auto_ingest": {
+          "autoIngest": {
             "description": "Submit a scan job for every running image with no SBOM whose host resolves to a registry in this cluster's namespace, on every accepted snapshot.",
             "type": "boolean"
           },
-          "created_at": {
+          "createdAt": {
             "type": "string"
           },
           "description": {
@@ -728,71 +728,71 @@
           "id": {
             "type": "string"
           },
-          "last_seen_at": {
+          "lastSeenAt": {
             "description": "When an agent last pushed a snapshot. Empty means no agent has ever reported: a cluster showing no workloads for this reason is not a cluster running nothing.",
             "type": "string"
           },
           "name": {
             "type": "string"
           },
-          "namespace_id": {
+          "namespaceId": {
             "type": "string"
           },
-          "namespace_name": {
+          "namespaceName": {
             "description": "Owning namespace name; populated on list responses",
             "type": "string"
           },
-          "updated_at": {
+          "updatedAt": {
             "type": "string"
           }
         },
         "required": [
           "id",
-          "namespace_id",
+          "namespaceId",
           "name",
-          "auto_ingest",
-          "created_at",
-          "updated_at"
+          "autoIngest",
+          "createdAt",
+          "updatedAt"
         ],
         "type": "object"
       },
       "ClusterWorkloadResponse": {
         "additionalProperties": false,
         "properties": {
-          "artifact_id": {
+          "artifactId": {
             "type": "string"
           },
-          "artifact_name": {
+          "artifactName": {
             "type": "string"
           },
-          "artifact_type": {
+          "artifactType": {
             "type": "string"
           },
-          "cluster_id": {
+          "clusterId": {
             "type": "string"
           },
-          "container_name": {
+          "containerName": {
             "type": "string"
           },
-          "first_seen_at": {
+          "firstSeenAt": {
             "type": "string"
           },
           "id": {
             "type": "string"
           },
-          "image_digest": {
+          "imageDigest": {
             "type": "string"
           },
-          "image_ref": {
+          "imageRef": {
             "type": "string"
           },
-          "k8s_namespace": {
+          "k8sNamespace": {
             "type": "string"
           },
-          "last_seen_at": {
+          "lastSeenAt": {
             "type": "string"
           },
-          "match_state": {
+          "matchState": {
             "description": "exact = digest matched an SBOM; index = matched a multi-arch image index, so the exact platform is unknown; unknown = real digest with no ingested SBOM (coverage gap); unresolvable = no digest could be read from the container (agent/runtime gap)",
             "enum": [
               "exact",
@@ -802,39 +802,39 @@
             ],
             "type": "string"
           },
-          "pod_count": {
+          "podCount": {
             "format": "int32",
             "type": "integer"
           },
-          "sbom_id": {
+          "sbomId": {
             "type": "string"
           },
-          "subject_version": {
+          "subjectVersion": {
             "type": "string"
           },
           "vulns": {
             "$ref": "#/components/schemas/WorkloadVulnCounts",
             "description": "Findings in the matched SBOM. Absent when no SBOM matched — absence is not zero"
           },
-          "workload_kind": {
+          "workloadKind": {
             "type": "string"
           },
-          "workload_name": {
+          "workloadName": {
             "type": "string"
           }
         },
         "required": [
           "id",
-          "cluster_id",
-          "k8s_namespace",
-          "workload_kind",
-          "workload_name",
-          "container_name",
-          "image_ref",
-          "pod_count",
-          "first_seen_at",
-          "last_seen_at",
-          "match_state"
+          "clusterId",
+          "k8sNamespace",
+          "workloadKind",
+          "workloadName",
+          "containerName",
+          "imageRef",
+          "podCount",
+          "firstSeenAt",
+          "lastSeenAt",
+          "matchState"
         ],
         "type": "object"
       },
@@ -1349,14 +1349,14 @@
             "minLength": 1,
             "type": "string"
           },
-          "namespace_id": {
+          "namespaceId": {
             "description": "Owning namespace UUID",
             "format": "uuid",
             "type": "string"
           }
         },
         "required": [
-          "namespace_id",
+          "namespaceId",
           "name"
         ],
         "type": "object"
@@ -1405,15 +1405,15 @@
             "readOnly": true,
             "type": "string"
           },
-          "auth_token": {
+          "authToken": {
             "description": "Token or PAT for registry authentication; omit for anonymous access",
             "type": "string"
           },
-          "auth_username": {
+          "authUsername": {
             "description": "Username for registry authentication; omit for anonymous access",
             "type": "string"
           },
-          "include_untagged": {
+          "includeUntagged": {
             "description": "Scan untagged manifests via registry-specific APIs (supported: zot, harbor, ghcr)",
             "type": "boolean"
           },
@@ -1421,15 +1421,15 @@
             "description": "Allow HTTP (non-TLS) connections",
             "type": "boolean"
           },
-          "managed_by": {
+          "managedBy": {
             "description": "External system that owns this registry's configuration (e.g. kubernetes); set by that system's controller, not by hand",
             "type": "string"
           },
-          "managed_ref": {
+          "managedRef": {
             "description": "Identifier within the managing system, e.g. '\u003cnamespace\u003e/\u003cname\u003e' of the OCIRegistry resource",
             "type": "string"
           },
-          "max_tag_age_days": {
+          "maxTagAgeDays": {
             "description": "Skip tags whose image is older than this many days; needs the created order. 0 = no age limit",
             "format": "int64",
             "maximum": 36500,
@@ -1447,7 +1447,7 @@
             "maxLength": 100,
             "type": "string"
           },
-          "poll_interval_minutes": {
+          "pollIntervalMinutes": {
             "description": "Minutes between polls",
             "format": "int64",
             "minimum": 1,
@@ -1463,7 +1463,7 @@
               "null"
             ]
           },
-          "repository_patterns": {
+          "repositoryPatterns": {
             "description": "Glob patterns for repositories to ingest; empty = all",
             "items": {
               "type": "string"
@@ -1473,7 +1473,7 @@
               "null"
             ]
           },
-          "scan_mode": {
+          "scanMode": {
             "description": "Scanning mode",
             "enum": [
               "webhook",
@@ -1482,15 +1482,15 @@
             ],
             "type": "string"
           },
-          "tag_limit": {
+          "tagLimit": {
             "description": "Newest tags kept per repository (ADR-0053); 0 = unlimited. Defaults to 50",
             "format": "int64",
             "maximum": 100000,
             "minimum": 0,
             "type": "integer"
           },
-          "tag_order": {
-            "description": "How 'newest' is decided; auto (the default) = semver when tag_patterns contains semver, created otherwise",
+          "tagOrder": {
+            "description": "How 'newest' is decided; auto (the default) = semver when tagPatterns contains semver, created otherwise",
             "enum": [
               "auto",
               "semver",
@@ -1499,7 +1499,7 @@
             ],
             "type": "string"
           },
-          "tag_patterns": {
+          "tagPatterns": {
             "description": "Glob patterns or 'semver' for tags to ingest; empty = all",
             "items": {
               "type": "string"
@@ -1509,16 +1509,16 @@
               "null"
             ]
           },
-          "trust_identity": {
-            "description": "Regex matched against the Fulcio certificate SAN; required when verification_mode is keyless",
+          "trustIdentity": {
+            "description": "Regex matched against the Fulcio certificate SAN; required when verificationMode is keyless",
             "type": "string"
           },
-          "trust_issuer": {
-            "description": "Expected OIDC issuer URL; required when verification_mode is keyless",
+          "trustIssuer": {
+            "description": "Expected OIDC issuer URL; required when verificationMode is keyless",
             "type": "string"
           },
-          "trust_public_key": {
-            "description": "PEM-encoded EC public key; required when verification_mode is public_key",
+          "trustPublicKey": {
+            "description": "PEM-encoded EC public key; required when verificationMode is public_key",
             "type": "string"
           },
           "type": {
@@ -1537,7 +1537,7 @@
             "minLength": 1,
             "type": "string"
           },
-          "verification_mode": {
+          "verificationMode": {
             "description": "Signature verification mode; defaults to none",
             "enum": [
               "none",
@@ -1555,7 +1555,7 @@
             ],
             "type": "string"
           },
-          "webhook_secret": {
+          "webhookSecret": {
             "description": "Bearer token required on incoming webhooks; omit to disable auth",
             "type": "string"
           }
@@ -1580,44 +1580,44 @@
             "readOnly": true,
             "type": "string"
           },
-          "created_at": {
+          "createdAt": {
             "type": "string"
           },
           "enabled": {
             "type": "boolean"
           },
-          "has_auth": {
+          "hasAuth": {
             "type": "boolean"
           },
-          "has_secret": {
+          "hasSecret": {
             "type": "boolean"
           },
           "id": {
             "type": "string"
           },
-          "include_untagged": {
+          "includeUntagged": {
             "description": "Scan untagged manifests via registry-specific APIs (supported: zot, harbor, ghcr)",
             "type": "boolean"
           },
           "insecure": {
             "type": "boolean"
           },
-          "last_polled_at": {
+          "lastPolledAt": {
             "type": "string"
           },
-          "last_walk": {
+          "lastWalk": {
             "$ref": "#/components/schemas/WalkStats",
             "description": "What the most recent catalog walk selected; absent until the first walk"
           },
-          "managed_by": {
+          "managedBy": {
             "description": "External system that owns this registry's configuration (e.g. kubernetes); absent when managed through this API",
             "type": "string"
           },
-          "managed_ref": {
+          "managedRef": {
             "description": "Identifier within the managing system, e.g. '\u003cnamespace\u003e/\u003cname\u003e' of the OCIRegistry resource",
             "type": "string"
           },
-          "max_tag_age_days": {
+          "maxTagAgeDays": {
             "description": "Tags whose image is older than this many days are skipped; 0 = no age limit",
             "format": "int64",
             "type": "integer"
@@ -1625,7 +1625,7 @@
           "name": {
             "type": "string"
           },
-          "poll_interval_minutes": {
+          "pollIntervalMinutes": {
             "format": "int64",
             "type": "integer"
           },
@@ -1639,7 +1639,7 @@
               "null"
             ]
           },
-          "repository_patterns": {
+          "repositoryPatterns": {
             "description": "Glob patterns for repositories to ingest; empty = all",
             "items": {
               "type": "string"
@@ -1649,16 +1649,16 @@
               "null"
             ]
           },
-          "scan_mode": {
+          "scanMode": {
             "type": "string"
           },
-          "tag_limit": {
+          "tagLimit": {
             "description": "Newest tags kept per repository (ADR-0053); 0 = unlimited",
             "format": "int64",
             "type": "integer"
           },
-          "tag_order": {
-            "description": "How 'newest' is decided; auto = semver when tag_patterns contains semver, created otherwise",
+          "tagOrder": {
+            "description": "How 'newest' is decided; auto = semver when tagPatterns contains semver, created otherwise",
             "enum": [
               "auto",
               "semver",
@@ -1667,7 +1667,7 @@
             ],
             "type": "string"
           },
-          "tag_patterns": {
+          "tagPatterns": {
             "description": "Glob patterns or 'semver' for tags to ingest; empty = all",
             "items": {
               "type": "string"
@@ -1677,28 +1677,28 @@
               "null"
             ]
           },
-          "trust_identity": {
+          "trustIdentity": {
             "description": "Regex matched against the Fulcio certificate SAN; required for keyless verification mode",
             "type": "string"
           },
-          "trust_issuer": {
+          "trustIssuer": {
             "description": "Expected OIDC issuer URL; required for keyless verification mode",
             "type": "string"
           },
-          "trust_public_key": {
+          "trustPublicKey": {
             "description": "PEM-encoded EC public key for public_key verification mode",
             "type": "string"
           },
           "type": {
             "type": "string"
           },
-          "updated_at": {
+          "updatedAt": {
             "type": "string"
           },
           "url": {
             "type": "string"
           },
-          "verification_mode": {
+          "verificationMode": {
             "description": "Signature verification mode",
             "enum": [
               "none",
@@ -1711,11 +1711,11 @@
             "description": "Registry visibility: public or private",
             "type": "string"
           },
-          "webhook_secret": {
+          "webhookSecret": {
             "description": "Generated webhook secret — shown once only. Store it securely; it cannot be retrieved again.",
             "type": "string"
           },
-          "webhook_url": {
+          "webhookUrl": {
             "type": "string"
           }
         },
@@ -1725,23 +1725,23 @@
           "type",
           "url",
           "insecure",
-          "has_secret",
-          "has_auth",
+          "hasSecret",
+          "hasAuth",
           "enabled",
-          "webhook_url",
+          "webhookUrl",
           "repositories",
-          "repository_patterns",
-          "tag_patterns",
-          "scan_mode",
-          "poll_interval_minutes",
-          "created_at",
-          "updated_at",
+          "repositoryPatterns",
+          "tagPatterns",
+          "scanMode",
+          "pollIntervalMinutes",
+          "createdAt",
+          "updatedAt",
           "visibility",
-          "include_untagged",
-          "verification_mode",
-          "tag_limit",
-          "tag_order",
-          "max_tag_age_days"
+          "includeUntagged",
+          "verificationMode",
+          "tagLimit",
+          "tagOrder",
+          "maxTagAgeDays"
         ],
         "type": "object"
       },
@@ -1763,14 +1763,14 @@
             "minLength": 1,
             "type": "string"
           },
-          "namespace_id": {
+          "namespaceId": {
             "description": "Owning namespace UUID",
             "format": "uuid",
             "type": "string"
           }
         },
         "required": [
-          "namespace_id",
+          "namespaceId",
           "name"
         ],
         "type": "object"
@@ -1801,7 +1801,7 @@
       "DBStatus": {
         "additionalProperties": false,
         "properties": {
-          "latency_ms": {
+          "latencyMs": {
             "format": "int64",
             "type": "integer"
           },
@@ -1811,7 +1811,7 @@
         },
         "required": [
           "ok",
-          "latency_ms"
+          "latencyMs"
         ],
         "type": "object"
       },
@@ -1844,11 +1844,11 @@
             "readOnly": true,
             "type": "string"
           },
-          "artifact_count": {
+          "artifactCount": {
             "format": "int64",
             "type": "integer"
           },
-          "artifact_types": {
+          "artifactTypes": {
             "items": {
               "$ref": "#/components/schemas/ArtifactTypeCountEntry"
             },
@@ -1857,7 +1857,7 @@
               "null"
             ]
           },
-          "ingestion_timeline": {
+          "ingestionTimeline": {
             "items": {
               "$ref": "#/components/schemas/DailyCountEntry"
             },
@@ -1866,7 +1866,7 @@
               "null"
             ]
           },
-          "license_categories": {
+          "licenseCategories": {
             "items": {
               "$ref": "#/components/schemas/CategoryCountEntry"
             },
@@ -1875,15 +1875,15 @@
               "null"
             ]
           },
-          "license_count": {
+          "licenseCount": {
             "format": "int64",
             "type": "integer"
           },
-          "package_count": {
+          "packageCount": {
             "format": "int64",
             "type": "integer"
           },
-          "package_growth_timeline": {
+          "packageGrowthTimeline": {
             "items": {
               "$ref": "#/components/schemas/DailyCountEntry"
             },
@@ -1892,11 +1892,11 @@
               "null"
             ]
           },
-          "sbom_count": {
+          "sbomCount": {
             "format": "int64",
             "type": "integer"
           },
-          "top_packages": {
+          "topPackages": {
             "items": {
               "$ref": "#/components/schemas/PackageSummaryEntry"
             },
@@ -1905,11 +1905,11 @@
               "null"
             ]
           },
-          "version_count": {
+          "versionCount": {
             "format": "int64",
             "type": "integer"
           },
-          "version_growth_timeline": {
+          "versionGrowthTimeline": {
             "items": {
               "$ref": "#/components/schemas/DailyCountEntry"
             },
@@ -1918,11 +1918,11 @@
               "null"
             ]
           },
-          "vuln_count": {
+          "vulnCount": {
             "format": "int64",
             "type": "integer"
           },
-          "vuln_severity": {
+          "vulnSeverity": {
             "$ref": "#/components/schemas/VulnSeverityEntry"
           },
           "warming": {
@@ -1931,19 +1931,19 @@
           }
         },
         "required": [
-          "artifact_count",
-          "sbom_count",
-          "package_count",
-          "version_count",
-          "license_count",
-          "artifact_types",
-          "license_categories",
-          "ingestion_timeline",
-          "package_growth_timeline",
-          "version_growth_timeline",
-          "top_packages",
-          "vuln_count",
-          "vuln_severity",
+          "artifactCount",
+          "sbomCount",
+          "packageCount",
+          "versionCount",
+          "licenseCount",
+          "artifactTypes",
+          "licenseCategories",
+          "ingestionTimeline",
+          "packageGrowthTimeline",
+          "versionGrowthTimeline",
+          "topPackages",
+          "vulnCount",
+          "vulnSeverity",
           "warming"
         ],
         "type": "object"
@@ -2252,11 +2252,11 @@
             "readOnly": true,
             "type": "string"
           },
-          "generated_at": {
+          "generatedAt": {
             "description": "When this snapshot was computed; absent while warming",
             "type": "string"
           },
-          "license_spread": {
+          "licenseSpread": {
             "description": "License distribution across public content, by distinct package identity",
             "items": {
               "$ref": "#/components/schemas/DiscoverLicense"
@@ -2266,7 +2266,7 @@
               "null"
             ]
           },
-          "recent_artifacts": {
+          "recentArtifacts": {
             "description": "Most recently updated public artifacts, one row per artifact",
             "items": {
               "$ref": "#/components/schemas/DiscoverRecent"
@@ -2276,7 +2276,7 @@
               "null"
             ]
           },
-          "top_artifacts": {
+          "topArtifacts": {
             "description": "Artifacts ranked by how widely they are used, how many versions are tracked, and how recently they were seen",
             "items": {
               "$ref": "#/components/schemas/DiscoverArtifact"
@@ -2286,7 +2286,7 @@
               "null"
             ]
           },
-          "top_vulnerabilities": {
+          "topVulnerabilities": {
             "description": "Vulnerabilities ranked by how many public artifacts they affect",
             "items": {
               "$ref": "#/components/schemas/DiscoverVuln"
@@ -2302,10 +2302,10 @@
           }
         },
         "required": [
-          "top_artifacts",
-          "recent_artifacts",
-          "top_vulnerabilities",
-          "license_spread",
+          "topArtifacts",
+          "recentArtifacts",
+          "topVulnerabilities",
+          "licenseSpread",
           "warming"
         ],
         "type": "object"
@@ -2355,7 +2355,7 @@
       "EnrichmentJobResponse": {
         "additionalProperties": false,
         "properties": {
-          "artifact_name": {
+          "artifactName": {
             "description": "Name of the artifact, for display",
             "type": "string"
           },
@@ -2363,10 +2363,10 @@
             "format": "int32",
             "type": "integer"
           },
-          "created_at": {
+          "createdAt": {
             "type": "string"
           },
-          "enricher_name": {
+          "enricherName": {
             "description": "Which enricher this job runs",
             "enum": [
               "user",
@@ -2375,28 +2375,28 @@
             ],
             "type": "string"
           },
-          "finished_at": {
+          "finishedAt": {
             "type": "string"
           },
           "id": {
             "description": "Job UUID",
             "type": "string"
           },
-          "last_attempt_at": {
+          "lastAttemptAt": {
             "type": "string"
           },
-          "last_error": {
+          "lastError": {
             "type": "string"
           },
-          "sbom_digest": {
+          "sbomDigest": {
             "description": "Digest of the SBOM's image, for display",
             "type": "string"
           },
-          "sbom_id": {
+          "sbomId": {
             "description": "SBOM being enriched",
             "type": "string"
           },
-          "started_at": {
+          "startedAt": {
             "type": "string"
           },
           "state": {
@@ -2408,17 +2408,17 @@
             ],
             "type": "string"
           },
-          "worker_id": {
+          "workerId": {
             "description": "Pod hostname that is processing this job",
             "type": "string"
           }
         },
         "required": [
           "id",
-          "enricher_name",
+          "enricherName",
           "state",
           "attempts",
-          "created_at"
+          "createdAt"
         ],
         "type": "object"
       },
@@ -2429,7 +2429,7 @@
             "format": "int64",
             "type": "integer"
           },
-          "enricher_name": {
+          "enricherName": {
             "type": "string"
           },
           "state": {
@@ -2437,7 +2437,7 @@
           }
         },
         "required": [
-          "enricher_name",
+          "enricherName",
           "state",
           "count"
         ],
@@ -2476,7 +2476,7 @@
           "enabled": {
             "type": "boolean"
           },
-          "queue_size": {
+          "queueSize": {
             "format": "int64",
             "type": "integer"
           },
@@ -2488,7 +2488,7 @@
         "required": [
           "enabled",
           "workers",
-          "queue_size"
+          "queueSize"
         ],
         "type": "object"
       },
@@ -2913,11 +2913,11 @@
       "IdentityResponse": {
         "additionalProperties": false,
         "properties": {
-          "created_at": {
+          "createdAt": {
             "format": "date-time",
             "type": "string"
           },
-          "display_name": {
+          "displayName": {
             "description": "Label for the issuer",
             "type": "string"
           },
@@ -2941,9 +2941,9 @@
         "required": [
           "id",
           "provider",
-          "display_name",
+          "displayName",
           "subject",
-          "created_at"
+          "createdAt"
         ],
         "type": "object"
       },
@@ -3004,7 +3004,7 @@
             "readOnly": true,
             "type": "string"
           },
-          "image_digests": {
+          "imageDigests": {
             "description": "Limit the run to these running image digests. Omit to ingest every unknown image the cluster reports.",
             "items": {
               "type": "string"
@@ -3034,7 +3034,7 @@
             "format": "int64",
             "type": "integer"
           },
-          "egress_denied": {
+          "egressDenied": {
             "description": "The host is in an address range the egress policy refuses; not retried",
             "format": "int64",
             "type": "integer"
@@ -3049,17 +3049,17 @@
             "format": "int64",
             "type": "integer"
           },
-          "skipped_existing": {
+          "skippedExisting": {
             "description": "Already has a scan job: scanning, failed, or deleted on purpose. A repeat snapshot lands here.",
             "format": "int64",
             "type": "integer"
           },
-          "skipped_registry_disabled": {
+          "skippedRegistryDisabled": {
             "description": "The host matches a registry that is switched off",
             "format": "int64",
             "type": "integer"
           },
-          "skipped_unparseable_ref": {
+          "skippedUnparseableRef": {
             "description": "The reported reference carries no host to resolve against",
             "format": "int64",
             "type": "integer"
@@ -3073,11 +3073,11 @@
         "required": [
           "considered",
           "queued",
-          "skipped_existing",
+          "skippedExisting",
           "unauthorized",
-          "egress_denied",
-          "skipped_registry_disabled",
-          "skipped_unparseable_ref",
+          "egressDenied",
+          "skippedRegistryDisabled",
+          "skippedUnparseableRef",
           "failed"
         ],
         "type": "object"
@@ -3085,53 +3085,53 @@
       "InventoryWorkload": {
         "additionalProperties": false,
         "properties": {
-          "container_name": {
+          "containerName": {
             "maxLength": 253,
             "minLength": 1,
             "type": "string"
           },
-          "image_digest": {
+          "imageDigest": {
             "description": "Normalized digest from status.containerStatuses[].imageID. Omit when the agent could not extract one — that is reported as 'unresolvable', not silently dropped.",
             "pattern": "^sha256:[0-9a-f]{64}$",
             "type": "string"
           },
-          "image_ref": {
+          "imageRef": {
             "description": "Image reference, for display only. Never used as an identity: a tag is mutable.",
             "maxLength": 2048,
             "minLength": 1,
             "type": "string"
           },
-          "k8s_namespace": {
+          "k8sNamespace": {
             "description": "Kubernetes namespace the workload runs in",
             "maxLength": 253,
             "minLength": 1,
             "type": "string"
           },
-          "pod_count": {
+          "podCount": {
             "description": "Running pods carrying this container at this digest",
             "format": "int32",
             "minimum": 0,
             "type": "integer"
           },
-          "workload_kind": {
+          "workloadKind": {
             "description": "Owning workload kind (Deployment, StatefulSet, DaemonSet, Job, CronJob, Pod)",
             "maxLength": 63,
             "minLength": 1,
             "type": "string"
           },
-          "workload_name": {
+          "workloadName": {
             "maxLength": 253,
             "minLength": 1,
             "type": "string"
           }
         },
         "required": [
-          "k8s_namespace",
-          "workload_kind",
-          "workload_name",
-          "container_name",
-          "image_ref",
-          "pod_count"
+          "k8sNamespace",
+          "workloadKind",
+          "workloadName",
+          "containerName",
+          "imageRef",
+          "podCount"
         ],
         "type": "object"
       },
@@ -3148,7 +3148,7 @@
               "null"
             ]
           },
-          "created_at": {
+          "createdAt": {
             "format": "date-time",
             "type": "string"
           },
@@ -3156,7 +3156,7 @@
             "description": "Key UUID",
             "type": "string"
           },
-          "last_used_at": {
+          "lastUsedAt": {
             "format": "date-time",
             "type": "string"
           },
@@ -3173,7 +3173,7 @@
           "name",
           "prefix",
           "capabilities",
-          "created_at"
+          "createdAt"
         ],
         "type": "object"
       },
@@ -4395,7 +4395,7 @@
             "readOnly": true,
             "type": "string"
           },
-          "display_name": {
+          "displayName": {
             "description": "Name to show for this user; supplied by whichever issuer last signed them in",
             "type": "string"
           },
@@ -4420,7 +4420,7 @@
         },
         "required": [
           "id",
-          "display_name",
+          "displayName",
           "role",
           "memberships"
         ],
@@ -4429,7 +4429,7 @@
       "MyMembership": {
         "additionalProperties": false,
         "properties": {
-          "namespace_id": {
+          "namespaceId": {
             "description": "Namespace UUID",
             "type": "string"
           },
@@ -4446,7 +4446,7 @@
           }
         },
         "required": [
-          "namespace_id",
+          "namespaceId",
           "role"
         ],
         "type": "object"
@@ -4470,18 +4470,18 @@
       "NamespaceFacetResponse": {
         "additionalProperties": false,
         "properties": {
-          "k8s_namespace": {
+          "k8sNamespace": {
             "type": "string"
           },
-          "workload_count": {
+          "workloadCount": {
             "description": "Containers reported in this namespace",
             "format": "int64",
             "type": "integer"
           }
         },
         "required": [
-          "k8s_namespace",
-          "workload_count"
+          "k8sNamespace",
+          "workloadCount"
         ],
         "type": "object"
       },
@@ -4507,7 +4507,7 @@
               "null"
             ]
           },
-          "created_at": {
+          "createdAt": {
             "type": "string"
           },
           "role": {
@@ -4521,7 +4521,7 @@
             ],
             "type": "string"
           },
-          "user_id": {
+          "userId": {
             "description": "UUID of the member",
             "type": "string"
           },
@@ -4531,11 +4531,11 @@
           }
         },
         "required": [
-          "user_id",
+          "userId",
           "username",
           "role",
           "capabilities",
-          "created_at"
+          "createdAt"
         ],
         "type": "object"
       },
@@ -4561,7 +4561,7 @@
               "null"
             ]
           },
-          "created_at": {
+          "createdAt": {
             "type": "string"
           },
           "id": {
@@ -4570,15 +4570,15 @@
           "name": {
             "type": "string"
           },
-          "owner_id": {
+          "ownerId": {
             "description": "UUID of the namespace owner",
             "type": "string"
           },
-          "owner_username": {
+          "ownerUsername": {
             "description": "GitHub username of the namespace owner",
             "type": "string"
           },
-          "updated_at": {
+          "updatedAt": {
             "type": "string"
           },
           "visibility": {
@@ -4594,8 +4594,8 @@
           "id",
           "name",
           "visibility",
-          "created_at",
-          "updated_at"
+          "createdAt",
+          "updatedAt"
         ],
         "type": "object"
       },
@@ -4608,14 +4608,14 @@
           "name": {
             "type": "string"
           },
-          "sbom_count": {
+          "sbomCount": {
             "format": "int64",
             "type": "integer"
           },
           "type": {
             "type": "string"
           },
-          "version_count": {
+          "versionCount": {
             "format": "int64",
             "type": "integer"
           }
@@ -4623,8 +4623,8 @@
         "required": [
           "name",
           "type",
-          "version_count",
-          "sbom_count"
+          "versionCount",
+          "sbomCount"
         ],
         "type": "object"
       },
@@ -4689,15 +4689,15 @@
             "readOnly": true,
             "type": "string"
           },
-          "auth_token": {
+          "authToken": {
             "description": "Token or PAT for registry authentication; omit for anonymous access",
             "type": "string"
           },
-          "auth_username": {
+          "authUsername": {
             "description": "Username for registry authentication; omit for anonymous access",
             "type": "string"
           },
-          "include_untagged": {
+          "includeUntagged": {
             "description": "Scan untagged manifests via registry-specific APIs (supported: zot, harbor, ghcr)",
             "type": "boolean"
           },
@@ -4705,7 +4705,7 @@
             "description": "Allow HTTP (non-TLS) connections",
             "type": "boolean"
           },
-          "max_tag_age_days": {
+          "maxTagAgeDays": {
             "description": "Skip tags whose image is older than this many days; needs the created order",
             "format": "int64",
             "maximum": 36500,
@@ -4722,7 +4722,7 @@
               "null"
             ]
           },
-          "repository_patterns": {
+          "repositoryPatterns": {
             "description": "Glob patterns for repositories to ingest; empty = all",
             "items": {
               "type": "string"
@@ -4732,14 +4732,14 @@
               "null"
             ]
           },
-          "tag_limit": {
+          "tagLimit": {
             "description": "Newest tags kept per repository; 0 = unlimited. Defaults to 50",
             "format": "int64",
             "maximum": 100000,
             "minimum": 0,
             "type": "integer"
           },
-          "tag_order": {
+          "tagOrder": {
             "description": "How 'newest' is decided; defaults to auto",
             "enum": [
               "auto",
@@ -4749,7 +4749,7 @@
             ],
             "type": "string"
           },
-          "tag_patterns": {
+          "tagPatterns": {
             "description": "Glob patterns or 'semver' for tags to ingest; empty = all",
             "items": {
               "type": "string"
@@ -4814,11 +4814,11 @@
       "ProviderResponse": {
         "additionalProperties": false,
         "properties": {
-          "display_name": {
+          "displayName": {
             "description": "Label for a sign-in button",
             "type": "string"
           },
-          "login_path": {
+          "loginPath": {
             "description": "Path on the API to begin a sign-in through this issuer",
             "type": "string"
           },
@@ -4829,8 +4829,8 @@
         },
         "required": [
           "name",
-          "display_name",
-          "login_path"
+          "displayName",
+          "loginPath"
         ],
         "type": "object"
       },
@@ -4884,7 +4884,7 @@
             "format": "int64",
             "type": "integer"
           },
-          "seen_at": {
+          "seenAt": {
             "description": "Timestamp recorded on the cluster",
             "type": "string"
           }
@@ -4892,7 +4892,7 @@
         "required": [
           "accepted",
           "pruned",
-          "seen_at"
+          "seenAt"
         ],
         "type": "object"
       },
@@ -4984,13 +4984,13 @@
             "readOnly": true,
             "type": "string"
           },
-          "webhook_secret": {
+          "webhookSecret": {
             "description": "New webhook secret — shown once only. The previous secret is immediately invalidated.",
             "type": "string"
           }
         },
         "required": [
-          "webhook_secret"
+          "webhookSecret"
         ],
         "type": "object"
       },
@@ -5006,7 +5006,7 @@
             "readOnly": true,
             "type": "string"
           },
-          "estimated_sboms": {
+          "estimatedSboms": {
             "format": "int64",
             "type": "integer"
           },
@@ -5023,7 +5023,7 @@
             "format": "int64",
             "type": "integer"
           },
-          "skipped_by_limit": {
+          "skippedByLimit": {
             "format": "int64",
             "type": "integer"
           }
@@ -5031,8 +5031,8 @@
         "required": [
           "repositories",
           "selected",
-          "skipped_by_limit",
-          "estimated_sboms"
+          "skippedByLimit",
+          "estimatedSboms"
         ],
         "type": "object"
       },
@@ -5048,44 +5048,44 @@
             "readOnly": true,
             "type": "string"
           },
-          "created_at": {
+          "createdAt": {
             "type": "string"
           },
           "enabled": {
             "type": "boolean"
           },
-          "has_auth": {
+          "hasAuth": {
             "type": "boolean"
           },
-          "has_secret": {
+          "hasSecret": {
             "type": "boolean"
           },
           "id": {
             "type": "string"
           },
-          "include_untagged": {
+          "includeUntagged": {
             "description": "Scan untagged manifests via registry-specific APIs (supported: zot, harbor, ghcr)",
             "type": "boolean"
           },
           "insecure": {
             "type": "boolean"
           },
-          "last_polled_at": {
+          "lastPolledAt": {
             "type": "string"
           },
-          "last_walk": {
+          "lastWalk": {
             "$ref": "#/components/schemas/WalkStats",
             "description": "What the most recent catalog walk selected; absent until the first walk"
           },
-          "managed_by": {
+          "managedBy": {
             "description": "External system that owns this registry's configuration (e.g. kubernetes); absent when managed through this API",
             "type": "string"
           },
-          "managed_ref": {
+          "managedRef": {
             "description": "Identifier within the managing system, e.g. '\u003cnamespace\u003e/\u003cname\u003e' of the OCIRegistry resource",
             "type": "string"
           },
-          "max_tag_age_days": {
+          "maxTagAgeDays": {
             "description": "Tags whose image is older than this many days are skipped; 0 = no age limit",
             "format": "int64",
             "type": "integer"
@@ -5093,7 +5093,7 @@
           "name": {
             "type": "string"
           },
-          "poll_interval_minutes": {
+          "pollIntervalMinutes": {
             "format": "int64",
             "type": "integer"
           },
@@ -5107,7 +5107,7 @@
               "null"
             ]
           },
-          "repository_patterns": {
+          "repositoryPatterns": {
             "description": "Glob patterns for repositories to ingest; empty = all",
             "items": {
               "type": "string"
@@ -5117,16 +5117,16 @@
               "null"
             ]
           },
-          "scan_mode": {
+          "scanMode": {
             "type": "string"
           },
-          "tag_limit": {
+          "tagLimit": {
             "description": "Newest tags kept per repository (ADR-0053); 0 = unlimited",
             "format": "int64",
             "type": "integer"
           },
-          "tag_order": {
-            "description": "How 'newest' is decided; auto = semver when tag_patterns contains semver, created otherwise",
+          "tagOrder": {
+            "description": "How 'newest' is decided; auto = semver when tagPatterns contains semver, created otherwise",
             "enum": [
               "auto",
               "semver",
@@ -5135,7 +5135,7 @@
             ],
             "type": "string"
           },
-          "tag_patterns": {
+          "tagPatterns": {
             "description": "Glob patterns or 'semver' for tags to ingest; empty = all",
             "items": {
               "type": "string"
@@ -5145,28 +5145,28 @@
               "null"
             ]
           },
-          "trust_identity": {
+          "trustIdentity": {
             "description": "Regex matched against the Fulcio certificate SAN; required for keyless verification mode",
             "type": "string"
           },
-          "trust_issuer": {
+          "trustIssuer": {
             "description": "Expected OIDC issuer URL; required for keyless verification mode",
             "type": "string"
           },
-          "trust_public_key": {
+          "trustPublicKey": {
             "description": "PEM-encoded EC public key for public_key verification mode",
             "type": "string"
           },
           "type": {
             "type": "string"
           },
-          "updated_at": {
+          "updatedAt": {
             "type": "string"
           },
           "url": {
             "type": "string"
           },
-          "verification_mode": {
+          "verificationMode": {
             "description": "Signature verification mode",
             "enum": [
               "none",
@@ -5179,7 +5179,7 @@
             "description": "Registry visibility: public or private",
             "type": "string"
           },
-          "webhook_url": {
+          "webhookUrl": {
             "type": "string"
           }
         },
@@ -5189,23 +5189,23 @@
           "type",
           "url",
           "insecure",
-          "has_secret",
-          "has_auth",
+          "hasSecret",
+          "hasAuth",
           "enabled",
-          "webhook_url",
+          "webhookUrl",
           "repositories",
-          "repository_patterns",
-          "tag_patterns",
-          "scan_mode",
-          "poll_interval_minutes",
-          "created_at",
-          "updated_at",
+          "repositoryPatterns",
+          "tagPatterns",
+          "scanMode",
+          "pollIntervalMinutes",
+          "createdAt",
+          "updatedAt",
           "visibility",
-          "include_untagged",
-          "verification_mode",
-          "tag_limit",
-          "tag_order",
-          "max_tag_age_days"
+          "includeUntagged",
+          "verificationMode",
+          "tagLimit",
+          "tagOrder",
+          "maxTagAgeDays"
         ],
         "type": "object"
       },
@@ -5274,7 +5274,7 @@
             "description": "Why this repository could not be previewed; the others still are",
             "type": "string"
           },
-          "estimated_sboms": {
+          "estimatedSboms": {
             "description": "(selected tags x platforms) + untagged manifests; an estimate, since tags can share digests and platforms vary",
             "format": "int64",
             "type": "integer"
@@ -5297,18 +5297,18 @@
             "format": "int64",
             "type": "integer"
           },
-          "skipped_by_age": {
-            "description": "Matching tags older than max_tag_age_days, or with no build date while it is set",
+          "skippedByAge": {
+            "description": "Matching tags older than maxTagAgeDays, or with no build date while it is set",
             "format": "int64",
             "type": "integer"
           },
-          "skipped_by_limit": {
-            "description": "Matching tags past tag_limit",
+          "skippedByLimit": {
+            "description": "Matching tags past tagLimit",
             "format": "int64",
             "type": "integer"
           },
           "untagged": {
-            "description": "Untagged manifests inside the untagged window (include_untagged only)",
+            "description": "Untagged manifests inside the untagged window (includeUntagged only)",
             "format": "int64",
             "type": "integer"
           }
@@ -5317,11 +5317,11 @@
           "repository",
           "matched",
           "selected",
-          "skipped_by_limit",
-          "skipped_by_age",
+          "skippedByLimit",
+          "skippedByAge",
           "untagged",
           "platforms",
-          "estimated_sboms"
+          "estimatedSboms"
         ],
         "type": "object"
       },
@@ -5374,11 +5374,11 @@
       "RunningVulnResponse": {
         "additionalProperties": false,
         "properties": {
-          "canonical_id": {
+          "canonicalId": {
             "description": "The id this finding is keyed and linked by, normally a CVE. Aliased advisories are collapsed into one row.",
             "type": "string"
           },
-          "cvss_score": {
+          "cvssScore": {
             "format": "float",
             "type": "number"
           },
@@ -5392,7 +5392,7 @@
           "summary": {
             "type": "string"
           },
-          "workload_count": {
+          "workloadCount": {
             "description": "Distinct running workloads affected in this cluster",
             "format": "int64",
             "type": "integer"
@@ -5400,51 +5400,51 @@
         },
         "required": [
           "id",
-          "canonical_id",
-          "workload_count"
+          "canonicalId",
+          "workloadCount"
         ],
         "type": "object"
       },
       "RunningWorkloadResponse": {
         "additionalProperties": false,
         "properties": {
-          "artifact_id": {
+          "artifactId": {
             "type": "string"
           },
-          "artifact_name": {
+          "artifactName": {
             "type": "string"
           },
-          "artifact_type": {
+          "artifactType": {
             "type": "string"
           },
-          "cluster_id": {
+          "clusterId": {
             "type": "string"
           },
-          "cluster_name": {
+          "clusterName": {
             "type": "string"
           },
-          "container_name": {
+          "containerName": {
             "type": "string"
           },
-          "first_seen_at": {
+          "firstSeenAt": {
             "type": "string"
           },
           "id": {
             "type": "string"
           },
-          "image_digest": {
+          "imageDigest": {
             "type": "string"
           },
-          "image_ref": {
+          "imageRef": {
             "type": "string"
           },
-          "k8s_namespace": {
+          "k8sNamespace": {
             "type": "string"
           },
-          "last_seen_at": {
+          "lastSeenAt": {
             "type": "string"
           },
-          "match_state": {
+          "matchState": {
             "description": "exact = digest matched an SBOM; index = matched a multi-arch image index, so the exact platform is unknown; unknown = real digest with no ingested SBOM (coverage gap); unresolvable = no digest could be read from the container (agent/runtime gap)",
             "enum": [
               "exact",
@@ -5454,40 +5454,40 @@
             ],
             "type": "string"
           },
-          "pod_count": {
+          "podCount": {
             "format": "int32",
             "type": "integer"
           },
-          "sbom_id": {
+          "sbomId": {
             "type": "string"
           },
-          "subject_version": {
+          "subjectVersion": {
             "type": "string"
           },
           "vulns": {
             "$ref": "#/components/schemas/WorkloadVulnCounts",
             "description": "Findings in the matched SBOM. Absent when no SBOM matched — absence is not zero"
           },
-          "workload_kind": {
+          "workloadKind": {
             "type": "string"
           },
-          "workload_name": {
+          "workloadName": {
             "type": "string"
           }
         },
         "required": [
-          "cluster_name",
+          "clusterName",
           "id",
-          "cluster_id",
-          "k8s_namespace",
-          "workload_kind",
-          "workload_name",
-          "container_name",
-          "image_ref",
-          "pod_count",
-          "first_seen_at",
-          "last_seen_at",
-          "match_state"
+          "clusterId",
+          "k8sNamespace",
+          "workloadKind",
+          "workloadName",
+          "containerName",
+          "imageRef",
+          "podCount",
+          "firstSeenAt",
+          "lastSeenAt",
+          "matchState"
         ],
         "type": "object"
       },
@@ -5770,41 +5770,41 @@
             "format": "int32",
             "type": "integer"
           },
-          "created_at": {
+          "createdAt": {
             "type": "string"
           },
           "digest": {
             "type": "string"
           },
-          "finished_at": {
+          "finishedAt": {
             "type": "string"
           },
           "id": {
             "description": "Job UUID",
             "type": "string"
           },
-          "last_attempt_at": {
+          "lastAttemptAt": {
             "type": "string"
           },
-          "last_error": {
+          "lastError": {
             "type": "string"
           },
-          "nats_msg_id": {
+          "natsMsgId": {
             "description": "NATS deduplication message ID",
             "type": "string"
           },
-          "registry_id": {
+          "registryId": {
             "description": "Source registry UUID",
             "type": "string"
           },
           "repository": {
             "type": "string"
           },
-          "sbom_id": {
+          "sbomId": {
             "description": "Resulting SBOM UUID on success",
             "type": "string"
           },
-          "started_at": {
+          "startedAt": {
             "type": "string"
           },
           "state": {
@@ -5820,7 +5820,7 @@
           "tag": {
             "type": "string"
           },
-          "worker_id": {
+          "workerId": {
             "description": "Pod hostname that is processing this job",
             "type": "string"
           }
@@ -5831,14 +5831,14 @@
           "digest",
           "state",
           "attempts",
-          "created_at"
+          "createdAt"
         ],
         "type": "object"
       },
       "ScanJobsStatus": {
         "additionalProperties": false,
         "properties": {
-          "failed_24h": {
+          "failed24h": {
             "format": "int64",
             "type": "integer"
           },
@@ -5850,7 +5850,7 @@
             "format": "int64",
             "type": "integer"
           },
-          "succeeded_24h": {
+          "succeeded24h": {
             "format": "int64",
             "type": "integer"
           }
@@ -5858,8 +5858,8 @@
         "required": [
           "queued",
           "running",
-          "succeeded_24h",
-          "failed_24h"
+          "succeeded24h",
+          "failed24h"
         ],
         "type": "object"
       },
@@ -5891,13 +5891,13 @@
           "enabled": {
             "type": "boolean"
           },
-          "poller_enabled": {
+          "pollerEnabled": {
             "type": "boolean"
           }
         },
         "required": [
           "enabled",
-          "poller_enabled"
+          "pollerEnabled"
         ],
         "type": "object"
       },
@@ -6004,7 +6004,7 @@
             "readOnly": true,
             "type": "string"
           },
-          "created_at": {
+          "createdAt": {
             "type": "string"
           },
           "id": {
@@ -6022,24 +6022,24 @@
           "name": {
             "type": "string"
           },
-          "namespace_id": {
+          "namespaceId": {
             "type": "string"
           },
-          "namespace_name": {
+          "namespaceName": {
             "description": "Owning namespace name; populated on list responses",
             "type": "string"
           },
-          "updated_at": {
+          "updatedAt": {
             "type": "string"
           }
         },
         "required": [
           "id",
-          "namespace_id",
+          "namespaceId",
           "kind",
           "name",
-          "created_at",
-          "updated_at"
+          "createdAt",
+          "updatedAt"
         ],
         "type": "object"
       },
@@ -6078,13 +6078,13 @@
             "readOnly": true,
             "type": "string"
           },
-          "authorize_url": {
+          "authorizeUrl": {
             "description": "Navigate the browser here to continue linking",
             "type": "string"
           }
         },
         "required": [
-          "authorize_url"
+          "authorizeUrl"
         ],
         "type": "object"
       },
@@ -6109,7 +6109,7 @@
           "nats": {
             "$ref": "#/components/schemas/NATSStatus"
           },
-          "scan_jobs": {
+          "scanJobs": {
             "$ref": "#/components/schemas/ScanJobsStatus"
           },
           "scanner": {
@@ -6120,7 +6120,7 @@
           "enrichment",
           "scanner",
           "nats",
-          "scan_jobs",
+          "scanJobs",
           "db"
         ],
         "type": "object"
@@ -6137,11 +6137,11 @@
             "readOnly": true,
             "type": "string"
           },
-          "auth_token": {
+          "authToken": {
             "description": "Token or PAT for registry authentication",
             "type": "string"
           },
-          "auth_username": {
+          "authUsername": {
             "description": "Username for registry authentication",
             "type": "string"
           },
@@ -6246,11 +6246,11 @@
             "description": "Normalized registry host the images in this group name, and the address a registry for it would use",
             "type": "string"
           },
-          "image_count": {
+          "imageCount": {
             "format": "int64",
             "type": "integer"
           },
-          "pod_count": {
+          "podCount": {
             "format": "int64",
             "type": "integer"
           },
@@ -6262,11 +6262,11 @@
             ],
             "type": "string"
           },
-          "registry_id": {
+          "registryId": {
             "description": "Registry that serves this group, when one was matched at all",
             "type": "string"
           },
-          "registry_name": {
+          "registryName": {
             "type": "string"
           },
           "repositories": {
@@ -6279,7 +6279,7 @@
               "null"
             ]
           },
-          "repository_count": {
+          "repositoryCount": {
             "description": "Distinct repository total, which may exceed the length of repositories",
             "format": "int64",
             "type": "integer"
@@ -6288,7 +6288,7 @@
             "description": "The group: the host plus any leading repository segments that belong to the registry rather than the image, e.g. ghcr.io/pfenerty",
             "type": "string"
           },
-          "workload_count": {
+          "workloadCount": {
             "format": "int64",
             "type": "integer"
           }
@@ -6297,11 +6297,11 @@
           "host",
           "scope",
           "reason",
-          "image_count",
-          "pod_count",
-          "workload_count",
+          "imageCount",
+          "podCount",
+          "workloadCount",
           "repositories",
-          "repository_count"
+          "repositoryCount"
         ],
         "type": "object"
       },
@@ -6313,7 +6313,7 @@
             "format": "int64",
             "type": "integer"
           },
-          "egress_denied": {
+          "egressDenied": {
             "description": "The host is in an address range the egress policy refuses",
             "format": "int64",
             "type": "integer"
@@ -6328,7 +6328,7 @@
             "format": "int64",
             "type": "integer"
           },
-          "registry_disabled": {
+          "registryDisabled": {
             "description": "The host matches a registry that is switched off",
             "format": "int64",
             "type": "integer"
@@ -6343,7 +6343,7 @@
             "format": "int64",
             "type": "integer"
           },
-          "unparseable_ref": {
+          "unparseableRef": {
             "description": "The reported reference carries no host to resolve against",
             "format": "int64",
             "type": "integer"
@@ -6353,24 +6353,24 @@
           "ready",
           "scanning",
           "unauthorized",
-          "egress_denied",
+          "egressDenied",
           "failed",
           "deleted",
-          "registry_disabled",
-          "unparseable_ref"
+          "registryDisabled",
+          "unparseableRef"
         ],
         "type": "object"
       },
       "UnknownImageResponse": {
         "additionalProperties": false,
         "properties": {
-          "image_digest": {
+          "imageDigest": {
             "type": "string"
           },
-          "image_ref": {
+          "imageRef": {
             "type": "string"
           },
-          "pod_count": {
+          "podCount": {
             "format": "int64",
             "type": "integer"
           },
@@ -6388,37 +6388,37 @@
             ],
             "type": "string"
           },
-          "registry_host": {
-            "description": "Host parsed out of image_ref; empty when the reference carries none",
+          "registryHost": {
+            "description": "Host parsed out of imageRef; empty when the reference carries none",
             "type": "string"
           },
-          "registry_id": {
+          "registryId": {
             "description": "Registry whose credentials pull this image, or the disabled one blocking it; absent on a ready image means an anonymous pull",
             "type": "string"
           },
-          "registry_name": {
+          "registryName": {
             "type": "string"
           },
           "repository": {
             "type": "string"
           },
-          "sample_k8s_namespace": {
+          "sampleK8sNamespace": {
             "type": "string"
           },
-          "sample_workload_name": {
+          "sampleWorkloadName": {
             "type": "string"
           },
-          "workload_count": {
+          "workloadCount": {
             "description": "Containers running this image",
             "format": "int64",
             "type": "integer"
           }
         },
         "required": [
-          "image_ref",
-          "image_digest",
-          "workload_count",
-          "pod_count",
+          "imageRef",
+          "imageDigest",
+          "workloadCount",
+          "podCount",
           "reason"
         ],
         "type": "object"
@@ -6435,7 +6435,7 @@
             "readOnly": true,
             "type": "string"
           },
-          "auto_ingest": {
+          "autoIngest": {
             "description": "Auto-ingest unknown running images on every accepted snapshot. Omit to leave unchanged.",
             "type": "boolean"
           },
@@ -6494,31 +6494,31 @@
             "readOnly": true,
             "type": "string"
           },
-          "auth_token": {
+          "authToken": {
             "type": "string"
           },
-          "auth_username": {
+          "authUsername": {
             "type": "string"
           },
           "enabled": {
             "type": "boolean"
           },
-          "include_untagged": {
+          "includeUntagged": {
             "description": "Scan untagged manifests via registry-specific APIs (supported: zot, harbor, ghcr)",
             "type": "boolean"
           },
           "insecure": {
             "type": "boolean"
           },
-          "managed_by": {
+          "managedBy": {
             "description": "External system that owns this registry's configuration; omit to leave the existing marker untouched",
             "type": "string"
           },
-          "managed_ref": {
+          "managedRef": {
             "description": "Identifier within the managing system; omit to leave the existing value untouched",
             "type": "string"
           },
-          "max_tag_age_days": {
+          "maxTagAgeDays": {
             "description": "Skip tags whose image is older than this many days; 0 clears it. Omit to keep the current value",
             "format": "int64",
             "maximum": 36500,
@@ -6535,7 +6535,7 @@
             "maxLength": 100,
             "type": "string"
           },
-          "poll_interval_minutes": {
+          "pollIntervalMinutes": {
             "description": "Minutes between polls",
             "format": "int64",
             "minimum": 1,
@@ -6550,7 +6550,7 @@
               "null"
             ]
           },
-          "repository_patterns": {
+          "repositoryPatterns": {
             "items": {
               "type": "string"
             },
@@ -6559,7 +6559,7 @@
               "null"
             ]
           },
-          "scan_mode": {
+          "scanMode": {
             "description": "Scanning mode",
             "enum": [
               "webhook",
@@ -6568,15 +6568,15 @@
             ],
             "type": "string"
           },
-          "tag_limit": {
+          "tagLimit": {
             "description": "Newest tags kept per repository; 0 = unlimited. Omit to keep the current value",
             "format": "int64",
             "maximum": 100000,
             "minimum": 0,
             "type": "integer"
           },
-          "tag_order": {
-            "description": "How 'newest' is decided; auto = semver when tag_patterns contains semver, created otherwise. Omit to keep the current value",
+          "tagOrder": {
+            "description": "How 'newest' is decided; auto = semver when tagPatterns contains semver, created otherwise. Omit to keep the current value",
             "enum": [
               "auto",
               "semver",
@@ -6585,7 +6585,7 @@
             ],
             "type": "string"
           },
-          "tag_patterns": {
+          "tagPatterns": {
             "items": {
               "type": "string"
             },
@@ -6594,16 +6594,16 @@
               "null"
             ]
           },
-          "trust_identity": {
-            "description": "Regex matched against the Fulcio certificate SAN; required when verification_mode is keyless",
+          "trustIdentity": {
+            "description": "Regex matched against the Fulcio certificate SAN; required when verificationMode is keyless",
             "type": "string"
           },
-          "trust_issuer": {
-            "description": "Expected OIDC issuer URL; required when verification_mode is keyless",
+          "trustIssuer": {
+            "description": "Expected OIDC issuer URL; required when verificationMode is keyless",
             "type": "string"
           },
-          "trust_public_key": {
-            "description": "PEM-encoded EC public key; required when verification_mode is public_key",
+          "trustPublicKey": {
+            "description": "PEM-encoded EC public key; required when verificationMode is public_key",
             "type": "string"
           },
           "type": {
@@ -6620,7 +6620,7 @@
             "minLength": 1,
             "type": "string"
           },
-          "verification_mode": {
+          "verificationMode": {
             "description": "Signature verification mode; defaults to none",
             "enum": [
               "none",
@@ -6710,7 +6710,7 @@
             "readOnly": true,
             "type": "string"
           },
-          "display_name": {
+          "displayName": {
             "description": "Name to show for this user; supplied by whichever issuer last signed them in",
             "type": "string"
           },
@@ -6723,7 +6723,7 @@
         },
         "required": [
           "id",
-          "display_name",
+          "displayName",
           "role"
         ],
         "type": "object"
@@ -6955,13 +6955,13 @@
             "format": "int64",
             "type": "integer"
           },
-          "skipped_by_age": {
-            "description": "Matching tags older than max_tag_age_days",
+          "skippedByAge": {
+            "description": "Matching tags older than maxTagAgeDays",
             "format": "int64",
             "type": "integer"
           },
-          "skipped_by_limit": {
-            "description": "Matching tags past tag_limit",
+          "skippedByLimit": {
+            "description": "Matching tags past tagLimit",
             "format": "int64",
             "type": "integer"
           }
@@ -6971,8 +6971,8 @@
           "repositories",
           "matched",
           "selected",
-          "skipped_by_limit",
-          "skipped_by_age",
+          "skippedByLimit",
+          "skippedByAge",
           "queued"
         ],
         "type": "object"

@@ -107,7 +107,7 @@ export default function Clusters() {
         if (name === "" || namespaceID === "") return;
         const description = newDescription().trim();
         createCluster.mutate(
-            { namespace_id: namespaceID, name, ...(description === "" ? {} : { description }) },
+            { namespaceId: namespaceID, name, ...(description === "" ? {} : { description }) },
             {
                 onSuccess: () => {
                     // `close()` fires the dialog's own `close` event, which is
@@ -125,14 +125,14 @@ export default function Clusters() {
         setEditingID(c.id);
         setEditName(c.name);
         setEditDescription(c.description ?? "");
-        setEditAutoIngest(c.auto_ingest);
+        setEditAutoIngest(c.autoIngest);
     }
 
     function saveEdit(id: string) {
         const name = editName().trim();
         if (name === "") return;
         updateCluster.mutate(
-            { id, name, description: editDescription().trim(), auto_ingest: editAutoIngest() },
+            { id, name, description: editDescription().trim(), autoIngest: editAutoIngest() },
             {
                 onSuccess: () => {
                     setEditingID(null);
@@ -180,8 +180,8 @@ export default function Clusters() {
         {
             header: "Namespace",
             sortKey: "namespace",
-            sortValue: (c) => c.namespace_name ?? "",
-            render: (c) => <span class="text-muted">{c.namespace_name ?? "—"}</span>,
+            sortValue: (c) => c.namespaceName ?? "",
+            render: (c) => <span class="text-muted">{c.namespaceName ?? "—"}</span>,
         },
         {
             header: "Description",
@@ -210,7 +210,7 @@ export default function Clusters() {
                 <Show
                     when={editingID() === c.id}
                     fallback={
-                        <span class="text-muted">{c.auto_ingest ? "On" : "Off"}</span>
+                        <span class="text-muted">{c.autoIngest ? "On" : "Off"}</span>
                     }
                 >
                     <label class="flex items-center gap-1.5">
@@ -228,8 +228,8 @@ export default function Clusters() {
         {
             header: "Last reported",
             sortKey: "last_seen",
-            sortValue: (c) => c.last_seen_at ?? "",
-            render: (c) => <StalenessPill lastSeenAt={c.last_seen_at} />,
+            sortValue: (c) => c.lastSeenAt ?? "",
+            render: (c) => <StalenessPill lastSeenAt={c.lastSeenAt} />,
         },
         {
             header: "",

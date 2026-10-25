@@ -22,11 +22,11 @@ func statsArtifactTypes(t *testing.T, baseURL, apiKey string) (map[string]int64,
 		t.Fatalf("get stats: status %d", resp.StatusCode)
 	}
 	var body struct {
-		ArtifactCount int64 `json:"artifact_count"`
+		ArtifactCount int64 `json:"artifactCount"`
 		ArtifactTypes []struct {
 			Type          string `json:"type"`
-			ArtifactCount int64  `json:"artifact_count"`
-		} `json:"artifact_types"`
+			ArtifactCount int64  `json:"artifactCount"`
+		} `json:"artifactTypes"`
 	}
 	if err := json.NewDecoder(resp.Body).Decode(&body); err != nil {
 		t.Fatalf("decode stats: %v", err)

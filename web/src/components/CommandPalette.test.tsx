@@ -52,15 +52,15 @@ vi.mock("~/api/queries", () => {
     };
 });
 
-interface User { id: string; display_name: string; role: string }
+interface User { id: string; displayName: string; role: string }
 let mockUserFn: (() => User | undefined) & { loading: boolean };
 vi.mock("~/context/auth", () => ({ useAuth: () => ({ user: mockUserFn, refetch: vi.fn() }) }));
 
 function asResource(user?: User, loading = false) {
     return Object.assign(() => user, { loading });
 }
-const admin = { id: "1", display_name: "alice", role: "admin" };
-const member = { id: "2", display_name: "bob", role: "user" };
+const admin = { id: "1", displayName: "alice", role: "admin" };
+const member = { id: "2", displayName: "bob", role: "user" };
 
 function mount(user?: User) {
     mockUserFn = asResource(user);

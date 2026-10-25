@@ -57,7 +57,7 @@ export function NamespacesPanel(): JSX.Element {
                                 href="/admin/namespaces"
                                 title={ns.name}
                                 sub={ns.visibility}
-                                meta={relativeDate(ns.created_at)}
+                                meta={relativeDate(ns.createdAt)}
                             />
                         )}
                     </For>
@@ -227,8 +227,8 @@ export function ClustersPanel(): JSX.Element {
                             <PanelRow
                                 href={`/clusters/${c.id}`}
                                 title={c.name}
-                                sub={c.namespace_name}
-                                meta={<StalenessPill lastSeenAt={c.last_seen_at} />}
+                                sub={c.namespaceName}
+                                meta={<StalenessPill lastSeenAt={c.lastSeenAt} />}
                             />
                         )}
                     </For>

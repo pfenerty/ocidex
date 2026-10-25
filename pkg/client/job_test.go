@@ -15,7 +15,7 @@ func TestListJobs(t *testing.T) {
 	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		is.Equal(r.URL.Path, "/api/v1/jobs")
 		w.Header().Set("Content-Type", "application/json")
-		_, _ = w.Write([]byte(`{"data":[{"id":"job-1","state":"succeeded","repository":"myrepo","digest":"sha256:abc","attempts":1,"created_at":"2024-01-01T00:00:00Z"}],"pagination":{"total":1,"limit":50,"offset":0}}`))
+		_, _ = w.Write([]byte(`{"data":[{"id":"job-1","state":"succeeded","repository":"myrepo","digest":"sha256:abc","attempts":1,"createdAt":"2024-01-01T00:00:00Z"}],"pagination":{"total":1,"limit":50,"offset":0}}`))
 	}))
 	defer srv.Close()
 
@@ -57,7 +57,7 @@ func TestGetJob(t *testing.T) {
 	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		is.Equal(r.URL.Path, "/api/v1/jobs/job-1")
 		w.Header().Set("Content-Type", "application/json")
-		_, _ = w.Write([]byte(`{"id":"job-1","state":"running","repository":"myrepo","digest":"sha256:abc","attempts":1,"created_at":"2024-01-01T00:00:00Z"}`))
+		_, _ = w.Write([]byte(`{"id":"job-1","state":"running","repository":"myrepo","digest":"sha256:abc","attempts":1,"createdAt":"2024-01-01T00:00:00Z"}`))
 	}))
 	defer srv.Close()
 
@@ -72,7 +72,7 @@ func TestGetDashboardStats(t *testing.T) {
 	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		is.Equal(r.URL.Path, "/api/v1/stats")
 		w.Header().Set("Content-Type", "application/json")
-		_, _ = w.Write([]byte(`{"artifact_count":10,"sbom_count":25,"package_count":500,"license_count":12,"version_count":30}`))
+		_, _ = w.Write([]byte(`{"artifactCount":10,"sbomCount":25,"packageCount":500,"licenseCount":12,"versionCount":30}`))
 	}))
 	defer srv.Close()
 

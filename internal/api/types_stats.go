@@ -9,19 +9,19 @@ import "github.com/pfenerty/ocidex/internal/service"
 // DashboardStatsOutput is the response for GET /api/v1/stats/summary.
 type DashboardStatsOutput struct {
 	Body struct {
-		ArtifactCount         int64                    `json:"artifact_count"`
-		SBOMCount             int64                    `json:"sbom_count"`
-		PackageCount          int64                    `json:"package_count"`
-		VersionCount          int64                    `json:"version_count"`
-		LicenseCount          int64                    `json:"license_count"`
-		ArtifactTypes         []ArtifactTypeCountEntry `json:"artifact_types"`
-		LicenseCategories     []CategoryCountEntry     `json:"license_categories"`
-		IngestionTimeline     []DailyCountEntry        `json:"ingestion_timeline"`
-		PackageGrowthTimeline []DailyCountEntry        `json:"package_growth_timeline"`
-		VersionGrowthTimeline []DailyCountEntry        `json:"version_growth_timeline"`
-		TopPackages           []PackageSummaryEntry    `json:"top_packages"`
-		VulnCount             int64                    `json:"vuln_count"`
-		VulnSeverity          VulnSeverityEntry        `json:"vuln_severity"`
+		ArtifactCount         int64                    `json:"artifactCount"`
+		SBOMCount             int64                    `json:"sbomCount"`
+		PackageCount          int64                    `json:"packageCount"`
+		VersionCount          int64                    `json:"versionCount"`
+		LicenseCount          int64                    `json:"licenseCount"`
+		ArtifactTypes         []ArtifactTypeCountEntry `json:"artifactTypes"`
+		LicenseCategories     []CategoryCountEntry     `json:"licenseCategories"`
+		IngestionTimeline     []DailyCountEntry        `json:"ingestionTimeline"`
+		PackageGrowthTimeline []DailyCountEntry        `json:"packageGrowthTimeline"`
+		VersionGrowthTimeline []DailyCountEntry        `json:"versionGrowthTimeline"`
+		TopPackages           []PackageSummaryEntry    `json:"topPackages"`
+		VulnCount             int64                    `json:"vulnCount"`
+		VulnSeverity          VulnSeverityEntry        `json:"vulnSeverity"`
 		Warming               bool                     `json:"warming" doc:"No snapshot is available yet and every count is a zero placeholder; render a loading state and retry"`
 	}
 }
@@ -29,7 +29,7 @@ type DashboardStatsOutput struct {
 // ArtifactTypeCountEntry is the number of tracked artifacts of one CycloneDX type.
 type ArtifactTypeCountEntry struct {
 	Type          string `json:"type"`
-	ArtifactCount int64  `json:"artifact_count"`
+	ArtifactCount int64  `json:"artifactCount"`
 }
 
 // VulnSeverityEntry is a per-severity count of distinct tracked vulnerabilities.
@@ -89,7 +89,7 @@ type GetVulnerabilityOutput struct {
 // CategoryCountEntry is a license compliance category with component count.
 type CategoryCountEntry struct {
 	Category       string `json:"category"`
-	ComponentCount int64  `json:"component_count"`
+	ComponentCount int64  `json:"componentCount"`
 }
 
 // DailyCountEntry is a date + SBOM ingestion count.
@@ -103,6 +103,6 @@ type PackageSummaryEntry struct {
 	Name         string  `json:"name"`
 	Group        *string `json:"group,omitempty"`
 	Type         string  `json:"type"`
-	VersionCount int64   `json:"version_count"`
-	SbomCount    int64   `json:"sbom_count"`
+	VersionCount int64   `json:"versionCount"`
+	SbomCount    int64   `json:"sbomCount"`
 }

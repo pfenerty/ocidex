@@ -37,7 +37,7 @@ function key(name: string, capabilities: string[] | null) {
         name,
         prefix: "ocidex_ab",
         capabilities,
-        created_at: "2026-01-01T00:00:00Z",
+        createdAt: "2026-01-01T00:00:00Z",
     };
 }
 

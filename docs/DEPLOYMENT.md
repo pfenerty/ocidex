@@ -539,7 +539,7 @@ Install (repeat per cluster, against that cluster's kubeconfig context):
 #    returned id.
 curl -fsS -X POST https://ocidex.app/api/v1/clusters \
   -H "Authorization: Bearer $OCIDEX_API_KEY" -H 'Content-Type: application/json' \
-  -d '{"name":"prod-eu","namespace_id":"<namespace-uuid>"}'
+  -d '{"name":"prod-eu","namespaceId":"<namespace-uuid>"}'
 
 # 2. Create the API key Secret in the target cluster. The key needs the push_inventory
 #    capability, held by a member of the namespace the cluster is registered under

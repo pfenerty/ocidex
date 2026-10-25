@@ -47,12 +47,12 @@ const PREVIEW_DEBOUNCE_MS = 600;
 function previewBodyOf(f: RegistryFormState): RegistryPreviewBody {
     return {
         type: f.type, url: f.url.trim(), insecure: f.insecure,
-        auth_username: f.authUsername.trim() || undefined, auth_token: f.authToken.trim() || undefined,
+        authUsername: f.authUsername.trim() || undefined, authToken: f.authToken.trim() || undefined,
         repositories: toPatternArray(f.repositories),
-        repository_patterns: toPatternArray(f.repositoryPatterns),
-        tag_patterns: toPatternArray(f.tagPatterns),
-        include_untagged: f.includeUntagged,
-        tag_limit: f.tagLimit, tag_order: f.tagOrder, max_tag_age_days: f.maxTagAgeDays,
+        repositoryPatterns: toPatternArray(f.repositoryPatterns),
+        tagPatterns: toPatternArray(f.tagPatterns),
+        includeUntagged: f.includeUntagged,
+        tagLimit: f.tagLimit, tagOrder: f.tagOrder, maxTagAgeDays: f.maxTagAgeDays,
     };
 }
 
@@ -91,7 +91,7 @@ export function RegistryFormDialog(props: {
     const unsavedPreview = usePreviewRegistryConfig(previewBody);
     const savedPreview = useRegistryPreview(() => (open() && usesSavedPreview() ? (editingID() ?? undefined) : undefined));
     const preview = () => (usesSavedPreview() ? savedPreview : unsavedPreview);
-    const warning = () => scopeWarning(form().tagLimit, preview().data?.estimated_sboms);
+    const warning = () => scopeWarning(form().tagLimit, preview().data?.estimatedSboms);
 
     function applyPreset(p: ScopePreset) {
         setScopePreset(p);
@@ -104,7 +104,7 @@ export function RegistryFormDialog(props: {
     const editingManaged = () => editingID() !== null && editManagedRef() !== null;
 
     const showPollOptions = () =>
-        statusQuery.data?.scanner.poller_enabled === true ||
+        statusQuery.data?.scanner.pollerEnabled === true ||
         (editingID() !== null && (form().scanMode === "poll" || form().scanMode === "both"));
 
     let dialogRef: HTMLDialogElement | undefined;
@@ -137,9 +137,9 @@ export function RegistryFormDialog(props: {
             setEditEnabled(reg.enabled);
             // Fall back to the owner name when the ref is absent, so the dialog can
             // always say *something* about who owns a marked registry.
-            const owner = reg.managed_by ?? "";
-            setEditManagedRef(owner === "" ? null : (reg.managed_ref ?? owner));
-            setEditHasAuth(reg.has_auth);
+            const owner = reg.managedBy ?? "";
+            setEditManagedRef(owner === "" ? null : (reg.managedRef ?? owner));
+            setEditHasAuth(reg.hasAuth);
             setForm({
                 name: reg.name,
                 // Not shown when editing: the update endpoint cannot move a
@@ -152,21 +152,21 @@ export function RegistryFormDialog(props: {
                 authUsername: "",
                 authToken: "",
                 repositories: (reg.repositories ?? []).join("\n"),
-                repositoryPatterns: (reg.repository_patterns ?? []).join("\n"),
-                tagPatterns: (reg.tag_patterns ?? []).join("\n"),
-                scanMode: reg.scan_mode as ScanMode,
-                pollIntervalMinutes: reg.poll_interval_minutes,
+                repositoryPatterns: (reg.repositoryPatterns ?? []).join("\n"),
+                tagPatterns: (reg.tagPatterns ?? []).join("\n"),
+                scanMode: reg.scanMode as ScanMode,
+                pollIntervalMinutes: reg.pollIntervalMinutes,
                 visibility: reg.visibility as Visibility,
-                includeUntagged: reg.include_untagged,
-                verificationMode: ["public_key", "keyless"].includes(reg.verification_mode)
-                    ? reg.verification_mode
+                includeUntagged: reg.includeUntagged,
+                verificationMode: ["public_key", "keyless"].includes(reg.verificationMode)
+                    ? reg.verificationMode
                     : "none",
-                trustPublicKey: reg.trust_public_key ?? "",
-                trustIdentity: reg.trust_identity ?? "",
-                trustIssuer: reg.trust_issuer ?? "",
-                tagLimit: reg.tag_limit,
-                tagOrder: reg.tag_order,
-                maxTagAgeDays: reg.max_tag_age_days,
+                trustPublicKey: reg.trustPublicKey ?? "",
+                trustIdentity: reg.trustIdentity ?? "",
+                trustIssuer: reg.trustIssuer ?? "",
+                tagLimit: reg.tagLimit,
+                tagOrder: reg.tagOrder,
+                maxTagAgeDays: reg.maxTagAgeDays,
             });
             setScopePreset(presetFor(form()));
             setOpen(true);
@@ -191,13 +191,13 @@ export function RegistryFormDialog(props: {
 
         const shared = {
             name: f.name, type: f.type, url: f.url, insecure: f.insecure,
-            auth_username: authUsername, auth_token: authToken,
-            repositories: repos, repository_patterns: repoPats, tag_patterns: tagPats,
-            scan_mode: f.scanMode, poll_interval_minutes: f.pollIntervalMinutes,
-            visibility: f.visibility, include_untagged: f.includeUntagged,
-            verification_mode: f.verificationMode, trust_public_key: trustPublicKey,
-            trust_identity: trustIdentity, trust_issuer: trustIssuer,
-            tag_limit: f.tagLimit, tag_order: f.tagOrder, max_tag_age_days: f.maxTagAgeDays,
+            authUsername, authToken,
+            repositories: repos, repositoryPatterns: repoPats, tagPatterns: tagPats,
+            scanMode: f.scanMode, pollIntervalMinutes: f.pollIntervalMinutes,
+            visibility: f.visibility, includeUntagged: f.includeUntagged,
+            verificationMode: f.verificationMode, trustPublicKey,
+            trustIdentity, trustIssuer,
+            tagLimit: f.tagLimit, tagOrder: f.tagOrder, maxTagAgeDays: f.maxTagAgeDays,
         };
 
         // Create only. The update endpoint takes no namespace: moving a
@@ -217,8 +217,8 @@ export function RegistryFormDialog(props: {
                 onSuccess: (data) => {
                     toast("Registry created", "success");
                     dialogRef?.close();
-                    if (data.webhook_secret !== undefined) {
-                        props.onSecretRevealed(data.webhook_secret);
+                    if (data.webhookSecret !== undefined) {
+                        props.onSecretRevealed(data.webhookSecret);
                     }
                 },
                 onError: () => toast("Failed to create registry", "error"),
@@ -312,7 +312,7 @@ export function RegistryFormDialog(props: {
                                     onClick={() => {
                                         setTestResult(null);
                                         testConn.mutate(
-                                            { url: form().url.trim(), insecure: form().insecure, auth_username: form().authUsername.trim() || undefined, auth_token: form().authToken.trim() || undefined },
+                                            { url: form().url.trim(), insecure: form().insecure, authUsername: form().authUsername.trim() || undefined, authToken: form().authToken.trim() || undefined },
                                             { onSuccess: (data) => setTestResult(data) }
                                         );
                                     }}
@@ -548,9 +548,9 @@ export function RegistryFormDialog(props: {
                         >
                             {(p) => (
                                 <span>
-                                    Will scan <strong>~{p().estimated_sboms.toLocaleString()}</strong> images
+                                    Will scan <strong>~{p().estimatedSboms.toLocaleString()}</strong> images
                                     ({p().selected.toLocaleString()} tags across {(p().repositories ?? []).length} repositories
-                                    {p().skipped_by_limit > 0 ? `; ${p().skipped_by_limit.toLocaleString()} older tags left out` : ""})
+                                    {p().skippedByLimit > 0 ? `; ${p().skippedByLimit.toLocaleString()} older tags left out` : ""})
                                     {usesSavedPreview() ? " — saved settings; enter the token to preview edits" : ""}
                                 </span>
                             )}

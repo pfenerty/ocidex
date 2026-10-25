@@ -4,7 +4,7 @@ import { render } from "@solidjs/testing-library";
 import { retryColumn, workerColumn, type JobRow } from "./jobCells";
 
 const row = (state: string): JobRow =>
-    ({ id: "j1", state, worker_id: "glados", attempts: 1, created_at: "2026-10-20T00:00:00Z" });
+    ({ id: "j1", state, workerId: "glados", attempts: 1, createdAt: "2026-10-20T00:00:00Z" });
 
 const cell = (el: () => unknown) => render(() => <>{el()}</>).container;
 

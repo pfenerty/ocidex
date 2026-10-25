@@ -36,9 +36,9 @@ export function groupByNamespace(registries: Registry[], sources: Source[]): Nam
     };
 
     for (const src of sources) {
-        // namespace_name is documented as list-only; fall back to the id so
+        // namespaceName is documented as list-only; fall back to the id so
         // a heading is never blank.
-        const g = groupFor(src.namespace_name ?? src.namespace_id, src.namespace_id);
+        const g = groupFor(src.namespaceName ?? src.namespaceId, src.namespaceId);
         const reg = registriesByID.get(src.id);
         if (src.kind === "oci_registry" && reg !== undefined) {
             g.registries.push(reg);
@@ -122,7 +122,7 @@ export function NamespaceGroups(props: {
                             >
                                 {namespace().visibility}
                             </span>
-                            <Show when={namespace().owner_username}>
+                            <Show when={namespace().ownerUsername}>
                                 {(owner) => (
                                     <span class="text-muted text-sm ns-group-owner">
                                         owned by {owner()}
