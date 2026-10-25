@@ -2665,6 +2665,10 @@
             "readOnly": true,
             "type": "string"
           },
+          "subjectVersion": {
+            "description": "Version whose newest SBOM the summary counts",
+            "type": "string"
+          },
           "summary": {
             "$ref": "#/components/schemas/VulnSummary"
           }

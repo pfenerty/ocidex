@@ -644,7 +644,8 @@ func (h *Handler) GetArtifactVulnSummary(ctx context.Context, input *GetArtifact
 	}
 
 	out := &GetArtifactVulnSummaryOutput{}
-	out.Body.Summary = summary
+	out.Body.Summary = summary.Summary
+	out.Body.SubjectVersion = summary.SubjectVersion
 	return out, nil
 }
 

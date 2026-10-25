@@ -2501,8 +2501,11 @@ type GetArtifactUsagesOutputBody struct {
 // GetArtifactVulnSummaryOutputBody defines model for GetArtifactVulnSummaryOutputBody.
 type GetArtifactVulnSummaryOutputBody struct {
 	// Schema A URL to the JSON Schema for this object.
-	Schema  *string     `json:"$schema,omitempty"`
-	Summary VulnSummary `json:"summary"`
+	Schema *string `json:"$schema,omitempty"`
+
+	// SubjectVersion Version whose newest SBOM the summary counts
+	SubjectVersion *string     `json:"subjectVersion,omitempty"`
+	Summary        VulnSummary `json:"summary"`
 }
 
 // GetComponentVersionsOutputBody defines model for GetComponentVersionsOutputBody.

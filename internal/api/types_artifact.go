@@ -186,6 +186,9 @@ type GetArtifactVulnSummaryInput struct {
 type GetArtifactVulnSummaryOutput struct {
 	Body struct {
 		Summary *service.VulnSummary `json:"summary"`
+		// SubjectVersion is the version the summary counts: the highest by
+		// version parts, which need not be the newest build.
+		SubjectVersion string `json:"subjectVersion,omitempty" doc:"Version whose newest SBOM the summary counts"`
 	}
 }
 

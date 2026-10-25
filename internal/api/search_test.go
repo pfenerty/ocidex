@@ -235,8 +235,8 @@ func (f *fakeSearchService) ListTopVulnerabilities(_ context.Context, filter ser
 	return service.PagedResult[service.TopVulnEntry]{Data: []service.TopVulnEntry{}, Limit: filter.Limit, Offset: filter.Offset}, nil
 }
 
-func (f *fakeSearchService) GetArtifactVulnSummary(_ context.Context, _ pgtype.UUID, _ service.VisibilityFilter) (*service.VulnSummary, error) {
-	return nil, nil
+func (f *fakeSearchService) GetArtifactVulnSummary(_ context.Context, _ pgtype.UUID, _ service.VisibilityFilter) (service.ArtifactVulnSummary, error) {
+	return service.ArtifactVulnSummary{}, nil
 }
 
 func (f *fakeSearchService) GetArtifactUsages(_ context.Context, _ pgtype.UUID, _ service.VisibilityFilter) ([]service.ArtifactRelation, error) {

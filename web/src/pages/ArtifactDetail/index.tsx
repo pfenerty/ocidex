@@ -213,6 +213,7 @@ export default function ArtifactDetail() {
                                     artifact={a()}
                                     isContainer={isContainer()}
                                     vulns={vulnSummaryQuery.data?.summary ?? undefined}
+                                    vulnsVersion={vulnSummaryQuery.data?.subjectVersion}
                                     ordering={effectiveMode()}
                                     active={tab()}
                                     onSelect={setTab}

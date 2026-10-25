@@ -2729,6 +2729,8 @@ export interface components {
              * @example https://example.com/schemas/GetArtifactVulnSummaryOutputBody.json
              */
             readonly $schema?: string;
+            /** @description Version whose newest SBOM the summary counts */
+            subjectVersion?: string;
             summary: components["schemas"]["VulnSummary"];
         };
         GetComponentVersionsOutputBody: {

@@ -428,8 +428,17 @@ func (s *searchService) GetArtifactLicenseSummary(ctx context.Context, artifactI
 	return items, nil
 }
 
-// GetArtifactVulnSummary returns per-severity vuln counts for an artifact's latest SBOM.
-func (s *searchService) GetArtifactVulnSummary(ctx context.Context, artifactID pgtype.UUID, vis VisibilityFilter) (*VulnSummary, error) {
+// ArtifactVulnSummary is the vulnerability tile's figure for one artifact:
+// per-severity counts over the newest SBOM of its highest version, and that
+// version's name. Summary is nil when nothing is recorded.
+type ArtifactVulnSummary struct {
+	Summary        *VulnSummary
+	SubjectVersion string
+}
+
+// GetArtifactVulnSummary returns per-severity vuln counts for the newest SBOM
+// of an artifact's highest version, and which version that is.
+func (s *searchService) GetArtifactVulnSummary(ctx context.Context, artifactID pgtype.UUID, vis VisibilityFilter) (ArtifactVulnSummary, error) {
 	q := repository.New(s.db)
 
 	visible, err := q.IsArtifactVisible(ctx, repository.IsArtifactVisibleParams{
@@ -438,18 +447,18 @@ func (s *searchService) GetArtifactVulnSummary(ctx context.Context, artifactID p
 		IsAdmin: visAdminBool(vis),
 	})
 	if err != nil {
-		return nil, fmt.Errorf("checking artifact visibility: %w", err)
+		return ArtifactVulnSummary{}, fmt.Errorf("checking artifact visibility: %w", err)
 	}
 	if !visible {
-		return nil, ErrNotFound
+		return ArtifactVulnSummary{}, ErrNotFound
 	}
 
 	rows, err := q.GetArtifactVulnSummary(ctx, artifactID)
 	if err != nil {
-		return nil, fmt.Errorf("querying artifact vuln summary: %w", err)
+		return ArtifactVulnSummary{}, fmt.Errorf("querying artifact vuln summary: %w", err)
 	}
 	if len(rows) == 0 {
-		return nil, nil
+		return ArtifactVulnSummary{}, nil
 	}
 
 	var vs VulnSummary
@@ -470,9 +479,9 @@ func (s *searchService) GetArtifactVulnSummary(ctx context.Context, artifactID p
 		}
 	}
 	if vs.Total == 0 {
-		return nil, nil
+		return ArtifactVulnSummary{}, nil
 	}
-	return &vs, nil
+	return ArtifactVulnSummary{Summary: &vs, SubjectVersion: rows[0].SubjectVersion}, nil
 }
 
 // ListArtifactVulns returns one page of the artifact's vulnerability list.
