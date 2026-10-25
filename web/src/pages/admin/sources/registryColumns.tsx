@@ -83,7 +83,11 @@ export function registryColumns(opts: {
                                 <Show when={w().skipped_by_limit > 0}>
                                     <span class="text-[var(--color-text-muted)]"> (+{w().skipped_by_limit} past limit)</span>
                                 </Show>
-                                {" · "}{w().queued} queued
+                                {/* Jobs that walk submitted, not jobs still waiting:
+                                    the "N active" badge counts those, and the two
+                                    read as a contradiction when both said "queued"
+                                    (ocidex-nps9.25). */}
+                                {" · "}{w().queued} sent to scan
                             </span>
                         </Show>
                     )}

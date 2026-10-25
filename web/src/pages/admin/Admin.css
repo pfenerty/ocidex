@@ -14,6 +14,23 @@
     padding: 1.25rem;
 }
 
+/* The edge follows the card's state rather than the brand entry edge. */
+.stat-card-ok {
+    border-left-color: var(--color-success);
+}
+
+.stat-card-warn {
+    border-left-color: var(--color-warning);
+}
+
+.stat-card-bad {
+    border-left-color: var(--color-danger);
+}
+
+.stat-card-off {
+    border-left-color: var(--color-border);
+}
+
 .stat-card .stat-label {
     font-size: 0.75rem;
     font-weight: 500;

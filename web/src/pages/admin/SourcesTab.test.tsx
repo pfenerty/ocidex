@@ -485,7 +485,7 @@ describe("SourcesTab last walk (ADR-0053)", () => {
         const cell = must(container.querySelector("[data-testid=last-walk]"), "last walk cell");
         expect(cell.textContent).toContain("10 tags");
         expect(cell.textContent).toContain("+20 past limit");
-        expect(cell.textContent).toContain("4 queued");
+        expect(cell.textContent).toContain("4 sent to scan");
     });
 
     it("says never for a registry that has not been walked", () => {
