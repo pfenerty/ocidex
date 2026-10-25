@@ -68,9 +68,6 @@ export default function Vulnerabilities() {
         setOffset(0);
     };
 
-    const formatDate = (iso: string | undefined) =>
-        iso !== undefined && iso !== "" ? new Date(iso).toLocaleDateString() : "—";
-
     const columns: Column<TopVulnEntry>[] = [
         {
             header: "Vulnerability",
@@ -119,14 +116,8 @@ export default function Vulnerabilities() {
             sortType: "numeric",
             render: (row) => row.affectedPurlCount.toLocaleString(),
         },
-        {
-            header: "Published",
-            sortKey: "published_at",
-            sortType: "numeric",
-            render: (row) => (
-                <span class="text-muted">{formatDate(row.publishedAt)}</span>
-            ),
-        },
+        // No Published column: grype's match metadata carries no publication
+        // date, so every row read "—" (ocidex-nps9.12).
     ];
 
     return (
@@ -135,7 +126,7 @@ export default function Vulnerabilities() {
                 title="Vulnerabilities"
                 subtitle={
                     <>
-                        Most-found CVEs across all tracked artifacts
+                        Vulnerabilities found across all tracked artifacts, worst first
                         <Show when={query.data}>
                             {(d) => (
                                 <span class="text-muted">
