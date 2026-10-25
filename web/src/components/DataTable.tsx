@@ -34,10 +34,11 @@ export interface Column<T> {
      */
     mobileLabel?: string;
     /**
-     * Extra classes for this column's `th` and every one of its `td`s. Column
-     * width and per-column typography live here rather than in an inline style
-     * on one hand-written `<th>`, which is where they used to live and where no
-     * stylesheet could reach them.
+     * Extra classes for this column's cells. Column width and per-column
+     * typography live here rather than in an inline style on one hand-written
+     * `<th>`, which is where they used to live and where no stylesheet could
+     * reach them. Typography classes reach only the `td`s: on the `th` they
+     * made one header mono and larger than the rest (ocidex-nps9.22).
      */
     class?: string;
     render: (row: T) => JSX.Element;
@@ -146,6 +147,20 @@ export interface DataTableProps<T> {
 function cellClass<T>(col: Column<T>): string {
     return [col.align === "right" ? "text-right" : "", col.class ?? ""]
         .filter((c) => c !== "")
+        .join(" ");
+}
+
+/**
+ * HEADER_TYPOGRAPHY matches the classes that style a cell's text. Every header
+ * shares the thead's one style, so these are kept off the `th`.
+ */
+const HEADER_TYPOGRAPHY = /^(font-|text-(xs|sm|base|lg|xl|muted)$|mono$|italic$)/;
+
+/** headerClass is cellClass without typography: width and alignment only. */
+export function headerClass<T>(col: Column<T>): string {
+    return cellClass(col)
+        .split(" ")
+        .filter((c) => !HEADER_TYPOGRAPHY.test(c))
         .join(" ");
 }
 
@@ -338,7 +353,7 @@ export default function DataTable<T>(props: DataTableProps<T>): JSX.Element {
                                     <th
                                         class={
                                             (col.sortKey !== undefined ? "th-sortable " : "") +
-                                            cellClass(col)
+                                            headerClass(col)
                                         }
                                         onClick={() => handleSort(col)}
                                     >
