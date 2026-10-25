@@ -42,7 +42,7 @@ function statTiles(data: Stats): StatTile[] {
             // counts component_rollup.versions), not artifact versions — it
             // belongs here, not on the SBOM tile where it read as though the
             // catalog held more versions than SBOMs.
-            sub: `${data.version_count.toLocaleString()} versions indexed`,
+            sub: `${data.version_count.toLocaleString()} package versions`,
         },
         {
             href: "/licenses",

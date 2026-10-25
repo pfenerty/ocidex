@@ -15,17 +15,24 @@ SELECT
     -- deduplicated to (namespace, identity) grain, so this reads 121k rows
     -- instead of 10.9M (ocidex-ckv.2). visible_namespace_ids() is exactly the
     -- visible_sbom predicate above, evaluated per namespace rather than per SBOM.
+    --
+    -- Packages are library identities only, the set /components lists. Counting
+    -- every type took in syft's file entries, 117k of the 123k "packages" the
+    -- home page reported against 6k on /components (ocidex-nps9.11; glossary in
+    -- docs/ARCHITECTURE.md).
     (SELECT COUNT(*)::bigint FROM (
         SELECT DISTINCT r.name, COALESCE(r.group_name,'') AS g, r.type
         FROM component_rollup r
-        WHERE (r.namespace_id IN (
+        WHERE r.type = 'library'
+          AND (r.namespace_id IN (
                 SELECT visible_namespace_ids(sqlc.narg('user_id')::uuid, sqlc.narg('is_admin')::boolean)))
     ) t) AS package_count,
     (SELECT COUNT(*)::bigint FROM (
         SELECT DISTINCT r.name, COALESCE(r.group_name,'') AS g, COALESCE(v.version,'') AS v, r.type
         FROM component_rollup r
         LEFT JOIN LATERAL unnest(r.versions) AS v(version) ON true
-        WHERE (r.namespace_id IN (
+        WHERE r.type = 'library'
+          AND (r.namespace_id IN (
                 SELECT visible_namespace_ids(sqlc.narg('user_id')::uuid, sqlc.narg('is_admin')::boolean)))
     ) t) AS version_count,
     (SELECT COUNT(*)::bigint FROM license) AS license_count;

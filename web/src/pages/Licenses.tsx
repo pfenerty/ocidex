@@ -60,7 +60,7 @@ export default function Licenses() {
             render: (l) => <LicenseCategoryCell category={l.category} />,
         },
         {
-            header: "Components",
+            header: "Package versions",
             align: "right",
             render: (l) => l.componentCount.toLocaleString(),
         },

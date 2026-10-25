@@ -255,7 +255,7 @@ export function HomeDiscovery(): JSX.Element {
                                             </A>
                                             <Badge>{l.category}</Badge>
                                             <span class="landing-list-meta">
-                                                {plural(l.componentCount, "package")}
+                                                {plural(l.componentCount, "package version")}
                                             </span>
                                         </li>
                                     )}

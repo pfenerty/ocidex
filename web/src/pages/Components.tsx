@@ -236,7 +236,7 @@ function ComponentBrowser() {
                 title="Components"
                 subtitle={
                     <>
-                        Libraries found across all SBOMs
+                        Packages found across all SBOMs
                         <Show when={query.data}>
                             {(d) => (
                                 <span class="text-muted">

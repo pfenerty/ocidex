@@ -195,7 +195,7 @@ describe("Home catalog stats", () => {
         // tile rather than on a concatenated "38 artifacts" string.
         const tiles = [...container.querySelectorAll(".tile")].map((t) => t.textContent);
         expect(tiles).toContain("Artifacts38images, binaries and libraries");
-        expect(tiles).toContain("Packages107,86857 versions indexed");
+        expect(tiles).toContain("Packages107,86857 package versions");
         // Every tile that has a list page behind it links to it; SBOMs does not.
         const hrefs = [...container.querySelectorAll("a.tile")].map((a) => a.getAttribute("href"));
         expect(hrefs).toEqual(["/artifacts", "/components", "/licenses", "/vulnerabilities"]);
