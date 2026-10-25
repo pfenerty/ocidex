@@ -107,9 +107,9 @@ func TestSBOMPush_DeclaredSubject(t *testing.T) {
 	sum := sha256.Sum256([]byte("ELF-ish bytes"))
 	is.Equal(stub.query.Get("digest"), "sha256:"+hex.EncodeToString(sum[:]))
 	is.Equal(stub.query.Get("source"), "myorg/ci")
-	is.Equal(stub.query.Get("subject_type"), "application")
-	is.Equal(stub.query.Get("subject_name"), "ocidex")
-	is.Equal(stub.query.Get("subject_purl"), "pkg:golang/github.com/pfenerty/ocidex@v1.2.3")
+	is.Equal(stub.query.Get("subjectType"), "application")
+	is.Equal(stub.query.Get("subjectName"), "ocidex")
+	is.Equal(stub.query.Get("subjectPurl"), "pkg:golang/github.com/pfenerty/ocidex@v1.2.3")
 	is.Equal(stub.query.Get("version"), "v1.2.3")
 	// Architecture is what the sufficiency gate looks for; without it a
 	// non-container SBOM only becomes visible via the relaxed type-aware rule.
