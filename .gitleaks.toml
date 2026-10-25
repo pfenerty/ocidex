@@ -11,3 +11,12 @@ paths = [
   '''(^|/)testdata/''',
   '''\.(test|spec)\.(ts|tsx|js|jsx)$''',
 ]
+
+# A public key fingerprint (cosign's, or ssh-keygen -l's: "SHA256:" + 43 base64
+# characters) identifies a key; it is not a credential. Issue notes quote them
+# when diagnosing signature verification (ocidex-nps9.6), and the generic-api-key
+# rule's entropy check flagged one.
+regexTarget = "line"
+regexes = [
+  '''SHA256:[A-Za-z0-9+/]{43}\b''',
+]
