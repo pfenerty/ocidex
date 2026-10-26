@@ -141,3 +141,62 @@ function must<T>(el: T | null | undefined, what: string): T {
     if (el === null || el === undefined) throw new Error(`expected ${what} in the tree`);
     return el;
 }
+
+/*  A ladder of diamonds: every rung's two packages both depend on both of the
+    next rung's. 40 rungs is 80 packages but 2^40 root-to-leaf paths, the shape
+    of a large distro image's shared dependencies. The walks used to visit every
+    path and froze the tab (ocidex-231j). The leaf carries a finding so the
+    vulnerable-only filter has to walk the whole ladder too. */
+function ladder(rungs: number) {
+    const nodes: ComponentSummary[] = [node("root")];
+    const edges: DependencyEdge[] = [edge("root", "a0"), edge("root", "b0")];
+    for (let i = 0; i < rungs; i++) {
+        nodes.push(node(`a${i}`), node(`b${i}`));
+        if (i < rungs - 1) {
+            for (const from of [`a${i}`, `b${i}`]) {
+                edges.push(edge(from, `a${i + 1}`), edge(from, `b${i + 1}`));
+            }
+        }
+    }
+    nodes.push(node("leaf", 1));
+    edges.push(edge(`a${rungs - 1}`, "leaf"), edge(`b${rungs - 1}`, "leaf"));
+    return { roots: ["root"], nodes, edges };
+}
+
+function renderGraph(g: ReturnType<typeof ladder>, vulnerableOnly = false) {
+    return render(() => (
+        <Router root={(r) => <>{r.children}</>}>
+            {[{ path: "/", component: () => <DependencyTreeView graph={g} vulnerableOnly={vulnerableOnly} /> }]}
+        </Router>
+    ));
+}
+
+describe("DependencyTreeView on a heavily shared graph", () => {
+    it("opens, expands all and filters without walking every path", () => {
+        const g = ladder(40);
+        const start = performance.now();
+        const { container, getByText } = renderGraph(g);
+        fireEvent.click(getByText("Expand all"));
+        const rows = container.querySelectorAll("tbody tr").length;
+        expect(performance.now() - start).toBeLessThan(2000);
+        // Each package is expanded once; repeats point back instead of
+        // redrawing the subtree, so rows track edges, not paths.
+        expect(rows).toBeLessThanOrEqual(g.nodes.length + g.edges.length);
+        expect(container.textContent).toContain("shown above");
+    });
+
+    it("keeps the vulnerable-only filter linear", () => {
+        const start = performance.now();
+        const { container } = renderGraph(ladder(40), true);
+        expect(performance.now() - start).toBeLessThan(2000);
+        expect(names(container)).toContain("leaf");
+    });
+
+    it("does not let a shown-above row be expanded again", () => {
+        const { container, getByText } = renderGraph(ladder(3));
+        fireEvent.click(getByText("Expand all"));
+        const repeat = [...container.querySelectorAll("tbody tr")].find((r) => r.textContent.includes("shown above"));
+        expect(repeat).toBeDefined();
+        expect(repeat?.querySelector(".tree-twisty")?.textContent).toBe("");
+    });
+});
