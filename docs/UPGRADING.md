@@ -118,6 +118,17 @@ Newest first. Each entry names the issue that made the change, so its full conte
 
 ### Next release (unreleased)
 
+**After upgrading:**
+
+- **Run `ocidex migrate backfill` once to clean up stored licenses (ocidex-wb5k).** Ingest now
+  splits license expressions, maps aliases such as Debian's `Expat` to `MIT`, and drops
+  fragments like `AND` or a `sha256:` digest (ocidex-nps9.13), but only for SBOMs ingested from
+  now on. The backfill's two new steps apply the same rules to the licenses already stored. The
+  first re-derives every license stored without an SPDX id, moving its components to the
+  licenses it really names and deleting the old row. The second reads the CycloneDX license
+  expressions that older ingest ignored and adds the licenses they name. Both are idempotent, and
+  a second run reports nothing to do. License counts catch up on the next rollup refresh.
+
 **Behavior changes to check after upgrading:**
 
 - **Every `/api/v1` JSON field is camelCase (ocidex-nps9.32, decided in ocidex-nps9.7).** The

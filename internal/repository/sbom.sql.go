@@ -11,6 +11,33 @@ import (
 	"github.com/jackc/pgx/v5/pgtype"
 )
 
+const copyLicenseLinks = `-- name: CopyLicenseLinks :exec
+INSERT INTO component_license (component_id, license_id)
+SELECT component_id, $1::uuid FROM component_license WHERE license_id = $2::uuid
+ON CONFLICT DO NOTHING
+`
+
+type CopyLicenseLinksParams struct {
+	ToLicense   pgtype.UUID `json:"to_license"`
+	FromLicense pgtype.UUID `json:"from_license"`
+}
+
+// Gives every component linked to one license a link to another. Idempotent.
+func (q *Queries) CopyLicenseLinks(ctx context.Context, arg CopyLicenseLinksParams) error {
+	_, err := q.db.Exec(ctx, copyLicenseLinks, arg.ToLicense, arg.FromLicense)
+	return err
+}
+
+const deleteLicenseByID = `-- name: DeleteLicenseByID :exec
+DELETE FROM license WHERE id = $1
+`
+
+// component_license and the license rollups cascade.
+func (q *Queries) DeleteLicenseByID(ctx context.Context, id pgtype.UUID) error {
+	_, err := q.db.Exec(ctx, deleteLicenseByID, id)
+	return err
+}
+
 const deleteSBOM = `-- name: DeleteSBOM :execrows
 DELETE FROM sbom WHERE id = $1
 `
@@ -172,6 +199,25 @@ type InsertComponentLicenseParams struct {
 func (q *Queries) InsertComponentLicense(ctx context.Context, arg InsertComponentLicenseParams) error {
 	_, err := q.db.Exec(ctx, insertComponentLicense, arg.ComponentID, arg.LicenseID)
 	return err
+}
+
+const insertComponentLicenseIfMissing = `-- name: InsertComponentLicenseIfMissing :execrows
+INSERT INTO component_license (component_id, license_id)
+VALUES ($1, $2)
+ON CONFLICT DO NOTHING
+`
+
+type InsertComponentLicenseIfMissingParams struct {
+	ComponentID pgtype.UUID `json:"component_id"`
+	LicenseID   pgtype.UUID `json:"license_id"`
+}
+
+func (q *Queries) InsertComponentLicenseIfMissing(ctx context.Context, arg InsertComponentLicenseIfMissingParams) (int64, error) {
+	result, err := q.db.Exec(ctx, insertComponentLicenseIfMissing, arg.ComponentID, arg.LicenseID)
+	if err != nil {
+		return 0, err
+	}
+	return result.RowsAffected(), nil
 }
 
 const insertDependency = `-- name: InsertDependency :exec
@@ -347,6 +393,79 @@ func (q *Queries) ListDigestsBySource(ctx context.Context, sourceID pgtype.UUID)
 	return items, nil
 }
 
+const listNameOnlyLicensesPage = `-- name: ListNameOnlyLicensesPage :many
+
+SELECT id, name FROM license
+WHERE spdx_id IS NULL AND id > $1::uuid
+ORDER BY id
+LIMIT $2
+`
+
+type ListNameOnlyLicensesPageParams struct {
+	After    pgtype.UUID `json:"after"`
+	RowLimit int32       `json:"row_limit"`
+}
+
+type ListNameOnlyLicensesPageRow struct {
+	ID   pgtype.UUID `json:"id"`
+	Name string      `json:"name"`
+}
+
+// License backfill (ocidex-wb5k): re-derive licenses stored before
+// ExpandLicense (ocidex-nps9.13) split expressions, mapped aliases and dropped
+// fragments.
+// The licenses ingest stored without an SPDX id, keyset-paged by id. Only these
+// can need re-deriving: an SPDX id passes through ExpandLicense unchanged.
+func (q *Queries) ListNameOnlyLicensesPage(ctx context.Context, arg ListNameOnlyLicensesPageParams) ([]ListNameOnlyLicensesPageRow, error) {
+	rows, err := q.db.Query(ctx, listNameOnlyLicensesPage, arg.After, arg.RowLimit)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	items := []ListNameOnlyLicensesPageRow{}
+	for rows.Next() {
+		var i ListNameOnlyLicensesPageRow
+		if err := rows.Scan(&i.ID, &i.Name); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
+const listSBOMComponentRefs = `-- name: ListSBOMComponentRefs :many
+SELECT id, bom_ref FROM component
+WHERE sbom_id = $1 AND bom_ref IS NOT NULL AND bom_ref != ''
+`
+
+type ListSBOMComponentRefsRow struct {
+	ID     pgtype.UUID `json:"id"`
+	BomRef pgtype.Text `json:"bom_ref"`
+}
+
+func (q *Queries) ListSBOMComponentRefs(ctx context.Context, sbomID pgtype.UUID) ([]ListSBOMComponentRefsRow, error) {
+	rows, err := q.db.Query(ctx, listSBOMComponentRefs, sbomID)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	items := []ListSBOMComponentRefsRow{}
+	for rows.Next() {
+		var i ListSBOMComponentRefsRow
+		if err := rows.Scan(&i.ID, &i.BomRef); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
 const listSBOMComponentsMissingProvenance = `-- name: ListSBOMComponentsMissingProvenance :many
 SELECT id, bom_ref, purl FROM component
 WHERE sbom_id = $1
@@ -373,6 +492,41 @@ func (q *Queries) ListSBOMComponentsMissingProvenance(ctx context.Context, sbomI
 			return nil, err
 		}
 		items = append(items, i)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
+const listSBOMIDsWithLicenseExpressionsPage = `-- name: ListSBOMIDsWithLicenseExpressionsPage :many
+SELECT id FROM sbom
+WHERE id > $1::uuid
+  AND jsonb_path_exists(raw_bom, 'lax $.**.licenses[*].expression')
+ORDER BY id
+LIMIT $2
+`
+
+type ListSBOMIDsWithLicenseExpressionsPageParams struct {
+	After    pgtype.UUID `json:"after"`
+	RowLimit int32       `json:"row_limit"`
+}
+
+// SBOMs whose raw_bom has a CycloneDX license expression anywhere: the choices
+// ingest skipped before ocidex-nps9.13 read them.
+func (q *Queries) ListSBOMIDsWithLicenseExpressionsPage(ctx context.Context, arg ListSBOMIDsWithLicenseExpressionsPageParams) ([]pgtype.UUID, error) {
+	rows, err := q.db.Query(ctx, listSBOMIDsWithLicenseExpressionsPage, arg.After, arg.RowLimit)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	items := []pgtype.UUID{}
+	for rows.Next() {
+		var id pgtype.UUID
+		if err := rows.Scan(&id); err != nil {
+			return nil, err
+		}
+		items = append(items, id)
 	}
 	if err := rows.Err(); err != nil {
 		return nil, err
