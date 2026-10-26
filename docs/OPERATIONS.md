@@ -385,6 +385,8 @@ ingest writes today but did not always write:
 | flavor | `sbom.flavor` | SBOMs ingested before flavor detection |
 | purl | `component.purl` | components with a version whose purl has none |
 | provenance | `component.layer_id`, `found_by`, `source_*`, `file_path` | components with a bom-ref and no `file_path` (pre-00072) |
+| license names | `license`, `component_license` | licenses without an SPDX id that `ExpandLicense` would store differently (ocidex-wb5k) |
+| license expressions | `component_license` | SBOMs whose `raw_bom` has a CycloneDX license `expression`; links are only added |
 
 It is idempotent. A row whose SBOM records no location keeps a NULL `file_path`, so the
 provenance step re-reads those SBOMs on every run without changing them. An SBOM whose

@@ -3,6 +3,7 @@ package service
 import (
 	"bytes"
 	"context"
+	"sort"
 	"testing"
 
 	cdx "github.com/CycloneDX/cyclonedx-go"
@@ -39,11 +40,24 @@ type fakeBackfillComponent struct {
 
 // fakeBackfillRepo applies simplified versions of the db/queries/sbom.sql
 // predicates over in-memory rows, and counts list calls to check paging.
+type fakeLicense struct {
+	id   pgtype.UUID
+	spdx string
+	name string
+}
+
+type fakeLink struct{ component, license pgtype.UUID }
+
 type fakeBackfillRepo struct {
-	sboms      []*fakeBackfillSBOM
-	components []*fakeBackfillComponent
-	listCalls  int
-	purlPages  int
+	licenses      []*fakeLicense
+	links         map[fakeLink]bool
+	nextLicense   byte
+	componentRefs map[pgtype.UUID][]repository.ListSBOMComponentRefsRow
+	exprSBOMs     []pgtype.UUID
+	sboms         []*fakeBackfillSBOM
+	components    []*fakeBackfillComponent
+	listCalls     int
+	purlPages     int
 }
 
 func (f *fakeBackfillRepo) ListSBOMsWithoutFlavorPage(_ context.Context, arg repository.ListSBOMsWithoutFlavorPageParams) ([]repository.ListSBOMsWithoutFlavorPageRow, error) {
@@ -231,4 +245,196 @@ func seqUUID16(n uint16) pgtype.UUID {
 	u := pgtype.UUID{Valid: true}
 	u.Bytes[14], u.Bytes[15] = byte(n>>8), byte(n)
 	return u
+}
+
+// --- license backfill (ocidex-wb5k) ---
+
+func (f *fakeBackfillRepo) license(id pgtype.UUID) *fakeLicense {
+	for _, l := range f.licenses {
+		if l.id == id {
+			return l
+		}
+	}
+	return nil
+}
+
+func (f *fakeBackfillRepo) addLicense(spdx, name string) pgtype.UUID {
+	f.nextLicense++
+	l := &fakeLicense{id: pgtype.UUID{Bytes: [16]byte{0xEE, f.nextLicense}, Valid: true}, spdx: spdx, name: name}
+	f.licenses = append(f.licenses, l)
+	return l.id
+}
+
+func (f *fakeBackfillRepo) GetLicenseBySPDX(_ context.Context, spdxID pgtype.Text) (repository.GetLicenseBySPDXRow, error) {
+	for _, l := range f.licenses {
+		if l.spdx == spdxID.String {
+			return repository.GetLicenseBySPDXRow{ID: l.id, Name: l.name}, nil
+		}
+	}
+	return repository.GetLicenseBySPDXRow{}, pgx.ErrNoRows
+}
+
+func (f *fakeBackfillRepo) GetLicenseByName(_ context.Context, name string) (repository.GetLicenseByNameRow, error) {
+	for _, l := range f.licenses {
+		if l.spdx == "" && l.name == name {
+			return repository.GetLicenseByNameRow{ID: l.id}, nil
+		}
+	}
+	return repository.GetLicenseByNameRow{}, pgx.ErrNoRows
+}
+
+func (f *fakeBackfillRepo) UpsertLicenseBySPDX(ctx context.Context, arg repository.UpsertLicenseBySPDXParams) (pgtype.UUID, error) {
+	if row, err := f.GetLicenseBySPDX(ctx, arg.SpdxID); err == nil {
+		f.license(row.ID).name = arg.Name
+		return row.ID, nil
+	}
+	return f.addLicense(arg.SpdxID.String, arg.Name), nil
+}
+
+func (f *fakeBackfillRepo) UpsertLicenseByName(ctx context.Context, arg repository.UpsertLicenseByNameParams) (pgtype.UUID, error) {
+	if row, err := f.GetLicenseByName(ctx, arg.Name); err == nil {
+		return row.ID, nil
+	}
+	return f.addLicense("", arg.Name), nil
+}
+
+func (f *fakeBackfillRepo) ListNameOnlyLicensesPage(_ context.Context, arg repository.ListNameOnlyLicensesPageParams) ([]repository.ListNameOnlyLicensesPageRow, error) {
+	var out []repository.ListNameOnlyLicensesPageRow
+	for _, l := range f.licenses {
+		if l.spdx == "" && after(l.id, arg.After) && len(out) < int(arg.RowLimit) {
+			out = append(out, repository.ListNameOnlyLicensesPageRow{ID: l.id, Name: l.name})
+		}
+	}
+	return out, nil
+}
+
+func (f *fakeBackfillRepo) CopyLicenseLinks(_ context.Context, arg repository.CopyLicenseLinksParams) error {
+	for k := range f.links {
+		if k.license == arg.FromLicense {
+			f.links[fakeLink{k.component, arg.ToLicense}] = true
+		}
+	}
+	return nil
+}
+
+func (f *fakeBackfillRepo) DeleteLicenseByID(_ context.Context, id pgtype.UUID) error {
+	for i, l := range f.licenses {
+		if l.id == id {
+			f.licenses = append(f.licenses[:i], f.licenses[i+1:]...)
+			break
+		}
+	}
+	for k := range f.links {
+		if k.license == id {
+			delete(f.links, k)
+		}
+	}
+	return nil
+}
+
+func (f *fakeBackfillRepo) ListSBOMIDsWithLicenseExpressionsPage(_ context.Context, arg repository.ListSBOMIDsWithLicenseExpressionsPageParams) ([]pgtype.UUID, error) {
+	var out []pgtype.UUID
+	for _, id := range f.exprSBOMs {
+		if after(id, arg.After) && len(out) < int(arg.RowLimit) {
+			out = append(out, id)
+		}
+	}
+	return out, nil
+}
+
+func (f *fakeBackfillRepo) ListSBOMComponentRefs(_ context.Context, sbomID pgtype.UUID) ([]repository.ListSBOMComponentRefsRow, error) {
+	return f.componentRefs[sbomID], nil
+}
+
+func (f *fakeBackfillRepo) InsertComponentLicenseIfMissing(_ context.Context, arg repository.InsertComponentLicenseIfMissingParams) (int64, error) {
+	k := fakeLink{arg.ComponentID, arg.LicenseID}
+	if f.links[k] {
+		return 0, nil
+	}
+	f.links[k] = true
+	return 1, nil
+}
+
+// licensesOf names the licenses a component is linked to, SPDX id first.
+func (f *fakeBackfillRepo) licensesOf(component pgtype.UUID) []string {
+	var out []string
+	for k := range f.links {
+		if k.component == component {
+			if l := f.license(k.license); l != nil {
+				if l.spdx != "" {
+					out = append(out, l.spdx)
+				} else {
+					out = append(out, l.name)
+				}
+			}
+		}
+	}
+	sort.Strings(out)
+	return out
+}
+
+// Licenses stored before ExpandLicense are re-derived from their names
+// (ocidex-wb5k): expressions split, aliases map, junk goes, and the component
+// keeps every license it really has.
+func TestBackfillLicenseNames(t *testing.T) {
+	is := is.New(t)
+	comp := pgtype.UUID{Bytes: [16]byte{0xC1}, Valid: true}
+	other := pgtype.UUID{Bytes: [16]byte{0xC2}, Valid: true}
+	f := &fakeBackfillRepo{links: map[fakeLink]bool{}}
+	mit := f.addLicense("MIT", "MIT License")
+	expat := f.addLicense("", "Expat")
+	expr := f.addLicense("", "EPL-2.0 AND GPL-2.0-only WITH Classpath-exception-2.0")
+	junk := f.addLicense("", "AND")
+	digest := f.addLicense("", "sha256:fd7e4aae7e7b05f217bcf2d02322825c360e66c52c4c2f1b28d784d6297a1c23")
+	comma := f.addLicense("", "REGCOMP,")
+	plain := f.addLicense("", "BSD-like")
+	for _, l := range []pgtype.UUID{mit, expat, expr, junk, digest, comma, plain} {
+		f.links[fakeLink{comp, l}] = true
+	}
+	f.links[fakeLink{other, expat}] = true
+
+	got, err := backfillLicenseNames(context.Background(), f, 2)
+	is.NoErr(err)
+	is.Equal(got.Updated, 5) // Expat, the expression, AND, the digest, REGCOMP,
+	// BSD-like is already as ExpandLicense would store it, and so is the
+	// REGCOMP row this run created, which the same pass reaches later.
+	is.Equal(got.Skipped, 2)
+
+	is.Equal(f.licensesOf(comp), []string{"BSD-like", "EPL-2.0", "GPL-2.0-only WITH Classpath-exception-2.0", "MIT", "REGCOMP"})
+	is.Equal(f.licensesOf(other), []string{"MIT"}) // Expat became MIT for every component
+	for _, l := range f.licenses {
+		is.True(l.name != "Expat" && l.name != "AND" && l.name != "REGCOMP,")
+	}
+
+	// A second run finds nothing left to do.
+	again, err := backfillLicenseNames(context.Background(), f, 2)
+	is.NoErr(err)
+	is.Equal(again.Updated, 0)
+}
+
+// Pre-nps9.13 ingest skipped CycloneDX license expressions entirely; the
+// backfill adds what they name, once.
+func TestBackfillLicenseExpressions(t *testing.T) {
+	is := is.New(t)
+	sbomID := pgtype.UUID{Bytes: [16]byte{0x5B}, Valid: true}
+	comp := pgtype.UUID{Bytes: [16]byte{0xC3}, Valid: true}
+	raw := []byte(`{"bomFormat":"CycloneDX","specVersion":"1.5","components":[
+		{"type":"library","name":"a","bom-ref":"ref-a","licenses":[{"expression":"MIT OR Apache-2.0"}]},
+		{"type":"library","name":"b","licenses":[{"expression":"MIT"}]}]}`)
+	f := &fakeBackfillRepo{
+		links:         map[fakeLink]bool{},
+		sboms:         []*fakeBackfillSBOM{{id: sbomID, rawBom: raw}},
+		exprSBOMs:     []pgtype.UUID{sbomID},
+		componentRefs: map[pgtype.UUID][]repository.ListSBOMComponentRefsRow{sbomID: {{ID: comp, BomRef: pgtype.Text{String: "ref-a", Valid: true}}}},
+	}
+
+	got, err := backfillLicenseExpressions(context.Background(), f, 10)
+	is.NoErr(err)
+	is.Equal(got.Updated, 2) // MIT and Apache-2.0 on component a
+	is.Equal(got.Skipped, 1) // b has no bom-ref to match its row by
+	is.Equal(f.licensesOf(comp), []string{"Apache-2.0", "MIT"})
+
+	again, err := backfillLicenseExpressions(context.Background(), f, 10)
+	is.NoErr(err)
+	is.Equal(again.Updated, 0)
 }

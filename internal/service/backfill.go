@@ -26,6 +26,14 @@ type BackfillRepository interface {
 	GetSBOMRawBomForBackfill(ctx context.Context, id pgtype.UUID) (repository.GetSBOMRawBomForBackfillRow, error)
 	ListSBOMComponentsMissingProvenance(ctx context.Context, sbomID pgtype.UUID) ([]repository.ListSBOMComponentsMissingProvenanceRow, error)
 	UpdateComponentProvenance(ctx context.Context, arg repository.UpdateComponentProvenanceParams) error
+
+	licenseUpserter
+	ListNameOnlyLicensesPage(ctx context.Context, arg repository.ListNameOnlyLicensesPageParams) ([]repository.ListNameOnlyLicensesPageRow, error)
+	CopyLicenseLinks(ctx context.Context, arg repository.CopyLicenseLinksParams) error
+	DeleteLicenseByID(ctx context.Context, id pgtype.UUID) error
+	ListSBOMIDsWithLicenseExpressionsPage(ctx context.Context, arg repository.ListSBOMIDsWithLicenseExpressionsPageParams) ([]pgtype.UUID, error)
+	ListSBOMComponentRefs(ctx context.Context, sbomID pgtype.UUID) ([]repository.ListSBOMComponentRefsRow, error)
+	InsertComponentLicenseIfMissing(ctx context.Context, arg repository.InsertComponentLicenseIfMissingParams) (int64, error)
 }
 
 // BackfillCounts counts what one backfill step did.
@@ -40,6 +48,12 @@ type BackfillResult struct {
 	Flavor     BackfillCounts // sbom.flavor, pre-F2 rows
 	Purl       BackfillCounts // component.purl without its version
 	Provenance BackfillCounts // component provenance columns and file_path (pre-00072)
+	// LicenseNames counts name-only licenses re-derived with ExpandLicense:
+	// Updated is rewritten (split, aliased, merged or dropped), Skipped kept.
+	LicenseNames BackfillCounts
+	// LicenseExpressions counts SBOMs whose CycloneDX license expressions were
+	// read; Updated is component links added.
+	LicenseExpressions BackfillCounts
 }
 
 // BackfillBatches sizes each backfill step's pages.
@@ -56,7 +70,7 @@ type BackfillBatches struct {
 
 // Backfill derives the columns that ingest now writes for rows stored before
 // it did: an SBOM's flavor, a component's versioned purl and its provenance
-// (ADR-034, ADR-048). Each value is re-derived from data already in the row
+// (ADR-034, ADR-048), and licenses as ExpandLicense derives them (ocidex-wb5k). Each value is re-derived from data already in the row
 // or its SBOM's raw_bom, so the pass is idempotent and safe to re-run; a fresh
 // install has nothing to do. A row that cannot be decoded or written is
 // logged and counted, not fatal.
@@ -69,7 +83,13 @@ func Backfill(ctx context.Context, repo BackfillRepository, batches BackfillBatc
 	if res.Purl, err = backfillPurl(ctx, repo, batches.Components); err != nil {
 		return res, err
 	}
-	res.Provenance, err = backfillProvenance(ctx, repo, batches.SBOMs)
+	if res.Provenance, err = backfillProvenance(ctx, repo, batches.SBOMs); err != nil {
+		return res, err
+	}
+	if res.LicenseNames, err = backfillLicenseNames(ctx, repo, batches.SBOMs); err != nil {
+		return res, err
+	}
+	res.LicenseExpressions, err = backfillLicenseExpressions(ctx, repo, batches.SBOMs)
 	return res, err
 }
 

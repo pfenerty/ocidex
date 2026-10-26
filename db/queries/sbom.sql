@@ -192,3 +192,43 @@ LIMIT 50;
 
 -- name: UpdateSBOMSubjectVersion :exec
 UPDATE sbom SET subject_version = $2 WHERE id = $1;
+
+-- License backfill (ocidex-wb5k): re-derive licenses stored before
+-- ExpandLicense (ocidex-nps9.13) split expressions, mapped aliases and dropped
+-- fragments.
+
+-- name: ListNameOnlyLicensesPage :many
+-- The licenses ingest stored without an SPDX id, keyset-paged by id. Only these
+-- can need re-deriving: an SPDX id passes through ExpandLicense unchanged.
+SELECT id, name FROM license
+WHERE spdx_id IS NULL AND id > @after::uuid
+ORDER BY id
+LIMIT @row_limit;
+
+-- name: CopyLicenseLinks :exec
+-- Gives every component linked to one license a link to another. Idempotent.
+INSERT INTO component_license (component_id, license_id)
+SELECT component_id, @to_license::uuid FROM component_license WHERE license_id = @from_license::uuid
+ON CONFLICT DO NOTHING;
+
+-- name: DeleteLicenseByID :exec
+-- component_license and the license rollups cascade.
+DELETE FROM license WHERE id = $1;
+
+-- name: ListSBOMIDsWithLicenseExpressionsPage :many
+-- SBOMs whose raw_bom has a CycloneDX license expression anywhere: the choices
+-- ingest skipped before ocidex-nps9.13 read them.
+SELECT id FROM sbom
+WHERE id > @after::uuid
+  AND jsonb_path_exists(raw_bom, 'lax $.**.licenses[*].expression')
+ORDER BY id
+LIMIT @row_limit;
+
+-- name: ListSBOMComponentRefs :many
+SELECT id, bom_ref FROM component
+WHERE sbom_id = $1 AND bom_ref IS NOT NULL AND bom_ref != '';
+
+-- name: InsertComponentLicenseIfMissing :execrows
+INSERT INTO component_license (component_id, license_id)
+VALUES ($1, $2)
+ON CONFLICT DO NOTHING;

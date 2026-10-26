@@ -373,7 +373,16 @@ func licenseKey(spdxID, displayName string) string {
 // first and writes only when the license is new or the upsert would change it:
 // an upsert row-locks the license until the ingest commits, so every concurrent
 // ingest would otherwise queue on a common license like MIT (ocidex-q1ni).
-func upsertLicense(ctx context.Context, q *repository.Queries, spdxID, displayName, url string) (pgtype.UUID, error) {
+// licenseUpserter is what upsertLicense needs, so ingest and the license
+// backfill (ocidex-wb5k) resolve a license the same way.
+type licenseUpserter interface {
+	GetLicenseBySPDX(ctx context.Context, spdxID pgtype.Text) (repository.GetLicenseBySPDXRow, error)
+	GetLicenseByName(ctx context.Context, name string) (repository.GetLicenseByNameRow, error)
+	UpsertLicenseBySPDX(ctx context.Context, arg repository.UpsertLicenseBySPDXParams) (pgtype.UUID, error)
+	UpsertLicenseByName(ctx context.Context, arg repository.UpsertLicenseByNameParams) (pgtype.UUID, error)
+}
+
+func upsertLicense(ctx context.Context, q licenseUpserter, spdxID, displayName, url string) (pgtype.UUID, error) {
 	if spdxID != "" {
 		spdx := pgtype.Text{String: spdxID, Valid: true}
 		row, err := q.GetLicenseBySPDX(ctx, spdx)
