@@ -1,6 +1,6 @@
 services:
   postgres:
-    image: docker.io/postgres:18.6-alpine@sha256:77f585114c32fbca283dc835b0596f4e52b51b4c6662d7810b2f4084f60a1873
+    image: docker.io/postgres:18.6-alpine@sha256:10a5c69a83035ab5239f5620d708520e8b28f5aa1f2b20143e6024532edadfb5
     container_name: ocidex-postgres
     restart: always
     environment:
@@ -18,7 +18,7 @@ services:
       retries: 5
 
   nats:
-    image: docker.io/nats:2-alpine@sha256:2ae57dfba3063d5e25fecb75256118c0882a1a2d2cf7d0fba17a7c701df956f6
+    image: docker.io/nats:2-alpine@sha256:823e7f1d6d8ffe3b30dbd73d4a06bbb939acf94929f7fdf224404da7a05bafb5
     container_name: ocidex-nats
     restart: unless-stopped
     command: ["-js", "-m", "8222", "--store_dir", "/data"]
