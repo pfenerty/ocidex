@@ -192,19 +192,6 @@ Newest first. Each entry names the issue that made the change, so its full conte
     until the agent is upgraded, so cluster inventory pauses for that window.
   - Stored walk stats need nothing: rows written before the rename are still read.
 
-- **Registry responses no longer carry `owner_id` or `owner_username` (ocidex-bt62.2).** A
-  registry has no owner of its own; it belongs to a namespace (ADR-039, ADR-046). The two
-  fields only repeated the namespace's owner member, and only the list endpoint filled in
-  `owner_username`. Read the owner from the registry's namespace
-  (`GET /api/v1/namespaces/{id}`, `ownerId` / `ownerUsername`). `/api/v1/users/me/registries`
-  still lists registries in namespaces you own.
-
-- **The account migration 00008 seeded is removed if it was never used (ocidex-7tss).**
-  Migration 00080 deletes the GitHub `16961380` account (a viewer since 0.1.0) unless it
-  has ever signed in or has a session, API key, namespace membership, watch, email or
-  second identity. A fresh install now starts with no accounts. If the account was used
-  on your install, nothing changes.
-
 - **Every running image in a registered cluster is ingested (ADR-0044 K10, ocidex-ve0f).** An
   image whose host has no registry in the cluster's namespace is pulled anonymously, and one a
   registry's patterns exclude is pulled with that registry's credentials. Either SBOM belongs to
@@ -223,6 +210,23 @@ Newest first. Each entry names the issue that made the change, so its full conte
   `ENVIRONMENT=production` the API refuses to start with a plain-http issuer. OIDC requires https,
   and the rule keeps the demo's mock issuer out of a real installation. GitHub-only installs are
   unaffected.
+
+### 0.2.0
+
+**Behavior changes to check after upgrading:**
+
+- **Registry responses no longer carry `owner_id` or `owner_username` (ocidex-bt62.2).** A
+  registry has no owner of its own; it belongs to a namespace (ADR-039, ADR-046). The two
+  fields only repeated the namespace's owner member, and only the list endpoint filled in
+  `owner_username`. Read the owner from the registry's namespace
+  (`GET /api/v1/namespaces/{id}`, `ownerId` / `ownerUsername`). `/api/v1/users/me/registries`
+  still lists registries in namespaces you own.
+
+- **The account migration 00008 seeded is removed if it was never used (ocidex-7tss).**
+  Migration 00080 deletes the GitHub `16961380` account (a viewer since 0.1.0) unless it
+  has ever signed in or has a session, API key, namespace membership, watch, email or
+  second identity. A fresh install now starts with no accounts. If the account was used
+  on your install, nothing changes.
 
 **After upgrading:**
 
