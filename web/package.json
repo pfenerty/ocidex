@@ -23,7 +23,7 @@
         "@eslint/js": "^10.0.0",
         "@solidjs/testing-library": "^0.8.10",
         "@tailwindcss/vite": "^4.2.1",
-        "@types/node": "^25.6.2",
+        "@types/node": "^26.0.0",
         "eslint": "^10.10.0",
         "eslint-plugin-solid": "^0.18.0",
         "happy-dom": "^21.0.0",
