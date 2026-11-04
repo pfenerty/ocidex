@@ -86,12 +86,23 @@
       "groupName": "web dependencies"
     },
     {
-      "description": "Group the runtime/dev container images — Dockerfiles, docker-compose and chart values — into one branch (.tektonic/ CI images are split out by the next rule). Chainguard nginx was otherwise its own PR every day.",
-      "matchDatasources": ["docker"],
-      "groupName": "container images"
+      "description": "Container images are grouped by what they affect, one branch each, so a bump to one concern can't block or ride along with another (#232). Each rule names its files explicitly so the groups don't depend on rule order. App images: the builder and runtime bases of the images this repo ships. Chainguard nginx was otherwise its own PR every day.",
+      "matchManagers": ["dockerfile"],
+      "matchFileNames": ["docker/Dockerfile", "docker/web/Dockerfile"],
+      "groupName": "app images"
     },
     {
-      "description": "CI tool images in .tektonic/ (customManager below) get their own branch, overriding the container-images group above: they change CI, not what ships, and they need the re-synth below. In a mixed group the branch-mode synth was taken from a Dockerfile upgrade, never ran, and tekton-check failed (#232). Must stay after the container-images rule.",
+      "description": "Chart images: third-party images the Helm charts deploy (e.g. NATS).",
+      "matchManagers": ["helm-values"],
+      "groupName": "chart images"
+    },
+    {
+      "description": "Dev images: local-only stacks (docker-compose*.yml) and the never-published mock IdP. Shares some images with the app/chart groups (golang builder, nats), which then bump in two PRs.",
+      "matchFileNames": ["docker-compose*.yml", "docker/mock-idp/Dockerfile"],
+      "groupName": "dev images"
+    },
+    {
+      "description": "CI images: tool images in .tektonic/ (customManager below). They change CI, not what ships, and need the re-synth below. In a mixed group the branch-mode synth was taken from a Dockerfile upgrade, never ran, and tekton-check failed (#232).",
       "matchManagers": ["custom.regex"],
       "matchFileNames": [".tektonic/**"],
       "groupName": "CI images"
