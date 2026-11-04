@@ -86,9 +86,15 @@
       "groupName": "web dependencies"
     },
     {
-      "description": "Group every container image — Dockerfiles, docker-compose, chart values and the .tektonic/ image tags from the customManager below — into one branch. Chainguard nginx was otherwise its own PR every day.",
+      "description": "Group the runtime/dev container images — Dockerfiles, docker-compose and chart values — into one branch (.tektonic/ CI images are split out by the next rule). Chainguard nginx was otherwise its own PR every day.",
       "matchDatasources": ["docker"],
       "groupName": "container images"
+    },
+    {
+      "description": "CI tool images in .tektonic/ (customManager below) get their own branch, overriding the container-images group above: they change CI, not what ships, and they need the re-synth below. In a mixed group the branch-mode synth was taken from a Dockerfile upgrade, never ran, and tekton-check failed (#232). Must stay after the container-images rule.",
+      "matchManagers": ["custom.regex"],
+      "matchFileNames": [".tektonic/**"],
+      "groupName": "CI images"
     },
     {
       "description": "Re-synthesize .tekton/ on any branch that touches .tektonic/ — a @tektonic-ci/* bump, a tsx/typescript bump, or an image bump from the customManager below. .tekton/ itself is in ignorePaths, so this synth is the only thing that writes it. Without this the PR carries the new source but the old manifests, tekton-check fails it, and automerge never fires. Needs RENOVATE_ALLOWED_COMMANDS on the renovate-ocidex cronjob in homelab, or Renovate skips the commands. installTools because a regex-only (image) branch never installs node on its own. executionMode 'branch' runs the synth once over the final set of updates.",
