@@ -86,9 +86,26 @@
       "groupName": "web dependencies"
     },
     {
-      "description": "Group every container image — Dockerfiles, docker-compose, chart values and the .tektonic/ image tags from the customManager below — into one branch. Chainguard nginx was otherwise its own PR every day.",
-      "matchDatasources": ["docker"],
-      "groupName": "container images"
+      "description": "Container images are grouped by what they affect, one branch each, so a bump to one concern can't block or ride along with another (#232). Each rule names its files explicitly so the groups don't depend on rule order. App images: the builder and runtime bases of the images this repo ships. Chainguard nginx was otherwise its own PR every day.",
+      "matchManagers": ["dockerfile"],
+      "matchFileNames": ["docker/Dockerfile", "docker/web/Dockerfile"],
+      "groupName": "app images"
+    },
+    {
+      "description": "Chart images: third-party images the Helm charts deploy (e.g. NATS).",
+      "matchManagers": ["helm-values"],
+      "groupName": "chart images"
+    },
+    {
+      "description": "Dev images: local-only stacks (docker-compose*.yml) and the never-published mock IdP. Shares some images with the app/chart groups (golang builder, nats), which then bump in two PRs.",
+      "matchFileNames": ["docker-compose*.yml", "docker/mock-idp/Dockerfile"],
+      "groupName": "dev images"
+    },
+    {
+      "description": "CI images: tool images in .tektonic/ (customManager below). They change CI, not what ships, and need the re-synth below. In a mixed group the branch-mode synth was taken from a Dockerfile upgrade, never ran, and tekton-check failed (#232).",
+      "matchManagers": ["custom.regex"],
+      "matchFileNames": [".tektonic/**"],
+      "groupName": "CI images"
     },
     {
       "description": "Re-synthesize .tekton/ on any branch that touches .tektonic/ — a @tektonic-ci/* bump, a tsx/typescript bump, or an image bump from the customManager below. .tekton/ itself is in ignorePaths, so this synth is the only thing that writes it. Without this the PR carries the new source but the old manifests, tekton-check fails it, and automerge never fires. Needs RENOVATE_ALLOWED_COMMANDS on the renovate-ocidex cronjob in homelab, or Renovate skips the commands. installTools because a regex-only (image) branch never installs node on its own. executionMode 'branch' runs the synth once over the final set of updates.",
