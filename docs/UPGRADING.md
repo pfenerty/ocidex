@@ -118,6 +118,10 @@ Newest first. Each entry names the issue that made the change, so its full conte
 
 ### Next release (unreleased)
 
+Nothing yet.
+
+### 1.0.0
+
 **After upgrading:**
 
 - **Run `ocidex migrate backfill` once to clean up stored licenses (ocidex-wb5k).** Ingest now
