@@ -1,6 +1,6 @@
 # Always build on the runner's native platform; cross-compile via GOARCH.
 # This avoids QEMU emulation for arm64, which is the main CI slowdown.
-FROM --platform=$BUILDPLATFORM ghcr.io/pfenerty/apko-cicd/golang:1.27@sha256:17333d9b39ead4ccbca2357ff673b47f863c1ca5f80be10c56abe249c02f8be6 AS builder-base
+FROM --platform=$BUILDPLATFORM ghcr.io/pfenerty/apko-cicd/golang:1.27@sha256:02e3bd0e86bd6eb21ba6d9882937725f11d8585d2844f6908ad6fa31d284dfac AS builder-base
 
 # The apko builder image runs as uid 1001 (base/apko.yaml `run-as: nonroot`) with no
 # GOPATH/GOCACHE/GOMODCACHE in its env, so Go resolved them under $HOME=/home/nonroot and the

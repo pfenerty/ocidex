@@ -4,7 +4,7 @@
 # chain's buildkitd runs --oci-worker-snapshotter=native, which copies rather than overlays, so
 # the base size is paid again on every layer of this stage — and the resident footprint competes
 # for the shared 14 GiB GC ceiling with the nine Go image builds (ocidex-5343).
-FROM --platform=$BUILDPLATFORM ghcr.io/pfenerty/apko-cicd/nodejs:24@sha256:55b0b7d4d59529f5dbd39b1f5980ff7142459776d9d746d1b69573a22fc7943d AS build
+FROM --platform=$BUILDPLATFORM ghcr.io/pfenerty/apko-cicd/nodejs:24@sha256:2fb469fce09096c0c0a06f0ad5b95f2f922389e74acaf603cdcff41d3119eb4f AS build
 
 # The apko image runs as uid 1001 (base/apko.yaml `run-as: nonroot`) with no HOME in its env, so
 # npm would resolve its cache dir somewhere the mount below does not cover — the same trap the Go
@@ -27,7 +27,7 @@ RUN npm run build
 # Static assets only — no reverse proxy. /api and /auth are routed to the API by
 # the Gateway HTTPRoute in k8s, and by web/nginx.compose.conf under compose.
 # Runs as UID 65532, hence 8080 rather than 80.
-FROM cgr.dev/chainguard/nginx@sha256:b9debc2fbe5bf256b4c3980d0bbfda8187d46e35b4117c582ace66269dc1de28
+FROM cgr.dev/chainguard/nginx@sha256:0352063c168740414d8caf7cbcc2b386506dba82ba3955cfaee2b8582a1a93a8
 
 COPY web/nginx.conf /etc/nginx/nginx.conf
 COPY --from=build /app/dist /srv
