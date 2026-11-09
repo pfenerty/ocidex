@@ -2,7 +2,7 @@
 # any client_id and vouches for whoever the sign-in picker names, so it is never published:
 # docker-compose.demo.yml builds it locally, and no CI task builds this file. It lives apart
 # from docker/Dockerfile so it cannot be mistaken for, or tested as, a shipped image.
-FROM --platform=$BUILDPLATFORM ghcr.io/pfenerty/apko-cicd/golang:1.27@sha256:17333d9b39ead4ccbca2357ff673b47f863c1ca5f80be10c56abe249c02f8be6 AS build
+FROM --platform=$BUILDPLATFORM ghcr.io/pfenerty/apko-cicd/golang:1.27@sha256:02e3bd0e86bd6eb21ba6d9882937725f11d8585d2844f6908ad6fa31d284dfac AS build
 USER root
 ENV GOPATH=/go \
     GOMODCACHE=/go/pkg/mod \
