@@ -189,7 +189,7 @@ spec:
         requests:
           cpu: 50m
           memory: 256Mi
-      image: ghcr.io/pfenerty/apko-cicd/syft:1.56.0
+      image: ghcr.io/pfenerty/apko-cicd/syft:1.57.0
       name: syft-catalog
       onError: continue
       script: |-
