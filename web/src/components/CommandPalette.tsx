@@ -21,6 +21,7 @@ import {
 } from "~/api/queries";
 import type { SearchHit } from "~/api/queries";
 import { API_REFERENCE_URL } from "~/api/client";
+import { DOCS_URL } from "~/utils/links";
 
 interface User {
     role: string;
@@ -62,6 +63,7 @@ const ENTRIES: readonly Entry[] = [
     { path: "/diff", label: "Compare", group: "Explore", keywords: "diff changelog drift versions" },
     { path: "/about", label: "About", group: "Explore", keywords: "licenses attribution third-party data sources nvd" },
     { path: API_REFERENCE_URL, label: "API reference", group: "Explore", keywords: "openapi rest docs endpoints swagger integration", external: true },
+    { path: DOCS_URL, label: "Documentation", group: "Explore", keywords: "docs help guide manual quickstart install", external: true },
 
     { path: "/dashboard", label: "Workspace", group: "Workspace", keywords: "dashboard mine watched", visible: signedIn },
     { path: "/clusters", label: "Clusters", group: "Workspace", keywords: "kubernetes k8s workloads inventory coverage", visible: signedIn },

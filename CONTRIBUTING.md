@@ -98,4 +98,14 @@ Before proposing significant changes, review the [Architecture Decision Records]
 | [Frontend Development](docs/FRONTEND_DEV.md) | Dev rigs, browser verification, contract tests |
 | [Tekton CI](docs/CI_TEKTON.md) | Fast pipeline iteration, gotchas, task script syntax |
 | [ADRs](docs/adr/) | Rationale for every major technical decision |
+| [Releasing](docs/RELEASING.md) | Cutting, verifying and rolling back a release; upgrade notes |
+| [API versioning](docs/API_VERSIONING.md) | Keeping the `/api/v1` contract; the breaking-change check |
+| [Ingestion internals](docs/INGESTION.md) | The ingest pipeline's entry paths and internals |
+| [Local Kubernetes](docs/K8S_DEV.md) | The Talos and Tilt development cluster |
 | [How AI Was Used](docs/AI.md) | AI's role in development |
+
+User-facing documentation (install, configuration, the UI, the API, the CLI) lives on the
+[docs site](https://docs.ocidex.app), built from [`site/`](site/) ([ADR-0057](docs/adr/0057-public-docs-site.md)).
+A change that affects users updates its page there in the same PR. `make docs-dev` serves the site
+locally, `make docs-generate` regenerates its reference pages, and `make docs-check` builds it with
+the link check.
