@@ -14,6 +14,7 @@ import { NamespaceGroups } from "./sources/NamespaceGroups";
 import { DriftFeedCard } from "./sources/DriftFeedCard";
 import { WebhookSecretBanner } from "./sources/WebhookSecretBanner";
 import { Button } from "~/components/ui";
+import { useAuth } from "~/context/auth";
 
 /**
  * SourcesTab lists every ingest channel grouped by namespace, and owns the
@@ -117,7 +118,15 @@ export function SourcesTab() {
         }
         return out;
     });
+    const { user } = useAuth();
+    // Adding a registry needs manage_source on an existing namespace, or the right to
+    // create a new one, which installation admins and members always have (the
+    // server's requireNamespaceCreation). Without the second half a fresh install,
+    // where nobody holds a namespace yet, offered its first admin no way to add the
+    // first registry (ocidex-mxy0.11). Viewers stay capability-gated (ocidex-nps9.15).
+    const mayCreateNamespace = () => ["admin", "member"].includes(user()?.role ?? "");
     const canManageAny = () =>
+        mayCreateNamespace() ||
         (namespacesQuery.data?.data ?? []).some((ns) => (ns.capabilities ?? []).includes("manage_source"));
 
     const columns = registryColumns({

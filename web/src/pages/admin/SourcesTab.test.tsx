@@ -30,6 +30,18 @@ vi.mock("~/context/toast", () => ({
     useToast: () => vi.fn(),
 }));
 
+// The signed-in user's installation role. Admins and members may always create a
+// namespace, so they may always add a registry, even holding no namespace yet.
+let mockRole: string | undefined = "viewer";
+vi.mock("~/context/auth", () => ({
+    useAuth: () => ({
+        user: Object.assign(() => (mockRole === undefined ? undefined : { id: "u1", displayName: "me", role: mockRole }), {
+            loading: false,
+        }),
+        refetch: vi.fn(),
+    }),
+}));
+
 // The tab reads deep-link params (the cluster Gaps tab sends readers here with
 // a host to add or a registry to open), so the mock has to carry them.
 let searchParams: Record<string, string | undefined> = {};
@@ -500,6 +512,7 @@ describe("SourcesTab last walk (ADR-0053)", () => {
 describe("SourcesTab permissions", () => {
     beforeEach(() => {
         searchParams = {};
+        mockRole = "viewer";
     });
 
     const buttons = (container: HTMLElement) =>
@@ -523,6 +536,22 @@ describe("SourcesTab permissions", () => {
         expect(buttons(container)).not.toContain("Edit");
         expect(buttons(container)).not.toContain("Delete");
         expect(container.textContent).not.toContain("Read only");
+    });
+
+    // ocidex-mxy0.11: on a fresh installation nobody holds a namespace, so the
+    // capability check alone hid Add Registry from the first admin, and the
+    // quickstart could not add its first registry.
+    for (const role of ["admin", "member"]) {
+        it(`offers Add Registry to an installation ${role} with no namespaces`, () => {
+            mockRole = role;
+            const { container } = renderTab([], [], []);
+            expect(buttons(container)).toContain("Add Registry");
+        });
+    }
+
+    it("still offers no Add Registry to a viewer with no namespaces", () => {
+        const { container } = renderTab([], [], []);
+        expect(buttons(container)).not.toContain("Add Registry");
     });
 
     it("offers every action to an owner", () => {

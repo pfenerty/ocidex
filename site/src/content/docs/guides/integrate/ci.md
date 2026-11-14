@@ -8,7 +8,7 @@ sidebar:
 There are two ways to get your builds into OCIDex. Pick by what you build.
 
 - **Container images you push to a registry:** let OCIDex scan the registry itself. Add the
-  registry under **Sources**, with webhook or poll mode, and every pushed image gets an SBOM with no
+  registry under **Sources** (**Admin → Sources** for an admin), with webhook or poll mode, and every pushed image gets an SBOM with no
   CI changes. See [Sources and registries](/concepts/sources-and-registries/).
 - **Anything else, or SBOMs you want made at build time:** generate the SBOM in CI and push it.
   That's what this page covers.
@@ -16,7 +16,7 @@ There are two ways to get your builds into OCIDex. Pick by what you build.
 ## Before you start
 
 1. **An upload source**, which decides the namespace your SBOMs land in:
-   `ocidex-cli source create --name ci --namespace acme`, or **Sources** in the UI.
+   `ocidex-cli source create --name ci --namespace acme`.
 2. **A key that can only ingest:** `ocidex-cli key create --name ci --capability ingest`. Its owner
    needs a role that may ingest in that namespace (owner, maintainer or developer).
 3. Store the key in your CI system's secrets as `OCIDEX_API_KEY`, and the server URL as

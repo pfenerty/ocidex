@@ -11,7 +11,7 @@ what comes through it.
 
 ## Scan a registry
 
-Go to **Sources** and choose **Add Registry**.
+Go to **Sources** (for an admin, the **Sources** tab under **Admin**) and choose **Add Registry**.
 
 | Field | What to enter |
 | --- | --- |
@@ -22,7 +22,8 @@ Go to **Sources** and choose **Add Registry**.
 | **Auth Username**, **Auth Token** | Credentials, for a private registry. They're stored encrypted. |
 | **Repositories** | An explicit list, one per line. Required for registries that don't list their catalog, like Docker Hub, GHCR and Quay. |
 | **Repository Patterns** | Or glob patterns matched against the catalog, like `team-a/*`. |
-| **Tag Patterns** | Globs for tags to consider, like `v1.*`. `*` runs to the end of the tag and `?` matches one character. |
+| **Scan scope** | A preset (newest releases, latest only, recent builds) or **Custom**, which shows the fields below. |
+| **Tag Patterns** | Globs for tags to consider, like `v1.*.?`, or `semver` for any semantic version. `*` matches any run of characters and `?` exactly one. |
 | **Tags per repository** | How many of the newest tags to scan in each repository. 50 by default; 0 is unlimited. |
 | **Tag order** | How "newest" is decided: semver, image creation time, or alphabetical. Auto picks semver when your patterns name versions. |
 | **Max tag age** | Optionally skip images older than this many days. |
