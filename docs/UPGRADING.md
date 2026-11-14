@@ -127,6 +127,12 @@ Newest first. Each entry names the issue that made the change, so its full conte
   and an ingest parameter such as `subject_name` is dropped. What to do: upgrade any CI image
   or script that pins an `ocidex-cli` older than 1.0, and rename parameters in your own API
   calls to camelCase (`subjectVersion`, `sort=cvssScore`).
+- **Response `$schema` links moved under `/api` (ocidex-m3yn).** Every JSON body's
+  `$schema`, and every error's `Link: rel="describedBy"` header, now points at
+  `/api/schemas/<Name>.json` instead of `/schemas/<Name>.json`. The old path was not routed
+  to the API on a standard install, so those links led to the web app; now they resolve.
+  `/schemas/<Name>.json` on the API itself redirects to the new path. Nothing to do unless
+  you compare `$schema` values literally.
 
 ### 1.0.0
 
