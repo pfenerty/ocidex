@@ -157,6 +157,12 @@ section is lost: git-cliff output replaces it on every release.
   checkout of the tag (`make demo-down`, delete the demo volumes, `make demo`), step by step as
   written. It is the evaluator's first contact and nothing else tests it end to end. Fix the page,
   or file a bug, for any step that doesn't match what you see.
+- Retake the docs screenshots from the tag, so the site's pictures match the release. The
+  dev-auth rig seeds everything they show (a cluster, vulnerabilities, signing states), which the
+  demo does not:
+  `make dev-auth-up`, `make frontend-dev-auth`, then
+  `OCIDEX_UI_URL=http://localhost:3200 OCIDEX_API_KEY=<a key from .dev/dev-auth.env> make docs-screenshots`.
+  Look at the images, then commit them; the next push to `main` publishes them.
 - Empty `web/openapi-breaking-accepted.txt`, keeping its header. The released spec is now
   the base for the `openapi-breaking` check, so the old entries match nothing.
 

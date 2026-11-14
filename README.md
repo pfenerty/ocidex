@@ -5,15 +5,15 @@
 OCIDex ingests [CycloneDX](https://cyclonedx.org/) SBOMs, links them to the software artifacts they describe, and gives you a searchable inventory of every component, version, and license across your entire portfolio — with a changelog that shows exactly what changed between releases.
 
 <p align="center">
-  <img src="docs/screenshots/artifact.png" alt="OCIDex dashboard showing artifact list" width="800" />
+  <img src="site/src/assets/screenshots/artifact.png" alt="An artifact page in OCIDex" width="800" />
 </p>
 
 <p align="center">
-  <img src="docs/screenshots/changelog.png" alt="Changelog of the image over time" width="800" />
+  <img src="site/src/assets/screenshots/changelog.png" alt="Changelog of the image over time" width="800" />
 </p>
 
 <p align="center">
-  <img src="docs/screenshots/package.png" alt="Details for a particular package" width="800" />
+  <img src="site/src/assets/screenshots/package.png" alt="Details for a particular package" width="800" />
 </p>
 
 ---

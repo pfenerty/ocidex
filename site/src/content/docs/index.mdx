@@ -23,6 +23,7 @@ import { Image } from "astro:assets";
 import artifact from "../../assets/screenshots/artifact.png";
 import changelog from "../../assets/screenshots/changelog.png";
 import pkg from "../../assets/screenshots/package.png";
+import cluster from "../../assets/screenshots/cluster.png";
 
 ## The problem
 
@@ -67,15 +68,20 @@ across all of them, and over time.
 
 ## A look around
 
-<Image src={artifact} alt="The artifact page for docker.io/library/traefik, listing four versions with their component counts, digests and build dates" />
+<Image src={artifact} alt="An artifact page: its versions, SBOM count, vulnerability count, signing status and when it was first seen" />
 
-Every artifact keeps its whole history: one SBOM per version and architecture.
+Every artifact keeps its whole history: one SBOM per version and architecture, with its
+vulnerabilities and signing status.
 
-<Image src={changelog} alt="The changelog of a container image, showing packages added, removed and upgraded between versions" />
+<Image src={changelog} alt="An artifact's changelog: each version compared with the one before, with counts of packages removed and upgraded" />
 
 The changelog shows what each new version added, removed and upgraded.
 
-<Image src={pkg} alt="The package page for bash, listing each version in use and the images that contain it" />
+<Image src={cluster} alt="A cluster page: how many running containers are matched to an SBOM, how many aren't, and the most severe running vulnerabilities" />
+
+A cluster page shows what's running, how much of it is assessed, and the worst of what's exposed.
+
+<Image src={pkg} alt="A package page listing each version of the package in use and the images that contain it" />
 
 A package page shows every version of it in use, and which artifacts carry each.
 

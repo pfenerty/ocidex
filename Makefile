@@ -7,7 +7,7 @@ ifneq (,$(wildcard .env))
   export
 endif
 
-.PHONY: demo demo-down all build run fmt lint license-check vulncheck test test-coverage test-integration check init clean generate generate-check generate-client generate-client-check generate-operator generate-operator-check migrate-up migrate-down seed frontend frontend-dev frontend-dev-live frontend-dev-auth dev-auth-up dev-auth-down dev-auth-fixtures dev-auth-status dev-auth-reset dev-mock-idp frontend-init frontend-lint frontend-lint-fix frontend-typecheck frontend-test openapi openapi-check auth-matrix auth-matrix-check helm-check docs docs-dev docs-check docs-generate docs-generate-check tekton-synth tekton-check dev-docker-check dev-registry dev-cluster-up dev-cluster-down dev-up dev-down release version help
+.PHONY: demo demo-down all build run fmt lint license-check vulncheck test test-coverage test-integration check init clean generate generate-check generate-client generate-client-check generate-operator generate-operator-check migrate-up migrate-down seed frontend frontend-dev frontend-dev-live frontend-dev-auth dev-auth-up dev-auth-down dev-auth-fixtures dev-auth-status dev-auth-reset dev-mock-idp frontend-init frontend-lint frontend-lint-fix frontend-typecheck frontend-test openapi openapi-check auth-matrix auth-matrix-check helm-check docs docs-dev docs-check docs-generate docs-generate-check docs-screenshots tekton-synth tekton-check dev-docker-check dev-registry dev-cluster-up dev-cluster-down dev-up dev-down release version help
 
 all: check build ## Run all checks and build
 
@@ -219,6 +219,11 @@ docs-dev: ## Serve the docs site locally with live reload
 
 # What the CI docs-build task runs.
 docs-check: docs ## Verify the docs site builds and its internal links resolve
+
+# Retakes the docs site's screenshots from a running instance (site/scripts/screenshots.mjs).
+# Needs OCIDEX_API_KEY (read-only is enough) and OCIDEX_UI_URL (default http://localhost:3000).
+docs-screenshots: ## Retake the docs site's screenshots from a running OCIDex
+	cd site && npm ci && npx playwright install chromium && npm run screenshots
 
 DOCS_REFERENCE = site/src/content/docs/reference
 
