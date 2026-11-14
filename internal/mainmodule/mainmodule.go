@@ -141,7 +141,7 @@ func EffectiveVersion(version, name, purl, mainModule, subjectVersion string) st
 // there, leaving the component permanently unscannable.
 //
 // Diff identity is unaffected: ADR-0019 strips the @version segment before
-// comparing components (docs/SBOM_DIFF.md, Rule 1), so a purl that gains a
+// comparing components (ADR-0019 rule 1; https://docs.ocidex.app/guides/use/compare/), so a purl that gains a
 // version still matches its unversioned self across SBOMs.
 func EffectivePurl(purl, version string) string {
 	if purl == "" || IsUnknownVersion(version) {

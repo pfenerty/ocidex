@@ -305,6 +305,6 @@ the stack. `github_username` reached the sidebar because nothing stopped it.
 * [ADR-046](0046-namespace-membership-rbac.md) — what an authenticated account may then
   do. Identity answers *who*; ADR-046 answers *what*. `ocidex_user.role` is the global
   axis referenced there.
-* [docs/CONFIGURATION.md](../CONFIGURATION.md) — the `GITHUB_*` and `OIDC_*` variables.
+* [Configuration reference](https://docs.ocidex.app/reference/configuration/) — the `GITHUB_*` and `OIDC_*` variables.
 * [docs/FRONTEND_DEV.md](../FRONTEND_DEV.md) — the dev-auth rig that runs the mock issuer.
 * RFC 7636 (PKCE), and the OpenID Connect Discovery and Core specifications.

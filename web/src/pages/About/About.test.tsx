@@ -22,19 +22,23 @@ import { DATA_SOURCES } from "~/pages/About/dataSources";
 
 afterEach(cleanup);
 
-/** The source rows of docs/DATA_SOURCES.md's table: first cell, link text only. */
+/** The docs site page whose "Data sources" table is the source of truth (ocidex-mxy0.6). */
+const DATA_SOURCES_PAGE = "../../../../site/src/content/docs/guides/use/vulnerabilities.md";
+
+/** The source rows of the docs page's "Data sources" table: first cell, link text only. */
 function documentedSources(): string[] {
-    const md = readFileSync(path.resolve(import.meta.dirname, "../../../../docs/DATA_SOURCES.md"), "utf8");
-    return md
+    const md = readFileSync(path.resolve(import.meta.dirname, DATA_SOURCES_PAGE), "utf8");
+    const section = md.split("\n## Data sources\n")[1]?.split("\n## ")[0] ?? "";
+    return section
         .split("\n")
-        .filter((line) => line.startsWith("| ") && !line.startsWith("| Source") && !line.startsWith("|---"))
+        .filter((line) => line.startsWith("| ") && !line.startsWith("| Source") && !/^\|\s*-/.test(line))
         .map((line) => line.split("|")[1].trim().replace(/^\[(.*)\]\(.*\)$/, "$1"));
 }
 
 describe("About", () => {
-    // The page repeats docs/DATA_SOURCES.md so the attribution is where the
-    // data is shown; this keeps the two from drifting apart.
-    it("lists exactly the data sources DATA_SOURCES.md documents", () => {
+    // The page repeats the docs site's data-sources table so the attribution is
+    // where the data is shown; this keeps the two from drifting apart.
+    it("lists exactly the data sources the docs site documents", () => {
         expect(DATA_SOURCES.map((s) => s.name)).toEqual(documentedSources());
     });
 

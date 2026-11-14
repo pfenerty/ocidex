@@ -1,7 +1,8 @@
 /**
  * The vulnerability feeds OCIDex shows data from, and the terms each is
- * published under. docs/DATA_SOURCES.md is the source of truth; a test keeps
- * this list in step with its table (ocidex-7hhp).
+ * published under. The docs site's "Data sources" table
+ * (site/src/content/docs/guides/use/vulnerabilities.md) is the source of truth;
+ * a test keeps this list in step with it (ocidex-7hhp).
  */
 export interface DataSource {
     name: string;
