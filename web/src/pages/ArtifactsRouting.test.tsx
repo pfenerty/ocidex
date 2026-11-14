@@ -11,6 +11,7 @@ vi.mock("~/api/queries", () => ({
 
 vi.mock("~/api/client", () => ({
     API_BASE_URL: "",
+    API_REFERENCE_URL: "/api/docs",
     DEFAULT_PAGE_SIZE: 20,
     client: {},
     unwrap: vi.fn(),

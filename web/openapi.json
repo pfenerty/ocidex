@@ -7164,7 +7164,7 @@
     }
   },
   "info": {
-    "description": "Open Container Initiative Dex — SBOM metadata management service",
+    "description": "OCIDex catalogs container images and the SBOMs that describe them. It enriches\nthem with vulnerability, provenance and image metadata, and answers questions across\nthem: what changed between two versions, which images carry an advisory, and what a\nKubernetes cluster is actually running.\n\n## Authentication\n\nReads of public namespaces need no credentials. Everything else accepts either of:\n\n- **API key**: send `Authorization: Bearer ocidex_…`. Create a key on the app's\n  API keys page (`/admin/keys`) or with `POST /api/v1/auth/keys`. A key acts with\n  the role its owner holds in each namespace, narrowed to the capabilities it was\n  created with.\n- **Session cookie**: set when you sign in to the web app. Requests sent from this page\n  use it automatically. State-changing requests carrying a cookie must come from the\n  app's own origin.\n\nA resource you are not allowed to see answers `404`, the same as one that does not\nexist, so the API never confirms what a private namespace contains.\n\n## Errors\n\nErrors are problem documents (RFC 9457, `application/problem+json`) carrying `status`,\n`title` and `detail`. Validation failures add `errors[]`, one entry per rejected\nfield, with its location. A rate-limited request gets `429` and a `Retry-After` header.\n\n## Pagination\n\nLists use one of two envelopes, and each operation says which:\n\n- **Offset**, for numbered pages over computed results: send `limit` and `offset`,\n  and read `pagination.total`, `limit` and `offset`.\n- **Keyset**, for append-only lists: send `limit`, then pass `pagination.nextCursor`\n  back as `cursor` while `pagination.hasMore` is true. Cursors are opaque.\n\n## Versioning\n\nEvery stable operation lives under `/api/v1`, and `/api/v1` only changes additively:\nnew operations, new optional parameters, new response fields. Clients should ignore\nfields they do not recognise. `info.version` is the version of this contract, not of\nthe server. The running server's build is reported by `GET /api/v1/`.\n\n## This document\n\nThe specification is served by every OCIDex server at `/api/openapi.json` and\n`/api/openapi.yaml`, and is attached to each release.\n",
     "title": "OCIDex API",
     "version": "1.0.0"
   },
@@ -13726,6 +13726,72 @@
     },
     {
       "cookieAuth": []
+    }
+  ],
+  "tags": [
+    {
+      "description": "An artifact is a named thing OCIDex has SBOMs for, usually a container image repository. Look artifacts up by name, and read their versions, changelog, licenses, vulnerabilities, and the artifacts they ship or are shipped in.",
+      "name": "Artifacts"
+    },
+    {
+      "description": "Upload, look up and read SBOMs, with the image metadata, provenance and signing status derived from them. Diff two SBOMs to see the components and vulnerabilities that changed between them.",
+      "name": "SBOMs"
+    },
+    {
+      "description": "Packages found inside SBOMs, identified by purl, with the versions and artifacts each appears in.",
+      "name": "Components"
+    },
+    {
+      "description": "Licenses declared by components, and the components that declare each one.",
+      "name": "Licenses"
+    },
+    {
+      "description": "Advisories matched to components, with severity and the artifacts and SBOMs they affect.",
+      "name": "Vulnerabilities"
+    },
+    {
+      "description": "Kubernetes clusters that report what they run through the OCIDex agent: inventory, coverage, running vulnerabilities, and the gaps where an image has no SBOM.",
+      "name": "Clusters"
+    },
+    {
+      "description": "OCI registries OCIDex scans for images, with their credentials, repository patterns and scan schedule, and the webhook a registry calls when an image is pushed.",
+      "name": "Registries"
+    },
+    {
+      "description": "Where SBOMs come from. A source is an OCI registry, a cluster, or an upload source for CI pipelines that push SBOMs directly.",
+      "name": "Sources"
+    },
+    {
+      "description": "Namespaces own everything else and decide who can see and change it. Manage namespaces, their visibility and their members' roles.",
+      "name": "Namespaces"
+    },
+    {
+      "description": "Background scan and enrichment jobs: their state and errors. Retrying and cancelling jobs requires the admin role.",
+      "name": "Jobs"
+    },
+    {
+      "description": "Sign-in, the current user, and API keys.",
+      "name": "Auth"
+    },
+    {
+      "description": "Server-wide status. Requires the admin role.",
+      "name": "Admin"
+    },
+    {
+      "description": "Summary counts for the dashboard.",
+      "name": "Stats"
+    },
+    {
+      "description": "The public landing payload: what a signed-out visitor can browse.",
+      "name": "Discovery"
+    },
+    {
+      "description": "The API's own version and build.",
+      "name": "Meta"
+    },
+    {
+      "description": "Liveness and readiness probes for orchestrators. Not authenticated.",
+      "name": "Health"
     }
   ]
 }

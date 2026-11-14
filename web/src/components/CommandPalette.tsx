@@ -20,6 +20,7 @@ import {
     MIN_SEARCH_TERM,
 } from "~/api/queries";
 import type { SearchHit } from "~/api/queries";
+import { API_REFERENCE_URL } from "~/api/client";
 
 interface User {
     role: string;
@@ -33,6 +34,8 @@ interface Entry {
     keywords?: string;
     /** Omit for entries anyone may reach. */
     visible?: (user: User | undefined) => boolean;
+    /** A page outside the SPA (the API reference): loaded, not routed to. */
+    external?: boolean;
 }
 
 const signedIn = (u: User | undefined): boolean => u !== undefined;
@@ -58,6 +61,7 @@ const ENTRIES: readonly Entry[] = [
     { path: "/vulnerabilities", label: "Vulnerabilities", group: "Explore", keywords: "cve cves vulns security advisories osv" },
     { path: "/diff", label: "Compare", group: "Explore", keywords: "diff changelog drift versions" },
     { path: "/about", label: "About", group: "Explore", keywords: "licenses attribution third-party data sources nvd" },
+    { path: API_REFERENCE_URL, label: "API reference", group: "Explore", keywords: "openapi rest docs endpoints swagger integration", external: true },
 
     { path: "/dashboard", label: "Workspace", group: "Workspace", keywords: "dashboard mine watched", visible: signedIn },
     { path: "/clusters", label: "Clusters", group: "Workspace", keywords: "kubernetes k8s workloads inventory coverage", visible: signedIn },
@@ -91,6 +95,7 @@ interface Row {
     sub?: string;
     path: string;
     group: string;
+    external?: boolean;
 }
 
 /**
@@ -235,6 +240,7 @@ export default function CommandPalette() {
             sub: e.path,
             path: e.path,
             group: e.group,
+            external: e.external,
         }));
         // `keepPreviousData` deliberately outlives the query that fetched it, so
         // the rows do not blink between keystrokes — which also means the last
@@ -292,6 +298,10 @@ export default function CommandPalette() {
 
     function choose(row: Row): void {
         close();
+        if (row.external === true) {
+            window.location.assign(row.path);
+            return;
+        }
         navigate(row.path);
     }
 

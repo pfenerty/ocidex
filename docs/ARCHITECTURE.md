@@ -206,7 +206,7 @@ The API spec is generated from Go struct types at startup using [huma v2](https:
 
 - The spec is always accurate — it IS the code
 - Input validation is declared via struct tags and enforced automatically
-- The interactive docs UI the API serves at `/docs` is always up to date. The chart's ingress routes only `/api`, `/auth`, `/health` and `/ready` to the API, so reach it on the API's Service or a local run
+- The API reference the API serves at `/api/docs` (Scalar, embedded in the binary) is always up to date, and sits under `/api` so every deployment's routing reaches it
 
 The generated spec is also exported to `web/openapi.json` for frontend type generation (see [Frontend Architecture](#frontend-architecture)).
 

@@ -22,9 +22,18 @@ log $"creating release ($tag) prerelease=($is_prerelease)"
 let url = $"https://api.github.com/repos/$(params.repo-full-name)/releases"
 let payload = { tag_name: $tag, name: $tag, body: $body_text, prerelease: $is_prerelease, draft: false }
 
-http post $url $payload -t application/json -H [
+let headers = [
   Authorization $"token ($env.GH_TOKEN)"
   Accept "application/vnd.github+json"
   X-GitHub-Api-Version "2022-11-28"
 ]
+let release = (http post $url $payload -t application/json -H $headers)
 log "release created"
+
+# The release's API contract, as assets (ocidex-a0p4). web/openapi.json is the spec the
+# tagged server serves: openapi-check fails any commit where it is stale. The YAML is the
+# same document re-encoded, for readers and tools that prefer it.
+let uploads = ($release.upload_url | str replace --regex '\{.*\}$' '')
+http post $"($uploads)?name=openapi.json" (open --raw "web/openapi.json") -t application/json -H $headers | ignore
+http post $"($uploads)?name=openapi.yaml" (open "web/openapi.json" | to yaml) -t application/yaml -H $headers | ignore
+log "openapi.json and openapi.yaml attached"

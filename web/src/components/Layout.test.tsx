@@ -9,6 +9,7 @@ vi.mock("~/components/ThemeToggle", () => ({ default: () => null }));
 
 vi.mock("~/api/client", () => ({
     API_BASE_URL: "",
+    API_REFERENCE_URL: "/api/docs",
     client: {},
     APIClientError: class extends Error {},
     unwrap: vi.fn(),
@@ -91,6 +92,15 @@ describe("Layout", () => {
         // "SBOM Explorer" is the sidebar tagline, unbroken in a single element
         expect(getByText("SBOM Explorer")).toBeDefined();
         expect(getByText("page")).toBeDefined();
+    });
+
+    it("links the API reference as a page load, not a route", () => {
+        mockUserFn = asResource(makeUser());
+        const { container } = render(() => <Wrapped>page</Wrapped>);
+        const link = container.querySelector('a[aria-label="API reference"]');
+        expect(link?.getAttribute("href")).toBe("/api/docs");
+        // Without it the router intercepts the click and renders its own 404.
+        expect(link?.getAttribute("rel")).toContain("external");
     });
 
     it("passes children through without sidebar on /login path", () => {
