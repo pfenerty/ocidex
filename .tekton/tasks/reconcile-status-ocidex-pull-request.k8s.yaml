@@ -41,6 +41,36 @@ spec:
       type: string
     - name: status-helm-check
       type: string
+    - name: check-run-go-build
+      type: string
+    - name: check-run-eslint-lint-web
+      type: string
+    - name: check-run-gofmt-check
+      type: string
+    - name: check-run-go-lint
+      type: string
+    - name: check-run-go-test
+      type: string
+    - name: check-run-go-integration-test
+      type: string
+    - name: check-run-openapi-verify
+      type: string
+    - name: check-run-codegen-check
+      type: string
+    - name: check-run-openapi-breaking
+      type: string
+    - name: check-run-govulncheck-scan
+      type: string
+    - name: check-run-grype-vuln-web
+      type: string
+    - name: check-run-semgrep-sast
+      type: string
+    - name: check-run-gitleaks-secrets
+      type: string
+    - name: check-run-tekton-check
+      type: string
+    - name: check-run-helm-check
+      type: string
   stepTemplate:
     computeResources:
       limits:
@@ -67,47 +97,48 @@ spec:
         - name: GITHUB_TOKEN
           valueFrom:
             secretKeyRef:
-              key: token
-              name: github-pipeline-token
+              key: git-provider-token
+              name: "{{ git_auth_secret }}"
       image: ghcr.io/pfenerty/apko-cicd/base:stable
       name: reconcile
       onError: continue
       script: |-
         #!/usr/bin/env nu
         def log [msg: string] { print $"[(date now | format date '%H:%M:%S')] ($msg)" }
-        def post-status [label: string, body: record]: nothing -> bool {
-          let url = $"https://api.github.com/repos/$(params.repo-full-name)/statuses/$(params.revision)"
-          log $"($label): POST ($url)"
-          log $"($label): body: ($body | to json -r)"
-          try {
-            http post $url $body -t application/json -H [
-              Authorization $"token ($env.GITHUB_TOKEN)"
-              Accept "application/vnd.github+json"
-            ]
-            log $"($label): done"
-            true
-          } catch { |e|
-            log $"($label): error: ($e.msg)"
-            false
+        def gh [method: string, path: string, body?: record]: nothing -> any {
+          let url = $"https://api.github.com/repos/$(params.repo-full-name)($path)"
+          let headers = [
+            Authorization $"Bearer ($env.GITHUB_TOKEN)"
+            Accept "application/vnd.github+json"
+            X-GitHub-Api-Version "2022-11-28"
+          ]
+          match $method {
+            "POST" => { http post $url $body -t application/json -H $headers }
+            "PATCH" => { http patch $url $body -t application/json -H $headers }
+            _ => { http get $url -H $headers }
           }
         }
 
+        def now-iso []: nothing -> string { date now | date to-timezone UTC | format date '%Y-%m-%dT%H:%M:%SZ' }
+
+        def param-id [value: string]: nothing -> any { if ($value | str trim) =~ '^\d+$' { $value | str trim } else { null } }
+
         let entries = [
-          { status: "$(params.status-go-build)", context: "go-build" }
-          { status: "$(params.status-eslint-lint-web)", context: "eslint-lint-web" }
-          { status: "$(params.status-gofmt-check)", context: "gofmt-check" }
-          { status: "$(params.status-go-lint)", context: "go-lint" }
-          { status: "$(params.status-go-test)", context: "go-test" }
-          { status: "$(params.status-go-integration-test)", context: "go-integration-test" }
-          { status: "$(params.status-openapi-verify)", context: "openapi-verify" }
-          { status: "$(params.status-codegen-check)", context: "codegen-check" }
-          { status: "$(params.status-openapi-breaking)", context: "openapi-breaking" }
-          { status: "$(params.status-govulncheck-scan)", context: "govulncheck-scan" }
-          { status: "$(params.status-grype-vuln-web)", context: "grype-vuln-web" }
-          { status: "$(params.status-semgrep-sast)", context: "semgrep-sast" }
-          { status: "$(params.status-gitleaks-secrets)", context: "gitleaks-secrets" }
-          { status: "$(params.status-tekton-check)", context: "tekton-check" }
-          { status: "$(params.status-helm-check)", context: "helm-check" }
+          { status: "$(params.status-go-build)", context: "go-build", id: "$(params.check-run-go-build)" }
+          { status: "$(params.status-eslint-lint-web)", context: "eslint-lint-web", id: "$(params.check-run-eslint-lint-web)" }
+          { status: "$(params.status-gofmt-check)", context: "gofmt-check", id: "$(params.check-run-gofmt-check)" }
+          { status: "$(params.status-go-lint)", context: "go-lint", id: "$(params.check-run-go-lint)" }
+          { status: "$(params.status-go-test)", context: "go-test", id: "$(params.check-run-go-test)" }
+          { status: "$(params.status-go-integration-test)", context: "go-integration-test", id: "$(params.check-run-go-integration-test)" }
+          { status: "$(params.status-openapi-verify)", context: "openapi-verify", id: "$(params.check-run-openapi-verify)" }
+          { status: "$(params.status-codegen-check)", context: "codegen-check", id: "$(params.check-run-codegen-check)" }
+          { status: "$(params.status-openapi-breaking)", context: "openapi-breaking", id: "$(params.check-run-openapi-breaking)" }
+          { status: "$(params.status-govulncheck-scan)", context: "govulncheck-scan", id: "$(params.check-run-govulncheck-scan)" }
+          { status: "$(params.status-grype-vuln-web)", context: "grype-vuln-web", id: "$(params.check-run-grype-vuln-web)" }
+          { status: "$(params.status-semgrep-sast)", context: "semgrep-sast", id: "$(params.check-run-semgrep-sast)" }
+          { status: "$(params.status-gitleaks-secrets)", context: "gitleaks-secrets", id: "$(params.check-run-gitleaks-secrets)" }
+          { status: "$(params.status-tekton-check)", context: "tekton-check", id: "$(params.check-run-tekton-check)" }
+          { status: "$(params.status-helm-check)", context: "helm-check", id: "$(params.check-run-helm-check)" }
         ]
 
         let failed = $entries | each { |entry|
@@ -116,11 +147,35 @@ spec:
             log $"($label): task status is ($entry.status), nothing to resolve"
             null
           } else {
-            let state = if $entry.status == "None" { "success" } else { "failure" }
-            let desc = if $entry.status == "None" { "Skipped" } else { "Failed or terminated" }
-            log $"($label): task status is ($entry.status)"
-            let body = ({ state: $state, context: $entry.context, description: $desc } | merge { target_url: "https://tekton-dashboard.bear-velociraptor.ts.net/#/namespaces/$(context.taskRun.namespace)/pipelineruns/$(params.pipeline-run-name)" })
-            if (post-status $label $body) { null } else { $entry.context }
+            let id = (param-id $entry.id)
+            let done = if $id == null { false } else {
+              try { (gh GET $"/check-runs/($id)" | get status) == "completed" } catch { false }
+            }
+            if $done {
+              log $"($label): check run ($id) already completed"
+              null
+            } else {
+              let skipped = $entry.status == "None"
+              let conclusion = if $skipped { "skipped" } else { "failure" }
+              let output = if $skipped {
+                { title: "Skipped", summary: "Tekton skipped this task: a when expression was false, or a task it depends on failed or was skipped." }
+              } else {
+                { title: "Failed or terminated", summary: "The task failed before it could report its own result. Its pod was killed (OOMKill, eviction), the TaskRun timed out, or the pod never started (image pull). See the PipelineRun for details." }
+              }
+              let body = ({ status: "completed", conclusion: $conclusion, completed_at: (now-iso), output: $output } | merge { details_url: "https://tekton-dashboard.bear-velociraptor.ts.net/#/namespaces/$(context.taskRun.namespace)/pipelineruns/$(params.pipeline-run-name)" })
+              log $"($label): task status is ($entry.status)"
+              try {
+                if $id != null {
+                  gh PATCH $"/check-runs/($id)" $body | ignore
+                } else {
+                  gh POST "/check-runs" ($body | merge { name: $entry.context, head_sha: "$(params.revision)" }) | ignore
+                }
+                null
+              } catch { |e|
+                log $"($label): error: ($e.msg)"
+                $entry.context
+              }
+            }
           }
         } | compact
 

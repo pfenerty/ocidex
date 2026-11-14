@@ -11,6 +11,47 @@ spec:
       type: string
     - name: pipeline-run-name
       type: string
+  results:
+    - name: check-run-9d0628dcf3e1
+      type: string
+    - name: check-run-7a0612208705
+      type: string
+    - name: check-run-1f589d4f9dc0
+      type: string
+    - name: check-run-88490e4492ce
+      type: string
+    - name: check-run-9b94606585d2
+      type: string
+    - name: check-run-06f17b989143
+      type: string
+    - name: check-run-77c4c4b836dc
+      type: string
+    - name: check-run-8039c9e2eb99
+      type: string
+    - name: check-run-e2a5c1c527e1
+      type: string
+    - name: check-run-24197184cff9
+      type: string
+    - name: check-run-870fd5b2a10f
+      type: string
+    - name: check-run-aa7883c1324f
+      type: string
+    - name: check-run-4a9066b92787
+      type: string
+    - name: check-run-c335aaec5547
+      type: string
+    - name: check-run-60345b47d925
+      type: string
+    - name: check-run-049d450b7ab6
+      type: string
+    - name: check-run-1292575c9224
+      type: string
+    - name: check-run-32a1d0876c57
+      type: string
+    - name: check-run-e2a50882cb4f
+      type: string
+    - name: check-run-8d8e4887cf11
+      type: string
   stepTemplate:
     computeResources:
       limits:
@@ -37,39 +78,73 @@ spec:
         - name: GITHUB_TOKEN
           valueFrom:
             secretKeyRef:
-              key: token
-              name: github-pipeline-token
+              key: git-provider-token
+              name: "{{ git_auth_secret }}"
       image: ghcr.io/pfenerty/apko-cicd/base:stable
       name: pending
       onError: continue
       script: |-
         #!/usr/bin/env nu
         def log [msg: string] { print $"[(date now | format date '%H:%M:%S')] ($msg)" }
-        def post-status [label: string, body: record]: nothing -> bool {
-          let url = $"https://api.github.com/repos/$(params.repo-full-name)/statuses/$(params.revision)"
-          log $"($label): POST ($url)"
-          log $"($label): body: ($body | to json -r)"
-          try {
-            http post $url $body -t application/json -H [
-              Authorization $"token ($env.GITHUB_TOKEN)"
-              Accept "application/vnd.github+json"
-            ]
-            log $"($label): done"
-            true
-          } catch { |e|
-            log $"($label): error: ($e.msg)"
-            false
+        def gh [method: string, path: string, body?: record]: nothing -> any {
+          let url = $"https://api.github.com/repos/$(params.repo-full-name)($path)"
+          let headers = [
+            Authorization $"Bearer ($env.GITHUB_TOKEN)"
+            Accept "application/vnd.github+json"
+            X-GitHub-Api-Version "2022-11-28"
+          ]
+          match $method {
+            "POST" => { http post $url $body -t application/json -H $headers }
+            "PATCH" => { http patch $url $body -t application/json -H $headers }
+            _ => { http get $url -H $headers }
           }
         }
 
-        let contexts = ["image-release-api" "go-test" "go-build" "go-integration-test" "openapi-verify" "eslint-lint-web" "image-release-scanner-worker" "image-release-oci-metadata-worker" "image-release-git-worker" "image-release-user-enricher-worker" "image-release-provenance-worker" "image-release-vuln-worker" "image-release-web" "image-release-k8s-agent" "image-release-operator" "image-release-cli" "helm-check" "helm-release" "gh-release" "sbom-push"]
+        def now-iso []: nothing -> string { date now | date to-timezone UTC | format date '%Y-%m-%dT%H:%M:%SZ' }
 
-        let failed = $contexts | each { |context|
-          let body = ({ state: "pending", context: $context, description: "Queued" } | merge { target_url: "https://tekton-dashboard.bear-velociraptor.ts.net/#/namespaces/$(context.taskRun.namespace)/pipelineruns/$(params.pipeline-run-name)" })
-          if (post-status $"status-pending [($context)]" $body) { null } else { $context }
+        def param-id [value: string]: nothing -> any { if ($value | str trim) =~ '^\d+$' { $value | str trim } else { null } }
+
+        let runs = [
+          { context: "image-release-api", result: "$(results.check-run-9d0628dcf3e1.path)" }
+          { context: "go-test", result: "$(results.check-run-7a0612208705.path)" }
+          { context: "go-build", result: "$(results.check-run-1f589d4f9dc0.path)" }
+          { context: "go-integration-test", result: "$(results.check-run-88490e4492ce.path)" }
+          { context: "openapi-verify", result: "$(results.check-run-9b94606585d2.path)" }
+          { context: "eslint-lint-web", result: "$(results.check-run-06f17b989143.path)" }
+          { context: "image-release-scanner-worker", result: "$(results.check-run-77c4c4b836dc.path)" }
+          { context: "image-release-oci-metadata-worker", result: "$(results.check-run-8039c9e2eb99.path)" }
+          { context: "image-release-git-worker", result: "$(results.check-run-e2a5c1c527e1.path)" }
+          { context: "image-release-user-enricher-worker", result: "$(results.check-run-24197184cff9.path)" }
+          { context: "image-release-provenance-worker", result: "$(results.check-run-870fd5b2a10f.path)" }
+          { context: "image-release-vuln-worker", result: "$(results.check-run-aa7883c1324f.path)" }
+          { context: "image-release-web", result: "$(results.check-run-4a9066b92787.path)" }
+          { context: "image-release-k8s-agent", result: "$(results.check-run-c335aaec5547.path)" }
+          { context: "image-release-operator", result: "$(results.check-run-60345b47d925.path)" }
+          { context: "image-release-cli", result: "$(results.check-run-049d450b7ab6.path)" }
+          { context: "helm-check", result: "$(results.check-run-1292575c9224.path)" }
+          { context: "helm-release", result: "$(results.check-run-32a1d0876c57.path)" }
+          { context: "gh-release", result: "$(results.check-run-e2a50882cb4f.path)" }
+          { context: "sbom-push", result: "$(results.check-run-8d8e4887cf11.path)" }
+        ]
+
+        # Write every result before calling GitHub: a reporting task whose param names a result the
+        # pending task never wrote fails, and a GitHub outage must not take the pipeline with it.
+        for run in $runs { "none" | save -f $run.result }
+
+        let failed = $runs | each { |run|
+          let label = $"check-pending [($run.context)]"
+          try {
+            let id = (gh POST "/check-runs" ({ name: $run.context, head_sha: "$(params.revision)", status: "queued" } | merge { details_url: "https://tekton-dashboard.bear-velociraptor.ts.net/#/namespaces/$(context.taskRun.namespace)/pipelineruns/$(params.pipeline-run-name)" }) | get id | into string)
+            $id | save -f $run.result
+            log $"($label): created check run ($id)"
+            null
+          } catch { |e|
+            log $"($label): error: ($e.msg)"
+            $run.context
+          }
         } | compact
 
         if ($failed | is-not-empty) {
-          log $"status-pending: ($failed | length) failed: ($failed | str join ', ')"
+          log $"check-pending: ($failed | length) failed: ($failed | str join ', ')"
           exit 1
         }
