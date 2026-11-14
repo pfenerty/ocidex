@@ -4,7 +4,7 @@
 import { defineConfig } from "astro/config";
 import starlight from "@astrojs/starlight";
 import starlightLinksValidator from "starlight-links-validator";
-import { remarkBaseLinks } from "./src/plugins/remark-base-links.mjs";
+import { baseLinks } from "./src/plugins/base-links.mjs";
 
 const base = process.env.DOCS_BASE ?? "/";
 const isNext = base.replace(/\/+$/, "") === "/next";
@@ -13,8 +13,8 @@ export default defineConfig({
   site: "https://docs.ocidex.app",
   base,
   trailingSlash: "always",
-  markdown: { remarkPlugins: [remarkBaseLinks(base)] },
   integrations: [
+    baseLinks(base),
     starlight({
       title: "OCIDex",
       description:
@@ -27,7 +27,7 @@ export default defineConfig({
       customCss: ["./src/styles/custom.css"],
       // Every internal link is checked at build time; a broken one fails the build. Pages
       // link root-relative ("/guides/..."); the validator checks those at base "/" (the PR
-      // build and the release build), and remarkBaseLinks prefixes them for /next/. Relative
+      // build and the release build), and baseLinks prefixes them in the /next/ build. Relative
       // links are rejected because the validator cannot check them.
       plugins: isNext ? [] : [starlightLinksValidator({ errorOnLocalLinks: true })],
       components: isNext ? { Banner: "./src/components/NextBanner.astro" } : {},
