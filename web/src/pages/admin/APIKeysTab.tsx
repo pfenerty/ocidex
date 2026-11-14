@@ -209,7 +209,7 @@ export function APIKeysTab() {
                         A key can never exceed what its owner's namespace roles allow — narrowing a
                         member's role narrows every key they hold, with no key change.
                         Send a key as <code>Authorization: Bearer &lt;key&gt;</code>; the{" "}
-                        <a href={API_REFERENCE_URL}>API reference</a> lists every operation.
+                        <a href={API_REFERENCE_URL} rel="external">API reference</a> lists every operation.
                     </p>
                 </form>
             </Card>

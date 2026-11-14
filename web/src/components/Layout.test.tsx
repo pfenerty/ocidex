@@ -94,6 +94,15 @@ describe("Layout", () => {
         expect(getByText("page")).toBeDefined();
     });
 
+    it("links the API reference as a page load, not a route", () => {
+        mockUserFn = asResource(makeUser());
+        const { container } = render(() => <Wrapped>page</Wrapped>);
+        const link = container.querySelector('a[aria-label="API reference"]');
+        expect(link?.getAttribute("href")).toBe("/api/docs");
+        // Without it the router intercepts the click and renders its own 404.
+        expect(link?.getAttribute("rel")).toContain("external");
+    });
+
     it("passes children through without sidebar on /login path", () => {
         mockLocation.pathname = "/login";
         mockUserFn = asResource(undefined);

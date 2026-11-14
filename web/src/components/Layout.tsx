@@ -200,9 +200,11 @@ export default function Layout(props: ParentProps) {
                         <Info size={14} />
                         <span>About</span>
                     </A>
-                    {/* A plain anchor, not <A>: the reference is served by the
-                        API, outside the SPA's routes (ocidex-a0p4). */}
-                    <a href={API_REFERENCE_URL} class="sidebar-about" aria-label="API reference">
+                    {/* The reference is served by the API, outside the SPA's
+                        routes (ocidex-a0p4). rel="external" is what makes this a
+                        page load: the router intercepts plain same-origin
+                        anchors too, and would render its own 404. */}
+                    <a href={API_REFERENCE_URL} rel="external" class="sidebar-about" aria-label="API reference">
                         <BookOpen size={14} />
                         <span>API</span>
                     </a>

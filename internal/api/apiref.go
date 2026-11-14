@@ -8,6 +8,7 @@ import (
 	"html"
 	"io"
 	"net/http"
+	"strconv"
 	"strings"
 	"sync"
 
@@ -32,6 +33,7 @@ import (
 const (
 	apiDocsPath       = "/api/docs"
 	apiDocsScriptPath = "/api/docs/scalar.js"
+	apiDocsInitPath   = "/api/docs/init.js"
 	apiSpecJSONPath   = "/api/openapi.json"
 	apiSpecYAMLPath   = "/api/openapi.yaml"
 	legacyDocsPath    = "/docs"
@@ -64,15 +66,18 @@ var apiDocsCSP = strings.Join([]string{
 // is ignored silently, so a Scalar bump needs a look at the page.
 func scalarConfig() map[string]any {
 	return map[string]any{
-		"theme":                "default",
-		"darkMode":             true,
-		"layout":               "modern",
-		"withDefaultFonts":     false,
-		"telemetry":            false,
-		"agent":                map[string]any{"disabled": true},
-		"mcp":                  map[string]any{"disabled": true},
-		"showDeveloperTools":   "never",
-		"hideClientButton":     false,
+		"theme":              "default",
+		"darkMode":           true,
+		"layout":             "modern",
+		"withDefaultFonts":   false,
+		"telemetry":          false,
+		"agent":              map[string]any{"disabled": true},
+		"mcp":                map[string]any{"disabled": true},
+		"showDeveloperTools": "never",
+		// The client button opens Scalar's hosted client at client.scalar.com,
+		// sending the reader and this server's spec URL to a third party. The
+		// in-page "Test Request" panel does the same job without leaving.
+		"hideClientButton":     true,
 		"persistAuth":          false,
 		"defaultOpenAllTags":   false,
 		"operationsSorter":     "method",
@@ -139,6 +144,13 @@ const scalarThemeCSS = `
   --scalar-button-1: #CC1429;
   --scalar-button-1-hover: #B31020;
   --scalar-button-1-color: #FFFFFF;
+  /* The app's light status colours. Scalar's defaults are the dark-mode
+     brights, and its PATCH yellow is unreadable on the cream background. */
+  --scalar-color-green: #15803D;
+  --scalar-color-red: #B91C1C;
+  --scalar-color-yellow: #B45309;
+  --scalar-color-orange: #B45309;
+  --scalar-color-blue: #1D4ED8;
 }
 `
 
@@ -171,20 +183,44 @@ html, body { margin: 0; }
 }
 .ocidex-bar .brand span { font-weight: 400; }
 .ocidex-bar .section { font-size: 0.875rem; font-weight: 500; opacity: 1; padding-left: 0.75rem; border-left: 1px solid rgba(255,255,255,0.45); }
+/* Left, beside the label: Scalar's request client draws its close button in
+   the viewport's top-right corner, over anything placed there. */
 .ocidex-bar .back {
-  margin-left: auto; color: #FFFFFF; font-size: 0.875rem; font-weight: 500;
+  margin-left: 0.25rem; color: #FFFFFF; font-size: 0.875rem; font-weight: 500;
   text-decoration: none; padding: 0.375rem 0.75rem; border-radius: 6px;
   border: 1px solid rgba(255,255,255,0.55);
 }
 .ocidex-bar .back:hover { background: rgba(255,255,255,0.14); }
 .ocidex-bar .back:focus-visible { outline: 2px solid #FFFFFF; outline-offset: 2px; }
 body.light-mode .ocidex-bar { background: #CC1429; }
-@media (max-width: 480px) { .ocidex-bar .section { display: none; } }
+@media (max-width: 560px) { .ocidex-bar .section { display: none; } }
+`
+
+// apiDocsInitJS runs before the renderer. With no API_BASE_URL the spec has no
+// servers block, and Scalar's code samples would read "curl /api/v1/...", which
+// nobody can paste. Only the browser knows the public origin (every proxy in
+// front of the API rewrites Host), so the page asks for it here, from a
+// same-origin script because the CSP allows no inline ones. The renderer reads
+// its configuration from the attribute when it loads, which is after this.
+const apiDocsInitJS = `(function () {
+  var el = document.getElementById("api-reference");
+  if (!el || el.dataset.originServer !== "true") return;
+  try {
+    var cfg = JSON.parse(el.dataset.configuration || "{}");
+    // servers, not baseServerURL: the latter only resolves relative entries
+    // in a servers block, and here there is none to resolve.
+    cfg.servers = [{ url: window.location.origin, description: "This OCIDex server" }];
+    el.dataset.configuration = JSON.stringify(cfg);
+  } catch (e) {}
+})();
 `
 
 // apiDocsPage renders the reference shell. Everything interpolated is ours,
 // but it is escaped anyway, since the configuration travels in an attribute.
-func apiDocsPage() []byte {
+//
+// originServer is true when no API_BASE_URL is configured: init.js then points
+// the samples and the request client at the page's own origin.
+func apiDocsPage(originServer bool) []byte {
 	cfg, err := json.Marshal(scalarConfig())
 	if err != nil {
 		panic("marshal scalar config: " + err.Error())
@@ -206,11 +242,12 @@ func apiDocsPage() []byte {
   <span class="led" aria-hidden="true"></span>
   <a class="brand" href="/">OCI<span>Dex</span></a>
   <span class="section">API Reference</span>
-  <a class="back" href="/">Back to OCIDex</a>
+  <a class="back" href="/">&larr; Back to the app</a>
 </header>
-<script id="api-reference" data-url="` + apiSpecJSONPath + `" data-configuration="`)
+<script id="api-reference" data-url="` + apiSpecJSONPath + `" data-origin-server="` + strconv.FormatBool(originServer) + `" data-configuration="`)
 	b.WriteString(html.EscapeString(string(cfg)))
 	b.WriteString(`"></script>
+<script src="` + apiDocsInitPath + `"></script>
 <script src="` + apiDocsScriptPath + `?v=` + html.EscapeString(strings.TrimSpace(scalarVersion)) + `"></script>
 </body>
 </html>
@@ -222,8 +259,8 @@ func apiDocsPage() []byte {
 // copies of the spec. These are plain routes rather than huma operations: they
 // describe the API, they are not part of it, so they stay out of the spec and
 // out of the auth matrix. All of them are public, like the spec itself.
-func registerAPIReference(r chi.Router, api huma.API) {
-	page := apiDocsPage()
+func registerAPIReference(r chi.Router, api huma.API, apiBaseURL string) {
+	page := apiDocsPage(apiBaseURL == "")
 
 	r.Get(apiDocsPath, func(w http.ResponseWriter, _ *http.Request) {
 		w.Header().Set("Content-Type", "text/html; charset=utf-8")
@@ -235,6 +272,11 @@ func registerAPIReference(r chi.Router, api huma.API) {
 	r.Get(legacyDocsPath, redirectTo(apiDocsPath))
 
 	r.Get(apiDocsScriptPath, serveScalarJS)
+	r.Get(apiDocsInitPath, func(w http.ResponseWriter, _ *http.Request) {
+		w.Header().Set("Content-Type", "text/javascript; charset=utf-8")
+		w.Header().Set("Cache-Control", "no-cache")
+		_, _ = io.WriteString(w, apiDocsInitJS)
+	})
 
 	var once sync.Once
 	var specJSON, specYAML []byte

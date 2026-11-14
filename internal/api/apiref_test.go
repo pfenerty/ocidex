@@ -13,6 +13,8 @@ import (
 	"testing"
 
 	"github.com/danielgtaylor/huma/v2"
+
+	"github.com/pfenerty/ocidex/internal/api"
 )
 
 func apiRefRouter(t *testing.T) http.Handler {
@@ -63,6 +65,9 @@ func TestAPIReferencePage(t *testing.T) {
 	if err := json.Unmarshal([]byte(html.UnescapeString(m[1])), &cfg); err != nil {
 		t.Fatalf("configuration is not JSON: %v", err)
 	}
+	if cfg["hideClientButton"] != true {
+		t.Error("hideClientButton must stay true: the button opens client.scalar.com")
+	}
 	if cfg["telemetry"] != false || cfg["withDefaultFonts"] != false {
 		t.Errorf("telemetry/withDefaultFonts not disabled: %v / %v", cfg["telemetry"], cfg["withDefaultFonts"])
 	}
@@ -71,6 +76,30 @@ func TestAPIReferencePage(t *testing.T) {
 		if sub["disabled"] != true {
 			t.Errorf("%s not disabled: %v", k, cfg[k])
 		}
+	}
+}
+
+// TestAPIReferenceOriginServer: with no API_BASE_URL the spec carries no
+// servers block, so the page has init.js point Scalar at the browser's origin;
+// with one, the spec's servers block stands and the page leaves it alone.
+func TestAPIReferenceOriginServer(t *testing.T) {
+	for _, tc := range []struct {
+		base string
+		want string
+	}{{"", `data-origin-server="true"`}, {"https://ocidex.example", `data-origin-server="false"`}} {
+		h := newTestHandlerWithPinger(&fakeSBOMService{}, &fakeSearchService{}, &fakePinger{})
+		r := api.NewRouter(h, "*", "", tc.base)
+		body := apiRefGet(t, r, "/api/docs", nil).Body.String()
+		if !strings.Contains(body, tc.want) {
+			t.Errorf("API_BASE_URL=%q: page lacks %s", tc.base, tc.want)
+		}
+		if strings.Index(body, `src="/api/docs/init.js"`) > strings.Index(body, `src="/api/docs/scalar.js`) {
+			t.Errorf("init.js must load before the renderer, which reads its configuration on load")
+		}
+	}
+	js := apiRefGet(t, apiRefRouter(t), "/api/docs/init.js", nil)
+	if js.Code != http.StatusOK || !strings.Contains(js.Body.String(), "window.location.origin") {
+		t.Errorf("GET /api/docs/init.js = %d", js.Code)
 	}
 }
 

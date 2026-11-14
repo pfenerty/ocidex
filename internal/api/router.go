@@ -235,7 +235,7 @@ func NewRouter(h *Handler, corsOrigins, frontendURL, apiBaseURL string) chi.Rout
 	registerJobOps(api, h)
 	registerAuthOps(r, api, h)
 	registerDevOps(api, h)
-	registerAPIReference(r, api)
+	registerAPIReference(r, api, apiBaseURL)
 
 	return r
 }
