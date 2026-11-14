@@ -348,6 +348,52 @@ spec:
         $"($__tek_worst)" | save -f /tekton/home/.exit-code
         exit $__tek_rc
     - computeResources:
+        limits:
+          cpu: "2"
+          ephemeral-storage: 1Gi
+          memory: 2Gi
+        requests:
+          cpu: 10m
+          ephemeral-storage: 64Mi
+          memory: 64Mi
+      image: ghcr.io/pfenerty/apko-cicd/golang:1.27
+      name: docs-reference-check
+      onError: continue
+      script: |-
+        #!/usr/bin/env nu
+        def log [msg: string] { print $"[(date now | format date '%H:%M:%S')] ($msg)" }
+        if not ("/tekton/home/.exit-code" | path exists) { try { "0" | save -f /tekton/home/.exit-code } }
+        try { ^chmod 0666 /tekton/home/.exit-code }
+        def main [] {
+        log $"go=(go version) uid=(id -u) pwd=(pwd)"
+        ^git config --global --add safe.directory (pwd)
+        mkdir $env.GOTMPDIR
+        let out = "/tmp/docs-reference-check"
+        mkdir $out
+        log "Regenerating the docs site's reference pages"
+        ^go run ./cmd/docgen -out $out
+        ^go run ./cmd/ocidex-cli gen-reference out> $"($out)/cli.md"
+        for f in [configuration.md helm-values.md authorization.md cli.md] {
+          ^diff $"site/src/content/docs/reference/($f)" $"($out)/($f)"
+        }
+        log "OK: the reference pages are up to date (else run 'make docs-generate')"
+        }
+        if ($env.TEKTONIC_OUTPUT_CAPTURED? | is-empty) {
+          try { "" | save -f /tekton/home/.step-output-docs-reference-check }
+          try { ^chmod 0666 /tekton/home/.step-output-docs-reference-check }
+          let rc = (with-env {TEKTONIC_OUTPUT_CAPTURED: "1"} { ^$nu.current-exe $env.CURRENT_FILE o+e>| tee { print -n -r } | tee { save -f /tekton/home/.step-output-docs-reference-check } | complete | get exit_code })
+          try {
+            let b = (open --raw /tekton/home/.step-output-docs-reference-check | into binary)
+            if ($b | bytes length) > 60000 { $b | bytes at (-60000).. | save -f /tekton/home/.step-output-docs-reference-check }
+          }
+          exit $rc
+        }
+        let __tek_rc = (try { main; 0 } catch { |e| print $"error [codegen-check/docs-reference-check]: ($e.msg)"; 1 })
+        let __tek_prev = (try { open --raw /tekton/home/.exit-code | str trim | into int } catch { 0 })
+        let __tek_worst = ([$__tek_prev $__tek_rc] | math max)
+        $"($__tek_worst)" | save -f /tekton/home/.exit-code
+        exit $__tek_rc
+    - computeResources:
         requests:
           cpu: 10m
       image: ghcr.io/pfenerty/apko-cicd/base:stable
@@ -444,7 +490,7 @@ spec:
         }
 
         let contract_code = (try { open --raw /tekton/home/.exit-code | str trim | into int } catch { 1 })
-        let step_codes = ([{ name: "auth-matrix-check", path: "/tekton/steps/step-auth-matrix-check/exitCode", out: "/tekton/home/.step-output-auth-matrix-check" } { name: "sqlc-check", path: "/tekton/steps/step-sqlc-check/exitCode", out: "/tekton/home/.step-output-sqlc-check" } { name: "client-types-check", path: "/tekton/steps/step-client-types-check/exitCode", out: "/tekton/home/.step-output-client-types-check" } { name: "operator-check", path: "/tekton/steps/step-operator-check/exitCode", out: "/tekton/home/.step-output-operator-check" }] | each { |s|
+        let step_codes = ([{ name: "auth-matrix-check", path: "/tekton/steps/step-auth-matrix-check/exitCode", out: "/tekton/home/.step-output-auth-matrix-check" } { name: "sqlc-check", path: "/tekton/steps/step-sqlc-check/exitCode", out: "/tekton/home/.step-output-sqlc-check" } { name: "client-types-check", path: "/tekton/steps/step-client-types-check/exitCode", out: "/tekton/home/.step-output-client-types-check" } { name: "operator-check", path: "/tekton/steps/step-operator-check/exitCode", out: "/tekton/home/.step-output-operator-check" } { name: "docs-reference-check", path: "/tekton/steps/step-docs-reference-check/exitCode", out: "/tekton/home/.step-output-docs-reference-check" }] | each { |s|
           let ran = ($s.path | path exists)
           { name: $s.name, ran: $ran, out: $s.out, code: (if $ran { try { open --raw $s.path | str trim | into int } catch { 0 } } else { 0 }) }
         })

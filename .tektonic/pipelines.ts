@@ -145,7 +145,7 @@ export const prPipeline = new GitPipeline({
     // driver script changed. Leaf task on this pipeline (nothing publishes on a PR), so
     // gating it is safe; on push/tag it runs ungated as a `needs` of helm-publish/-release.
     gated(helmCheck, { when: chartsChanged }),
-    // Docs site build: link check, and (ocidex-mxy0.8) generated-page staleness.
+    // Docs site build and link check. Generated-page staleness is codegen-check's job.
     gated(docsBuild, { when: docsChanged }),
   ],
 });

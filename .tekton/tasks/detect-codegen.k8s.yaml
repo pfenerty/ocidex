@@ -30,7 +30,7 @@ spec:
         #!/bin/sh
         log() { printf '[%s] %s\n' "$(date +%H:%M:%S)" "$*"; }
         if git -c safe.directory='*' fetch --no-tags origin "main" 2>/dev/null; then
-          if git -c safe.directory='*' diff --name-only FETCH_HEAD...HEAD -- ':(glob)**/*.go' ':(glob)go.mod' ':(glob)go.sum' ':(glob)tools/**' ':(glob)db/**' ':(glob)sqlc.yaml' ':(glob)web/openapi.json' ':(glob)pkg/client/.oapi-codegen.yml' ':(glob)docs/AUTH_MATRIX.md' ':(glob)config/operator/**' ':(glob)charts/ocidex-operator/crds/**' > /tmp/tektonic-changed.txt 2>/dev/null; then
+          if git -c safe.directory='*' diff --name-only FETCH_HEAD...HEAD -- ':(glob)**/*.go' ':(glob)go.mod' ':(glob)go.sum' ':(glob)tools/**' ':(glob)db/**' ':(glob)sqlc.yaml' ':(glob)web/openapi.json' ':(glob)pkg/client/.oapi-codegen.yml' ':(glob)docs/AUTH_MATRIX.md' ':(glob)config/operator/**' ':(glob)charts/ocidex-operator/crds/**' ':(glob)charts/*/values.yaml' ':(glob)site/src/content/docs/reference/**' > /tmp/tektonic-changed.txt 2>/dev/null; then
             if [ -s /tmp/tektonic-changed.txt ]; then
               printf true > $(results.changed.path)
             else

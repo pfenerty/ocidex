@@ -56,8 +56,8 @@ Chosen: **Astro Starlight**, source in **`site/`** in the ocidex repo, hosted on
 
 * `site/` is its own npm package (its own `package.json` and lockfile, outside the `web/`
   workspace) so the docs toolchain never shares a dependency tree with the app.
-* `make docs` builds, `make docs-dev` serves locally, `make docs-check` runs the generators and
-  fails on any diff (folded into `make check`).
+* `make docs` builds, `make docs-dev` serves locally, `make docs-generate` writes the generated
+  pages, and `make docs-generate-check` fails on any diff (both checks are in `make check`).
 * Internal links are validated at build time (`starlight-links-validator`); a broken internal link
   fails the build. External links are not checked in CI: they fail for reasons the PR didn't cause.
 
@@ -81,12 +81,12 @@ has moved, the repo copy is deleted and anything that linked to it links to the 
 | Page | Source of truth | Generator |
 | --- | --- | --- |
 | REST API | `web/openapi.json` (already kept fresh by `openapi-check`) | `starlight-openapi` renders it at build time |
-| Configuration | `env`/`envDefault` tags in `internal/config` | Go generator in the repo, writes `site/src/content/docs/reference/configuration.md` |
-| Authorization matrix | `authRules` (`cmd/authmatrix`) | The existing generator, emitting a site page |
-| CLI | `ocidex-cli` command tree | Go generator walking the CLI's commands and flags |
-| Helm values | `charts/*/values.yaml` comments | `helm-docs` (or an in-repo equivalent) |
+| Configuration | `env`/`envDefault` tags in `internal/config`, descriptions in `config.EnvDocs` | `cmd/docgen` |
+| Authorization matrix | `authRules` (`api.AuthMatrixMarkdown`, as `cmd/authmatrix`) | `cmd/docgen` |
+| CLI | `ocidex-cli` command tree | `ocidex-cli gen-reference` (hidden) |
+| Helm values | `charts/*/values.yaml` and its comments | `cmd/docgen` (in-repo; helm-docs needs a comment convention the charts don't use) |
 
-Each generated page carries a "generated, do not edit" banner and is checked by `docs-check`.
+Each generated page carries a "generated, do not edit" comment and is checked by `docs-generate-check`.
 
 Screenshots come from a Playwright script against the demo stack (`make demo`), at a fixed
 viewport and theme, so visuals track the UI. They are regenerated on release, not on every PR.
@@ -99,9 +99,9 @@ until 2.x exists; at that point the tag publish starts writing `/<major>.<minor>
 
 ### Publishing
 
-* **PR pipeline:** a `docs-build` task, gated on changes under `site/`, `docs/`, `charts/`,
-  `internal/config/`, `cmd/ocidex-cli/` and `web/openapi.json`, runs the generators' staleness
-  check and the site build (which includes the link check).
+* **PR pipeline:** a `docs-build` task, gated on changes under `site/` and the generators'
+  sources, runs the site build (which includes the link check). The generated pages' staleness
+  check runs in `codegen-check` (`make docs-generate-check`), which already has a Go toolchain.
 * **Tag pipeline (`v*`):** `docs-publish` builds the site and replaces everything on `gh-pages`
   except `next/`.
 * **Push pipeline (`main`):** `docs-publish` builds with the `/next/` base and replaces only
@@ -130,8 +130,8 @@ until 2.x exists; at that point the tag publish starts writing `/<major>.<minor>
 
 ### Confirmation
 
-* `make docs-check` and the PR pipeline's `docs-build` fail on a stale generated page or a broken
-  internal link.
+* `make docs-generate-check` (and `codegen-check` in CI) fails on a stale generated page, and
+  `make docs-check` (and `docs-build`) fails on a broken internal link.
 * `https://docs.ocidex.app` serves the latest release, and `/next/` serves `main`.
 * `docs/` keeps only contributor material and ADRs once ocidex-mxy0.10 lands.
 

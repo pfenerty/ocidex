@@ -85,6 +85,10 @@ export const codegenChanged = bucket("detect-codegen", [
   "docs/AUTH_MATRIX.md",
   "config/operator/**",
   "charts/ocidex-operator/crds/**",
+  // The docs site's generated reference pages (ocidex-mxy0.8): values.yaml feeds the Helm
+  // page; the Go sources are covered above.
+  "charts/*/values.yaml",
+  "site/src/content/docs/reference/**",
 ]);
 
 // Docs-site bucket (ADR-0057): the site itself plus every source a generated reference page

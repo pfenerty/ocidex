@@ -71,6 +71,12 @@ linters:
           - goconst
         path: internal/service/(license|search_license)\.go
 
+      # The configuration reference's prose table: each group name repeats once per
+      # variable in it, and a constant per section heading would only obscure it.
+      - linters:
+          - goconst
+        path: internal/config/envdocs\.go
+
       # pkg/client: Client is an interface and FakeClient is its hand-written
       # fake. Mirroring the method set is the point; dupl cannot express that.
       - linters:
@@ -80,6 +86,7 @@ linters:
       - third_party$
       # Some npm packages ship Go sources (flatted); they are not ocidex code.
       - web/node_modules
+      - site/node_modules
       - builtin$
       - examples$
 formatters:

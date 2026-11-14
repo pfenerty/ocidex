@@ -7,7 +7,7 @@ ifneq (,$(wildcard .env))
   export
 endif
 
-.PHONY: demo demo-down all build run fmt lint license-check vulncheck test test-coverage test-integration check init clean generate generate-check generate-client generate-client-check generate-operator generate-operator-check migrate-up migrate-down seed frontend frontend-dev frontend-dev-live frontend-dev-auth dev-auth-up dev-auth-down dev-auth-fixtures dev-auth-status dev-auth-reset dev-mock-idp frontend-init frontend-lint frontend-lint-fix frontend-typecheck frontend-test openapi openapi-check auth-matrix auth-matrix-check helm-check docs docs-dev docs-check tekton-synth tekton-check dev-docker-check dev-registry dev-cluster-up dev-cluster-down dev-up dev-down release version help
+.PHONY: demo demo-down all build run fmt lint license-check vulncheck test test-coverage test-integration check init clean generate generate-check generate-client generate-client-check generate-operator generate-operator-check migrate-up migrate-down seed frontend frontend-dev frontend-dev-live frontend-dev-auth dev-auth-up dev-auth-down dev-auth-fixtures dev-auth-status dev-auth-reset dev-mock-idp frontend-init frontend-lint frontend-lint-fix frontend-typecheck frontend-test openapi openapi-check auth-matrix auth-matrix-check helm-check docs docs-dev docs-check docs-generate docs-generate-check tekton-synth tekton-check dev-docker-check dev-registry dev-cluster-up dev-cluster-down dev-up dev-down release version help
 
 all: check build ## Run all checks and build
 
@@ -53,7 +53,7 @@ test-coverage: ## Run tests with HTML coverage report
 test-integration: ## Run integration tests
 	go test -v -race ./tests/...
 
-check: fmt lint test license-check openapi-check auth-matrix-check generate-check generate-client-check generate-operator-check frontend-lint frontend-typecheck frontend-test helm-check docs-check ## Run fmt, lint, test, openapi staleness and Helm policy checks
+check: fmt lint test license-check openapi-check auth-matrix-check generate-check generate-client-check generate-operator-check frontend-lint frontend-typecheck frontend-test helm-check docs-generate-check docs-check ## Run fmt, lint, test, openapi staleness and Helm policy checks
 
 init: ## Download dependencies (optional: tools build on first use)
 	go mod download
@@ -219,6 +219,23 @@ docs-dev: ## Serve the docs site locally with live reload
 
 # What the CI docs-build task runs.
 docs-check: docs ## Verify the docs site builds and its internal links resolve
+
+DOCS_REFERENCE = site/src/content/docs/reference
+
+docs-generate: ## Regenerate the docs site's reference pages (config, Helm values, CLI, authz)
+	go run ./cmd/docgen -out $(DOCS_REFERENCE)
+	go run ./cmd/ocidex-cli gen-reference > $(DOCS_REFERENCE)/cli.md
+
+# Regenerates into a temp dir and diffs each page, so it does not depend on git state. The
+# codegen-check CI task runs the same commands.
+docs-generate-check: ## Verify the docs site's generated reference pages are up to date
+	@rm -rf /tmp/docs-reference-check && mkdir -p /tmp/docs-reference-check
+	go run ./cmd/docgen -out /tmp/docs-reference-check
+	go run ./cmd/ocidex-cli gen-reference > /tmp/docs-reference-check/cli.md
+	@for f in configuration.md helm-values.md authorization.md cli.md; do \
+		diff $(DOCS_REFERENCE)/$$f /tmp/docs-reference-check/$$f || \
+		{ echo "ERROR: $(DOCS_REFERENCE)/$$f is stale. Run 'make docs-generate'."; exit 1; }; \
+	done
 
 tekton-synth: ## Synthesize Tekton pipeline YAML from TypeScript
 	cd .tektonic && npm ci && npx tektonic synth

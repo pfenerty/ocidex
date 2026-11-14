@@ -29,35 +29,40 @@ var readOutsideStructs = map[string]string{
 	"OTEL_RESOURCE_ATTRIBUTES":    "the OpenTelemetry SDK",
 }
 
-// TestConfigurationDocMatchesStructs covers ocidex-vvw6.2: every env-tagged
-// field of every config struct is documented in docs/CONFIGURATION.md, and
-// every variable that document's tables name is one a struct declares or one
-// readOutsideStructs accounts for. Documentation drifted both ways before
-// (SCANNER_WORKERS outlived its code; SCANNER_POLL_INTERVAL was never written
-// down); this turns either into a failing test.
-func TestConfigurationDocMatchesStructs(t *testing.T) {
+// TestEnvDocsMatchStructs covers ocidex-vvw6.2, now against EnvDocs, the source of
+// the docs site's configuration reference (ocidex-mxy0.8): every env-tagged field
+// of every config struct is described, and every described variable is one a
+// struct declares or one readOutsideStructs accounts for. Documentation drifted
+// both ways before (SCANNER_WORKERS outlived its code; SCANNER_POLL_INTERVAL was
+// never written down); this turns either into a failing test.
+func TestEnvDocsMatchStructs(t *testing.T) {
 	declared := map[string]bool{}
-	for _, v := range []any{config.Config{}, config.VulnWorkerConfig{}, config.OperatorConfig{}, config.K8sAgentConfig{}} {
+	for _, v := range config.DocumentedStructs() {
 		collectEnvTags(reflect.TypeOf(v), declared)
 	}
 	if len(declared) < 50 {
 		t.Fatalf("found only %d env-tagged fields; the reflection walk is broken", len(declared))
 	}
 
-	raw, err := os.ReadFile("../../docs/CONFIGURATION.md")
-	if err != nil {
-		t.Fatal(err)
+	documented := map[string]bool{}
+	for _, d := range config.EnvDocs {
+		if documented[d.Name] {
+			t.Errorf("%s is described twice in EnvDocs", d.Name)
+		}
+		documented[d.Name] = true
+		if strings.TrimSpace(d.Description) == "" || d.Group == "" {
+			t.Errorf("%s has an empty description or group in EnvDocs", d.Name)
+		}
 	}
-	documented := documentedVariables(string(raw))
 
 	for _, name := range sortedKeys(declared) {
 		if !documented[name] {
-			t.Errorf("%s is read by a config struct but not documented in docs/CONFIGURATION.md", name)
+			t.Errorf("%s is read by a config struct but not described in EnvDocs", name)
 		}
 	}
 	for _, name := range sortedKeys(documented) {
 		if !declared[name] && readOutsideStructs[name] == "" {
-			t.Errorf("%s is documented in docs/CONFIGURATION.md but no config struct reads it", name)
+			t.Errorf("%s is described in EnvDocs but no config struct reads it", name)
 		}
 	}
 	for name, reader := range readOutsideStructs {
@@ -65,7 +70,7 @@ func TestConfigurationDocMatchesStructs(t *testing.T) {
 			t.Errorf("%s is now a struct field; drop it from readOutsideStructs (%s)", name, reader)
 		}
 		if !documented[name] {
-			t.Errorf("%s is in readOutsideStructs but not documented", name)
+			t.Errorf("%s is in readOutsideStructs but not described in EnvDocs", name)
 		}
 	}
 }

@@ -18,8 +18,8 @@ const resources = {
   requests: { cpu: "500m", memory: "1Gi" },
 };
 
-// PR: build the site. starlight-links-validator fails the build on a broken internal link,
-// and `npm run check` fails on a stale generated reference page.
+// PR: build the site. starlight-links-validator fails the build on a broken internal link.
+// Generated reference pages are checked for staleness by codegen-check, which has Go.
 export const docsBuild = new Task({
   name: "docs-build",
   statusReporter,
