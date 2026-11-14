@@ -1,12 +1,13 @@
 import "./Layout.css";
 import { A, useNavigate, useLocation } from "@solidjs/router";
 import { createEffect, createSignal, lazy, onCleanup, onMount, Show, type ParentProps } from "solid-js";
-import { Home, LayoutDashboard, Package, Layers, ShieldCheck, ArrowUpDown, ShieldAlert, Server, Database, Settings, LogOut, Search, Menu, X, User, Info, BookOpen } from "lucide-solid";
+import { Home, LayoutDashboard, Package, Layers, ShieldCheck, ArrowUpDown, ShieldAlert, Server, Database, Settings, LogOut, Search, Menu, X, User, Info, BookOpen, CircleHelp } from "lucide-solid";
 import ThemeToggle from "~/components/ThemeToggle";
 import CommandPalette, { openCommandPalette, isAppleShortcut } from "~/components/CommandPalette";
 import { useAuth } from "~/context/auth";
 import { roleEmphasis, type Emphasis } from "~/utils/emphasis";
 import { API_BASE_URL, API_REFERENCE_URL } from "~/api/client";
+import { DOCS_URL } from "~/utils/links";
 
 // The dev rig's persona switcher, behind a dynamic import rather than a static
 // one. `import.meta.env.DEV` is replaced by the literal `false` in a
@@ -207,6 +208,11 @@ export default function Layout(props: ParentProps) {
                     <a href={API_REFERENCE_URL} rel="external" class="sidebar-about" aria-label="API reference">
                         <BookOpen size={14} />
                         <span>API</span>
+                    </a>
+                    {/* The public docs site, a separate origin (ocidex-mxy0.10). */}
+                    <a href={DOCS_URL} rel="external noopener" target="_blank" class="sidebar-about" aria-label="Documentation">
+                        <CircleHelp size={14} />
+                        <span>Docs</span>
                     </a>
                     {/* Neither the sign-in label nor its icon names an issuer:
                         which ones exist is a deployment decision, and the login

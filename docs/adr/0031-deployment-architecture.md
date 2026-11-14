@@ -78,7 +78,7 @@ Image tag binding: `values.yaml` sets `image.tag: ""`. Templates resolve to `{{ 
 - KEDA ScaledObjects move into this repo (as chart templates), eliminating the split between app code and scaling config
 - New integrations (monitoring, Gateway, Cilium) can be enabled per-cluster with `--set <flag>.enabled=true`
 - ~~`k8s/overlays/dev/` and Tiltfile remain unchanged~~ — amended: `k8s/` was deleted instead (`e1bf40f`), and the Tiltfile was rewritten to render `charts/ocidex` with `tilt/values-dev.yaml`
-- ~~The existing OCI manifests Flux job in `images.yml` is kept during the homelab migration period; removed once the homelab switches to HelmRelease~~ — amended: the migration completed. The homelab consumes the chart via HelmRelease; see [`docs/DEPLOYMENT.md`](../DEPLOYMENT.md)
+- ~~The existing OCI manifests Flux job in `images.yml` is kept during the homelab migration period; removed once the homelab switches to HelmRelease~~ — amended: the migration completed. The homelab consumes the chart via HelmRelease; see the [install guide](https://docs.ocidex.app/guides/operate/install/)
 
 ## Key files
 

@@ -1,37 +1,37 @@
 # OCIDex
 
-**A metadata catalog for your software supply chain.**
+**Know what you ship, and what you run.**
 
-OCIDex ingests [CycloneDX](https://cyclonedx.org/) SBOMs, links them to the software artifacts they describe, and gives you a searchable inventory of every component, version, and license across your entire portfolio — with a changelog that shows exactly what changed between releases.
+OCIDex keeps every SBOM of your container images and software, and tells you what is in them,
+what changed between versions, what is vulnerable today, and what is running in your clusters.
+
+**[Documentation](https://docs.ocidex.app)** ·
+[Quickstart](https://docs.ocidex.app/getting-started/quickstart/) ·
+[Concepts](https://docs.ocidex.app/concepts/overview/) ·
+[Install](https://docs.ocidex.app/guides/operate/install/) ·
+[API](https://docs.ocidex.app/guides/integrate/api/)
 
 <p align="center">
-  <img src="site/src/assets/screenshots/artifact.png" alt="An artifact page in OCIDex" width="800" />
+  <img src="site/src/assets/screenshots/changelog.png" alt="An image's changelog in OCIDex: each version compared with the one before" width="800" />
 </p>
 
-<p align="center">
-  <img src="site/src/assets/screenshots/changelog.png" alt="Changelog of the image over time" width="800" />
-</p>
+## What it does
 
-<p align="center">
-  <img src="site/src/assets/screenshots/package.png" alt="Details for a particular package" width="800" />
-</p>
+- **Collects SBOMs.** Scans your container registries itself, or takes CycloneDX SBOMs from CI,
+  the CLI or the API. Every version is kept, per architecture and base distribution.
+- **Diffs any two versions.** A changelog for every artifact, and a diff between any two SBOMs,
+  drawn as a dependency tree.
+- **Keeps vulnerabilities current.** Matched against the grype database and re-matched daily, so a
+  new CVE shows up on an image you scanned months ago, with no rescan.
+- **Knows what is running.** An agent reports what each Kubernetes cluster runs. OCIDex shows how
+  much of it is assessed, and scans the rest.
+- **Searches everything.** Every package, version and license across every SBOM.
+- **Fits your access model.** Namespaces, five roles, GitHub or any OIDC provider, and scoped API
+  keys.
 
----
+## Try it
 
-## Features
-
-- **SBOM Ingestion** — POST a CycloneDX JSON document and OCIDex validates, parses, and stores it with full component and dependency graph data.
-- **Artifact Tracking** — SBOMs are grouped by artifact (container image, library, application). Browse the full version history of any artifact.
-- **Changelog** — See exactly which components were added, removed, or changed between any two SBOMs for an artifact.
-- **SBOM Diffing** — Pick any two SBOMs across any artifacts and compare them side by side.
-- **Component Search** — Find any package by name, group, or type across all ingested SBOMs. See which artifacts use it and how many versions exist.
-- **License Inventory** — Every license found across your SBOMs in one place, categorized as permissive, weak-copyleft, or copyleft, with per-artifact summaries.
-- **Enrichment Pipeline** — After ingestion, background workers enrich SBOMs with additional data. The built-in OCI metadata enricher pulls image labels, architecture, and build info directly from container registries.
-- **OpenAPI Documentation** — The API spec is generated from code via [huma](https://huma.rocks/). Every server serves a browsable API reference at `/api/docs`.
-
-## Quick Start
-
-### Try it: one command, no setup
+You need Docker, git and make:
 
 ```sh
 git clone https://github.com/pfenerty/ocidex.git
@@ -39,267 +39,51 @@ cd ocidex
 make demo
 ```
 
-This builds and starts the whole stack with Docker Compose: PostgreSQL, NATS JetStream, the API
-(port 8080), the scanner, enricher and vulnerability workers, and the web frontend (port 3000).
-Database migrations run first. You need Docker and nothing else: no OAuth app, no `.env` file.
-
-Open [http://localhost:3000](http://localhost:3000) and sign in. Sign-in goes through a mock OIDC
-issuer that lets you pick who you are: **demo-admin** is the installation admin, **demo-viewer** a
-plain viewer. The mock vouches for anyone, so the demo is for your own machine only. The API
-refuses a plain-http issuer like it when `ENVIRONMENT=production`.
-
-To fill the catalog with real SBOMs from public container images, sign in as demo-admin, create an
-API key under **Admin → API keys**, and run the seeder:
-
-```sh
-export OCIDEX_API_KEY=ocidex_...
-flox activate -- make seed
-```
-
-It registers a set of well-annotated public repositories from quay.io and ghcr.io and triggers a
-scan on each. It exits once the first artifacts appear, and the remaining images keep scanning in
-the background.
-
-`make demo-down` stops it and keeps the data for next time.
-
-### With Docker Compose and GitHub sign-in
-
-To run the same stack with real accounts, create a GitHub OAuth app whose callback URL is
-`http://localhost:8080/auth/callback`, then:
-
-```sh
-cp .env.example .env   # fill in GITHUB_CLIENT_ID, GITHUB_CLIENT_SECRET and SESSION_SECRET
-docker compose up -d
-```
-
-Any OIDC issuer works instead of GitHub (`OIDC_ISSUER_URL` and `OIDC_CLIENT_ID`; see
-[sign-in guide](https://docs.ocidex.app/guides/operate/authentication/)). For a real deployment, use the Helm chart
-([install guide](https://docs.ocidex.app/guides/operate/install/)).
-
-### From Source
-
-OCIDex uses [Flox](https://flox.dev/) to manage its development environment (Go, Node, npm, oras, syft, and other tools).
-
-```sh
-git clone https://github.com/pfenerty/ocidex.git
-cd ocidex
-flox activate
-
-# Go dev tools are pinned in tools/go.mod and build on first use (no install step)
-
-# Start PostgreSQL and NATS (via docker-compose, or provide your own)
-docker compose up -d postgres nats
-
-# Configure — SESSION_SECRET is always required, plus at least one identity
-# provider: GITHUB_CLIENT_ID + GITHUB_CLIENT_SECRET, or OIDC_ISSUER_URL +
-# OIDC_CLIENT_ID, or both. Edit DATABASE_URL / NATS_URL if needed
-cp .env.example .env
-
-# Run migrations and build
-make migrate-up
-make build
-make frontend
-
-# Start the server
-make run
-```
-
-`.env` is read by docker-compose and by the make targets, which export it before running
-anything. The binaries themselves read only the process environment — so `./bin/ocidex` invoked
-directly ignores `.env` and exits on the required variables. Export them first if you want to run
-it outside `make`:
-
-```sh
-set -a; . ./.env; set +a
-./bin/ocidex
-```
-
-The API serves on `:8080` by default. For frontend development with hot reload:
-
-```sh
-make frontend-dev   # Vite dev server on :3000, proxies /api/* to :8080
-```
-
-### Installing the CLI
-
-`ocidex-cli` is the command-line client for the API — `registry`, `sbom`, `artifact`,
-`component`, `job` and `key` subcommands, plus `login`. It ships two ways, and building the repo
-is not one of them:
-
-```sh
-# With a Go toolchain
-go install github.com/pfenerty/ocidex/cmd/ocidex-cli@latest
-ocidex-cli version
-
-# Without one
-docker run --rm ghcr.io/pfenerty/ocidex-cli:main --help
-```
-
-A `go install`ed binary carries no `-ldflags`, so `ocidex-cli version` reports the module version
-and VCS stamps the toolchain embedded instead; the published image reports the CI-injected
-version. Point it at a server with `OCIDEX_URL` and authenticate with `OCIDEX_API_KEY`, or run
-`ocidex-cli login` to write `~/.config/ocidex/config.yaml`. See
-[ADR-029](docs/adr/0029-cli-design.md) for the full configuration precedence and exit codes.
-
-### Connecting an Agent
-
-`ocidex-mcp` serves the catalog to MCP clients over stdio, reusing the credentials
-`ocidex-cli login` already wrote:
-
-```sh
-go install github.com/pfenerty/ocidex/cmd/ocidex-mcp@latest
-claude mcp add ocidex -- ocidex-mcp
-```
-
-Fourteen tools cover lookup, diff, changelog, vulnerabilities and ingest. See the
-[MCP guide](https://docs.ocidex.app/guides/integrate/mcp/) for the full list, client configuration and troubleshooting.
-
-### Ingest Your First SBOM
-
-Generate an SBOM with [syft](https://github.com/anchore/syft) and send it to OCIDex:
-
-```sh
-syft registry:docker.io/library/nginx:latest -o cyclonedx-json | \
-  curl -X POST http://localhost:8080/api/v1/sbom \
-    -H "Content-Type: application/json" \
-    -d @-
-```
-
-## Tech Stack
-
-| Layer | Technology |
-|-------|-----------|
-| Language | Go |
-| HTTP | [chi](https://github.com/go-chi/chi) + [huma](https://huma.rocks/) (code-first OpenAPI 3.1) |
-| Database | PostgreSQL ([pgx](https://github.com/jackc/pgx) driver, [sqlc](https://sqlc.dev/) query gen, [goose](https://pressly.github.io/goose/) migrations) |
-| Messaging | [NATS JetStream](https://docs.nats.io/nats-concepts/jetstream) (scan and enrichment job queue) |
-| Frontend | [SolidJS](https://www.solidjs.com/) + [TanStack Query](https://tanstack.com/query) + [Tailwind CSS](https://tailwindcss.com/) |
-| API Client | [openapi-fetch](https://openapi-ts.dev/openapi-fetch/) with generated TypeScript types |
-| Testing | [matryer/is](https://github.com/matryer/is) (unit), [testcontainers-go](https://golang.testcontainers.org/) (integration) |
-| Container | Docker multi-stage build — [distroless](https://github.com/GoogleContainerTools/distroless) `static-debian13` for Go, [Chainguard](https://www.chainguard.dev/) nginx for the web tier ([ADR-038](docs/adr/0038-web-serving-and-base-image-policy.md)) |
-| Dev Environment | [Flox](https://flox.dev/) |
-
-## Project Structure
-
-```
-cmd/ocidex/              API server entry point, wiring, graceful shutdown
-cmd/scanner-worker/      OCI registry scanner (NATS daemon + --once K8s Job mode)
-cmd/oci-metadata-worker/ Per-enricher workers, one per enrichment_jobs partition
-cmd/git-worker/          (NATS daemon + --once K8s Job mode; see ADR-033)
-cmd/user-enricher-worker/
-cmd/provenance-worker/
-cmd/vuln-worker/         Matches SBOMs against the grype vulnerability DB (ADR-049)
-internal/api/            HTTP handlers and routing (chi + huma)
-internal/service/        Business logic interfaces and implementations
-internal/repository/     Data access layer (sqlc-generated queries)
-internal/enrichment/     Pluggable enrichment pipeline
-internal/scanner/        OCI registry scanning (Syft engine)
-internal/nats/           NATS JetStream client helpers
-internal/jobqueue/       Generic outbox-pattern worker (Postgres → NATS doorbell)
-internal/config/         Environment-based configuration
-db/migrations/           SQL schema migrations (goose)
-db/queries/              SQL query definitions (sqlc source of truth)
-web/                     SolidJS frontend (Vite + Tailwind)
-tests/                   Integration tests (testcontainers)
-charts/                  Helm charts (ocidex, ocidex-operator)
-docs/                    Architecture docs, ADRs, development guide
-```
-
-## API Overview
-
-All endpoints are under `/api/v1`. The API reference is served at `/api/docs`, and the OpenAPI spec at `/api/openapi.json` and `/api/openapi.yaml`.
-
-| Method | Path | Description |
-|--------|------|-------------|
-| `POST` | `/api/v1/sbom` | Ingest a CycloneDX JSON SBOM |
-| `GET` | `/api/v1/sbom` | List SBOMs (paginated, filterable) |
-| `GET` | `/api/v1/sbom/{id}` | Get SBOM detail |
-| `GET` | `/api/v1/sbom/{id}/components` | List components in an SBOM |
-| `GET` | `/api/v1/sbom/{id}/dependencies` | Get dependency graph |
-| `GET` | `/api/v1/artifacts` | List tracked artifacts |
-| `GET` | `/api/v1/artifacts/{id}` | Get artifact detail |
-| `GET` | `/api/v1/artifacts/{id}/sboms` | List SBOMs for an artifact |
-| `GET` | `/api/v1/artifacts/{id}/changelog` | Get changelog between SBOMs |
-| `GET` | `/api/v1/artifacts/{id}/license-summary` | License breakdown for latest SBOM |
-| `GET` | `/api/v1/components` | Search components |
-| `GET` | `/api/v1/components/distinct` | Deduplicated component search |
-| `GET` | `/api/v1/licenses` | List all licenses |
-| `GET` | `/api/v1/diff` | Diff any two SBOMs |
-
-Errors follow [RFC 7807](https://www.rfc-editor.org/rfc/rfc7807) problem details format.
-
-## Configuration
-
-OCIDex is configured via environment variables:
-
-See the [configuration reference](https://docs.ocidex.app/reference/configuration/) for every variable. Key variables:
-
-| Variable | Default | Description |
-|----------|---------|-------------|
-| `DATABASE_URL` | — | PostgreSQL connection string (required) |
-| `NATS_URL` | — | NATS server URL (required for API + both workers) |
-| `PORT` | `8080` | HTTP listen port (API server) |
-| `LOG_LEVEL` | `info` | Log level (`debug`, `info`, `warn`, `error`) |
-| `ENVIRONMENT` | `development` | Runtime environment |
-| `GITHUB_CLIENT_ID` | — | GitHub OAuth app client ID (set with the secret, or leave both unset) |
-| `GITHUB_CLIENT_SECRET` | — | GitHub OAuth app client secret |
-| `OIDC_ISSUER_URL` | — | OIDC discovery base; enables the generic OIDC provider |
-| `SESSION_SECRET` | — | Session signing key (always required; generate with `openssl rand -hex 32`) |
-| `FRONTEND_URL` | `http://localhost:3000` | Frontend origin (used for CORS and OAuth redirect) |
-| `NATS_STREAM_NAME` | `ocidex` | JetStream stream name |
-| `SCANNER_MAX_CONCURRENCY` | `10` | Max parallel scans per scanner-worker pod |
-| `ENRICHMENT_MAX_CONCURRENCY` | `10` | Max parallel enrichments per enricher worker pod |
+Open `http://localhost:3000` and sign in as **demo-admin**. The
+[quickstart](https://docs.ocidex.app/getting-started/quickstart/) takes you from there to a
+scanned image, its vulnerabilities and a diff.
 
 ## Documentation
 
-| Document | Description |
-|----------|-------------|
-| [Architecture](docs/ARCHITECTURE.md) | System design, data model, and component overview |
-| [Development Guide](docs/DEVELOPMENT.md) | Coding patterns, testing strategy, and stack examples |
-| [Configuration](https://docs.ocidex.app/reference/configuration/) | All environment variables with descriptions and defaults |
-| [Operator guide](https://docs.ocidex.app/guides/operate/) | Install, configure, upgrade and operate on Kubernetes |
-| [Releasing](docs/RELEASING.md) | Release checklist, tag pipeline, verification, and rollback |
-| [MCP Server](https://docs.ocidex.app/guides/integrate/mcp/) | Serving the catalog to agents over stdio: setup, tools, troubleshooting |
-| [API Versioning](docs/API_VERSIONING.md) | Versioning policy and breaking-change definition |
-| [Frontend Development](docs/FRONTEND_DEV.md) | Dev rigs, browser verification, contract tests |
-| [Tekton CI](docs/CI_TEKTON.md) | Fast pipeline iteration, gotchas, task script syntax |
-| [Architecture Decision Records](docs/adr/) | 43 ADRs documenting every major technical choice |
-| [How AI Was Used](docs/AI.md) | Transparent account of AI's role in development |
+Everything for using and running OCIDex is at **[docs.ocidex.app](https://docs.ocidex.app)**:
 
-## Releases
+| | |
+| --- | --- |
+| [Get started](https://docs.ocidex.app/getting-started/quickstart/) | Run the demo and browse your first SBOM |
+| [Concepts](https://docs.ocidex.app/concepts/overview/) | Artifacts, SBOMs, enrichment, diffs, namespaces and clusters |
+| [User guide](https://docs.ocidex.app/guides/use/overview/) | Working in the UI |
+| [Operator guide](https://docs.ocidex.app/guides/operate/overview/) | Install, configure, upgrade and operate on Kubernetes |
+| [Integrator guide](https://docs.ocidex.app/guides/integrate/overview/) | The API, `ocidex-cli`, MCP and CI recipes |
+| [Reference](https://docs.ocidex.app/reference/overview/) | Generated: API, configuration, Helm values, CLI, authorization |
 
-OCIDex follows [semantic versioning](https://semver.org/). Compatibility guarantees are defined in [ADR-052](docs/adr/0052-v1-compatibility.md); upgrade steps are in the [upgrade guide](https://docs.ocidex.app/guides/operate/upgrade/). See [CHANGELOG.md](CHANGELOG.md) for the per-version history (generated by [git-cliff](https://git-cliff.org) from conventional commits).
+The site's source is in [`site/`](site/). The repository's [`docs/`](docs/) holds contributor
+material: architecture, development, CI and the
+[Architecture Decision Records](docs/adr/).
 
-To cut a new release from `main`:
+## Contributing
 
-```sh
-make release VERSION=v0.1.0
-git push origin main v0.1.0
-```
+See [CONTRIBUTING.md](CONTRIBUTING.md) for the development setup, workflow and conventions.
 
-The Tekton tag pipeline then builds multi-arch (linux/amd64, linux/arm64) images for every component and pushes them to `ghcr.io/pfenerty/ocidex-*`, tagged with the semver version (plus `latest` for stable releases). It publishes the three Helm charts with their image digests pinned, and creates a GitHub Release whose body is the version's CHANGELOG section. Images carry the standard `org.opencontainers.image.*` annotations, and binaries embed their build version (`ocidex --version`). The full checklist, the verification steps and the rollback steps are in [docs/RELEASING.md](docs/RELEASING.md).
+OCIDex is Go (chi, huma, pgx, sqlc), PostgreSQL, NATS JetStream and a SolidJS frontend. The
+[architecture overview](docs/ARCHITECTURE.md) explains how the pieces fit.
 
-## Supply chain security
+## Releases and security
 
-Every published image (`ghcr.io/pfenerty/ocidex-*`) carries build provenance and an SBOM, and
-is signed by Tekton Chains (cosign + public Rekor). See
-**[Verify release artifacts](https://docs.ocidex.app/guides/operate/verify-artifacts/)** for copy-paste verification, and
-[`cosign.pub`](cosign.pub) for the signing key:
+OCIDex follows [semantic versioning](https://semver.org/); what the 1.x line promises is in
+[ADR-052](docs/adr/0052-v1-compatibility.md), and the per-version history in
+[CHANGELOG.md](CHANGELOG.md). Every image and chart is signed and carries build provenance:
+see [Verify release artifacts](https://docs.ocidex.app/guides/operate/verify-artifacts/).
 
-```bash
-cosign verify --key cosign.pub ghcr.io/pfenerty/ocidex-api@sha256:<digest>
-```
+To report a vulnerability, follow [SECURITY.md](SECURITY.md). Please don't open a public issue.
 
-To report a vulnerability, see **[SECURITY.md](SECURITY.md)** — please do not open a public
-issue.
+## AI acknowledgment
 
-## AI Acknowledgment
-
-This project was built with significant AI assistance (Claude). Architecture decisions, technology selection, and code review are human-driven; implementation, refactoring, and documentation are collaborative. See [How AI Was Used](docs/AI.md) for the full picture.
+This project was built with significant AI assistance (Claude). Architecture decisions,
+technology selection and code review are human-driven; implementation, refactoring and
+documentation are collaborative. See [How AI was used](docs/AI.md).
 
 ## License
 
-[MIT](LICENSE)
-
-Every container image also carries the license texts of the third-party code it ships, at
-`/licenses/THIRD_PARTY_NOTICES`. The web UI serves its own at `/third-party-licenses.txt`.
+[MIT](LICENSE). Every container image also carries the license texts of the third-party code it
+ships, at `/licenses/THIRD_PARTY_NOTICES`, and the web UI serves its own at
+`/third-party-licenses.txt`.

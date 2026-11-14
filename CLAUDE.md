@@ -217,12 +217,12 @@ changing the area it governs, and write a new one for a decision of comparable w
 | Auth/authz matrix (generated) | [docs/AUTH_MATRIX.md](docs/AUTH_MATRIX.md) |
 | Namespace membership, roles, capabilities, key ceilings | [ADR-046](docs/adr/0046-namespace-membership-rbac.md) |
 | Identity providers, OIDC, account linking | [ADR-047](docs/adr/0047-provider-agnostic-identity.md) |
-| Diff views, identity rules, flavor axis | [docs/SBOM_DIFF.md](docs/SBOM_DIFF.md) |
-| Cluster page tabs, coverage semantics | [docs/CLUSTER_INVENTORY.md](docs/CLUSTER_INVENTORY.md) |
+| Diff views, identity rules, flavor axis | ADRs 0019–0021; user guide `site/src/content/docs/guides/use/compare.md` |
+| Cluster page tabs, coverage semantics | ADR-0044; user guide `site/src/content/docs/guides/use/clusters.md` |
 | MCP server setup and tools (user-facing) | `site/src/content/docs/guides/integrate/mcp.md` |
-| Vulnerability matching (grype), data sources, attribution | [ADR-049](docs/adr/0049-vulnerability-matching-via-grype.md), [docs/DATA_SOURCES.md](docs/DATA_SOURCES.md) |
+| Vulnerability matching (grype), data sources, attribution | [ADR-049](docs/adr/0049-vulnerability-matching-via-grype.md), `site/src/content/docs/guides/use/vulnerabilities.md` ("Data sources", tested against the About page) |
 | API versioning policy | [docs/API_VERSIONING.md](docs/API_VERSIONING.md) |
-| Image labeling | [docs/IMAGE_LABELING.md](docs/IMAGE_LABELING.md) |
+| Image labeling | `site/src/content/docs/guides/use/image-labels.md` |
 | Cross-repo work (apko-cicd, tektonic) | [AGENTS.md](AGENTS.md), `~/code/CLAUDE.md` |
 
 <!-- BEGIN BEADS INTEGRATION v:1 profile:minimal hash:ca08a54f -->

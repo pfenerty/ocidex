@@ -43,7 +43,11 @@ export const goChanged = bucket("detect-go", [
 
 // Frontend bucket: everything under web/ (SolidJS/TS source + package-lock.json). Gates
 // frontend-lint and the web-security scan.
-export const nodeChanged = bucket("detect-node", ["web/**"]);
+export const nodeChanged = bucket("detect-node", [
+  "web/**",
+  // The About page's data-sources list is tested against this page's table.
+  "site/src/content/docs/guides/use/vulnerabilities.md",
+]);
 
 // Union bucket (Go ∪ frontend) as a SINGLE detection task, so multi-language semgrep can
 // be gated with a classic `in` guard. Deliberately NOT `or(goChanged, nodeChanged)`: that

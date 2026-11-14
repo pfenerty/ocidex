@@ -66,6 +66,7 @@ async function subjects() {
 function shots({ artifact, sboms, pkg, cluster }) {
   const list = [
     { name: "home", path: "/" },
+    { name: "workspace", path: "/dashboard" },
     { name: "artifact", path: `/artifacts/${artifact.id}` },
     { name: "changelog", path: `/artifacts/${artifact.id}?tab=changelog` },
     { name: "vulnerabilities", path: `/artifacts/${artifact.id}?tab=vulns` },
