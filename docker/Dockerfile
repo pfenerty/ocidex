@@ -92,6 +92,10 @@ cp LICENSE /app/licenses/LICENSE
     section "$(go list -m -f '{{.Path}} {{.Version}}' "$mod")"
     cat "$(go list -m -f '{{.Dir}}' "$mod")"/LICENSE*
   done
+  # Not a Go module, so go-licenses cannot see it: the API reference renderer
+  # embedded in ./cmd/ocidex and served at /api/docs (scripts/vendor-scalar.sh).
+  section "@scalar/api-reference $(cat internal/api/apiref/SCALAR_VERSION) (MIT), served at /api/docs"
+  cat internal/api/apiref/LICENSE.scalar
   section "Apache License 2.0 (full text)"
   cat docker/licenses/Apache-2.0.txt
 } > /app/licenses/THIRD_PARTY_NOTICES

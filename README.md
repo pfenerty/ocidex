@@ -27,7 +27,7 @@ OCIDex ingests [CycloneDX](https://cyclonedx.org/) SBOMs, links them to the soft
 - **Component Search** — Find any package by name, group, or type across all ingested SBOMs. See which artifacts use it and how many versions exist.
 - **License Inventory** — Every license found across your SBOMs in one place, categorized as permissive, weak-copyleft, or copyleft, with per-artifact summaries.
 - **Enrichment Pipeline** — After ingestion, background workers enrich SBOMs with additional data. The built-in OCI metadata enricher pulls image labels, architecture, and build info directly from container registries.
-- **OpenAPI Documentation** — The API spec is generated from code at startup via [huma](https://huma.rocks/). Browse it at `/docs`.
+- **OpenAPI Documentation** — The API spec is generated from code via [huma](https://huma.rocks/). Every server serves a browsable API reference at `/api/docs`.
 
 ## Quick Start
 
@@ -207,7 +207,7 @@ docs/                    Architecture docs, ADRs, development guide
 
 ## API Overview
 
-All endpoints are under `/api/v1`. The full OpenAPI spec is served at `/openapi.json` and an interactive docs UI at `/docs`.
+All endpoints are under `/api/v1`. The API reference is served at `/api/docs`, and the OpenAPI spec at `/api/openapi.json` and `/api/openapi.yaml`.
 
 | Method | Path | Description |
 |--------|------|-------------|

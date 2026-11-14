@@ -1,12 +1,12 @@
 import "./Layout.css";
 import { A, useNavigate, useLocation } from "@solidjs/router";
 import { createEffect, createSignal, lazy, onCleanup, onMount, Show, type ParentProps } from "solid-js";
-import { Home, LayoutDashboard, Package, Layers, ShieldCheck, ArrowUpDown, ShieldAlert, Server, Database, Settings, LogOut, Search, Menu, X, User, Info } from "lucide-solid";
+import { Home, LayoutDashboard, Package, Layers, ShieldCheck, ArrowUpDown, ShieldAlert, Server, Database, Settings, LogOut, Search, Menu, X, User, Info, BookOpen } from "lucide-solid";
 import ThemeToggle from "~/components/ThemeToggle";
 import CommandPalette, { openCommandPalette, isAppleShortcut } from "~/components/CommandPalette";
 import { useAuth } from "~/context/auth";
 import { roleEmphasis, type Emphasis } from "~/utils/emphasis";
-import { API_BASE_URL } from "~/api/client";
+import { API_BASE_URL, API_REFERENCE_URL } from "~/api/client";
 
 // The dev rig's persona switcher, behind a dynamic import rather than a static
 // one. `import.meta.env.DEV` is replaced by the literal `false` in a
@@ -200,6 +200,14 @@ export default function Layout(props: ParentProps) {
                         <Info size={14} />
                         <span>About</span>
                     </A>
+                    {/* The reference is served by the API, outside the SPA's
+                        routes (ocidex-a0p4). rel="external" is what makes this a
+                        page load: the router intercepts plain same-origin
+                        anchors too, and would render its own 404. */}
+                    <a href={API_REFERENCE_URL} rel="external" class="sidebar-about" aria-label="API reference">
+                        <BookOpen size={14} />
+                        <span>API</span>
+                    </a>
                     {/* Neither the sign-in label nor its icon names an issuer:
                         which ones exist is a deployment decision, and the login
                         page is what asks. */}

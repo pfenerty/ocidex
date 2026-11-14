@@ -107,7 +107,15 @@ const (
 	tagJobs       = "Jobs"
 	tagAuth       = "Auth"
 	tagAdmin      = "Admin"
+	tagHealth     = "Health"
+	tagMeta       = "Meta"
+	tagStats      = "Stats"
+	tagDiscovery  = "Discovery"
 )
+
+// securitySchemeBearer names the API-key security scheme; the reference page
+// (apiref.go) preselects it.
+const securitySchemeBearer = "bearerAuth"
 
 // Route paths registered by more than one operation (GET/PATCH/DELETE on the
 // same resource). Kept together so the three stay in sync.
@@ -191,14 +199,15 @@ func NewRouter(h *Handler, corsOrigins, frontendURL, apiBaseURL string) chi.Rout
 	r.Use(middleware.Timeout(30 * time.Second))
 
 	config := huma.DefaultConfig("OCIDex API", ContractVersion)
-	config.Info.Description = "Open Container Initiative Dex — SBOM metadata management service"
+	config.Info.Description = apiIntro
+	config.Tags = apiTags
 
 	// Security schemes: Bearer API key or session cookie.
 	if config.Components == nil {
 		config.Components = &huma.Components{}
 	}
 	config.Components.SecuritySchemes = map[string]*huma.SecurityScheme{
-		"bearerAuth": { //nolint:gosec
+		securitySchemeBearer: { //nolint:gosec
 			Type:         "http",
 			Scheme:       "bearer",
 			BearerFormat: "ocidex_<token>",
@@ -213,7 +222,7 @@ func NewRouter(h *Handler, corsOrigins, frontendURL, apiBaseURL string) chi.Rout
 	}
 	// Global security: any request must satisfy bearerAuth OR cookieAuth.
 	config.Security = []map[string][]string{
-		{"bearerAuth": {}},
+		{securitySchemeBearer: {}},
 		{"cookieAuth": {}},
 	}
 
@@ -222,6 +231,10 @@ func NewRouter(h *Handler, corsOrigins, frontendURL, apiBaseURL string) chi.Rout
 	// routes to this binary, so those links resolve instead of landing on the
 	// web tier's index.html (ocidex-m3yn). The old /schemas spelling redirects.
 	config.SchemasPath = apiSchemasPath
+
+	// huma's own /docs page is replaced by the branded reference at /api/docs
+	// (apiref.go), which every deployment's routing reaches.
+	config.DocsPath = ""
 
 	if apiBaseURL != "" {
 		config.Servers = []*huma.Server{{URL: apiBaseURL, Description: "OCIDex API"}}
@@ -254,6 +267,8 @@ func NewRouter(h *Handler, corsOrigins, frontendURL, apiBaseURL string) chi.Rout
 	registerDevOps(api, h)
 	r.Get(legacySchemasPath+"/{schema}", redirectLegacySchema)
 
+	registerAPIReference(r, api, apiBaseURL)
+
 	return r
 }
 
@@ -267,7 +282,7 @@ func registerHealthOps(api huma.API, h *Handler) {
 		Method:      http.MethodGet,
 		Path:        "/health",
 		Summary:     "Liveness check",
-		Tags:        []string{"Health"},
+		Tags:        []string{tagHealth},
 		Security:    []map[string][]string{},
 	}, h.HealthCheck)
 
@@ -277,7 +292,7 @@ func registerHealthOps(api huma.API, h *Handler) {
 		Path:        "/ready",
 		Summary:     "Readiness check",
 		Description: "Verifies the database is reachable.",
-		Tags:        []string{"Health"},
+		Tags:        []string{tagHealth},
 		Security:    []map[string][]string{},
 	}, h.ReadinessCheck)
 }
@@ -292,7 +307,7 @@ func registerVersionOps(api huma.API, h *Handler) {
 		Method:      http.MethodGet,
 		Path:        "/api/v1/",
 		Summary:     "API version",
-		Tags:        []string{"Meta"},
+		Tags:        []string{tagMeta},
 		Security:    []map[string][]string{},
 	}, h.APIVersion)
 }
@@ -1103,7 +1118,7 @@ func registerStatsOps(api huma.API, h *Handler) {
 		Method:      http.MethodGet,
 		Path:        "/api/v1/stats",
 		Summary:     "Get dashboard summary statistics",
-		Tags:        []string{"Stats"},
+		Tags:        []string{tagStats},
 	}, h.GetDashboardStats)
 }
 
@@ -1124,7 +1139,7 @@ func registerDiscoverOps(api huma.API, h *Handler) {
 			"and license spread across public namespaces only. Computed out of band; while " +
 			"the first snapshot is still being built the response reports warming with empty " +
 			"sections.",
-		Tags: []string{"Discovery"},
+		Tags: []string{tagDiscovery},
 	}, h.GetDiscovery)
 }
 

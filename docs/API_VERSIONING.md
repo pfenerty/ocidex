@@ -8,7 +8,7 @@ OCIDex uses a URL-prefix versioning scheme. All stable endpoints are under `/api
 /api/v1/
 ```
 
-This prefix is stable. All clients and integrations should use `/api/v1/` as the base path. The interactive docs UI is at `/docs` and the machine-readable spec at `/openapi.json`.
+This prefix is stable. All clients and integrations should use `/api/v1/` as the base path. The API reference is at `/api/docs`, and the machine-readable spec at `/api/openapi.json` (also `/api/openapi.yaml`, and `/openapi.json` for older clients).
 
 ## Contract Version and Build Version
 

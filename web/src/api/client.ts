@@ -6,6 +6,12 @@ import type { paths, components } from "~/types/openapi";
 export const API_BASE_URL: string = import.meta.env.VITE_API_URL ?? "";
 
 /**
+ * The human-readable API reference (ocidex-a0p4). Served by the API, not the
+ * SPA, so links to it are full page loads, never router navigations.
+ */
+export const API_REFERENCE_URL = `${API_BASE_URL}/api/docs`;
+
+/**
  * Default page size for paginated list endpoints. Kept in sync with the backend
  * default (internal/api/types.go PaginationParams/CursorParams). Use this for
  * every default-page-size list rather than re-hardcoding a limit per page.
