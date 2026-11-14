@@ -1,0 +1,1507 @@
+<!DOCTYPE html><html lang="en" dir="ltr" data-theme="dark" data-has-toc data-has-sidebar data-astro-cid-g5ptsecz><head><meta charset="utf-8"/><meta name="viewport" content="width=device-width, initial-scale=1"/><title>Authorization matrix | OCIDex</title><link rel="canonical" href="https://docs.ocidex.app/next/reference/authorization/"/><link rel="sitemap" href="/next/sitemap-index.xml"/><link rel="shortcut icon" href="/next/favicon.svg" type="image/svg+xml"/><meta name="generator" content="Astro v7.4.12"/><meta name="generator" content="Starlight v0.43.1"/><meta property="og:title" content="Authorization matrix"/><meta property="og:type" content="article"/><meta property="og:url" content="https://docs.ocidex.app/next/reference/authorization/"/><meta property="og:locale" content="en"/><meta property="og:description" content="Who may call each API operation: its auth class and the capability it needs."/><meta property="og:site_name" content="OCIDex"/><meta name="twitter:card" content="summary_large_image"/><meta name="description" content="Who may call each API operation: its auth class and the capability it needs."/><script>
+	(() => {
+		const storedTheme =
+			typeof localStorage !== 'undefined' && localStorage.getItem('starlight-theme');
+		const theme =
+			storedTheme ||
+			(window.matchMedia('(prefers-color-scheme: light)').matches ? 'light' : 'dark');
+		document.documentElement.dataset.theme = theme === 'light' ? 'light' : 'dark';
+	})();
+</script><link rel="stylesheet" href="/next/_astro/print.C9eyqPGL.css" media="print"><link rel="stylesheet" href="/next/_astro/middleware.Cq-TfOOG.css"><style>@layer starlight.components.icon{svg[data-astro-cid-hkc32dio]{color:var(--sl-icon-color);font-size:var(--sl-icon-size,1em);width:1em;height:1em;overflow:visible}}
+</style><script type="module" src="/next/_astro/page.cNngjUgL.js"></script></head><body data-astro-cid-g5ptsecz><a class="sl-skip-link" href="#_top" data-astro-cid-qb7clj6f>Skip to content</a><div class="page sl-flex" data-astro-cid-yntsjkba><header class="header" data-astro-cid-yntsjkba><div class="header" data-astro-cid-by6fddyj><div class="title-wrapper sl-flex" data-astro-cid-by6fddyj><a href="/next/" class="site-title sl-flex" data-astro-cid-6rvad3va><img alt src="/next/_astro/logo.QlhC4dj9.svg" width="32" height="32" data-astro-cid-6rvad3va><span translate="no" data-astro-cid-6rvad3va>OCIDex</span></a></div><div class="sl-flex print:hidden" data-astro-cid-by6fddyj><site-search data-translations="{&quot;placeholder&quot;:&quot;Search&quot;}" data-astro-cid-b5kgnn7o="true"><button data-open-modal disabled aria-label="Search" aria-keyshortcuts="Control+K" data-astro-cid-b5kgnn7o><svg data-astro-cid-b5kgnn7o="true" aria-hidden="true" width="16" height="16" viewBox="0 0 24 24" fill="currentColor" style="--sl-icon-size: 1em;" data-astro-cid-hkc32dio><path d="M21.71 20.29 18 16.61A9 9 0 1 0 16.61 18l3.68 3.68a.999.999 0 0 0 1.42 0 1 1 0 0 0 0-1.39ZM11 18a7 7 0 1 1 0-14 7 7 0 0 1 0 14Z"/></svg><span class="sl-hidden md:sl-block" aria-hidden="true" data-astro-cid-b5kgnn7o>Search</span><kbd class="sl-hidden md:sl-flex" style="display: none" data-astro-cid-b5kgnn7o><kbd data-astro-cid-b5kgnn7o>Ctrl</kbd><kbd data-astro-cid-b5kgnn7o>K</kbd></kbd></button><dialog style="padding: 0" aria-label="Search" data-astro-cid-b5kgnn7o><div class="dialog-frame sl-flex" data-astro-cid-b5kgnn7o><button data-close-modal class="sl-flex md:sl-hidden" data-astro-cid-b5kgnn7o>Cancel</button><div class="search-container" data-astro-cid-b5kgnn7o><div id="starlight__search" data-astro-cid-b5kgnn7o></div></div></div></dialog></site-search><script>
+	(() => {
+		const openBtn = document.querySelector('button[data-open-modal]');
+		const shortcut = openBtn?.querySelector('kbd');
+		if (!openBtn || !(shortcut instanceof HTMLElement)) return;
+		const platformKey = shortcut.querySelector('kbd');
+		if (platformKey && /(Mac|iPhone|iPod|iPad)/i.test(navigator.platform)) {
+			platformKey.textContent = '⌘';
+			openBtn.setAttribute('aria-keyshortcuts', 'Meta+K');
+		}
+		shortcut.style.display = '';
+	})();
+</script><script type="module" src="/next/_astro/Search.astro_astro_type_script_index_0_lang.BM_DdRWO.js"></script></div><div class="sl-hidden md:sl-flex print:hidden right-group" data-astro-cid-by6fddyj><div class="sl-flex social-icons" data-astro-cid-by6fddyj><a href="https://github.com/pfenerty/ocidex" rel="me" class="sl-flex" data-astro-cid-n2mnl6yq><span class="sr-only" data-astro-cid-n2mnl6yq>GitHub</span><svg data-astro-cid-n2mnl6yq="true" aria-hidden="true" width="16" height="16" viewBox="0 0 24 24" fill="currentColor" style="--sl-icon-size: 1em;" data-astro-cid-hkc32dio><path d="M12 .3a12 12 0 0 0-3.8 23.38c.6.12.83-.26.83-.57L9 21.07c-3.34.72-4.04-1.61-4.04-1.61-.55-1.39-1.34-1.76-1.34-1.76-1.08-.74.09-.73.09-.73 1.2.09 1.83 1.24 1.83 1.24 1.08 1.83 2.81 1.3 3.5 1 .1-.78.42-1.31.76-1.61-2.67-.3-5.47-1.33-5.47-5.93 0-1.31.47-2.38 1.24-3.22-.14-.3-.54-1.52.1-3.18 0 0 1-.32 3.3 1.23a11.5 11.5 0 0 1 6 0c2.28-1.55 3.29-1.23 3.29-1.23.64 1.66.24 2.88.12 3.18a4.65 4.65 0 0 1 1.23 3.22c0 4.61-2.8 5.63-5.48 5.92.42.36.81 1.1.81 2.22l-.01 3.29c0 .31.2.69.82.57A12 12 0 0 0 12 .3Z"/></svg></a></div><starlight-theme-select data-astro-cid-smhvfpqh="true"><label style="--sl-select-width: 6.25em" data-astro-cid-2z5xp7gb><span class="sr-only" data-astro-cid-2z5xp7gb>Select theme</span><span class="icon label-icon" data-astro-cid-2z5xp7gb><svg class="sl-theme-icon-dark" data-astro-cid-smhvfpqh="true" aria-hidden="true" width="16" height="16" viewBox="0 0 24 24" fill="currentColor" style="--sl-icon-size: 1em;" data-astro-cid-hkc32dio><path d="M21.64 13a1 1 0 0 0-1.05-.14 8.049 8.049 0 0 1-3.37.73 8.15 8.15 0 0 1-8.14-8.1 8.59 8.59 0 0 1 .25-2A1 1 0 0 0 8 2.36a10.14 10.14 0 1 0 14 11.69 1 1 0 0 0-.36-1.05Zm-9.5 6.69A8.14 8.14 0 0 1 7.08 5.22v.27a10.15 10.15 0 0 0 10.14 10.14 9.784 9.784 0 0 0 2.1-.22 8.11 8.11 0 0 1-7.18 4.32v-.04Z"/></svg><svg class="sl-theme-icon-light" data-astro-cid-smhvfpqh="true" aria-hidden="true" width="16" height="16" viewBox="0 0 24 24" fill="currentColor" style="--sl-icon-size: 1em;" data-astro-cid-hkc32dio><path d="M5 12a1 1 0 0 0-1-1H3a1 1 0 0 0 0 2h1a1 1 0 0 0 1-1Zm.64 5-.71.71a1 1 0 0 0 0 1.41 1 1 0 0 0 1.41 0l.71-.71A1 1 0 0 0 5.64 17ZM12 5a1 1 0 0 0 1-1V3a1 1 0 0 0-2 0v1a1 1 0 0 0 1 1Zm5.66 2.34a1 1 0 0 0 .7-.29l.71-.71a1 1 0 1 0-1.41-1.41l-.66.71a1 1 0 0 0 0 1.41 1 1 0 0 0 .66.29Zm-12-.29a1 1 0 0 0 1.41 0 1 1 0 0 0 0-1.41l-.71-.71a1.004 1.004 0 1 0-1.43 1.41l.73.71ZM21 11h-1a1 1 0 0 0 0 2h1a1 1 0 0 0 0-2Zm-2.64 6A1 1 0 0 0 17 18.36l.71.71a1 1 0 0 0 1.41 0 1 1 0 0 0 0-1.41l-.76-.66ZM12 6.5a5.5 5.5 0 1 0 5.5 5.5A5.51 5.51 0 0 0 12 6.5Zm0 9a3.5 3.5 0 1 1 0-7 3.5 3.5 0 0 1 0 7Zm0 3.5a1 1 0 0 0-1 1v1a1 1 0 0 0 2 0v-1a1 1 0 0 0-1-1Z"/></svg><svg class="sl-theme-icon-auto" data-astro-cid-smhvfpqh="true" aria-hidden="true" width="16" height="16" viewBox="0 0 24 24" fill="currentColor" style="--sl-icon-size: 1em;" data-astro-cid-hkc32dio><path d="M21 14h-1V7a3 3 0 0 0-3-3H7a3 3 0 0 0-3 3v7H3a1 1 0 0 0-1 1v2a3 3 0 0 0 3 3h14a3 3 0 0 0 3-3v-2a1 1 0 0 0-1-1ZM6 7a1 1 0 0 1 1-1h10a1 1 0 0 1 1 1v7H6V7Zm14 10a1 1 0 0 1-1 1H5a1 1 0 0 1-1-1v-1h16v1Z"/></svg></span><select autocomplete="off" data-astro-cid-2z5xp7gb><option value="dark" data-astro-cid-2z5xp7gb>Dark</option><option value="light" data-astro-cid-2z5xp7gb>Light</option><option value="auto" selected data-astro-cid-2z5xp7gb>Auto</option></select><svg class="icon caret" data-astro-cid-2z5xp7gb="true" aria-hidden="true" width="16" height="16" viewBox="0 0 24 24" fill="currentColor" style="--sl-icon-size: 1em;" data-astro-cid-hkc32dio><path d="M17 9.17a1 1 0 0 0-1.41 0L12 12.71 8.46 9.17a1 1 0 1 0-1.41 1.42l4.24 4.24a1.002 1.002 0 0 0 1.42 0L17 10.59a1.002 1.002 0 0 0 0-1.42Z"/></svg></label></starlight-theme-select><script>(() => {
+		const theme = (typeof localStorage !== 'undefined' && localStorage.getItem('starlight-theme'));
+		if (theme) document.querySelectorAll('starlight-theme-select select').forEach((s) => { s.value = theme; });
+	})();</script><script type="module">var e=`starlight-theme`,t=e=>e===`auto`||e===`dark`||e===`light`?e:`auto`,n=()=>t(typeof localStorage<`u`&&localStorage.getItem(e));function r(t){typeof localStorage<`u`&&localStorage.setItem(e,t===`light`||t===`dark`?t:``)}var i=()=>matchMedia(`(prefers-color-scheme: light)`).matches?`light`:`dark`;function a(e){document.querySelectorAll(`starlight-theme-select select`).forEach(t=>{t.value=e}),document.documentElement.dataset.theme=e===`auto`?i():e,r(e)}matchMedia(`(prefers-color-scheme: light)`).addEventListener(`change`,()=>{n()===`auto`&&a(`auto`)});var o=class extends HTMLElement{constructor(){super(),a(n()),this.querySelector(`select`)?.addEventListener(`change`,e=>{e.currentTarget instanceof HTMLSelectElement&&a(t(e.currentTarget.value))})}};customElements.define(`starlight-theme-select`,o);</script><script type="module">var e=class extends HTMLElement{constructor(){super();let e=this.querySelector(`select`);e&&(e.addEventListener(`change`,e=>{e.currentTarget instanceof HTMLSelectElement&&(window.location.pathname=e.currentTarget.value)}),window.addEventListener(`pageshow`,t=>{if(!t.persisted)return;let n=e.querySelector(`option[selected]`)?.index;n!==e.selectedIndex&&(e.selectedIndex=n??0)}))}};customElements.define(`starlight-lang-select`,e);</script></div></div></header><nav class="sidebar print:hidden" aria-label="Main" data-astro-cid-yntsjkba><button popovertarget="starlight__sidebar" class="sl-menu-button sl-flex md:sl-hidden print:hidden" data-astro-cid-r2osgdlg><svg class="open-menu" data-astro-cid-r2osgdlg="true" aria-hidden="true" width="16" height="16" viewBox="0 0 24 24" fill="currentColor" style="--sl-icon-size: 1em;" data-astro-cid-hkc32dio><path d="M3 8h18a1 1 0 1 0 0-2H3a1 1 0 0 0 0 2Zm18 8H3a1 1 0 0 0 0 2h18a1 1 0 0 0 0-2Zm0-5H3a1 1 0 0 0 0 2h18a1 1 0 0 0 0-2Z"/></svg><svg class="close-menu" data-astro-cid-r2osgdlg="true" aria-hidden="true" width="16" height="16" viewBox="0 0 24 24" fill="currentColor" style="--sl-icon-size: 1em;" data-astro-cid-hkc32dio><path d="m13.41 12 6.3-6.29a1.004 1.004 0 1 0-1.42-1.42L12 10.59l-6.29-6.3a1.004 1.004 0 0 0-1.42 1.42l6.3 6.29-6.3 6.29a1 1 0 0 0 0 1.42.998.998 0 0 0 1.42 0l6.29-6.3 6.29 6.3a.999.999 0 0 0 1.42 0 1 1 0 0 0 0-1.42L13.41 12Z"/></svg><span class="sr-only" data-astro-cid-r2osgdlg>Menu</span></button><script type="module">var e=class extends HTMLElement{constructor(){super();let e=matchMedia(`(min-width: 50em)`),t=()=>{this.popover=e.matches?null:`auto`};t(),e.addEventListener(`change`,()=>t()),this.addEventListener(`toggle`,({newState:e})=>this.trapFocus(e===`open`))}trapFocus(e){document.querySelectorAll(`.main-frame, .sl-skip-link`).forEach(t=>{t.toggleAttribute(`inert`,e)})}};customElements.define(`sl-sidebar-pane`,e);</script><sl-sidebar-pane popover id="starlight__sidebar" class="sidebar-pane" data-astro-cid-yntsjkba="true"><div class="sidebar-content sl-flex" data-astro-cid-yntsjkba><sl-sidebar-state-persist data-hash="15wnwhw" data-astro-cid-ipdry5cl="true"><script aria-hidden="true">
+		(() => {
+			try {
+				if (!matchMedia('(min-width: 50em)').matches) return;
+				/** @type {HTMLElement | null} */
+				const target = document.querySelector('sl-sidebar-state-persist');
+				const state = JSON.parse(sessionStorage.getItem('sl-sidebar-state') || '0');
+				if (!target || !state || target.dataset.hash !== state.hash) return;
+				window._starlightScrollRestore = state.scroll;
+				customElements.define(
+					'sl-sidebar-restore',
+					class SidebarRestore extends HTMLElement {
+						connectedCallback() {
+							try {
+								const idx = parseInt(this.dataset.index || '');
+								const details = this.closest('details');
+								if (details && typeof state.open[idx] === 'boolean') details.open = state.open[idx];
+							} catch {}
+						}
+					}
+				);
+			} catch {}
+		})();
+	</script><ul class="top-level" data-astro-cid-rmhv4bp6><li data-astro-cid-rmhv4bp6><details open data-astro-cid-rmhv4bp6><summary data-astro-cid-rmhv4bp6><span class="group-label" data-astro-cid-rmhv4bp6><span class="large" data-astro-cid-rmhv4bp6>Get started</span></span><svg class="caret" data-astro-cid-rmhv4bp6="true" aria-hidden="true" width="16" height="16" viewBox="0 0 24 24" fill="currentColor" style="--sl-icon-size: 1.25rem;" data-astro-cid-hkc32dio><path d="m14.83 11.29-4.24-4.24a1 1 0 1 0-1.42 1.41L12.71 12l-3.54 3.54a1 1 0 0 0 0 1.41 1 1 0 0 0 .71.29 1 1 0 0 0 .71-.29l4.24-4.24a1.002 1.002 0 0 0 0-1.42Z"/></svg></summary><sl-sidebar-restore data-index="0"></sl-sidebar-restore><ul data-astro-cid-rmhv4bp6><li data-astro-cid-rmhv4bp6><a href="/next/getting-started/quickstart/" data-astro-cid-rmhv4bp6><span data-astro-cid-rmhv4bp6>Quickstart</span></a></li></ul></details></li><li data-astro-cid-rmhv4bp6><details open data-astro-cid-rmhv4bp6><summary data-astro-cid-rmhv4bp6><span class="group-label" data-astro-cid-rmhv4bp6><span class="large" data-astro-cid-rmhv4bp6>Concepts</span></span><svg class="caret" data-astro-cid-rmhv4bp6="true" aria-hidden="true" width="16" height="16" viewBox="0 0 24 24" fill="currentColor" style="--sl-icon-size: 1.25rem;" data-astro-cid-hkc32dio><path d="m14.83 11.29-4.24-4.24a1 1 0 1 0-1.42 1.41L12.71 12l-3.54 3.54a1 1 0 0 0 0 1.41 1 1 0 0 0 .71.29 1 1 0 0 0 .71-.29l4.24-4.24a1.002 1.002 0 0 0 0-1.42Z"/></svg></summary><sl-sidebar-restore data-index="1"></sl-sidebar-restore><ul data-astro-cid-rmhv4bp6><li data-astro-cid-rmhv4bp6><a href="/next/concepts/overview/" data-astro-cid-rmhv4bp6><span data-astro-cid-rmhv4bp6>How OCIDex works</span></a></li><li data-astro-cid-rmhv4bp6><a href="/next/concepts/artifacts-and-sboms/" data-astro-cid-rmhv4bp6><span data-astro-cid-rmhv4bp6>Artifacts, SBOMs and components</span></a></li><li data-astro-cid-rmhv4bp6><a href="/next/concepts/sources-and-registries/" data-astro-cid-rmhv4bp6><span data-astro-cid-rmhv4bp6>Sources and registries</span></a></li><li data-astro-cid-rmhv4bp6><a href="/next/concepts/enrichment/" data-astro-cid-rmhv4bp6><span data-astro-cid-rmhv4bp6>Enrichment</span></a></li><li data-astro-cid-rmhv4bp6><a href="/next/concepts/vulnerabilities/" data-astro-cid-rmhv4bp6><span data-astro-cid-rmhv4bp6>Vulnerability matching</span></a></li><li data-astro-cid-rmhv4bp6><a href="/next/concepts/diffs-and-changelog/" data-astro-cid-rmhv4bp6><span data-astro-cid-rmhv4bp6>Diffs and the changelog</span></a></li><li data-astro-cid-rmhv4bp6><a href="/next/concepts/namespaces-and-access/" data-astro-cid-rmhv4bp6><span data-astro-cid-rmhv4bp6>Namespaces and access</span></a></li><li data-astro-cid-rmhv4bp6><a href="/next/concepts/clusters-and-coverage/" data-astro-cid-rmhv4bp6><span data-astro-cid-rmhv4bp6>Clusters and coverage</span></a></li></ul></details></li><li data-astro-cid-rmhv4bp6><details open data-astro-cid-rmhv4bp6><summary data-astro-cid-rmhv4bp6><span class="group-label" data-astro-cid-rmhv4bp6><span class="large" data-astro-cid-rmhv4bp6>Guides</span></span><svg class="caret" data-astro-cid-rmhv4bp6="true" aria-hidden="true" width="16" height="16" viewBox="0 0 24 24" fill="currentColor" style="--sl-icon-size: 1.25rem;" data-astro-cid-hkc32dio><path d="m14.83 11.29-4.24-4.24a1 1 0 1 0-1.42 1.41L12.71 12l-3.54 3.54a1 1 0 0 0 0 1.41 1 1 0 0 0 .71.29 1 1 0 0 0 .71-.29l4.24-4.24a1.002 1.002 0 0 0 0-1.42Z"/></svg></summary><sl-sidebar-restore data-index="2"></sl-sidebar-restore><ul data-astro-cid-rmhv4bp6><li data-astro-cid-rmhv4bp6><details open data-astro-cid-rmhv4bp6><summary data-astro-cid-rmhv4bp6><span class="group-label" data-astro-cid-rmhv4bp6><span class="large" data-astro-cid-rmhv4bp6>Operate</span></span><svg class="caret" data-astro-cid-rmhv4bp6="true" aria-hidden="true" width="16" height="16" viewBox="0 0 24 24" fill="currentColor" style="--sl-icon-size: 1.25rem;" data-astro-cid-hkc32dio><path d="m14.83 11.29-4.24-4.24a1 1 0 1 0-1.42 1.41L12.71 12l-3.54 3.54a1 1 0 0 0 0 1.41 1 1 0 0 0 .71.29 1 1 0 0 0 .71-.29l4.24-4.24a1.002 1.002 0 0 0 0-1.42Z"/></svg></summary><sl-sidebar-restore data-index="3"></sl-sidebar-restore><ul data-astro-cid-rmhv4bp6><li data-astro-cid-rmhv4bp6><a href="/next/guides/operate/overview/" data-astro-cid-rmhv4bp6><span data-astro-cid-rmhv4bp6>Operator guide</span></a></li><li data-astro-cid-rmhv4bp6><a href="/next/guides/operate/install/" data-astro-cid-rmhv4bp6><span data-astro-cid-rmhv4bp6>Install with Helm</span></a></li><li data-astro-cid-rmhv4bp6><a href="/next/guides/operate/authentication/" data-astro-cid-rmhv4bp6><span data-astro-cid-rmhv4bp6>Sign-in and access</span></a></li><li data-astro-cid-rmhv4bp6><a href="/next/guides/operate/production/" data-astro-cid-rmhv4bp6><span data-astro-cid-rmhv4bp6>Production checklist</span></a></li><li data-astro-cid-rmhv4bp6><a href="/next/guides/operate/workers/" data-astro-cid-rmhv4bp6><span data-astro-cid-rmhv4bp6>Scanning and workers</span></a></li><li data-astro-cid-rmhv4bp6><a href="/next/guides/operate/clusters-and-operator/" data-astro-cid-rmhv4bp6><span data-astro-cid-rmhv4bp6>Clusters and the operator</span></a></li><li data-astro-cid-rmhv4bp6><a href="/next/guides/operate/upgrade/" data-astro-cid-rmhv4bp6><span data-astro-cid-rmhv4bp6>Upgrade</span></a></li><li data-astro-cid-rmhv4bp6><a href="/next/guides/operate/backup/" data-astro-cid-rmhv4bp6><span data-astro-cid-rmhv4bp6>Back up and restore</span></a></li><li data-astro-cid-rmhv4bp6><a href="/next/guides/operate/maintenance/" data-astro-cid-rmhv4bp6><span data-astro-cid-rmhv4bp6>Routine maintenance</span></a></li><li data-astro-cid-rmhv4bp6><a href="/next/guides/operate/monitoring/" data-astro-cid-rmhv4bp6><span data-astro-cid-rmhv4bp6>Monitoring</span></a></li><li data-astro-cid-rmhv4bp6><a href="/next/guides/operate/sizing/" data-astro-cid-rmhv4bp6><span data-astro-cid-rmhv4bp6>Sizing</span></a></li><li data-astro-cid-rmhv4bp6><a href="/next/guides/operate/troubleshooting/" data-astro-cid-rmhv4bp6><span data-astro-cid-rmhv4bp6>Troubleshooting</span></a></li><li data-astro-cid-rmhv4bp6><a href="/next/guides/operate/verify-artifacts/" data-astro-cid-rmhv4bp6><span data-astro-cid-rmhv4bp6>Verify release artifacts</span></a></li></ul></details></li><li data-astro-cid-rmhv4bp6><details open data-astro-cid-rmhv4bp6><summary data-astro-cid-rmhv4bp6><span class="group-label" data-astro-cid-rmhv4bp6><span class="large" data-astro-cid-rmhv4bp6>Use</span></span><svg class="caret" data-astro-cid-rmhv4bp6="true" aria-hidden="true" width="16" height="16" viewBox="0 0 24 24" fill="currentColor" style="--sl-icon-size: 1.25rem;" data-astro-cid-hkc32dio><path d="m14.83 11.29-4.24-4.24a1 1 0 1 0-1.42 1.41L12.71 12l-3.54 3.54a1 1 0 0 0 0 1.41 1 1 0 0 0 .71.29 1 1 0 0 0 .71-.29l4.24-4.24a1.002 1.002 0 0 0 0-1.42Z"/></svg></summary><sl-sidebar-restore data-index="4"></sl-sidebar-restore><ul data-astro-cid-rmhv4bp6><li data-astro-cid-rmhv4bp6><a href="/next/guides/use/overview/" data-astro-cid-rmhv4bp6><span data-astro-cid-rmhv4bp6>User guide</span></a></li></ul></details></li><li data-astro-cid-rmhv4bp6><details open data-astro-cid-rmhv4bp6><summary data-astro-cid-rmhv4bp6><span class="group-label" data-astro-cid-rmhv4bp6><span class="large" data-astro-cid-rmhv4bp6>Integrate</span></span><svg class="caret" data-astro-cid-rmhv4bp6="true" aria-hidden="true" width="16" height="16" viewBox="0 0 24 24" fill="currentColor" style="--sl-icon-size: 1.25rem;" data-astro-cid-hkc32dio><path d="m14.83 11.29-4.24-4.24a1 1 0 1 0-1.42 1.41L12.71 12l-3.54 3.54a1 1 0 0 0 0 1.41 1 1 0 0 0 .71.29 1 1 0 0 0 .71-.29l4.24-4.24a1.002 1.002 0 0 0 0-1.42Z"/></svg></summary><sl-sidebar-restore data-index="5"></sl-sidebar-restore><ul data-astro-cid-rmhv4bp6><li data-astro-cid-rmhv4bp6><a href="/next/guides/integrate/overview/" data-astro-cid-rmhv4bp6><span data-astro-cid-rmhv4bp6>Integrator guide</span></a></li><li data-astro-cid-rmhv4bp6><a href="/next/guides/integrate/api/" data-astro-cid-rmhv4bp6><span data-astro-cid-rmhv4bp6>The REST API</span></a></li><li data-astro-cid-rmhv4bp6><a href="/next/guides/integrate/cli/" data-astro-cid-rmhv4bp6><span data-astro-cid-rmhv4bp6>ocidex-cli</span></a></li><li data-astro-cid-rmhv4bp6><a href="/next/guides/integrate/ci/" data-astro-cid-rmhv4bp6><span data-astro-cid-rmhv4bp6>Push SBOMs from CI</span></a></li><li data-astro-cid-rmhv4bp6><a href="/next/guides/integrate/mcp/" data-astro-cid-rmhv4bp6><span data-astro-cid-rmhv4bp6>MCP server</span></a></li></ul></details></li></ul></details></li><li data-astro-cid-rmhv4bp6><details open data-astro-cid-rmhv4bp6><summary data-astro-cid-rmhv4bp6><span class="group-label" data-astro-cid-rmhv4bp6><span class="large" data-astro-cid-rmhv4bp6>Reference</span></span><svg class="caret" data-astro-cid-rmhv4bp6="true" aria-hidden="true" width="16" height="16" viewBox="0 0 24 24" fill="currentColor" style="--sl-icon-size: 1.25rem;" data-astro-cid-hkc32dio><path d="m14.83 11.29-4.24-4.24a1 1 0 1 0-1.42 1.41L12.71 12l-3.54 3.54a1 1 0 0 0 0 1.41 1 1 0 0 0 .71.29 1 1 0 0 0 .71-.29l4.24-4.24a1.002 1.002 0 0 0 0-1.42Z"/></svg></summary><sl-sidebar-restore data-index="6"></sl-sidebar-restore><ul data-astro-cid-rmhv4bp6><li data-astro-cid-rmhv4bp6><a href="/next/reference/overview/" data-astro-cid-rmhv4bp6><span data-astro-cid-rmhv4bp6>Reference</span></a></li><li data-astro-cid-rmhv4bp6><a href="/next/reference/configuration/" data-astro-cid-rmhv4bp6><span data-astro-cid-rmhv4bp6>Configuration</span></a></li><li data-astro-cid-rmhv4bp6><a href="/next/reference/helm-values/" data-astro-cid-rmhv4bp6><span data-astro-cid-rmhv4bp6>Helm values</span></a></li><li data-astro-cid-rmhv4bp6><a href="/next/reference/cli/" data-astro-cid-rmhv4bp6><span data-astro-cid-rmhv4bp6>CLI</span></a></li><li data-astro-cid-rmhv4bp6><a href="/next/reference/authorization/" aria-current="page" data-astro-cid-rmhv4bp6><span data-astro-cid-rmhv4bp6>Authorization matrix</span></a></li><li data-astro-cid-rmhv4bp6><details data-astro-cid-rmhv4bp6><summary data-astro-cid-rmhv4bp6><span class="group-label" data-astro-cid-rmhv4bp6><span class="large" data-astro-cid-rmhv4bp6>REST API</span></span><svg class="caret" data-astro-cid-rmhv4bp6="true" aria-hidden="true" width="16" height="16" viewBox="0 0 24 24" fill="currentColor" style="--sl-icon-size: 1.25rem;" data-astro-cid-hkc32dio><path d="m14.83 11.29-4.24-4.24a1 1 0 1 0-1.42 1.41L12.71 12l-3.54 3.54a1 1 0 0 0 0 1.41 1 1 0 0 0 .71.29 1 1 0 0 0 .71-.29l4.24-4.24a1.002 1.002 0 0 0 0-1.42Z"/></svg></summary><sl-sidebar-restore data-index="7"></sl-sidebar-restore><ul data-astro-cid-rmhv4bp6><li data-astro-cid-rmhv4bp6><a href="/next/reference/api/" data-astro-cid-rmhv4bp6><span data-astro-cid-rmhv4bp6>Overview</span></a></li><li data-astro-cid-rmhv4bp6><details data-astro-cid-rmhv4bp6><summary data-astro-cid-rmhv4bp6><span class="group-label" data-astro-cid-rmhv4bp6><span class="large" data-astro-cid-rmhv4bp6>Artifacts</span></span><svg class="caret" data-astro-cid-rmhv4bp6="true" aria-hidden="true" width="16" height="16" viewBox="0 0 24 24" fill="currentColor" style="--sl-icon-size: 1.25rem;" data-astro-cid-hkc32dio><path d="m14.83 11.29-4.24-4.24a1 1 0 1 0-1.42 1.41L12.71 12l-3.54 3.54a1 1 0 0 0 0 1.41 1 1 0 0 0 .71.29 1 1 0 0 0 .71-.29l4.24-4.24a1.002 1.002 0 0 0 0-1.42Z"/></svg></summary><sl-sidebar-restore data-index="8"></sl-sidebar-restore><ul data-astro-cid-rmhv4bp6><li data-astro-cid-rmhv4bp6><a href="/next/reference/api/operations/tags/artifacts/" data-astro-cid-rmhv4bp6><span data-astro-cid-rmhv4bp6>Overview</span></a></li><li data-astro-cid-rmhv4bp6><a href="/next/reference/api/operations/list-artifacts/" data-astro-cid-rmhv4bp6><span data-astro-cid-rmhv4bp6>List artifacts</span><span class="sl-badge caution small sl-openapi-method-get" data-astro-cid-rmhv4bp6="true" data-astro-cid-f4zorn72>GET</span></a></li><li data-astro-cid-rmhv4bp6><a href="/next/reference/api/operations/lookup-artifact/" data-astro-cid-rmhv4bp6><span data-astro-cid-rmhv4bp6>Resolve an artifact by name</span><span class="sl-badge caution small sl-openapi-method-get" data-astro-cid-rmhv4bp6="true" data-astro-cid-f4zorn72>GET</span></a></li><li data-astro-cid-rmhv4bp6><a href="/next/reference/api/operations/get-artifact/" data-astro-cid-rmhv4bp6><span data-astro-cid-rmhv4bp6>Get an artifact</span><span class="sl-badge caution small sl-openapi-method-get" data-astro-cid-rmhv4bp6="true" data-astro-cid-f4zorn72>GET</span></a></li><li data-astro-cid-rmhv4bp6><a href="/next/reference/api/operations/delete-artifact/" data-astro-cid-rmhv4bp6><span data-astro-cid-rmhv4bp6>Delete an artifact</span><span class="sl-badge caution small sl-openapi-method-delete" data-astro-cid-rmhv4bp6="true" data-astro-cid-f4zorn72>DELETE</span></a></li><li data-astro-cid-rmhv4bp6><a href="/next/reference/api/operations/get-artifact-changelog/" data-astro-cid-rmhv4bp6><span data-astro-cid-rmhv4bp6>Get artifact changelog</span><span class="sl-badge caution small sl-openapi-method-get" data-astro-cid-rmhv4bp6="true" data-astro-cid-f4zorn72>GET</span></a></li><li data-astro-cid-rmhv4bp6><a href="/next/reference/api/operations/get-artifact-contains/" data-astro-cid-rmhv4bp6><span data-astro-cid-rmhv4bp6>List tracked artifacts this artifact ships</span><span class="sl-badge caution small sl-openapi-method-get" data-astro-cid-rmhv4bp6="true" data-astro-cid-f4zorn72>GET</span></a></li><li data-astro-cid-rmhv4bp6><a href="/next/reference/api/operations/get-artifact-license-summary/" data-astro-cid-rmhv4bp6><span data-astro-cid-rmhv4bp6>Get artifact license summary</span><span class="sl-badge caution small sl-openapi-method-get" data-astro-cid-rmhv4bp6="true" data-astro-cid-f4zorn72>GET</span></a></li><li data-astro-cid-rmhv4bp6><a href="/next/reference/api/operations/list-artifact-sboms/" data-astro-cid-rmhv4bp6><span data-astro-cid-rmhv4bp6>List SBOMs for an artifact</span><span class="sl-badge caution small sl-openapi-method-get" data-astro-cid-rmhv4bp6="true" data-astro-cid-f4zorn72>GET</span></a></li><li data-astro-cid-rmhv4bp6><a href="/next/reference/api/operations/get-artifact-usages/" data-astro-cid-rmhv4bp6><span data-astro-cid-rmhv4bp6>List artifacts that ship this artifact</span><span class="sl-badge caution small sl-openapi-method-get" data-astro-cid-rmhv4bp6="true" data-astro-cid-f4zorn72>GET</span></a></li><li data-astro-cid-rmhv4bp6><a href="/next/reference/api/operations/list-artifact-versions/" data-astro-cid-rmhv4bp6><span data-astro-cid-rmhv4bp6>List versions for an artifact</span><span class="sl-badge caution small sl-openapi-method-get" data-astro-cid-rmhv4bp6="true" data-astro-cid-f4zorn72>GET</span></a></li><li data-astro-cid-rmhv4bp6><a href="/next/reference/api/operations/get-artifact-vuln-summary/" data-astro-cid-rmhv4bp6><span data-astro-cid-rmhv4bp6>Get artifact vulnerability summary</span><span class="sl-badge caution small sl-openapi-method-get" data-astro-cid-rmhv4bp6="true" data-astro-cid-f4zorn72>GET</span></a></li><li data-astro-cid-rmhv4bp6><a href="/next/reference/api/operations/list-artifact-vulns/" data-astro-cid-rmhv4bp6><span data-astro-cid-rmhv4bp6>List vulnerabilities across an artifact&#39;s versions</span><span class="sl-badge caution small sl-openapi-method-get" data-astro-cid-rmhv4bp6="true" data-astro-cid-f4zorn72>GET</span></a></li></ul></details></li><li data-astro-cid-rmhv4bp6><details data-astro-cid-rmhv4bp6><summary data-astro-cid-rmhv4bp6><span class="group-label" data-astro-cid-rmhv4bp6><span class="large" data-astro-cid-rmhv4bp6>SBOMs</span></span><svg class="caret" data-astro-cid-rmhv4bp6="true" aria-hidden="true" width="16" height="16" viewBox="0 0 24 24" fill="currentColor" style="--sl-icon-size: 1.25rem;" data-astro-cid-hkc32dio><path d="m14.83 11.29-4.24-4.24a1 1 0 1 0-1.42 1.41L12.71 12l-3.54 3.54a1 1 0 0 0 0 1.41 1 1 0 0 0 .71.29 1 1 0 0 0 .71-.29l4.24-4.24a1.002 1.002 0 0 0 0-1.42Z"/></svg></summary><sl-sidebar-restore data-index="9"></sl-sidebar-restore><ul data-astro-cid-rmhv4bp6><li data-astro-cid-rmhv4bp6><a href="/next/reference/api/operations/tags/sboms/" data-astro-cid-rmhv4bp6><span data-astro-cid-rmhv4bp6>Overview</span></a></li><li data-astro-cid-rmhv4bp6><a href="/next/reference/api/operations/list-sboms/" data-astro-cid-rmhv4bp6><span data-astro-cid-rmhv4bp6>List SBOMs</span><span class="sl-badge caution small sl-openapi-method-get" data-astro-cid-rmhv4bp6="true" data-astro-cid-f4zorn72>GET</span></a></li><li data-astro-cid-rmhv4bp6><a href="/next/reference/api/operations/ingest-sbom/" data-astro-cid-rmhv4bp6><span data-astro-cid-rmhv4bp6>Ingest an SBOM</span><span class="sl-badge caution small sl-openapi-method-post" data-astro-cid-rmhv4bp6="true" data-astro-cid-f4zorn72>POST</span></a></li><li data-astro-cid-rmhv4bp6><a href="/next/reference/api/operations/diff-sboms/" data-astro-cid-rmhv4bp6><span data-astro-cid-rmhv4bp6>Diff two SBOMs</span><span class="sl-badge caution small sl-openapi-method-get" data-astro-cid-rmhv4bp6="true" data-astro-cid-f4zorn72>GET</span></a></li><li data-astro-cid-rmhv4bp6><a href="/next/reference/api/operations/diff-tree/" data-astro-cid-rmhv4bp6><span data-astro-cid-rmhv4bp6>Diff two SBOMs with dependency tree</span><span class="sl-badge caution small sl-openapi-method-get" data-astro-cid-rmhv4bp6="true" data-astro-cid-f4zorn72>GET</span></a></li><li data-astro-cid-rmhv4bp6><a href="/next/reference/api/operations/lookup-sbom/" data-astro-cid-rmhv4bp6><span data-astro-cid-rmhv4bp6>Resolve an SBOM by artifact name and version</span><span class="sl-badge caution small sl-openapi-method-get" data-astro-cid-rmhv4bp6="true" data-astro-cid-f4zorn72>GET</span></a></li><li data-astro-cid-rmhv4bp6><a href="/next/reference/api/operations/get-sbom/" data-astro-cid-rmhv4bp6><span data-astro-cid-rmhv4bp6>Get an SBOM</span><span class="sl-badge caution small sl-openapi-method-get" data-astro-cid-rmhv4bp6="true" data-astro-cid-f4zorn72>GET</span></a></li><li data-astro-cid-rmhv4bp6><a href="/next/reference/api/operations/delete-sbom/" data-astro-cid-rmhv4bp6><span data-astro-cid-rmhv4bp6>Delete an SBOM</span><span class="sl-badge caution small sl-openapi-method-delete" data-astro-cid-rmhv4bp6="true" data-astro-cid-f4zorn72>DELETE</span></a></li><li data-astro-cid-rmhv4bp6><a href="/next/reference/api/operations/list-sbom-components/" data-astro-cid-rmhv4bp6><span data-astro-cid-rmhv4bp6>List components in an SBOM</span><span class="sl-badge caution small sl-openapi-method-get" data-astro-cid-rmhv4bp6="true" data-astro-cid-f4zorn72>GET</span></a></li><li data-astro-cid-rmhv4bp6><a href="/next/reference/api/operations/get-sbom-dependencies/" data-astro-cid-rmhv4bp6><span data-astro-cid-rmhv4bp6>Get SBOM dependency graph</span><span class="sl-badge caution small sl-openapi-method-get" data-astro-cid-rmhv4bp6="true" data-astro-cid-f4zorn72>GET</span></a></li><li data-astro-cid-rmhv4bp6><a href="/next/reference/api/operations/list-sbom-drift-history/" data-astro-cid-rmhv4bp6><span data-astro-cid-rmhv4bp6>List provenance drift history for an SBOM</span><span class="sl-badge caution small sl-openapi-method-get" data-astro-cid-rmhv4bp6="true" data-astro-cid-f4zorn72>GET</span></a></li><li data-astro-cid-rmhv4bp6><a href="/next/reference/api/operations/list-sbom-vulns/" data-astro-cid-rmhv4bp6><span data-astro-cid-rmhv4bp6>List vulnerabilities in an SBOM</span><span class="sl-badge caution small sl-openapi-method-get" data-astro-cid-rmhv4bp6="true" data-astro-cid-f4zorn72>GET</span></a></li></ul></details></li><li data-astro-cid-rmhv4bp6><details data-astro-cid-rmhv4bp6><summary data-astro-cid-rmhv4bp6><span class="group-label" data-astro-cid-rmhv4bp6><span class="large" data-astro-cid-rmhv4bp6>Components</span></span><svg class="caret" data-astro-cid-rmhv4bp6="true" aria-hidden="true" width="16" height="16" viewBox="0 0 24 24" fill="currentColor" style="--sl-icon-size: 1.25rem;" data-astro-cid-hkc32dio><path d="m14.83 11.29-4.24-4.24a1 1 0 1 0-1.42 1.41L12.71 12l-3.54 3.54a1 1 0 0 0 0 1.41 1 1 0 0 0 .71.29 1 1 0 0 0 .71-.29l4.24-4.24a1.002 1.002 0 0 0 0-1.42Z"/></svg></summary><sl-sidebar-restore data-index="10"></sl-sidebar-restore><ul data-astro-cid-rmhv4bp6><li data-astro-cid-rmhv4bp6><a href="/next/reference/api/operations/tags/components/" data-astro-cid-rmhv4bp6><span data-astro-cid-rmhv4bp6>Overview</span></a></li><li data-astro-cid-rmhv4bp6><a href="/next/reference/api/operations/search-components/" data-astro-cid-rmhv4bp6><span data-astro-cid-rmhv4bp6>Search components</span><span class="sl-badge caution small sl-openapi-method-get" data-astro-cid-rmhv4bp6="true" data-astro-cid-f4zorn72>GET</span></a></li><li data-astro-cid-rmhv4bp6><a href="/next/reference/api/operations/search-distinct-components/" data-astro-cid-rmhv4bp6><span data-astro-cid-rmhv4bp6>Search distinct components</span><span class="sl-badge caution small sl-openapi-method-get" data-astro-cid-rmhv4bp6="true" data-astro-cid-f4zorn72>GET</span></a></li><li data-astro-cid-rmhv4bp6><a href="/next/reference/api/operations/list-component-purl-types/" data-astro-cid-rmhv4bp6><span data-astro-cid-rmhv4bp6>List component PURL types</span><span class="sl-badge caution small sl-openapi-method-get" data-astro-cid-rmhv4bp6="true" data-astro-cid-f4zorn72>GET</span></a></li><li data-astro-cid-rmhv4bp6><a href="/next/reference/api/operations/list-component-version-summaries/" data-astro-cid-rmhv4bp6><span data-astro-cid-rmhv4bp6>List a component&#39;s distinct versions</span><span class="sl-badge caution small sl-openapi-method-get" data-astro-cid-rmhv4bp6="true" data-astro-cid-f4zorn72>GET</span></a></li><li data-astro-cid-rmhv4bp6><a href="/next/reference/api/operations/get-component-versions/" data-astro-cid-rmhv4bp6><span data-astro-cid-rmhv4bp6>Get component versions</span><span class="sl-badge caution small sl-openapi-method-get" data-astro-cid-rmhv4bp6="true" data-astro-cid-f4zorn72>GET</span></a></li><li data-astro-cid-rmhv4bp6><a href="/next/reference/api/operations/get-component/" data-astro-cid-rmhv4bp6><span data-astro-cid-rmhv4bp6>Get a component</span><span class="sl-badge caution small sl-openapi-method-get" data-astro-cid-rmhv4bp6="true" data-astro-cid-f4zorn72>GET</span></a></li><li data-astro-cid-rmhv4bp6><a href="/next/reference/api/operations/get-component-vulns/" data-astro-cid-rmhv4bp6><span data-astro-cid-rmhv4bp6>List vulnerabilities for a component</span><span class="sl-badge caution small sl-openapi-method-get" data-astro-cid-rmhv4bp6="true" data-astro-cid-f4zorn72>GET</span></a></li></ul></details></li><li data-astro-cid-rmhv4bp6><details data-astro-cid-rmhv4bp6><summary data-astro-cid-rmhv4bp6><span class="group-label" data-astro-cid-rmhv4bp6><span class="large" data-astro-cid-rmhv4bp6>Licenses</span></span><svg class="caret" data-astro-cid-rmhv4bp6="true" aria-hidden="true" width="16" height="16" viewBox="0 0 24 24" fill="currentColor" style="--sl-icon-size: 1.25rem;" data-astro-cid-hkc32dio><path d="m14.83 11.29-4.24-4.24a1 1 0 1 0-1.42 1.41L12.71 12l-3.54 3.54a1 1 0 0 0 0 1.41 1 1 0 0 0 .71.29 1 1 0 0 0 .71-.29l4.24-4.24a1.002 1.002 0 0 0 0-1.42Z"/></svg></summary><sl-sidebar-restore data-index="11"></sl-sidebar-restore><ul data-astro-cid-rmhv4bp6><li data-astro-cid-rmhv4bp6><a href="/next/reference/api/operations/tags/licenses/" data-astro-cid-rmhv4bp6><span data-astro-cid-rmhv4bp6>Overview</span></a></li><li data-astro-cid-rmhv4bp6><a href="/next/reference/api/operations/list-licenses/" data-astro-cid-rmhv4bp6><span data-astro-cid-rmhv4bp6>List licenses</span><span class="sl-badge caution small sl-openapi-method-get" data-astro-cid-rmhv4bp6="true" data-astro-cid-f4zorn72>GET</span></a></li><li data-astro-cid-rmhv4bp6><a href="/next/reference/api/operations/lookup-license/" data-astro-cid-rmhv4bp6><span data-astro-cid-rmhv4bp6>Resolve a license by SPDX identifier</span><span class="sl-badge caution small sl-openapi-method-get" data-astro-cid-rmhv4bp6="true" data-astro-cid-f4zorn72>GET</span></a></li><li data-astro-cid-rmhv4bp6><a href="/next/reference/api/operations/list-components-by-license/" data-astro-cid-rmhv4bp6><span data-astro-cid-rmhv4bp6>List components by license</span><span class="sl-badge caution small sl-openapi-method-get" data-astro-cid-rmhv4bp6="true" data-astro-cid-f4zorn72>GET</span></a></li></ul></details></li><li data-astro-cid-rmhv4bp6><details data-astro-cid-rmhv4bp6><summary data-astro-cid-rmhv4bp6><span class="group-label" data-astro-cid-rmhv4bp6><span class="large" data-astro-cid-rmhv4bp6>Vulnerabilities</span></span><svg class="caret" data-astro-cid-rmhv4bp6="true" aria-hidden="true" width="16" height="16" viewBox="0 0 24 24" fill="currentColor" style="--sl-icon-size: 1.25rem;" data-astro-cid-hkc32dio><path d="m14.83 11.29-4.24-4.24a1 1 0 1 0-1.42 1.41L12.71 12l-3.54 3.54a1 1 0 0 0 0 1.41 1 1 0 0 0 .71.29 1 1 0 0 0 .71-.29l4.24-4.24a1.002 1.002 0 0 0 0-1.42Z"/></svg></summary><sl-sidebar-restore data-index="12"></sl-sidebar-restore><ul data-astro-cid-rmhv4bp6><li data-astro-cid-rmhv4bp6><a href="/next/reference/api/operations/tags/vulnerabilities/" data-astro-cid-rmhv4bp6><span data-astro-cid-rmhv4bp6>Overview</span></a></li><li data-astro-cid-rmhv4bp6><a href="/next/reference/api/operations/list-top-vulnerabilities/" data-astro-cid-rmhv4bp6><span data-astro-cid-rmhv4bp6>List top vulnerabilities</span><span class="sl-badge caution small sl-openapi-method-get" data-astro-cid-rmhv4bp6="true" data-astro-cid-f4zorn72>GET</span></a></li><li data-astro-cid-rmhv4bp6><a href="/next/reference/api/operations/get-vulnerability/" data-astro-cid-rmhv4bp6><span data-astro-cid-rmhv4bp6>Get vulnerability detail</span><span class="sl-badge caution small sl-openapi-method-get" data-astro-cid-rmhv4bp6="true" data-astro-cid-f4zorn72>GET</span></a></li><li data-astro-cid-rmhv4bp6><a href="/next/reference/api/operations/list-vulnerability-workloads/" data-astro-cid-rmhv4bp6><span data-astro-cid-rmhv4bp6>List running workloads affected by a vulnerability</span><span class="sl-badge caution small sl-openapi-method-get" data-astro-cid-rmhv4bp6="true" data-astro-cid-f4zorn72>GET</span></a></li></ul></details></li><li data-astro-cid-rmhv4bp6><details data-astro-cid-rmhv4bp6><summary data-astro-cid-rmhv4bp6><span class="group-label" data-astro-cid-rmhv4bp6><span class="large" data-astro-cid-rmhv4bp6>Clusters</span></span><svg class="caret" data-astro-cid-rmhv4bp6="true" aria-hidden="true" width="16" height="16" viewBox="0 0 24 24" fill="currentColor" style="--sl-icon-size: 1.25rem;" data-astro-cid-hkc32dio><path d="m14.83 11.29-4.24-4.24a1 1 0 1 0-1.42 1.41L12.71 12l-3.54 3.54a1 1 0 0 0 0 1.41 1 1 0 0 0 .71.29 1 1 0 0 0 .71-.29l4.24-4.24a1.002 1.002 0 0 0 0-1.42Z"/></svg></summary><sl-sidebar-restore data-index="13"></sl-sidebar-restore><ul data-astro-cid-rmhv4bp6><li data-astro-cid-rmhv4bp6><a href="/next/reference/api/operations/tags/clusters/" data-astro-cid-rmhv4bp6><span data-astro-cid-rmhv4bp6>Overview</span></a></li><li data-astro-cid-rmhv4bp6><a href="/next/reference/api/operations/list-clusters/" data-astro-cid-rmhv4bp6><span data-astro-cid-rmhv4bp6>List clusters</span><span class="sl-badge caution small sl-openapi-method-get" data-astro-cid-rmhv4bp6="true" data-astro-cid-f4zorn72>GET</span></a></li><li data-astro-cid-rmhv4bp6><a href="/next/reference/api/operations/create-cluster/" data-astro-cid-rmhv4bp6><span data-astro-cid-rmhv4bp6>Register a cluster</span><span class="sl-badge caution small sl-openapi-method-post" data-astro-cid-rmhv4bp6="true" data-astro-cid-f4zorn72>POST</span></a></li><li data-astro-cid-rmhv4bp6><a href="/next/reference/api/operations/get-cluster/" data-astro-cid-rmhv4bp6><span data-astro-cid-rmhv4bp6>Get a cluster</span><span class="sl-badge caution small sl-openapi-method-get" data-astro-cid-rmhv4bp6="true" data-astro-cid-f4zorn72>GET</span></a></li><li data-astro-cid-rmhv4bp6><a href="/next/reference/api/operations/delete-cluster/" data-astro-cid-rmhv4bp6><span data-astro-cid-rmhv4bp6>Delete a cluster</span><span class="sl-badge caution small sl-openapi-method-delete" data-astro-cid-rmhv4bp6="true" data-astro-cid-f4zorn72>DELETE</span></a></li><li data-astro-cid-rmhv4bp6><a href="/next/reference/api/operations/update-cluster/" data-astro-cid-rmhv4bp6><span data-astro-cid-rmhv4bp6>Rename a cluster</span><span class="sl-badge caution small sl-openapi-method-patch" data-astro-cid-rmhv4bp6="true" data-astro-cid-f4zorn72>PATCH</span></a></li><li data-astro-cid-rmhv4bp6><a href="/next/reference/api/operations/list-cluster-images/" data-astro-cid-rmhv4bp6><span data-astro-cid-rmhv4bp6>List running images</span><span class="sl-badge caution small sl-openapi-method-get" data-astro-cid-rmhv4bp6="true" data-astro-cid-f4zorn72>GET</span></a></li><li data-astro-cid-rmhv4bp6><a href="/next/reference/api/operations/ingest-cluster-unknown-images/" data-astro-cid-rmhv4bp6><span data-astro-cid-rmhv4bp6>Scan the cluster&#39;s unscanned running images</span><span class="sl-badge caution small sl-openapi-method-post" data-astro-cid-rmhv4bp6="true" data-astro-cid-f4zorn72>POST</span></a></li><li data-astro-cid-rmhv4bp6><a href="/next/reference/api/operations/put-cluster-inventory/" data-astro-cid-rmhv4bp6><span data-astro-cid-rmhv4bp6>Push a cluster inventory snapshot</span><span class="sl-badge caution small sl-openapi-method-post" data-astro-cid-rmhv4bp6="true" data-astro-cid-f4zorn72>POST</span></a></li><li data-astro-cid-rmhv4bp6><a href="/next/reference/api/operations/list-cluster-k8s-namespaces/" data-astro-cid-rmhv4bp6><span data-astro-cid-rmhv4bp6>List reported Kubernetes namespaces</span><span class="sl-badge caution small sl-openapi-method-get" data-astro-cid-rmhv4bp6="true" data-astro-cid-f4zorn72>GET</span></a></li><li data-astro-cid-rmhv4bp6><a href="/next/reference/api/operations/list-cluster-unknown-images/" data-astro-cid-rmhv4bp6><span data-astro-cid-rmhv4bp6>List running images with no ingested SBOM</span><span class="sl-badge caution small sl-openapi-method-get" data-astro-cid-rmhv4bp6="true" data-astro-cid-f4zorn72>GET</span></a></li><li data-astro-cid-rmhv4bp6><a href="/next/reference/api/operations/list-cluster-vulns/" data-astro-cid-rmhv4bp6><span data-astro-cid-rmhv4bp6>List vulnerabilities running in a cluster</span><span class="sl-badge caution small sl-openapi-method-get" data-astro-cid-rmhv4bp6="true" data-astro-cid-f4zorn72>GET</span></a></li><li data-astro-cid-rmhv4bp6><a href="/next/reference/api/operations/list-cluster-workloads/" data-astro-cid-rmhv4bp6><span data-astro-cid-rmhv4bp6>List running workloads</span><span class="sl-badge caution small sl-openapi-method-get" data-astro-cid-rmhv4bp6="true" data-astro-cid-f4zorn72>GET</span></a></li><li data-astro-cid-rmhv4bp6><a href="/next/reference/api/operations/list-my-clusters/" data-astro-cid-rmhv4bp6><span data-astro-cid-rmhv4bp6>List my clusters</span><span class="sl-badge caution small sl-openapi-method-get" data-astro-cid-rmhv4bp6="true" data-astro-cid-f4zorn72>GET</span></a></li></ul></details></li><li data-astro-cid-rmhv4bp6><details data-astro-cid-rmhv4bp6><summary data-astro-cid-rmhv4bp6><span class="group-label" data-astro-cid-rmhv4bp6><span class="large" data-astro-cid-rmhv4bp6>Registries</span></span><svg class="caret" data-astro-cid-rmhv4bp6="true" aria-hidden="true" width="16" height="16" viewBox="0 0 24 24" fill="currentColor" style="--sl-icon-size: 1.25rem;" data-astro-cid-hkc32dio><path d="m14.83 11.29-4.24-4.24a1 1 0 1 0-1.42 1.41L12.71 12l-3.54 3.54a1 1 0 0 0 0 1.41 1 1 0 0 0 .71.29 1 1 0 0 0 .71-.29l4.24-4.24a1.002 1.002 0 0 0 0-1.42Z"/></svg></summary><sl-sidebar-restore data-index="14"></sl-sidebar-restore><ul data-astro-cid-rmhv4bp6><li data-astro-cid-rmhv4bp6><a href="/next/reference/api/operations/tags/registries/" data-astro-cid-rmhv4bp6><span data-astro-cid-rmhv4bp6>Overview</span></a></li><li data-astro-cid-rmhv4bp6><a href="/next/reference/api/operations/list-registries/" data-astro-cid-rmhv4bp6><span data-astro-cid-rmhv4bp6>List registries</span><span class="sl-badge caution small sl-openapi-method-get" data-astro-cid-rmhv4bp6="true" data-astro-cid-f4zorn72>GET</span></a></li><li data-astro-cid-rmhv4bp6><a href="/next/reference/api/operations/create-registry/" data-astro-cid-rmhv4bp6><span data-astro-cid-rmhv4bp6>Create a registry</span><span class="sl-badge caution small sl-openapi-method-post" data-astro-cid-rmhv4bp6="true" data-astro-cid-f4zorn72>POST</span></a></li><li data-astro-cid-rmhv4bp6><a href="/next/reference/api/operations/get-registry-by-name/" data-astro-cid-rmhv4bp6><span data-astro-cid-rmhv4bp6>Get a registry by name</span><span class="sl-badge caution small sl-openapi-method-get" data-astro-cid-rmhv4bp6="true" data-astro-cid-f4zorn72>GET</span></a></li><li data-astro-cid-rmhv4bp6><a href="/next/reference/api/operations/list-recent-drift/" data-astro-cid-rmhv4bp6><span data-astro-cid-rmhv4bp6>Recent provenance drift feed</span><span class="sl-badge caution small sl-openapi-method-get" data-astro-cid-rmhv4bp6="true" data-astro-cid-f4zorn72>GET</span></a></li><li data-astro-cid-rmhv4bp6><a href="/next/reference/api/operations/preview-registry-config/" data-astro-cid-rmhv4bp6><span data-astro-cid-rmhv4bp6>Preview what an unsaved registry would scan</span><span class="sl-badge caution small sl-openapi-method-post" data-astro-cid-rmhv4bp6="true" data-astro-cid-f4zorn72>POST</span></a></li><li data-astro-cid-rmhv4bp6><a href="/next/reference/api/operations/test-registry-connection/" data-astro-cid-rmhv4bp6><span data-astro-cid-rmhv4bp6>Test registry connectivity</span><span class="sl-badge caution small sl-openapi-method-post" data-astro-cid-rmhv4bp6="true" data-astro-cid-f4zorn72>POST</span></a></li><li data-astro-cid-rmhv4bp6><a href="/next/reference/api/operations/get-registry-trust-summary/" data-astro-cid-rmhv4bp6><span data-astro-cid-rmhv4bp6>Per-registry signing-status counts</span><span class="sl-badge caution small sl-openapi-method-get" data-astro-cid-rmhv4bp6="true" data-astro-cid-f4zorn72>GET</span></a></li><li data-astro-cid-rmhv4bp6><a href="/next/reference/api/operations/get-registry/" data-astro-cid-rmhv4bp6><span data-astro-cid-rmhv4bp6>Get a registry</span><span class="sl-badge caution small sl-openapi-method-get" data-astro-cid-rmhv4bp6="true" data-astro-cid-f4zorn72>GET</span></a></li><li data-astro-cid-rmhv4bp6><a href="/next/reference/api/operations/delete-registry/" data-astro-cid-rmhv4bp6><span data-astro-cid-rmhv4bp6>Delete a registry</span><span class="sl-badge caution small sl-openapi-method-delete" data-astro-cid-rmhv4bp6="true" data-astro-cid-f4zorn72>DELETE</span></a></li><li data-astro-cid-rmhv4bp6><a href="/next/reference/api/operations/update-registry/" data-astro-cid-rmhv4bp6><span data-astro-cid-rmhv4bp6>Update a registry (partial)</span><span class="sl-badge caution small sl-openapi-method-patch" data-astro-cid-rmhv4bp6="true" data-astro-cid-f4zorn72>PATCH</span></a></li><li data-astro-cid-rmhv4bp6><a href="/next/reference/api/operations/get-registry-preview/" data-astro-cid-rmhv4bp6><span data-astro-cid-rmhv4bp6>Preview what a registry&#39;s next walk would scan</span><span class="sl-badge caution small sl-openapi-method-get" data-astro-cid-rmhv4bp6="true" data-astro-cid-f4zorn72>GET</span></a></li><li data-astro-cid-rmhv4bp6><a href="/next/reference/api/operations/scan-registry/" data-astro-cid-rmhv4bp6><span data-astro-cid-rmhv4bp6>Trigger ad-hoc registry scan</span><span class="sl-badge caution small sl-openapi-method-post" data-astro-cid-rmhv4bp6="true" data-astro-cid-f4zorn72>POST</span></a></li><li data-astro-cid-rmhv4bp6><a href="/next/reference/api/operations/registry-webhook/" data-astro-cid-rmhv4bp6><span data-astro-cid-rmhv4bp6>Receive registry push notifications</span><span class="sl-badge caution small sl-openapi-method-post" data-astro-cid-rmhv4bp6="true" data-astro-cid-f4zorn72>POST</span></a></li><li data-astro-cid-rmhv4bp6><a href="/next/reference/api/operations/regenerate-webhook-secret/" data-astro-cid-rmhv4bp6><span data-astro-cid-rmhv4bp6>Regenerate webhook secret</span><span class="sl-badge caution small sl-openapi-method-post" data-astro-cid-rmhv4bp6="true" data-astro-cid-f4zorn72>POST</span></a></li></ul></details></li><li data-astro-cid-rmhv4bp6><details data-astro-cid-rmhv4bp6><summary data-astro-cid-rmhv4bp6><span class="group-label" data-astro-cid-rmhv4bp6><span class="large" data-astro-cid-rmhv4bp6>Sources</span></span><svg class="caret" data-astro-cid-rmhv4bp6="true" aria-hidden="true" width="16" height="16" viewBox="0 0 24 24" fill="currentColor" style="--sl-icon-size: 1.25rem;" data-astro-cid-hkc32dio><path d="m14.83 11.29-4.24-4.24a1 1 0 1 0-1.42 1.41L12.71 12l-3.54 3.54a1 1 0 0 0 0 1.41 1 1 0 0 0 .71.29 1 1 0 0 0 .71-.29l4.24-4.24a1.002 1.002 0 0 0 0-1.42Z"/></svg></summary><sl-sidebar-restore data-index="15"></sl-sidebar-restore><ul data-astro-cid-rmhv4bp6><li data-astro-cid-rmhv4bp6><a href="/next/reference/api/operations/tags/sources/" data-astro-cid-rmhv4bp6><span data-astro-cid-rmhv4bp6>Overview</span></a></li><li data-astro-cid-rmhv4bp6><a href="/next/reference/api/operations/list-sources/" data-astro-cid-rmhv4bp6><span data-astro-cid-rmhv4bp6>List sources</span><span class="sl-badge caution small sl-openapi-method-get" data-astro-cid-rmhv4bp6="true" data-astro-cid-f4zorn72>GET</span></a></li><li data-astro-cid-rmhv4bp6><a href="/next/reference/api/operations/create-source/" data-astro-cid-rmhv4bp6><span data-astro-cid-rmhv4bp6>Create an upload source</span><span class="sl-badge caution small sl-openapi-method-post" data-astro-cid-rmhv4bp6="true" data-astro-cid-f4zorn72>POST</span></a></li><li data-astro-cid-rmhv4bp6><a href="/next/reference/api/operations/get-source/" data-astro-cid-rmhv4bp6><span data-astro-cid-rmhv4bp6>Get a source</span><span class="sl-badge caution small sl-openapi-method-get" data-astro-cid-rmhv4bp6="true" data-astro-cid-f4zorn72>GET</span></a></li><li data-astro-cid-rmhv4bp6><a href="/next/reference/api/operations/delete-source/" data-astro-cid-rmhv4bp6><span data-astro-cid-rmhv4bp6>Delete a source</span><span class="sl-badge caution small sl-openapi-method-delete" data-astro-cid-rmhv4bp6="true" data-astro-cid-f4zorn72>DELETE</span></a></li><li data-astro-cid-rmhv4bp6><a href="/next/reference/api/operations/update-source/" data-astro-cid-rmhv4bp6><span data-astro-cid-rmhv4bp6>Rename a source</span><span class="sl-badge caution small sl-openapi-method-patch" data-astro-cid-rmhv4bp6="true" data-astro-cid-f4zorn72>PATCH</span></a></li></ul></details></li><li data-astro-cid-rmhv4bp6><details data-astro-cid-rmhv4bp6><summary data-astro-cid-rmhv4bp6><span class="group-label" data-astro-cid-rmhv4bp6><span class="large" data-astro-cid-rmhv4bp6>Namespaces</span></span><svg class="caret" data-astro-cid-rmhv4bp6="true" aria-hidden="true" width="16" height="16" viewBox="0 0 24 24" fill="currentColor" style="--sl-icon-size: 1.25rem;" data-astro-cid-hkc32dio><path d="m14.83 11.29-4.24-4.24a1 1 0 1 0-1.42 1.41L12.71 12l-3.54 3.54a1 1 0 0 0 0 1.41 1 1 0 0 0 .71.29 1 1 0 0 0 .71-.29l4.24-4.24a1.002 1.002 0 0 0 0-1.42Z"/></svg></summary><sl-sidebar-restore data-index="16"></sl-sidebar-restore><ul data-astro-cid-rmhv4bp6><li data-astro-cid-rmhv4bp6><a href="/next/reference/api/operations/tags/namespaces/" data-astro-cid-rmhv4bp6><span data-astro-cid-rmhv4bp6>Overview</span></a></li><li data-astro-cid-rmhv4bp6><a href="/next/reference/api/operations/list-namespaces/" data-astro-cid-rmhv4bp6><span data-astro-cid-rmhv4bp6>List namespaces</span><span class="sl-badge caution small sl-openapi-method-get" data-astro-cid-rmhv4bp6="true" data-astro-cid-f4zorn72>GET</span></a></li><li data-astro-cid-rmhv4bp6><a href="/next/reference/api/operations/create-namespace/" data-astro-cid-rmhv4bp6><span data-astro-cid-rmhv4bp6>Create a namespace</span><span class="sl-badge caution small sl-openapi-method-post" data-astro-cid-rmhv4bp6="true" data-astro-cid-f4zorn72>POST</span></a></li><li data-astro-cid-rmhv4bp6><a href="/next/reference/api/operations/get-namespace-by-name/" data-astro-cid-rmhv4bp6><span data-astro-cid-rmhv4bp6>Get a namespace by name</span><span class="sl-badge caution small sl-openapi-method-get" data-astro-cid-rmhv4bp6="true" data-astro-cid-f4zorn72>GET</span></a></li><li data-astro-cid-rmhv4bp6><a href="/next/reference/api/operations/get-namespace/" data-astro-cid-rmhv4bp6><span data-astro-cid-rmhv4bp6>Get a namespace</span><span class="sl-badge caution small sl-openapi-method-get" data-astro-cid-rmhv4bp6="true" data-astro-cid-f4zorn72>GET</span></a></li><li data-astro-cid-rmhv4bp6><a href="/next/reference/api/operations/delete-namespace/" data-astro-cid-rmhv4bp6><span data-astro-cid-rmhv4bp6>Delete a namespace</span><span class="sl-badge caution small sl-openapi-method-delete" data-astro-cid-rmhv4bp6="true" data-astro-cid-f4zorn72>DELETE</span></a></li><li data-astro-cid-rmhv4bp6><a href="/next/reference/api/operations/update-namespace/" data-astro-cid-rmhv4bp6><span data-astro-cid-rmhv4bp6>Update a namespace (partial)</span><span class="sl-badge caution small sl-openapi-method-patch" data-astro-cid-rmhv4bp6="true" data-astro-cid-f4zorn72>PATCH</span></a></li><li data-astro-cid-rmhv4bp6><a href="/next/reference/api/operations/list-namespace-members/" data-astro-cid-rmhv4bp6><span data-astro-cid-rmhv4bp6>List namespace members</span><span class="sl-badge caution small sl-openapi-method-get" data-astro-cid-rmhv4bp6="true" data-astro-cid-f4zorn72>GET</span></a></li><li data-astro-cid-rmhv4bp6><a href="/next/reference/api/operations/set-namespace-member/" data-astro-cid-rmhv4bp6><span data-astro-cid-rmhv4bp6>Add a member or change their role</span><span class="sl-badge caution small sl-openapi-method-put" data-astro-cid-rmhv4bp6="true" data-astro-cid-f4zorn72>PUT</span></a></li><li data-astro-cid-rmhv4bp6><a href="/next/reference/api/operations/remove-namespace-member/" data-astro-cid-rmhv4bp6><span data-astro-cid-rmhv4bp6>Remove a member</span><span class="sl-badge caution small sl-openapi-method-delete" data-astro-cid-rmhv4bp6="true" data-astro-cid-f4zorn72>DELETE</span></a></li></ul></details></li><li data-astro-cid-rmhv4bp6><details data-astro-cid-rmhv4bp6><summary data-astro-cid-rmhv4bp6><span class="group-label" data-astro-cid-rmhv4bp6><span class="large" data-astro-cid-rmhv4bp6>Jobs</span></span><svg class="caret" data-astro-cid-rmhv4bp6="true" aria-hidden="true" width="16" height="16" viewBox="0 0 24 24" fill="currentColor" style="--sl-icon-size: 1.25rem;" data-astro-cid-hkc32dio><path d="m14.83 11.29-4.24-4.24a1 1 0 1 0-1.42 1.41L12.71 12l-3.54 3.54a1 1 0 0 0 0 1.41 1 1 0 0 0 .71.29 1 1 0 0 0 .71-.29l4.24-4.24a1.002 1.002 0 0 0 0-1.42Z"/></svg></summary><sl-sidebar-restore data-index="17"></sl-sidebar-restore><ul data-astro-cid-rmhv4bp6><li data-astro-cid-rmhv4bp6><a href="/next/reference/api/operations/tags/jobs/" data-astro-cid-rmhv4bp6><span data-astro-cid-rmhv4bp6>Overview</span></a></li><li data-astro-cid-rmhv4bp6><a href="/next/reference/api/operations/retry-all-failed-enrichment-jobs/" data-astro-cid-rmhv4bp6><span data-astro-cid-rmhv4bp6>Retry every failed enrichment job</span><span class="sl-badge caution small sl-openapi-method-post" data-astro-cid-rmhv4bp6="true" data-astro-cid-f4zorn72>POST</span></a></li><li data-astro-cid-rmhv4bp6><a href="/next/reference/api/operations/retry-enrichment-job/" data-astro-cid-rmhv4bp6><span data-astro-cid-rmhv4bp6>Retry a failed enrichment job</span><span class="sl-badge caution small sl-openapi-method-post" data-astro-cid-rmhv4bp6="true" data-astro-cid-f4zorn72>POST</span></a></li><li data-astro-cid-rmhv4bp6><a href="/next/reference/api/operations/retry-all-failed-scan-jobs/" data-astro-cid-rmhv4bp6><span data-astro-cid-rmhv4bp6>Retry every failed scan job</span><span class="sl-badge caution small sl-openapi-method-post" data-astro-cid-rmhv4bp6="true" data-astro-cid-f4zorn72>POST</span></a></li><li data-astro-cid-rmhv4bp6><a href="/next/reference/api/operations/cancel-scan-job/" data-astro-cid-rmhv4bp6><span data-astro-cid-rmhv4bp6>Cancel a queued scan job</span><span class="sl-badge caution small sl-openapi-method-post" data-astro-cid-rmhv4bp6="true" data-astro-cid-f4zorn72>POST</span></a></li><li data-astro-cid-rmhv4bp6><a href="/next/reference/api/operations/retry-scan-job/" data-astro-cid-rmhv4bp6><span data-astro-cid-rmhv4bp6>Retry a failed scan job</span><span class="sl-badge caution small sl-openapi-method-post" data-astro-cid-rmhv4bp6="true" data-astro-cid-f4zorn72>POST</span></a></li><li data-astro-cid-rmhv4bp6><a href="/next/reference/api/operations/list-enrichment-jobs/" data-astro-cid-rmhv4bp6><span data-astro-cid-rmhv4bp6>List enrichment jobs</span><span class="sl-badge caution small sl-openapi-method-get" data-astro-cid-rmhv4bp6="true" data-astro-cid-f4zorn72>GET</span></a></li><li data-astro-cid-rmhv4bp6><a href="/next/reference/api/operations/enrichment-jobs-summary/" data-astro-cid-rmhv4bp6><span data-astro-cid-rmhv4bp6>Per-enricher enrichment job counts</span><span class="sl-badge caution small sl-openapi-method-get" data-astro-cid-rmhv4bp6="true" data-astro-cid-f4zorn72>GET</span></a></li><li data-astro-cid-rmhv4bp6><a href="/next/reference/api/operations/list-scan-jobs/" data-astro-cid-rmhv4bp6><span data-astro-cid-rmhv4bp6>List scan jobs</span><span class="sl-badge caution small sl-openapi-method-get" data-astro-cid-rmhv4bp6="true" data-astro-cid-f4zorn72>GET</span></a></li><li data-astro-cid-rmhv4bp6><a href="/next/reference/api/operations/get-scan-job/" data-astro-cid-rmhv4bp6><span data-astro-cid-rmhv4bp6>Get a scan job</span><span class="sl-badge caution small sl-openapi-method-get" data-astro-cid-rmhv4bp6="true" data-astro-cid-f4zorn72>GET</span></a></li></ul></details></li><li data-astro-cid-rmhv4bp6><details data-astro-cid-rmhv4bp6><summary data-astro-cid-rmhv4bp6><span class="group-label" data-astro-cid-rmhv4bp6><span class="large" data-astro-cid-rmhv4bp6>Auth</span></span><svg class="caret" data-astro-cid-rmhv4bp6="true" aria-hidden="true" width="16" height="16" viewBox="0 0 24 24" fill="currentColor" style="--sl-icon-size: 1.25rem;" data-astro-cid-hkc32dio><path d="m14.83 11.29-4.24-4.24a1 1 0 1 0-1.42 1.41L12.71 12l-3.54 3.54a1 1 0 0 0 0 1.41 1 1 0 0 0 .71.29 1 1 0 0 0 .71-.29l4.24-4.24a1.002 1.002 0 0 0 0-1.42Z"/></svg></summary><sl-sidebar-restore data-index="18"></sl-sidebar-restore><ul data-astro-cid-rmhv4bp6><li data-astro-cid-rmhv4bp6><a href="/next/reference/api/operations/tags/auth/" data-astro-cid-rmhv4bp6><span data-astro-cid-rmhv4bp6>Overview</span></a></li><li data-astro-cid-rmhv4bp6><a href="/next/reference/api/operations/list-my-identities/" data-astro-cid-rmhv4bp6><span data-astro-cid-rmhv4bp6>List my linked identities</span><span class="sl-badge caution small sl-openapi-method-get" data-astro-cid-rmhv4bp6="true" data-astro-cid-f4zorn72>GET</span></a></li><li data-astro-cid-rmhv4bp6><a href="/next/reference/api/operations/link-identity/" data-astro-cid-rmhv4bp6><span data-astro-cid-rmhv4bp6>Start linking an identity</span><span class="sl-badge caution small sl-openapi-method-post" data-astro-cid-rmhv4bp6="true" data-astro-cid-f4zorn72>POST</span></a></li><li data-astro-cid-rmhv4bp6><a href="/next/reference/api/operations/unlink-identity/" data-astro-cid-rmhv4bp6><span data-astro-cid-rmhv4bp6>Unlink an identity</span><span class="sl-badge caution small sl-openapi-method-delete" data-astro-cid-rmhv4bp6="true" data-astro-cid-f4zorn72>DELETE</span></a></li><li data-astro-cid-rmhv4bp6><a href="/next/reference/api/operations/list-api-keys/" data-astro-cid-rmhv4bp6><span data-astro-cid-rmhv4bp6>List API keys</span><span class="sl-badge caution small sl-openapi-method-get" data-astro-cid-rmhv4bp6="true" data-astro-cid-f4zorn72>GET</span></a></li><li data-astro-cid-rmhv4bp6><a href="/next/reference/api/operations/create-api-key/" data-astro-cid-rmhv4bp6><span data-astro-cid-rmhv4bp6>Create API key</span><span class="sl-badge caution small sl-openapi-method-post" data-astro-cid-rmhv4bp6="true" data-astro-cid-f4zorn72>POST</span></a></li><li data-astro-cid-rmhv4bp6><a href="/next/reference/api/operations/delete-api-key/" data-astro-cid-rmhv4bp6><span data-astro-cid-rmhv4bp6>Delete API key</span><span class="sl-badge caution small sl-openapi-method-delete" data-astro-cid-rmhv4bp6="true" data-astro-cid-f4zorn72>DELETE</span></a></li><li data-astro-cid-rmhv4bp6><a href="/next/reference/api/operations/list-auth-providers/" data-astro-cid-rmhv4bp6><span data-astro-cid-rmhv4bp6>List identity providers</span><span class="sl-badge caution small sl-openapi-method-get" data-astro-cid-rmhv4bp6="true" data-astro-cid-f4zorn72>GET</span></a></li><li data-astro-cid-rmhv4bp6><a href="/next/reference/api/operations/list-users/" data-astro-cid-rmhv4bp6><span data-astro-cid-rmhv4bp6>List users</span><span class="sl-badge caution small sl-openapi-method-get" data-astro-cid-rmhv4bp6="true" data-astro-cid-f4zorn72>GET</span></a></li><li data-astro-cid-rmhv4bp6><a href="/next/reference/api/operations/get-me/" data-astro-cid-rmhv4bp6><span data-astro-cid-rmhv4bp6>Get current user</span><span class="sl-badge caution small sl-openapi-method-get" data-astro-cid-rmhv4bp6="true" data-astro-cid-f4zorn72>GET</span></a></li><li data-astro-cid-rmhv4bp6><a href="/next/reference/api/operations/list-my-activity/" data-astro-cid-rmhv4bp6><span data-astro-cid-rmhv4bp6>List my recent activity</span><span class="sl-badge caution small sl-openapi-method-get" data-astro-cid-rmhv4bp6="true" data-astro-cid-f4zorn72>GET</span></a></li><li data-astro-cid-rmhv4bp6><a href="/next/reference/api/operations/list-my-artifacts/" data-astro-cid-rmhv4bp6><span data-astro-cid-rmhv4bp6>List my artifacts</span><span class="sl-badge caution small sl-openapi-method-get" data-astro-cid-rmhv4bp6="true" data-astro-cid-f4zorn72>GET</span></a></li><li data-astro-cid-rmhv4bp6><a href="/next/reference/api/operations/list-my-drift-feed/" data-astro-cid-rmhv4bp6><span data-astro-cid-rmhv4bp6>List provenance drift on my artifacts</span><span class="sl-badge caution small sl-openapi-method-get" data-astro-cid-rmhv4bp6="true" data-astro-cid-f4zorn72>GET</span></a></li><li data-astro-cid-rmhv4bp6><a href="/next/reference/api/operations/list-my-namespaces/" data-astro-cid-rmhv4bp6><span data-astro-cid-rmhv4bp6>List my namespaces</span><span class="sl-badge caution small sl-openapi-method-get" data-astro-cid-rmhv4bp6="true" data-astro-cid-f4zorn72>GET</span></a></li><li data-astro-cid-rmhv4bp6><a href="/next/reference/api/operations/list-my-registries/" data-astro-cid-rmhv4bp6><span data-astro-cid-rmhv4bp6>List my registries</span><span class="sl-badge caution small sl-openapi-method-get" data-astro-cid-rmhv4bp6="true" data-astro-cid-f4zorn72>GET</span></a></li><li data-astro-cid-rmhv4bp6><a href="/next/reference/api/operations/list-my-sources/" data-astro-cid-rmhv4bp6><span data-astro-cid-rmhv4bp6>List my sources</span><span class="sl-badge caution small sl-openapi-method-get" data-astro-cid-rmhv4bp6="true" data-astro-cid-f4zorn72>GET</span></a></li><li data-astro-cid-rmhv4bp6><a href="/next/reference/api/operations/list-my-vulnerabilities/" data-astro-cid-rmhv4bp6><span data-astro-cid-rmhv4bp6>List vulnerabilities affecting my artifacts</span><span class="sl-badge caution small sl-openapi-method-get" data-astro-cid-rmhv4bp6="true" data-astro-cid-f4zorn72>GET</span></a></li><li data-astro-cid-rmhv4bp6><a href="/next/reference/api/operations/list-my-watches/" data-astro-cid-rmhv4bp6><span data-astro-cid-rmhv4bp6>List my watched artifacts</span><span class="sl-badge caution small sl-openapi-method-get" data-astro-cid-rmhv4bp6="true" data-astro-cid-f4zorn72>GET</span></a></li><li data-astro-cid-rmhv4bp6><a href="/next/reference/api/operations/list-my-watch-feed/" data-astro-cid-rmhv4bp6><span data-astro-cid-rmhv4bp6>List changes to my watched artifacts</span><span class="sl-badge caution small sl-openapi-method-get" data-astro-cid-rmhv4bp6="true" data-astro-cid-f4zorn72>GET</span></a></li><li data-astro-cid-rmhv4bp6><a href="/next/reference/api/operations/watch-artifact/" data-astro-cid-rmhv4bp6><span data-astro-cid-rmhv4bp6>Watch an artifact</span><span class="sl-badge caution small sl-openapi-method-put" data-astro-cid-rmhv4bp6="true" data-astro-cid-f4zorn72>PUT</span></a></li><li data-astro-cid-rmhv4bp6><a href="/next/reference/api/operations/unwatch-artifact/" data-astro-cid-rmhv4bp6><span data-astro-cid-rmhv4bp6>Unwatch an artifact</span><span class="sl-badge caution small sl-openapi-method-delete" data-astro-cid-rmhv4bp6="true" data-astro-cid-f4zorn72>DELETE</span></a></li><li data-astro-cid-rmhv4bp6><a href="/next/reference/api/operations/update-user-role/" data-astro-cid-rmhv4bp6><span data-astro-cid-rmhv4bp6>Update user role</span><span class="sl-badge caution small sl-openapi-method-patch" data-astro-cid-rmhv4bp6="true" data-astro-cid-f4zorn72>PATCH</span></a></li></ul></details></li><li data-astro-cid-rmhv4bp6><details data-astro-cid-rmhv4bp6><summary data-astro-cid-rmhv4bp6><span class="group-label" data-astro-cid-rmhv4bp6><span class="large" data-astro-cid-rmhv4bp6>Admin</span></span><svg class="caret" data-astro-cid-rmhv4bp6="true" aria-hidden="true" width="16" height="16" viewBox="0 0 24 24" fill="currentColor" style="--sl-icon-size: 1.25rem;" data-astro-cid-hkc32dio><path d="m14.83 11.29-4.24-4.24a1 1 0 1 0-1.42 1.41L12.71 12l-3.54 3.54a1 1 0 0 0 0 1.41 1 1 0 0 0 .71.29 1 1 0 0 0 .71-.29l4.24-4.24a1.002 1.002 0 0 0 0-1.42Z"/></svg></summary><sl-sidebar-restore data-index="19"></sl-sidebar-restore><ul data-astro-cid-rmhv4bp6><li data-astro-cid-rmhv4bp6><a href="/next/reference/api/operations/tags/admin/" data-astro-cid-rmhv4bp6><span data-astro-cid-rmhv4bp6>Overview</span></a></li><li data-astro-cid-rmhv4bp6><a href="/next/reference/api/operations/retry-all-failed-enrichment-jobs/" data-astro-cid-rmhv4bp6><span data-astro-cid-rmhv4bp6>Retry every failed enrichment job</span><span class="sl-badge caution small sl-openapi-method-post" data-astro-cid-rmhv4bp6="true" data-astro-cid-f4zorn72>POST</span></a></li><li data-astro-cid-rmhv4bp6><a href="/next/reference/api/operations/retry-enrichment-job/" data-astro-cid-rmhv4bp6><span data-astro-cid-rmhv4bp6>Retry a failed enrichment job</span><span class="sl-badge caution small sl-openapi-method-post" data-astro-cid-rmhv4bp6="true" data-astro-cid-f4zorn72>POST</span></a></li><li data-astro-cid-rmhv4bp6><a href="/next/reference/api/operations/retry-all-failed-scan-jobs/" data-astro-cid-rmhv4bp6><span data-astro-cid-rmhv4bp6>Retry every failed scan job</span><span class="sl-badge caution small sl-openapi-method-post" data-astro-cid-rmhv4bp6="true" data-astro-cid-f4zorn72>POST</span></a></li><li data-astro-cid-rmhv4bp6><a href="/next/reference/api/operations/cancel-scan-job/" data-astro-cid-rmhv4bp6><span data-astro-cid-rmhv4bp6>Cancel a queued scan job</span><span class="sl-badge caution small sl-openapi-method-post" data-astro-cid-rmhv4bp6="true" data-astro-cid-f4zorn72>POST</span></a></li><li data-astro-cid-rmhv4bp6><a href="/next/reference/api/operations/retry-scan-job/" data-astro-cid-rmhv4bp6><span data-astro-cid-rmhv4bp6>Retry a failed scan job</span><span class="sl-badge caution small sl-openapi-method-post" data-astro-cid-rmhv4bp6="true" data-astro-cid-f4zorn72>POST</span></a></li><li data-astro-cid-rmhv4bp6><a href="/next/reference/api/operations/get-system-status/" data-astro-cid-rmhv4bp6><span data-astro-cid-rmhv4bp6>Get system status</span><span class="sl-badge caution small sl-openapi-method-get" data-astro-cid-rmhv4bp6="true" data-astro-cid-f4zorn72>GET</span></a></li></ul></details></li><li data-astro-cid-rmhv4bp6><details data-astro-cid-rmhv4bp6><summary data-astro-cid-rmhv4bp6><span class="group-label" data-astro-cid-rmhv4bp6><span class="large" data-astro-cid-rmhv4bp6>Stats</span></span><svg class="caret" data-astro-cid-rmhv4bp6="true" aria-hidden="true" width="16" height="16" viewBox="0 0 24 24" fill="currentColor" style="--sl-icon-size: 1.25rem;" data-astro-cid-hkc32dio><path d="m14.83 11.29-4.24-4.24a1 1 0 1 0-1.42 1.41L12.71 12l-3.54 3.54a1 1 0 0 0 0 1.41 1 1 0 0 0 .71.29 1 1 0 0 0 .71-.29l4.24-4.24a1.002 1.002 0 0 0 0-1.42Z"/></svg></summary><sl-sidebar-restore data-index="20"></sl-sidebar-restore><ul data-astro-cid-rmhv4bp6><li data-astro-cid-rmhv4bp6><a href="/next/reference/api/operations/tags/stats/" data-astro-cid-rmhv4bp6><span data-astro-cid-rmhv4bp6>Overview</span></a></li><li data-astro-cid-rmhv4bp6><a href="/next/reference/api/operations/get-dashboard-stats/" data-astro-cid-rmhv4bp6><span data-astro-cid-rmhv4bp6>Get dashboard summary statistics</span><span class="sl-badge caution small sl-openapi-method-get" data-astro-cid-rmhv4bp6="true" data-astro-cid-f4zorn72>GET</span></a></li></ul></details></li><li data-astro-cid-rmhv4bp6><details data-astro-cid-rmhv4bp6><summary data-astro-cid-rmhv4bp6><span class="group-label" data-astro-cid-rmhv4bp6><span class="large" data-astro-cid-rmhv4bp6>Discovery</span></span><svg class="caret" data-astro-cid-rmhv4bp6="true" aria-hidden="true" width="16" height="16" viewBox="0 0 24 24" fill="currentColor" style="--sl-icon-size: 1.25rem;" data-astro-cid-hkc32dio><path d="m14.83 11.29-4.24-4.24a1 1 0 1 0-1.42 1.41L12.71 12l-3.54 3.54a1 1 0 0 0 0 1.41 1 1 0 0 0 .71.29 1 1 0 0 0 .71-.29l4.24-4.24a1.002 1.002 0 0 0 0-1.42Z"/></svg></summary><sl-sidebar-restore data-index="21"></sl-sidebar-restore><ul data-astro-cid-rmhv4bp6><li data-astro-cid-rmhv4bp6><a href="/next/reference/api/operations/tags/discovery/" data-astro-cid-rmhv4bp6><span data-astro-cid-rmhv4bp6>Overview</span></a></li><li data-astro-cid-rmhv4bp6><a href="/next/reference/api/operations/get-discovery/" data-astro-cid-rmhv4bp6><span data-astro-cid-rmhv4bp6>Get the public discovery payload</span><span class="sl-badge caution small sl-openapi-method-get" data-astro-cid-rmhv4bp6="true" data-astro-cid-f4zorn72>GET</span></a></li></ul></details></li><li data-astro-cid-rmhv4bp6><details data-astro-cid-rmhv4bp6><summary data-astro-cid-rmhv4bp6><span class="group-label" data-astro-cid-rmhv4bp6><span class="large" data-astro-cid-rmhv4bp6>Meta</span></span><svg class="caret" data-astro-cid-rmhv4bp6="true" aria-hidden="true" width="16" height="16" viewBox="0 0 24 24" fill="currentColor" style="--sl-icon-size: 1.25rem;" data-astro-cid-hkc32dio><path d="m14.83 11.29-4.24-4.24a1 1 0 1 0-1.42 1.41L12.71 12l-3.54 3.54a1 1 0 0 0 0 1.41 1 1 0 0 0 .71.29 1 1 0 0 0 .71-.29l4.24-4.24a1.002 1.002 0 0 0 0-1.42Z"/></svg></summary><sl-sidebar-restore data-index="22"></sl-sidebar-restore><ul data-astro-cid-rmhv4bp6><li data-astro-cid-rmhv4bp6><a href="/next/reference/api/operations/tags/meta/" data-astro-cid-rmhv4bp6><span data-astro-cid-rmhv4bp6>Overview</span></a></li><li data-astro-cid-rmhv4bp6><a href="/next/reference/api/operations/api-version/" data-astro-cid-rmhv4bp6><span data-astro-cid-rmhv4bp6>API version</span><span class="sl-badge caution small sl-openapi-method-get" data-astro-cid-rmhv4bp6="true" data-astro-cid-f4zorn72>GET</span></a></li></ul></details></li><li data-astro-cid-rmhv4bp6><details data-astro-cid-rmhv4bp6><summary data-astro-cid-rmhv4bp6><span class="group-label" data-astro-cid-rmhv4bp6><span class="large" data-astro-cid-rmhv4bp6>Health</span></span><svg class="caret" data-astro-cid-rmhv4bp6="true" aria-hidden="true" width="16" height="16" viewBox="0 0 24 24" fill="currentColor" style="--sl-icon-size: 1.25rem;" data-astro-cid-hkc32dio><path d="m14.83 11.29-4.24-4.24a1 1 0 1 0-1.42 1.41L12.71 12l-3.54 3.54a1 1 0 0 0 0 1.41 1 1 0 0 0 .71.29 1 1 0 0 0 .71-.29l4.24-4.24a1.002 1.002 0 0 0 0-1.42Z"/></svg></summary><sl-sidebar-restore data-index="23"></sl-sidebar-restore><ul data-astro-cid-rmhv4bp6><li data-astro-cid-rmhv4bp6><a href="/next/reference/api/operations/tags/health/" data-astro-cid-rmhv4bp6><span data-astro-cid-rmhv4bp6>Overview</span></a></li><li data-astro-cid-rmhv4bp6><a href="/next/reference/api/operations/health-check/" data-astro-cid-rmhv4bp6><span data-astro-cid-rmhv4bp6>Liveness check</span><span class="sl-badge caution small sl-openapi-method-get" data-astro-cid-rmhv4bp6="true" data-astro-cid-f4zorn72>GET</span></a></li><li data-astro-cid-rmhv4bp6><a href="/next/reference/api/operations/readiness-check/" data-astro-cid-rmhv4bp6><span data-astro-cid-rmhv4bp6>Readiness check</span><span class="sl-badge caution small sl-openapi-method-get" data-astro-cid-rmhv4bp6="true" data-astro-cid-f4zorn72>GET</span></a></li></ul></details></li></ul></details></li></ul></details></li></ul><script aria-hidden="true">
+		(() => {
+			const scroller = document.getElementById('starlight__sidebar');
+			if (!window._starlightScrollRestore || !scroller) return;
+			scroller.scrollTop = window._starlightScrollRestore;
+			delete window._starlightScrollRestore;
+		})();
+	</script></sl-sidebar-state-persist><div class="md:sl-hidden"><div class="mobile-preferences sl-flex" data-astro-cid-p4azlveh><div class="social-icons" data-astro-cid-p4azlveh><a href="https://github.com/pfenerty/ocidex" rel="me" class="sl-flex" data-astro-cid-n2mnl6yq><span class="sr-only" data-astro-cid-n2mnl6yq>GitHub</span><svg data-astro-cid-n2mnl6yq="true" aria-hidden="true" width="16" height="16" viewBox="0 0 24 24" fill="currentColor" style="--sl-icon-size: 1em;" data-astro-cid-hkc32dio><path d="M12 .3a12 12 0 0 0-3.8 23.38c.6.12.83-.26.83-.57L9 21.07c-3.34.72-4.04-1.61-4.04-1.61-.55-1.39-1.34-1.76-1.34-1.76-1.08-.74.09-.73.09-.73 1.2.09 1.83 1.24 1.83 1.24 1.08 1.83 2.81 1.3 3.5 1 .1-.78.42-1.31.76-1.61-2.67-.3-5.47-1.33-5.47-5.93 0-1.31.47-2.38 1.24-3.22-.14-.3-.54-1.52.1-3.18 0 0 1-.32 3.3 1.23a11.5 11.5 0 0 1 6 0c2.28-1.55 3.29-1.23 3.29-1.23.64 1.66.24 2.88.12 3.18a4.65 4.65 0 0 1 1.23 3.22c0 4.61-2.8 5.63-5.48 5.92.42.36.81 1.1.81 2.22l-.01 3.29c0 .31.2.69.82.57A12 12 0 0 0 12 .3Z"/></svg></a></div><starlight-theme-select data-astro-cid-smhvfpqh="true"><label style="--sl-select-width: 6.25em" data-astro-cid-2z5xp7gb><span class="sr-only" data-astro-cid-2z5xp7gb>Select theme</span><span class="icon label-icon" data-astro-cid-2z5xp7gb><svg class="sl-theme-icon-dark" data-astro-cid-smhvfpqh="true" aria-hidden="true" width="16" height="16" viewBox="0 0 24 24" fill="currentColor" style="--sl-icon-size: 1em;" data-astro-cid-hkc32dio><path d="M21.64 13a1 1 0 0 0-1.05-.14 8.049 8.049 0 0 1-3.37.73 8.15 8.15 0 0 1-8.14-8.1 8.59 8.59 0 0 1 .25-2A1 1 0 0 0 8 2.36a10.14 10.14 0 1 0 14 11.69 1 1 0 0 0-.36-1.05Zm-9.5 6.69A8.14 8.14 0 0 1 7.08 5.22v.27a10.15 10.15 0 0 0 10.14 10.14 9.784 9.784 0 0 0 2.1-.22 8.11 8.11 0 0 1-7.18 4.32v-.04Z"/></svg><svg class="sl-theme-icon-light" data-astro-cid-smhvfpqh="true" aria-hidden="true" width="16" height="16" viewBox="0 0 24 24" fill="currentColor" style="--sl-icon-size: 1em;" data-astro-cid-hkc32dio><path d="M5 12a1 1 0 0 0-1-1H3a1 1 0 0 0 0 2h1a1 1 0 0 0 1-1Zm.64 5-.71.71a1 1 0 0 0 0 1.41 1 1 0 0 0 1.41 0l.71-.71A1 1 0 0 0 5.64 17ZM12 5a1 1 0 0 0 1-1V3a1 1 0 0 0-2 0v1a1 1 0 0 0 1 1Zm5.66 2.34a1 1 0 0 0 .7-.29l.71-.71a1 1 0 1 0-1.41-1.41l-.66.71a1 1 0 0 0 0 1.41 1 1 0 0 0 .66.29Zm-12-.29a1 1 0 0 0 1.41 0 1 1 0 0 0 0-1.41l-.71-.71a1.004 1.004 0 1 0-1.43 1.41l.73.71ZM21 11h-1a1 1 0 0 0 0 2h1a1 1 0 0 0 0-2Zm-2.64 6A1 1 0 0 0 17 18.36l.71.71a1 1 0 0 0 1.41 0 1 1 0 0 0 0-1.41l-.76-.66ZM12 6.5a5.5 5.5 0 1 0 5.5 5.5A5.51 5.51 0 0 0 12 6.5Zm0 9a3.5 3.5 0 1 1 0-7 3.5 3.5 0 0 1 0 7Zm0 3.5a1 1 0 0 0-1 1v1a1 1 0 0 0 2 0v-1a1 1 0 0 0-1-1Z"/></svg><svg class="sl-theme-icon-auto" data-astro-cid-smhvfpqh="true" aria-hidden="true" width="16" height="16" viewBox="0 0 24 24" fill="currentColor" style="--sl-icon-size: 1em;" data-astro-cid-hkc32dio><path d="M21 14h-1V7a3 3 0 0 0-3-3H7a3 3 0 0 0-3 3v7H3a1 1 0 0 0-1 1v2a3 3 0 0 0 3 3h14a3 3 0 0 0 3-3v-2a1 1 0 0 0-1-1ZM6 7a1 1 0 0 1 1-1h10a1 1 0 0 1 1 1v7H6V7Zm14 10a1 1 0 0 1-1 1H5a1 1 0 0 1-1-1v-1h16v1Z"/></svg></span><select autocomplete="off" data-astro-cid-2z5xp7gb><option value="dark" data-astro-cid-2z5xp7gb>Dark</option><option value="light" data-astro-cid-2z5xp7gb>Light</option><option value="auto" selected data-astro-cid-2z5xp7gb>Auto</option></select><svg class="icon caret" data-astro-cid-2z5xp7gb="true" aria-hidden="true" width="16" height="16" viewBox="0 0 24 24" fill="currentColor" style="--sl-icon-size: 1em;" data-astro-cid-hkc32dio><path d="M17 9.17a1 1 0 0 0-1.41 0L12 12.71 8.46 9.17a1 1 0 1 0-1.41 1.42l4.24 4.24a1.002 1.002 0 0 0 1.42 0L17 10.59a1.002 1.002 0 0 0 0-1.42Z"/></svg></label></starlight-theme-select><script>(() => {
+		const theme = (typeof localStorage !== 'undefined' && localStorage.getItem('starlight-theme'));
+		if (theme) document.querySelectorAll('starlight-theme-select select').forEach((s) => { s.value = theme; });
+	})();</script></div></div></div></sl-sidebar-pane></nav><div class="main-frame" data-astro-cid-yntsjkba><script type="module">var e=document.getElementById(`starlight__sidebar`),t=e?.querySelector(`sl-sidebar-state-persist`),n=`sl-sidebar-state`,r=()=>{let r=[],i=t?.dataset.hash||``;try{let e=sessionStorage.getItem(n),t=JSON.parse(e||`{}`);Array.isArray(t.open)&&t.hash===i&&(r=t.open)}catch{}return{hash:i,open:r,scroll:e?.scrollTop||0}},i=e=>{try{sessionStorage.setItem(n,JSON.stringify(e))}catch{}},a=()=>i(r()),o=(e,t)=>{let n=r();n.open[t]=e,i(n)};t?.addEventListener(`click`,e=>{if(!(e.target instanceof Element))return;let t=e.target.closest(`summary`)?.closest(`details`);if(!t)return;let n=t.querySelector(`sl-sidebar-restore`),r=parseInt(n?.dataset.index||``);isNaN(r)||o(!t.open,r)}),addEventListener(`visibilitychange`,()=>{document.visibilityState===`hidden`&&a()});</script><div class="lg:sl-flex" data-astro-cid-lrzkfocr><aside class="right-sidebar-container print:hidden" data-astro-cid-lrzkfocr><div class="right-sidebar" data-astro-cid-lrzkfocr><div class="lg:sl-hidden" data-astro-cid-qok35upx><mobile-starlight-toc data-min-h="2" data-max-h="3" data-astro-cid-66cqc7ze="true"><nav aria-labelledby="starlight__on-this-page--mobile" data-astro-cid-66cqc7ze><details id="starlight__mobile-toc" data-astro-cid-66cqc7ze><summary id="starlight__on-this-page--mobile" class="sl-flex" data-astro-cid-66cqc7ze><span class="toggle sl-flex" data-astro-cid-66cqc7ze>On this page<svg class="caret" data-astro-cid-66cqc7ze="true" aria-hidden="true" width="16" height="16" viewBox="0 0 24 24" fill="currentColor" style="--sl-icon-size: 1rem;" data-astro-cid-hkc32dio><path d="m14.83 11.29-4.24-4.24a1 1 0 1 0-1.42 1.41L12.71 12l-3.54 3.54a1 1 0 0 0 0 1.41 1 1 0 0 0 .71.29 1 1 0 0 0 .71-.29l4.24-4.24a1.002 1.002 0 0 0 0-1.42Z"/></svg></span><span class="display-current" data-astro-cid-66cqc7ze></span></summary><div class="dropdown" data-astro-cid-66cqc7ze><ul class="isMobile" style="--depth: 0;" data-astro-cid-jugkfwgx><li style="--depth: 0;" data-astro-cid-jugkfwgx><a href="#_top" style="--depth: 0;" data-astro-cid-jugkfwgx><span style="--depth: 0;" data-astro-cid-jugkfwgx>Overview</span></a></li><li style="--depth: 0;" data-astro-cid-jugkfwgx><a href="#auth-classes" style="--depth: 0;" data-astro-cid-jugkfwgx><span style="--depth: 0;" data-astro-cid-jugkfwgx>Auth classes</span></a></li><li style="--depth: 0;" data-astro-cid-jugkfwgx><a href="#namespace-roles-and-capabilities" style="--depth: 0;" data-astro-cid-jugkfwgx><span style="--depth: 0;" data-astro-cid-jugkfwgx>Namespace roles and capabilities</span></a></li><li style="--depth: 0;" data-astro-cid-jugkfwgx><a href="#write-scope" style="--depth: 0;" data-astro-cid-jugkfwgx><span style="--depth: 0;" data-astro-cid-jugkfwgx>Write scope</span></a></li><li style="--depth: 0;" data-astro-cid-jugkfwgx><a href="#operations" style="--depth: 0;" data-astro-cid-jugkfwgx><span style="--depth: 0;" data-astro-cid-jugkfwgx>Operations</span></a><ul class="isMobile" style="--depth: 1;" data-astro-cid-jugkfwgx><li style="--depth: 1;" data-astro-cid-jugkfwgx><a href="#admin" style="--depth: 1;" data-astro-cid-jugkfwgx><span style="--depth: 1;" data-astro-cid-jugkfwgx>Admin</span></a></li><li style="--depth: 1;" data-astro-cid-jugkfwgx><a href="#artifacts" style="--depth: 1;" data-astro-cid-jugkfwgx><span style="--depth: 1;" data-astro-cid-jugkfwgx>Artifacts</span></a></li><li style="--depth: 1;" data-astro-cid-jugkfwgx><a href="#auth" style="--depth: 1;" data-astro-cid-jugkfwgx><span style="--depth: 1;" data-astro-cid-jugkfwgx>Auth</span></a></li><li style="--depth: 1;" data-astro-cid-jugkfwgx><a href="#clusters" style="--depth: 1;" data-astro-cid-jugkfwgx><span style="--depth: 1;" data-astro-cid-jugkfwgx>Clusters</span></a></li><li style="--depth: 1;" data-astro-cid-jugkfwgx><a href="#components" style="--depth: 1;" data-astro-cid-jugkfwgx><span style="--depth: 1;" data-astro-cid-jugkfwgx>Components</span></a></li><li style="--depth: 1;" data-astro-cid-jugkfwgx><a href="#discovery" style="--depth: 1;" data-astro-cid-jugkfwgx><span style="--depth: 1;" data-astro-cid-jugkfwgx>Discovery</span></a></li><li style="--depth: 1;" data-astro-cid-jugkfwgx><a href="#health" style="--depth: 1;" data-astro-cid-jugkfwgx><span style="--depth: 1;" data-astro-cid-jugkfwgx>Health</span></a></li><li style="--depth: 1;" data-astro-cid-jugkfwgx><a href="#jobs" style="--depth: 1;" data-astro-cid-jugkfwgx><span style="--depth: 1;" data-astro-cid-jugkfwgx>Jobs</span></a></li><li style="--depth: 1;" data-astro-cid-jugkfwgx><a href="#licenses" style="--depth: 1;" data-astro-cid-jugkfwgx><span style="--depth: 1;" data-astro-cid-jugkfwgx>Licenses</span></a></li><li style="--depth: 1;" data-astro-cid-jugkfwgx><a href="#meta" style="--depth: 1;" data-astro-cid-jugkfwgx><span style="--depth: 1;" data-astro-cid-jugkfwgx>Meta</span></a></li><li style="--depth: 1;" data-astro-cid-jugkfwgx><a href="#namespaces" style="--depth: 1;" data-astro-cid-jugkfwgx><span style="--depth: 1;" data-astro-cid-jugkfwgx>Namespaces</span></a></li><li style="--depth: 1;" data-astro-cid-jugkfwgx><a href="#registries" style="--depth: 1;" data-astro-cid-jugkfwgx><span style="--depth: 1;" data-astro-cid-jugkfwgx>Registries</span></a></li><li style="--depth: 1;" data-astro-cid-jugkfwgx><a href="#sboms" style="--depth: 1;" data-astro-cid-jugkfwgx><span style="--depth: 1;" data-astro-cid-jugkfwgx>SBOMs</span></a></li><li style="--depth: 1;" data-astro-cid-jugkfwgx><a href="#sources" style="--depth: 1;" data-astro-cid-jugkfwgx><span style="--depth: 1;" data-astro-cid-jugkfwgx>Sources</span></a></li><li style="--depth: 1;" data-astro-cid-jugkfwgx><a href="#stats" style="--depth: 1;" data-astro-cid-jugkfwgx><span style="--depth: 1;" data-astro-cid-jugkfwgx>Stats</span></a></li><li style="--depth: 1;" data-astro-cid-jugkfwgx><a href="#vulnerabilities" style="--depth: 1;" data-astro-cid-jugkfwgx><span style="--depth: 1;" data-astro-cid-jugkfwgx>Vulnerabilities</span></a></li></ul></li><li style="--depth: 0;" data-astro-cid-jugkfwgx><a href="#development-only-operations" style="--depth: 0;" data-astro-cid-jugkfwgx><span style="--depth: 0;" data-astro-cid-jugkfwgx>Development-only operations</span></a></li></ul></div></details></nav></mobile-starlight-toc><script type="module" src="/next/_astro/MobileTableOfContents.astro_astro_type_script_index_0_lang.C3fM4Kra.js"></script></div><div class="right-sidebar-panel sl-hidden lg:sl-block" data-astro-cid-qok35upx><div class="sl-container" data-astro-cid-qok35upx><starlight-toc data-min-h="2" data-max-h="3"><nav aria-labelledby="starlight__on-this-page"><h2 id="starlight__on-this-page">On this page</h2><ul style="--depth: 0;" data-astro-cid-jugkfwgx><li style="--depth: 0;" data-astro-cid-jugkfwgx><a href="#_top" style="--depth: 0;" data-astro-cid-jugkfwgx><span style="--depth: 0;" data-astro-cid-jugkfwgx>Overview</span></a></li><li style="--depth: 0;" data-astro-cid-jugkfwgx><a href="#auth-classes" style="--depth: 0;" data-astro-cid-jugkfwgx><span style="--depth: 0;" data-astro-cid-jugkfwgx>Auth classes</span></a></li><li style="--depth: 0;" data-astro-cid-jugkfwgx><a href="#namespace-roles-and-capabilities" style="--depth: 0;" data-astro-cid-jugkfwgx><span style="--depth: 0;" data-astro-cid-jugkfwgx>Namespace roles and capabilities</span></a></li><li style="--depth: 0;" data-astro-cid-jugkfwgx><a href="#write-scope" style="--depth: 0;" data-astro-cid-jugkfwgx><span style="--depth: 0;" data-astro-cid-jugkfwgx>Write scope</span></a></li><li style="--depth: 0;" data-astro-cid-jugkfwgx><a href="#operations" style="--depth: 0;" data-astro-cid-jugkfwgx><span style="--depth: 0;" data-astro-cid-jugkfwgx>Operations</span></a><ul style="--depth: 1;" data-astro-cid-jugkfwgx><li style="--depth: 1;" data-astro-cid-jugkfwgx><a href="#admin" style="--depth: 1;" data-astro-cid-jugkfwgx><span style="--depth: 1;" data-astro-cid-jugkfwgx>Admin</span></a></li><li style="--depth: 1;" data-astro-cid-jugkfwgx><a href="#artifacts" style="--depth: 1;" data-astro-cid-jugkfwgx><span style="--depth: 1;" data-astro-cid-jugkfwgx>Artifacts</span></a></li><li style="--depth: 1;" data-astro-cid-jugkfwgx><a href="#auth" style="--depth: 1;" data-astro-cid-jugkfwgx><span style="--depth: 1;" data-astro-cid-jugkfwgx>Auth</span></a></li><li style="--depth: 1;" data-astro-cid-jugkfwgx><a href="#clusters" style="--depth: 1;" data-astro-cid-jugkfwgx><span style="--depth: 1;" data-astro-cid-jugkfwgx>Clusters</span></a></li><li style="--depth: 1;" data-astro-cid-jugkfwgx><a href="#components" style="--depth: 1;" data-astro-cid-jugkfwgx><span style="--depth: 1;" data-astro-cid-jugkfwgx>Components</span></a></li><li style="--depth: 1;" data-astro-cid-jugkfwgx><a href="#discovery" style="--depth: 1;" data-astro-cid-jugkfwgx><span style="--depth: 1;" data-astro-cid-jugkfwgx>Discovery</span></a></li><li style="--depth: 1;" data-astro-cid-jugkfwgx><a href="#health" style="--depth: 1;" data-astro-cid-jugkfwgx><span style="--depth: 1;" data-astro-cid-jugkfwgx>Health</span></a></li><li style="--depth: 1;" data-astro-cid-jugkfwgx><a href="#jobs" style="--depth: 1;" data-astro-cid-jugkfwgx><span style="--depth: 1;" data-astro-cid-jugkfwgx>Jobs</span></a></li><li style="--depth: 1;" data-astro-cid-jugkfwgx><a href="#licenses" style="--depth: 1;" data-astro-cid-jugkfwgx><span style="--depth: 1;" data-astro-cid-jugkfwgx>Licenses</span></a></li><li style="--depth: 1;" data-astro-cid-jugkfwgx><a href="#meta" style="--depth: 1;" data-astro-cid-jugkfwgx><span style="--depth: 1;" data-astro-cid-jugkfwgx>Meta</span></a></li><li style="--depth: 1;" data-astro-cid-jugkfwgx><a href="#namespaces" style="--depth: 1;" data-astro-cid-jugkfwgx><span style="--depth: 1;" data-astro-cid-jugkfwgx>Namespaces</span></a></li><li style="--depth: 1;" data-astro-cid-jugkfwgx><a href="#registries" style="--depth: 1;" data-astro-cid-jugkfwgx><span style="--depth: 1;" data-astro-cid-jugkfwgx>Registries</span></a></li><li style="--depth: 1;" data-astro-cid-jugkfwgx><a href="#sboms" style="--depth: 1;" data-astro-cid-jugkfwgx><span style="--depth: 1;" data-astro-cid-jugkfwgx>SBOMs</span></a></li><li style="--depth: 1;" data-astro-cid-jugkfwgx><a href="#sources" style="--depth: 1;" data-astro-cid-jugkfwgx><span style="--depth: 1;" data-astro-cid-jugkfwgx>Sources</span></a></li><li style="--depth: 1;" data-astro-cid-jugkfwgx><a href="#stats" style="--depth: 1;" data-astro-cid-jugkfwgx><span style="--depth: 1;" data-astro-cid-jugkfwgx>Stats</span></a></li><li style="--depth: 1;" data-astro-cid-jugkfwgx><a href="#vulnerabilities" style="--depth: 1;" data-astro-cid-jugkfwgx><span style="--depth: 1;" data-astro-cid-jugkfwgx>Vulnerabilities</span></a></li></ul></li><li style="--depth: 0;" data-astro-cid-jugkfwgx><a href="#development-only-operations" style="--depth: 0;" data-astro-cid-jugkfwgx><span style="--depth: 0;" data-astro-cid-jugkfwgx>Development-only operations</span></a></li></ul></nav></starlight-toc><script type="module" src="/next/_astro/TableOfContents.astro_astro_type_script_index_0_lang.BpJaGz7G.js"></script></div></div></div></aside><div class="main-pane" data-astro-cid-lrzkfocr><main data-pagefind-body lang="en" dir="ltr" data-astro-cid-g5ptsecz><div class="sl-banner">You are reading the preview docs for unreleased work on <code>main</code>.<a href="https://docs.ocidex.app/">Read the docs for the latest release</a>.</div><div class="content-panel" data-astro-cid-a7po4psb><div class="sl-container" data-astro-cid-a7po4psb><h1 id="_top" data-astro-cid-bebwqqxs>Authorization matrix</h1></div></div><div class="content-panel" data-astro-cid-a7po4psb><div class="sl-container" data-astro-cid-a7po4psb><div class="sl-markdown-content"><!-- Generated by `make docs-generate` (cmd/docgen). Do not edit by hand. -->
+<p>Every registered API operation and the single rule that decides whether a caller may
+invoke it. The table is generated by joining the live huma spec against the <code dir="auto">authRules</code>
+declarations in <a href="https://github.com/pfenerty/ocidex/blob/main/internal/api/authclass.go"><code dir="auto">internal/api/authclass.go</code></a>, so it cannot
+drift from the router: <code dir="auto">make check</code> fails if this file is stale, and the conformance test
+in <code dir="auto">internal/api/authclass_test.go</code> fails if an operation is registered without a
+declaration or a declaration outlives its operation.</p>
+<div class="sl-heading-wrapper level-h2"><h2 id="auth-classes">Auth classes</h2><a class="sl-anchor-link" href="#auth-classes"><span aria-hidden="true" class="sl-anchor-icon"><svg width="16" height="16" viewBox="0 0 24 24" fill="currentColor"><path d="m12.11 15.39-3.88 3.88a2.52 2.52 0 0 1-3.5 0 2.47 2.47 0 0 1 0-3.5l3.88-3.88a1 1 0 1 0-1.42-1.42l-3.88 3.89a4.48 4.48 0 0 0 6.33 6.33l3.89-3.88a1 1 0 0 0-1.42-1.42m8.58-12.08a4.49 4.49 0 0 0-6.33 0l-3.89 3.88a1 1 0 1 0 1.42 1.42l3.88-3.88a2.52 2.52 0 0 1 3.5 0 2.47 2.47 0 0 1 0 3.5l-3.88 3.88a1 1 0 0 0 0 1.42 1 1 0 0 0 1.42 0l3.88-3.89a4.49 4.49 0 0 0 0-6.33M8.83 15.17a1 1 0 0 0 .71.29 1 1 0 0 0 .71-.29l4.92-4.92a1 1 0 1 0-1.42-1.42l-4.92 4.92a1 1 0 0 0 0 1.42"></path></svg></span><span class="sr-only" data-pagefind-ignore>Section titled “Auth classes”</span></a></div>
+<table>
+<thead>
+<tr>
+<th>Class</th>
+<th>Meaning</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code dir="auto">public</code></td>
+<td>No credentials required. Rows the caller may not see are removed by a <code dir="auto">VisibilityFilter</code> in SQL, so an anonymous caller gets a narrower answer rather than a 403.</td>
+</tr>
+<tr>
+<td><code dir="auto">secret</code></td>
+<td>Authenticated by a per-resource shared secret in the request, not by a user identity.</td>
+</tr>
+<tr>
+<td><code dir="auto">authenticated</code></td>
+<td>Any authenticated principal, <code dir="auto">viewer</code> included. <code dir="auto">RequireAuthenticated</code>.</td>
+</tr>
+<tr>
+<td><code dir="auto">member</code></td>
+<td><code dir="auto">member</code> or <code dir="auto">admin</code>; <code dir="auto">viewer</code> is rejected with 403. <code dir="auto">RequireMember</code>.</td>
+</tr>
+<tr>
+<td><code dir="auto">admin</code></td>
+<td><code dir="auto">admin</code> only; everyone else gets 403. <code dir="auto">RequireAdmin</code>.</td>
+</tr>
+<tr>
+<td><code dir="auto">capability</code></td>
+<td>A caller whose role in the namespace the resource hangs from grants the capability in the <strong>Capability</strong> column, or an <code dir="auto">admin</code>. Per ADR-039 the namespace is the <em>only</em> authorization anchor — sources and registries inherit their answer from the namespace above them. Enforced by <code dir="auto">RequireCapability</code> or, where the namespace is only knowable from the request, in the handler; the Notes column says which. The capability each role grants is in the table below.</td>
+</tr>
+</tbody>
+</table>
+<div class="sl-heading-wrapper level-h2"><h2 id="namespace-roles-and-capabilities">Namespace roles and capabilities</h2><a class="sl-anchor-link" href="#namespace-roles-and-capabilities"><span aria-hidden="true" class="sl-anchor-icon"><svg width="16" height="16" viewBox="0 0 24 24" fill="currentColor"><path d="m12.11 15.39-3.88 3.88a2.52 2.52 0 0 1-3.5 0 2.47 2.47 0 0 1 0-3.5l3.88-3.88a1 1 0 1 0-1.42-1.42l-3.88 3.89a4.48 4.48 0 0 0 6.33 6.33l3.89-3.88a1 1 0 0 0-1.42-1.42m8.58-12.08a4.49 4.49 0 0 0-6.33 0l-3.89 3.88a1 1 0 1 0 1.42 1.42l3.88-3.88a2.52 2.52 0 0 1 3.5 0 2.47 2.47 0 0 1 0 3.5l-3.88 3.88a1 1 0 0 0 0 1.42 1 1 0 0 0 1.42 0l3.88-3.89a4.49 4.49 0 0 0 0-6.33M8.83 15.17a1 1 0 0 0 .71.29 1 1 0 0 0 .71-.29l4.92-4.92a1 1 0 1 0-1.42-1.42l-4.92 4.92a1 1 0 0 0 0 1.42"></path></svg></span><span class="sr-only" data-pagefind-ignore>Section titled “Namespace roles and capabilities”</span></a></div>
+<p>A <code dir="auto">capability</code> operation asks whether the caller’s role <strong>in the namespace the resource
+hangs from</strong> grants the capability it declares. An installation-wide <code dir="auto">admin</code>
+short-circuits every cell; an installation-wide <code dir="auto">viewer</code> is capped at <code dir="auto">read_private</code>
+whatever role a namespace gave them; a non-member holds nothing (ADR-046).</p>
+<p>Generated from <code dir="auto">roleCaps</code> in <a href="https://github.com/pfenerty/ocidex/blob/main/internal/authz/capability.go"><code dir="auto">internal/authz/capability.go</code></a>.</p>
+<table>
+<thead>
+<tr>
+<th>Capability</th>
+<th><code dir="auto">owner</code></th>
+<th><code dir="auto">maintainer</code></th>
+<th><code dir="auto">security</code></th>
+<th><code dir="auto">developer</code></th>
+<th><code dir="auto">viewer</code></th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code dir="auto">read_private</code></td>
+<td>✓</td>
+<td>✓</td>
+<td>✓</td>
+<td>✓</td>
+<td>✓</td>
+</tr>
+<tr>
+<td><code dir="auto">ingest</code></td>
+<td>✓</td>
+<td>✓</td>
+<td></td>
+<td>✓</td>
+<td></td>
+</tr>
+<tr>
+<td><code dir="auto">trigger_scan</code></td>
+<td>✓</td>
+<td>✓</td>
+<td>✓</td>
+<td>✓</td>
+<td></td>
+</tr>
+<tr>
+<td><code dir="auto">push_inventory</code></td>
+<td>✓</td>
+<td>✓</td>
+<td></td>
+<td>✓</td>
+<td></td>
+</tr>
+<tr>
+<td><code dir="auto">delete_artifact</code></td>
+<td>✓</td>
+<td>✓</td>
+<td></td>
+<td></td>
+<td></td>
+</tr>
+<tr>
+<td><code dir="auto">manage_source</code></td>
+<td>✓</td>
+<td>✓</td>
+<td></td>
+<td></td>
+<td></td>
+</tr>
+<tr>
+<td><code dir="auto">manage_cluster</code></td>
+<td>✓</td>
+<td>✓</td>
+<td></td>
+<td></td>
+<td></td>
+</tr>
+<tr>
+<td><code dir="auto">read_secret</code></td>
+<td>✓</td>
+<td>✓</td>
+<td></td>
+<td></td>
+<td></td>
+</tr>
+<tr>
+<td><code dir="auto">manage_member</code></td>
+<td>✓</td>
+<td></td>
+<td></td>
+<td></td>
+<td></td>
+</tr>
+<tr>
+<td><code dir="auto">delete_namespace</code></td>
+<td>✓</td>
+<td></td>
+<td></td>
+<td></td>
+<td></td>
+</tr>
+</tbody>
+</table>
+<div class="sl-heading-wrapper level-h2"><h2 id="write-scope">Write scope</h2><a class="sl-anchor-link" href="#write-scope"><span aria-hidden="true" class="sl-anchor-icon"><svg width="16" height="16" viewBox="0 0 24 24" fill="currentColor"><path d="m12.11 15.39-3.88 3.88a2.52 2.52 0 0 1-3.5 0 2.47 2.47 0 0 1 0-3.5l3.88-3.88a1 1 0 1 0-1.42-1.42l-3.88 3.89a4.48 4.48 0 0 0 6.33 6.33l3.89-3.88a1 1 0 0 0-1.42-1.42m8.58-12.08a4.49 4.49 0 0 0-6.33 0l-3.89 3.88a1 1 0 1 0 1.42 1.42l3.88-3.88a2.52 2.52 0 0 1 3.5 0 2.47 2.47 0 0 1 0 3.5l-3.88 3.88a1 1 0 0 0 0 1.42 1 1 0 0 0 1.42 0l3.88-3.89a4.49 4.49 0 0 0 0-6.33M8.83 15.17a1 1 0 0 0 .71.29 1 1 0 0 0 .71-.29l4.92-4.92a1 1 0 1 0-1.42-1.42l-4.92 4.92a1 1 0 0 0 0 1.42"></path></svg></span><span class="sr-only" data-pagefind-ignore>Section titled “Write scope”</span></a></div>
+<p>The <strong>Write</strong> column is orthogonal to the class. A ✓ means the operation also declares
+<code dir="auto">RequireWrite</code>, which rejects (403) an API key whose declared capabilities are all
+read-only, even when the key’s owner passes the class check. It is a coarse gate: the
+<strong>Capability</strong> column is what narrows an individual operation, and a key is refused
+there unless it declares that capability <em>and</em> its owner’s role grants it. Session
+cookies carry no ceiling and are unaffected.</p>
+<div class="sl-heading-wrapper level-h2"><h2 id="operations">Operations</h2><a class="sl-anchor-link" href="#operations"><span aria-hidden="true" class="sl-anchor-icon"><svg width="16" height="16" viewBox="0 0 24 24" fill="currentColor"><path d="m12.11 15.39-3.88 3.88a2.52 2.52 0 0 1-3.5 0 2.47 2.47 0 0 1 0-3.5l3.88-3.88a1 1 0 1 0-1.42-1.42l-3.88 3.89a4.48 4.48 0 0 0 6.33 6.33l3.89-3.88a1 1 0 0 0-1.42-1.42m8.58-12.08a4.49 4.49 0 0 0-6.33 0l-3.89 3.88a1 1 0 1 0 1.42 1.42l3.88-3.88a2.52 2.52 0 0 1 3.5 0 2.47 2.47 0 0 1 0 3.5l-3.88 3.88a1 1 0 0 0 0 1.42 1 1 0 0 0 1.42 0l3.88-3.89a4.49 4.49 0 0 0 0-6.33M8.83 15.17a1 1 0 0 0 .71.29 1 1 0 0 0 .71-.29l4.92-4.92a1 1 0 1 0-1.42-1.42l-4.92 4.92a1 1 0 0 0 0 1.42"></path></svg></span><span class="sr-only" data-pagefind-ignore>Section titled “Operations”</span></a></div>
+<div class="sl-heading-wrapper level-h3"><h3 id="admin">Admin</h3><a class="sl-anchor-link" href="#admin"><span aria-hidden="true" class="sl-anchor-icon"><svg width="16" height="16" viewBox="0 0 24 24" fill="currentColor"><path d="m12.11 15.39-3.88 3.88a2.52 2.52 0 0 1-3.5 0 2.47 2.47 0 0 1 0-3.5l3.88-3.88a1 1 0 1 0-1.42-1.42l-3.88 3.89a4.48 4.48 0 0 0 6.33 6.33l3.89-3.88a1 1 0 0 0-1.42-1.42m8.58-12.08a4.49 4.49 0 0 0-6.33 0l-3.89 3.88a1 1 0 1 0 1.42 1.42l3.88-3.88a2.52 2.52 0 0 1 3.5 0 2.47 2.47 0 0 1 0 3.5l-3.88 3.88a1 1 0 0 0 0 1.42 1 1 0 0 0 1.42 0l3.88-3.89a4.49 4.49 0 0 0 0-6.33M8.83 15.17a1 1 0 0 0 .71.29 1 1 0 0 0 .71-.29l4.92-4.92a1 1 0 1 0-1.42-1.42l-4.92 4.92a1 1 0 0 0 0 1.42"></path></svg></span><span class="sr-only" data-pagefind-ignore>Section titled “Admin”</span></a></div>
+<table>
+<thead>
+<tr>
+<th>Method</th>
+<th>Path</th>
+<th>Operation</th>
+<th>Class</th>
+<th>Capability</th>
+<th>Write</th>
+<th>Notes</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>GET</td>
+<td><code dir="auto">/api/v1/admin/status</code></td>
+<td><code dir="auto">get-system-status</code></td>
+<td><code dir="auto">admin</code></td>
+<td>—</td>
+<td></td>
+<td>Exposes DB and job-queue internals.</td>
+</tr>
+</tbody>
+</table>
+<div class="sl-heading-wrapper level-h3"><h3 id="artifacts">Artifacts</h3><a class="sl-anchor-link" href="#artifacts"><span aria-hidden="true" class="sl-anchor-icon"><svg width="16" height="16" viewBox="0 0 24 24" fill="currentColor"><path d="m12.11 15.39-3.88 3.88a2.52 2.52 0 0 1-3.5 0 2.47 2.47 0 0 1 0-3.5l3.88-3.88a1 1 0 1 0-1.42-1.42l-3.88 3.89a4.48 4.48 0 0 0 6.33 6.33l3.89-3.88a1 1 0 0 0-1.42-1.42m8.58-12.08a4.49 4.49 0 0 0-6.33 0l-3.89 3.88a1 1 0 1 0 1.42 1.42l3.88-3.88a2.52 2.52 0 0 1 3.5 0 2.47 2.47 0 0 1 0 3.5l-3.88 3.88a1 1 0 0 0 0 1.42 1 1 0 0 0 1.42 0l3.88-3.89a4.49 4.49 0 0 0 0-6.33M8.83 15.17a1 1 0 0 0 .71.29 1 1 0 0 0 .71-.29l4.92-4.92a1 1 0 1 0-1.42-1.42l-4.92 4.92a1 1 0 0 0 0 1.42"></path></svg></span><span class="sr-only" data-pagefind-ignore>Section titled “Artifacts”</span></a></div>
+<table>
+<thead>
+<tr>
+<th>Method</th>
+<th>Path</th>
+<th>Operation</th>
+<th>Class</th>
+<th>Capability</th>
+<th>Write</th>
+<th>Notes</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>GET</td>
+<td><code dir="auto">/api/v1/artifacts</code></td>
+<td><code dir="auto">list-artifacts</code></td>
+<td><code dir="auto">public</code></td>
+<td>—</td>
+<td></td>
+<td>VisibilityFilter.</td>
+</tr>
+<tr>
+<td>GET</td>
+<td><code dir="auto">/api/v1/artifacts/lookup</code></td>
+<td><code dir="auto">lookup-artifact</code></td>
+<td><code dir="auto">public</code></td>
+<td>—</td>
+<td></td>
+<td>VisibilityFilter applied before the ambiguity count (ADR-042).</td>
+</tr>
+<tr>
+<td>DELETE</td>
+<td><code dir="auto">/api/v1/artifacts/{id}</code></td>
+<td><code dir="auto">delete-artifact</code></td>
+<td><code dir="auto">capability</code></td>
+<td><code dir="auto">delete_artifact</code></td>
+<td>✓</td>
+<td>RequireCapability(delete_artifact) middleware on the artifact’s namespace.</td>
+</tr>
+<tr>
+<td>GET</td>
+<td><code dir="auto">/api/v1/artifacts/{id}</code></td>
+<td><code dir="auto">get-artifact</code></td>
+<td><code dir="auto">public</code></td>
+<td>—</td>
+<td></td>
+<td>VisibilityFilter.</td>
+</tr>
+<tr>
+<td>GET</td>
+<td><code dir="auto">/api/v1/artifacts/{id}/changelog</code></td>
+<td><code dir="auto">get-artifact-changelog</code></td>
+<td><code dir="auto">public</code></td>
+<td>—</td>
+<td></td>
+<td>VisibilityFilter.</td>
+</tr>
+<tr>
+<td>GET</td>
+<td><code dir="auto">/api/v1/artifacts/{id}/contains</code></td>
+<td><code dir="auto">get-artifact-contains</code></td>
+<td><code dir="auto">public</code></td>
+<td>—</td>
+<td></td>
+<td>Filtered via visible_namespace_ids (ADR-041).</td>
+</tr>
+<tr>
+<td>GET</td>
+<td><code dir="auto">/api/v1/artifacts/{id}/license-summary</code></td>
+<td><code dir="auto">get-artifact-license-summary</code></td>
+<td><code dir="auto">public</code></td>
+<td>—</td>
+<td></td>
+<td>VisibilityFilter.</td>
+</tr>
+<tr>
+<td>GET</td>
+<td><code dir="auto">/api/v1/artifacts/{id}/sboms</code></td>
+<td><code dir="auto">list-artifact-sboms</code></td>
+<td><code dir="auto">public</code></td>
+<td>—</td>
+<td></td>
+<td>VisibilityFilter.</td>
+</tr>
+<tr>
+<td>GET</td>
+<td><code dir="auto">/api/v1/artifacts/{id}/usages</code></td>
+<td><code dir="auto">get-artifact-usages</code></td>
+<td><code dir="auto">public</code></td>
+<td>—</td>
+<td></td>
+<td>Filtered via visible_namespace_ids (ADR-041).</td>
+</tr>
+<tr>
+<td>GET</td>
+<td><code dir="auto">/api/v1/artifacts/{id}/versions</code></td>
+<td><code dir="auto">list-artifact-versions</code></td>
+<td><code dir="auto">public</code></td>
+<td>—</td>
+<td></td>
+<td>VisibilityFilter.</td>
+</tr>
+<tr>
+<td>GET</td>
+<td><code dir="auto">/api/v1/artifacts/{id}/vuln-summary</code></td>
+<td><code dir="auto">get-artifact-vuln-summary</code></td>
+<td><code dir="auto">public</code></td>
+<td>—</td>
+<td></td>
+<td>VisibilityFilter.</td>
+</tr>
+<tr>
+<td>GET</td>
+<td><code dir="auto">/api/v1/artifacts/{id}/vulns</code></td>
+<td><code dir="auto">list-artifact-vulns</code></td>
+<td><code dir="auto">public</code></td>
+<td>—</td>
+<td></td>
+<td>VisibilityFilter.</td>
+</tr>
+</tbody>
+</table>
+<div class="sl-heading-wrapper level-h3"><h3 id="auth">Auth</h3><a class="sl-anchor-link" href="#auth"><span aria-hidden="true" class="sl-anchor-icon"><svg width="16" height="16" viewBox="0 0 24 24" fill="currentColor"><path d="m12.11 15.39-3.88 3.88a2.52 2.52 0 0 1-3.5 0 2.47 2.47 0 0 1 0-3.5l3.88-3.88a1 1 0 1 0-1.42-1.42l-3.88 3.89a4.48 4.48 0 0 0 6.33 6.33l3.89-3.88a1 1 0 0 0-1.42-1.42m8.58-12.08a4.49 4.49 0 0 0-6.33 0l-3.89 3.88a1 1 0 1 0 1.42 1.42l3.88-3.88a2.52 2.52 0 0 1 3.5 0 2.47 2.47 0 0 1 0 3.5l-3.88 3.88a1 1 0 0 0 0 1.42 1 1 0 0 0 1.42 0l3.88-3.89a4.49 4.49 0 0 0 0-6.33M8.83 15.17a1 1 0 0 0 .71.29 1 1 0 0 0 .71-.29l4.92-4.92a1 1 0 1 0-1.42-1.42l-4.92 4.92a1 1 0 0 0 0 1.42"></path></svg></span><span class="sr-only" data-pagefind-ignore>Section titled “Auth”</span></a></div>
+<table>
+<thead>
+<tr>
+<th>Method</th>
+<th>Path</th>
+<th>Operation</th>
+<th>Class</th>
+<th>Capability</th>
+<th>Write</th>
+<th>Notes</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>GET</td>
+<td><code dir="auto">/api/v1/auth/identities</code></td>
+<td><code dir="auto">list-my-identities</code></td>
+<td><code dir="auto">authenticated</code></td>
+<td>—</td>
+<td></td>
+<td>Own identities only; no path segment names a user.</td>
+</tr>
+<tr>
+<td>POST</td>
+<td><code dir="auto">/api/v1/auth/identities</code></td>
+<td><code dir="auto">link-identity</code></td>
+<td><code dir="auto">authenticated</code></td>
+<td>—</td>
+<td>✓</td>
+<td>Links onto the calling account. An identity already held by another account is refused, never merged.</td>
+</tr>
+<tr>
+<td>DELETE</td>
+<td><code dir="auto">/api/v1/auth/identities/{id}</code></td>
+<td><code dir="auto">unlink-identity</code></td>
+<td><code dir="auto">authenticated</code></td>
+<td>—</td>
+<td>✓</td>
+<td>Own identities only; refuses the last one with 409.</td>
+</tr>
+<tr>
+<td>GET</td>
+<td><code dir="auto">/api/v1/auth/keys</code></td>
+<td><code dir="auto">list-api-keys</code></td>
+<td><code dir="auto">member</code></td>
+<td>—</td>
+<td></td>
+<td>Own keys only.</td>
+</tr>
+<tr>
+<td>POST</td>
+<td><code dir="auto">/api/v1/auth/keys</code></td>
+<td><code dir="auto">create-api-key</code></td>
+<td><code dir="auto">member</code></td>
+<td>—</td>
+<td>✓</td>
+<td>Key is scoped to the calling user.</td>
+</tr>
+<tr>
+<td>DELETE</td>
+<td><code dir="auto">/api/v1/auth/keys/{id}</code></td>
+<td><code dir="auto">delete-api-key</code></td>
+<td><code dir="auto">member</code></td>
+<td>—</td>
+<td>✓</td>
+<td>Own keys only.</td>
+</tr>
+<tr>
+<td>GET</td>
+<td><code dir="auto">/api/v1/auth/providers</code></td>
+<td><code dir="auto">list-auth-providers</code></td>
+<td><code dir="auto">public</code></td>
+<td>—</td>
+<td></td>
+<td>Names the operator gave their own issuers; the login page renders these before anyone is signed in.</td>
+</tr>
+<tr>
+<td>GET</td>
+<td><code dir="auto">/api/v1/users</code></td>
+<td><code dir="auto">list-users</code></td>
+<td><code dir="auto">admin</code></td>
+<td>—</td>
+<td></td>
+<td></td>
+</tr>
+<tr>
+<td>GET</td>
+<td><code dir="auto">/api/v1/users/me</code></td>
+<td><code dir="auto">get-me</code></td>
+<td><code dir="auto">authenticated</code></td>
+<td>—</td>
+<td></td>
+<td>Returns the calling principal.</td>
+</tr>
+<tr>
+<td>GET</td>
+<td><code dir="auto">/api/v1/users/me/activity</code></td>
+<td><code dir="auto">list-my-activity</code></td>
+<td><code dir="auto">authenticated</code></td>
+<td>—</td>
+<td></td>
+<td>Owned rows only; excludes others’ public rows, and admins get no widening.</td>
+</tr>
+<tr>
+<td>GET</td>
+<td><code dir="auto">/api/v1/users/me/artifacts</code></td>
+<td><code dir="auto">list-my-artifacts</code></td>
+<td><code dir="auto">authenticated</code></td>
+<td>—</td>
+<td></td>
+<td>Owned rows only; excludes others’ public rows, and admins get no widening.</td>
+</tr>
+<tr>
+<td>GET</td>
+<td><code dir="auto">/api/v1/users/me/drift-feed</code></td>
+<td><code dir="auto">list-my-drift-feed</code></td>
+<td><code dir="auto">authenticated</code></td>
+<td>—</td>
+<td></td>
+<td>Owned rows only; excludes others’ public rows, and admins get no widening.</td>
+</tr>
+<tr>
+<td>GET</td>
+<td><code dir="auto">/api/v1/users/me/namespaces</code></td>
+<td><code dir="auto">list-my-namespaces</code></td>
+<td><code dir="auto">authenticated</code></td>
+<td>—</td>
+<td></td>
+<td>Owned rows only; excludes others’ public rows, and admins get no widening.</td>
+</tr>
+<tr>
+<td>GET</td>
+<td><code dir="auto">/api/v1/users/me/registries</code></td>
+<td><code dir="auto">list-my-registries</code></td>
+<td><code dir="auto">authenticated</code></td>
+<td>—</td>
+<td></td>
+<td>Owned rows only; excludes others’ public rows, and admins get no widening.</td>
+</tr>
+<tr>
+<td>GET</td>
+<td><code dir="auto">/api/v1/users/me/sources</code></td>
+<td><code dir="auto">list-my-sources</code></td>
+<td><code dir="auto">authenticated</code></td>
+<td>—</td>
+<td></td>
+<td>Owned rows only; excludes others’ public rows, and admins get no widening.</td>
+</tr>
+<tr>
+<td>GET</td>
+<td><code dir="auto">/api/v1/users/me/vulns</code></td>
+<td><code dir="auto">list-my-vulnerabilities</code></td>
+<td><code dir="auto">authenticated</code></td>
+<td>—</td>
+<td></td>
+<td>Owned rows only; excludes others’ public rows, and admins get no widening.</td>
+</tr>
+<tr>
+<td>GET</td>
+<td><code dir="auto">/api/v1/users/me/watches</code></td>
+<td><code dir="auto">list-my-watches</code></td>
+<td><code dir="auto">authenticated</code></td>
+<td>—</td>
+<td></td>
+<td>Owned rows only; excludes others’ public rows, and admins get no widening.</td>
+</tr>
+<tr>
+<td>GET</td>
+<td><code dir="auto">/api/v1/users/me/watches/feed</code></td>
+<td><code dir="auto">list-my-watch-feed</code></td>
+<td><code dir="auto">authenticated</code></td>
+<td>—</td>
+<td></td>
+<td>Self-scoped, and additionally visibility-filtered: an artifact made private after being starred stays on the watchlist but stops producing events.</td>
+</tr>
+<tr>
+<td>DELETE</td>
+<td><code dir="auto">/api/v1/users/me/watches/{artifactId}</code></td>
+<td><code dir="auto">unwatch-artifact</code></td>
+<td><code dir="auto">authenticated</code></td>
+<td>—</td>
+<td>✓</td>
+<td>Removes the caller’s own watch; idempotent.</td>
+</tr>
+<tr>
+<td>PUT</td>
+<td><code dir="auto">/api/v1/users/me/watches/{artifactId}</code></td>
+<td><code dir="auto">watch-artifact</code></td>
+<td><code dir="auto">authenticated</code></td>
+<td>—</td>
+<td>✓</td>
+<td>Watch is self-scoped; the artifact must be visible to the caller, which may include others’ public artifacts.</td>
+</tr>
+<tr>
+<td>PATCH</td>
+<td><code dir="auto">/api/v1/users/{id}/role</code></td>
+<td><code dir="auto">update-user-role</code></td>
+<td><code dir="auto">admin</code></td>
+<td>—</td>
+<td>✓</td>
+<td></td>
+</tr>
+</tbody>
+</table>
+<div class="sl-heading-wrapper level-h3"><h3 id="clusters">Clusters</h3><a class="sl-anchor-link" href="#clusters"><span aria-hidden="true" class="sl-anchor-icon"><svg width="16" height="16" viewBox="0 0 24 24" fill="currentColor"><path d="m12.11 15.39-3.88 3.88a2.52 2.52 0 0 1-3.5 0 2.47 2.47 0 0 1 0-3.5l3.88-3.88a1 1 0 1 0-1.42-1.42l-3.88 3.89a4.48 4.48 0 0 0 6.33 6.33l3.89-3.88a1 1 0 0 0-1.42-1.42m8.58-12.08a4.49 4.49 0 0 0-6.33 0l-3.89 3.88a1 1 0 1 0 1.42 1.42l3.88-3.88a2.52 2.52 0 0 1 3.5 0 2.47 2.47 0 0 1 0 3.5l-3.88 3.88a1 1 0 0 0 0 1.42 1 1 0 0 0 1.42 0l3.88-3.89a4.49 4.49 0 0 0 0-6.33M8.83 15.17a1 1 0 0 0 .71.29 1 1 0 0 0 .71-.29l4.92-4.92a1 1 0 1 0-1.42-1.42l-4.92 4.92a1 1 0 0 0 0 1.42"></path></svg></span><span class="sr-only" data-pagefind-ignore>Section titled “Clusters”</span></a></div>
+<table>
+<thead>
+<tr>
+<th>Method</th>
+<th>Path</th>
+<th>Operation</th>
+<th>Class</th>
+<th>Capability</th>
+<th>Write</th>
+<th>Notes</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>GET</td>
+<td><code dir="auto">/api/v1/clusters</code></td>
+<td><code dir="auto">list-clusters</code></td>
+<td><code dir="auto">authenticated</code></td>
+<td>—</td>
+<td></td>
+<td>Visibility resolved through the owning namespace.</td>
+</tr>
+<tr>
+<td>POST</td>
+<td><code dir="auto">/api/v1/clusters</code></td>
+<td><code dir="auto">create-cluster</code></td>
+<td><code dir="auto">capability</code></td>
+<td><code dir="auto">manage_cluster</code></td>
+<td>✓</td>
+<td>manage_cluster capability on the body’s namespace_id.</td>
+</tr>
+<tr>
+<td>DELETE</td>
+<td><code dir="auto">/api/v1/clusters/{id}</code></td>
+<td><code dir="auto">delete-cluster</code></td>
+<td><code dir="auto">capability</code></td>
+<td><code dir="auto">manage_cluster</code></td>
+<td>✓</td>
+<td>manage_cluster capability on the cluster’s namespace; drops reported inventory only.</td>
+</tr>
+<tr>
+<td>GET</td>
+<td><code dir="auto">/api/v1/clusters/{id}</code></td>
+<td><code dir="auto">get-cluster</code></td>
+<td><code dir="auto">authenticated</code></td>
+<td>—</td>
+<td></td>
+<td>404s when the owning namespace is private and unowned.</td>
+</tr>
+<tr>
+<td>PATCH</td>
+<td><code dir="auto">/api/v1/clusters/{id}</code></td>
+<td><code dir="auto">update-cluster</code></td>
+<td><code dir="auto">capability</code></td>
+<td><code dir="auto">manage_cluster</code></td>
+<td>✓</td>
+<td>manage_cluster capability on the cluster’s namespace.</td>
+</tr>
+<tr>
+<td>GET</td>
+<td><code dir="auto">/api/v1/clusters/{id}/images</code></td>
+<td><code dir="auto">list-cluster-images</code></td>
+<td><code dir="auto">authenticated</code></td>
+<td>—</td>
+<td></td>
+<td>Same gate and same rows as list-cluster-workloads, grouped by image rather than by workload-container.</td>
+</tr>
+<tr>
+<td>POST</td>
+<td><code dir="auto">/api/v1/clusters/{id}/ingest-unknown</code></td>
+<td><code dir="auto">ingest-cluster-unknown-images</code></td>
+<td><code dir="auto">capability</code></td>
+<td><code dir="auto">trigger_scan</code></td>
+<td>✓</td>
+<td>trigger_scan, not the visibility that guards the matching list: this spends the namespace’s registry credentials and enqueues scan work. It deliberately diverges from put-cluster-inventory, the other trigger for the same action — pushing inventory is what a CI agent does (push_inventory), asking the installation to go scan what it found is not.</td>
+</tr>
+<tr>
+<td>POST</td>
+<td><code dir="auto">/api/v1/clusters/{id}/inventory</code></td>
+<td><code dir="auto">put-cluster-inventory</code></td>
+<td><code dir="auto">capability</code></td>
+<td><code dir="auto">push_inventory</code></td>
+<td>✓</td>
+<td>push_inventory capability on the cluster’s namespace — membership, not visibility, because a public namespace must not make inventory writable by anyone.</td>
+</tr>
+<tr>
+<td>GET</td>
+<td><code dir="auto">/api/v1/clusters/{id}/k8s-namespaces</code></td>
+<td><code dir="auto">list-cluster-k8s-namespaces</code></td>
+<td><code dir="auto">authenticated</code></td>
+<td>—</td>
+<td></td>
+<td>Same gate as list-cluster-workloads; the facet counts describe only the rows that gate admits.</td>
+</tr>
+<tr>
+<td>GET</td>
+<td><code dir="auto">/api/v1/clusters/{id}/unknown-images</code></td>
+<td><code dir="auto">list-cluster-unknown-images</code></td>
+<td><code dir="auto">authenticated</code></td>
+<td>—</td>
+<td></td>
+<td>Same gate as list-cluster-workloads. It names the namespace’s registries, so cluster visibility is what authorizes learning them; resolution never leaves the cluster’s own namespace.</td>
+</tr>
+<tr>
+<td>GET</td>
+<td><code dir="auto">/api/v1/clusters/{id}/vulns</code></td>
+<td><code dir="auto">list-cluster-vulns</code></td>
+<td><code dir="auto">authenticated</code></td>
+<td>—</td>
+<td></td>
+<td>Same gate as list-cluster-workloads; findings and coverage are returned together so neither can be read without the other.</td>
+</tr>
+<tr>
+<td>GET</td>
+<td><code dir="auto">/api/v1/clusters/{id}/workloads</code></td>
+<td><code dir="auto">list-cluster-workloads</code></td>
+<td><code dir="auto">authenticated</code></td>
+<td>—</td>
+<td></td>
+<td>Cluster gated on namespace visibility; rows additionally filtered via visible_namespace_ids.</td>
+</tr>
+<tr>
+<td>GET</td>
+<td><code dir="auto">/api/v1/users/me/clusters</code></td>
+<td><code dir="auto">list-my-clusters</code></td>
+<td><code dir="auto">authenticated</code></td>
+<td>—</td>
+<td></td>
+<td>Owned rows only; excludes others’ public rows, and admins get no widening.</td>
+</tr>
+</tbody>
+</table>
+<div class="sl-heading-wrapper level-h3"><h3 id="components">Components</h3><a class="sl-anchor-link" href="#components"><span aria-hidden="true" class="sl-anchor-icon"><svg width="16" height="16" viewBox="0 0 24 24" fill="currentColor"><path d="m12.11 15.39-3.88 3.88a2.52 2.52 0 0 1-3.5 0 2.47 2.47 0 0 1 0-3.5l3.88-3.88a1 1 0 1 0-1.42-1.42l-3.88 3.89a4.48 4.48 0 0 0 6.33 6.33l3.89-3.88a1 1 0 0 0-1.42-1.42m8.58-12.08a4.49 4.49 0 0 0-6.33 0l-3.89 3.88a1 1 0 1 0 1.42 1.42l3.88-3.88a2.52 2.52 0 0 1 3.5 0 2.47 2.47 0 0 1 0 3.5l-3.88 3.88a1 1 0 0 0 0 1.42 1 1 0 0 0 1.42 0l3.88-3.89a4.49 4.49 0 0 0 0-6.33M8.83 15.17a1 1 0 0 0 .71.29 1 1 0 0 0 .71-.29l4.92-4.92a1 1 0 1 0-1.42-1.42l-4.92 4.92a1 1 0 0 0 0 1.42"></path></svg></span><span class="sr-only" data-pagefind-ignore>Section titled “Components”</span></a></div>
+<table>
+<thead>
+<tr>
+<th>Method</th>
+<th>Path</th>
+<th>Operation</th>
+<th>Class</th>
+<th>Capability</th>
+<th>Write</th>
+<th>Notes</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>GET</td>
+<td><code dir="auto">/api/v1/components</code></td>
+<td><code dir="auto">search-components</code></td>
+<td><code dir="auto">public</code></td>
+<td>—</td>
+<td></td>
+<td>VisibilityFilter.</td>
+</tr>
+<tr>
+<td>GET</td>
+<td><code dir="auto">/api/v1/components/distinct</code></td>
+<td><code dir="auto">search-distinct-components</code></td>
+<td><code dir="auto">public</code></td>
+<td>—</td>
+<td></td>
+<td>VisibilityFilter.</td>
+</tr>
+<tr>
+<td>GET</td>
+<td><code dir="auto">/api/v1/components/purl-types</code></td>
+<td><code dir="auto">list-component-purl-types</code></td>
+<td><code dir="auto">public</code></td>
+<td>—</td>
+<td></td>
+<td>VisibilityFilter.</td>
+</tr>
+<tr>
+<td>GET</td>
+<td><code dir="auto">/api/v1/components/version-summaries</code></td>
+<td><code dir="auto">list-component-version-summaries</code></td>
+<td><code dir="auto">public</code></td>
+<td>—</td>
+<td></td>
+<td>VisibilityFilter.</td>
+</tr>
+<tr>
+<td>GET</td>
+<td><code dir="auto">/api/v1/components/versions</code></td>
+<td><code dir="auto">get-component-versions</code></td>
+<td><code dir="auto">public</code></td>
+<td>—</td>
+<td></td>
+<td>VisibilityFilter.</td>
+</tr>
+<tr>
+<td>GET</td>
+<td><code dir="auto">/api/v1/components/{id}</code></td>
+<td><code dir="auto">get-component</code></td>
+<td><code dir="auto">public</code></td>
+<td>—</td>
+<td></td>
+<td>VisibilityFilter.</td>
+</tr>
+<tr>
+<td>GET</td>
+<td><code dir="auto">/api/v1/components/{id}/vulns</code></td>
+<td><code dir="auto">get-component-vulns</code></td>
+<td><code dir="auto">public</code></td>
+<td>—</td>
+<td></td>
+<td>VisibilityFilter.</td>
+</tr>
+</tbody>
+</table>
+<div class="sl-heading-wrapper level-h3"><h3 id="discovery">Discovery</h3><a class="sl-anchor-link" href="#discovery"><span aria-hidden="true" class="sl-anchor-icon"><svg width="16" height="16" viewBox="0 0 24 24" fill="currentColor"><path d="m12.11 15.39-3.88 3.88a2.52 2.52 0 0 1-3.5 0 2.47 2.47 0 0 1 0-3.5l3.88-3.88a1 1 0 1 0-1.42-1.42l-3.88 3.89a4.48 4.48 0 0 0 6.33 6.33l3.89-3.88a1 1 0 0 0-1.42-1.42m8.58-12.08a4.49 4.49 0 0 0-6.33 0l-3.89 3.88a1 1 0 1 0 1.42 1.42l3.88-3.88a2.52 2.52 0 0 1 3.5 0 2.47 2.47 0 0 1 0 3.5l-3.88 3.88a1 1 0 0 0 0 1.42 1 1 0 0 0 1.42 0l3.88-3.89a4.49 4.49 0 0 0 0-6.33M8.83 15.17a1 1 0 0 0 .71.29 1 1 0 0 0 .71-.29l4.92-4.92a1 1 0 1 0-1.42-1.42l-4.92 4.92a1 1 0 0 0 0 1.42"></path></svg></span><span class="sr-only" data-pagefind-ignore>Section titled “Discovery”</span></a></div>
+<table>
+<thead>
+<tr>
+<th>Method</th>
+<th>Path</th>
+<th>Operation</th>
+<th>Class</th>
+<th>Capability</th>
+<th>Write</th>
+<th>Notes</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>GET</td>
+<td><code dir="auto">/api/v1/discover</code></td>
+<td><code dir="auto">get-discovery</code></td>
+<td><code dir="auto">public</code></td>
+<td>—</td>
+<td></td>
+<td>Public namespaces only, in SQL; no viewer parameter, so the response is identical for every caller.</td>
+</tr>
+</tbody>
+</table>
+<div class="sl-heading-wrapper level-h3"><h3 id="health">Health</h3><a class="sl-anchor-link" href="#health"><span aria-hidden="true" class="sl-anchor-icon"><svg width="16" height="16" viewBox="0 0 24 24" fill="currentColor"><path d="m12.11 15.39-3.88 3.88a2.52 2.52 0 0 1-3.5 0 2.47 2.47 0 0 1 0-3.5l3.88-3.88a1 1 0 1 0-1.42-1.42l-3.88 3.89a4.48 4.48 0 0 0 6.33 6.33l3.89-3.88a1 1 0 0 0-1.42-1.42m8.58-12.08a4.49 4.49 0 0 0-6.33 0l-3.89 3.88a1 1 0 1 0 1.42 1.42l3.88-3.88a2.52 2.52 0 0 1 3.5 0 2.47 2.47 0 0 1 0 3.5l-3.88 3.88a1 1 0 0 0 0 1.42 1 1 0 0 0 1.42 0l3.88-3.89a4.49 4.49 0 0 0 0-6.33M8.83 15.17a1 1 0 0 0 .71.29 1 1 0 0 0 .71-.29l4.92-4.92a1 1 0 1 0-1.42-1.42l-4.92 4.92a1 1 0 0 0 0 1.42"></path></svg></span><span class="sr-only" data-pagefind-ignore>Section titled “Health”</span></a></div>
+<table>
+<thead>
+<tr>
+<th>Method</th>
+<th>Path</th>
+<th>Operation</th>
+<th>Class</th>
+<th>Capability</th>
+<th>Write</th>
+<th>Notes</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>GET</td>
+<td><code dir="auto">/health</code></td>
+<td><code dir="auto">health-check</code></td>
+<td><code dir="auto">public</code></td>
+<td>—</td>
+<td></td>
+<td>Liveness probe.</td>
+</tr>
+<tr>
+<td>GET</td>
+<td><code dir="auto">/ready</code></td>
+<td><code dir="auto">readiness-check</code></td>
+<td><code dir="auto">public</code></td>
+<td>—</td>
+<td></td>
+<td>Readiness probe; reports DB reachability.</td>
+</tr>
+</tbody>
+</table>
+<div class="sl-heading-wrapper level-h3"><h3 id="jobs">Jobs</h3><a class="sl-anchor-link" href="#jobs"><span aria-hidden="true" class="sl-anchor-icon"><svg width="16" height="16" viewBox="0 0 24 24" fill="currentColor"><path d="m12.11 15.39-3.88 3.88a2.52 2.52 0 0 1-3.5 0 2.47 2.47 0 0 1 0-3.5l3.88-3.88a1 1 0 1 0-1.42-1.42l-3.88 3.89a4.48 4.48 0 0 0 6.33 6.33l3.89-3.88a1 1 0 0 0-1.42-1.42m8.58-12.08a4.49 4.49 0 0 0-6.33 0l-3.89 3.88a1 1 0 1 0 1.42 1.42l3.88-3.88a2.52 2.52 0 0 1 3.5 0 2.47 2.47 0 0 1 0 3.5l-3.88 3.88a1 1 0 0 0 0 1.42 1 1 0 0 0 1.42 0l3.88-3.89a4.49 4.49 0 0 0 0-6.33M8.83 15.17a1 1 0 0 0 .71.29 1 1 0 0 0 .71-.29l4.92-4.92a1 1 0 1 0-1.42-1.42l-4.92 4.92a1 1 0 0 0 0 1.42"></path></svg></span><span class="sr-only" data-pagefind-ignore>Section titled “Jobs”</span></a></div>
+<table>
+<thead>
+<tr>
+<th>Method</th>
+<th>Path</th>
+<th>Operation</th>
+<th>Class</th>
+<th>Capability</th>
+<th>Write</th>
+<th>Notes</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>POST</td>
+<td><code dir="auto">/api/v1/admin/enrichment-jobs/retry-failed</code></td>
+<td><code dir="auto">retry-all-failed-enrichment-jobs</code></td>
+<td><code dir="auto">admin</code></td>
+<td>—</td>
+<td>✓</td>
+<td></td>
+</tr>
+<tr>
+<td>POST</td>
+<td><code dir="auto">/api/v1/admin/enrichment-jobs/{id}/retry</code></td>
+<td><code dir="auto">retry-enrichment-job</code></td>
+<td><code dir="auto">admin</code></td>
+<td>—</td>
+<td>✓</td>
+<td></td>
+</tr>
+<tr>
+<td>POST</td>
+<td><code dir="auto">/api/v1/admin/jobs/retry-failed</code></td>
+<td><code dir="auto">retry-all-failed-scan-jobs</code></td>
+<td><code dir="auto">admin</code></td>
+<td>—</td>
+<td>✓</td>
+<td></td>
+</tr>
+<tr>
+<td>POST</td>
+<td><code dir="auto">/api/v1/admin/jobs/{id}/cancel</code></td>
+<td><code dir="auto">cancel-scan-job</code></td>
+<td><code dir="auto">admin</code></td>
+<td>—</td>
+<td>✓</td>
+<td></td>
+</tr>
+<tr>
+<td>POST</td>
+<td><code dir="auto">/api/v1/admin/jobs/{id}/retry</code></td>
+<td><code dir="auto">retry-scan-job</code></td>
+<td><code dir="auto">admin</code></td>
+<td>—</td>
+<td>✓</td>
+<td></td>
+</tr>
+<tr>
+<td>GET</td>
+<td><code dir="auto">/api/v1/enrichment-jobs</code></td>
+<td><code dir="auto">list-enrichment-jobs</code></td>
+<td><code dir="auto">authenticated</code></td>
+<td>—</td>
+<td></td>
+<td>Rows filtered via visible_namespace_ids; admins see every namespace.</td>
+</tr>
+<tr>
+<td>GET</td>
+<td><code dir="auto">/api/v1/enrichment-jobs/summary</code></td>
+<td><code dir="auto">enrichment-jobs-summary</code></td>
+<td><code dir="auto">authenticated</code></td>
+<td>—</td>
+<td></td>
+<td>Rows filtered via visible_namespace_ids; admins see every namespace.</td>
+</tr>
+<tr>
+<td>GET</td>
+<td><code dir="auto">/api/v1/jobs</code></td>
+<td><code dir="auto">list-scan-jobs</code></td>
+<td><code dir="auto">authenticated</code></td>
+<td>—</td>
+<td></td>
+<td>Rows filtered via visible_namespace_ids; admins see every namespace.</td>
+</tr>
+<tr>
+<td>GET</td>
+<td><code dir="auto">/api/v1/jobs/{id}</code></td>
+<td><code dir="auto">get-scan-job</code></td>
+<td><code dir="auto">authenticated</code></td>
+<td>—</td>
+<td></td>
+<td>A job outside the caller’s visible namespaces 404s.</td>
+</tr>
+</tbody>
+</table>
+<div class="sl-heading-wrapper level-h3"><h3 id="licenses">Licenses</h3><a class="sl-anchor-link" href="#licenses"><span aria-hidden="true" class="sl-anchor-icon"><svg width="16" height="16" viewBox="0 0 24 24" fill="currentColor"><path d="m12.11 15.39-3.88 3.88a2.52 2.52 0 0 1-3.5 0 2.47 2.47 0 0 1 0-3.5l3.88-3.88a1 1 0 1 0-1.42-1.42l-3.88 3.89a4.48 4.48 0 0 0 6.33 6.33l3.89-3.88a1 1 0 0 0-1.42-1.42m8.58-12.08a4.49 4.49 0 0 0-6.33 0l-3.89 3.88a1 1 0 1 0 1.42 1.42l3.88-3.88a2.52 2.52 0 0 1 3.5 0 2.47 2.47 0 0 1 0 3.5l-3.88 3.88a1 1 0 0 0 0 1.42 1 1 0 0 0 1.42 0l3.88-3.89a4.49 4.49 0 0 0 0-6.33M8.83 15.17a1 1 0 0 0 .71.29 1 1 0 0 0 .71-.29l4.92-4.92a1 1 0 1 0-1.42-1.42l-4.92 4.92a1 1 0 0 0 0 1.42"></path></svg></span><span class="sr-only" data-pagefind-ignore>Section titled “Licenses”</span></a></div>
+<table>
+<thead>
+<tr>
+<th>Method</th>
+<th>Path</th>
+<th>Operation</th>
+<th>Class</th>
+<th>Capability</th>
+<th>Write</th>
+<th>Notes</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>GET</td>
+<td><code dir="auto">/api/v1/licenses</code></td>
+<td><code dir="auto">list-licenses</code></td>
+<td><code dir="auto">public</code></td>
+<td>—</td>
+<td></td>
+<td>VisibilityFilter.</td>
+</tr>
+<tr>
+<td>GET</td>
+<td><code dir="auto">/api/v1/licenses/lookup</code></td>
+<td><code dir="auto">lookup-license</code></td>
+<td><code dir="auto">public</code></td>
+<td>—</td>
+<td></td>
+<td>VisibilityFilter.</td>
+</tr>
+<tr>
+<td>GET</td>
+<td><code dir="auto">/api/v1/licenses/{id}/components</code></td>
+<td><code dir="auto">list-components-by-license</code></td>
+<td><code dir="auto">public</code></td>
+<td>—</td>
+<td></td>
+<td>VisibilityFilter.</td>
+</tr>
+</tbody>
+</table>
+<div class="sl-heading-wrapper level-h3"><h3 id="meta">Meta</h3><a class="sl-anchor-link" href="#meta"><span aria-hidden="true" class="sl-anchor-icon"><svg width="16" height="16" viewBox="0 0 24 24" fill="currentColor"><path d="m12.11 15.39-3.88 3.88a2.52 2.52 0 0 1-3.5 0 2.47 2.47 0 0 1 0-3.5l3.88-3.88a1 1 0 1 0-1.42-1.42l-3.88 3.89a4.48 4.48 0 0 0 6.33 6.33l3.89-3.88a1 1 0 0 0-1.42-1.42m8.58-12.08a4.49 4.49 0 0 0-6.33 0l-3.89 3.88a1 1 0 1 0 1.42 1.42l3.88-3.88a2.52 2.52 0 0 1 3.5 0 2.47 2.47 0 0 1 0 3.5l-3.88 3.88a1 1 0 0 0 0 1.42 1 1 0 0 0 1.42 0l3.88-3.89a4.49 4.49 0 0 0 0-6.33M8.83 15.17a1 1 0 0 0 .71.29 1 1 0 0 0 .71-.29l4.92-4.92a1 1 0 1 0-1.42-1.42l-4.92 4.92a1 1 0 0 0 0 1.42"></path></svg></span><span class="sr-only" data-pagefind-ignore>Section titled “Meta”</span></a></div>
+<table>
+<thead>
+<tr>
+<th>Method</th>
+<th>Path</th>
+<th>Operation</th>
+<th>Class</th>
+<th>Capability</th>
+<th>Write</th>
+<th>Notes</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>GET</td>
+<td><code dir="auto">/api/v1/</code></td>
+<td><code dir="auto">api-version</code></td>
+<td><code dir="auto">public</code></td>
+<td>—</td>
+<td></td>
+<td></td>
+</tr>
+</tbody>
+</table>
+<div class="sl-heading-wrapper level-h3"><h3 id="namespaces">Namespaces</h3><a class="sl-anchor-link" href="#namespaces"><span aria-hidden="true" class="sl-anchor-icon"><svg width="16" height="16" viewBox="0 0 24 24" fill="currentColor"><path d="m12.11 15.39-3.88 3.88a2.52 2.52 0 0 1-3.5 0 2.47 2.47 0 0 1 0-3.5l3.88-3.88a1 1 0 1 0-1.42-1.42l-3.88 3.89a4.48 4.48 0 0 0 6.33 6.33l3.89-3.88a1 1 0 0 0-1.42-1.42m8.58-12.08a4.49 4.49 0 0 0-6.33 0l-3.89 3.88a1 1 0 1 0 1.42 1.42l3.88-3.88a2.52 2.52 0 0 1 3.5 0 2.47 2.47 0 0 1 0 3.5l-3.88 3.88a1 1 0 0 0 0 1.42 1 1 0 0 0 1.42 0l3.88-3.89a4.49 4.49 0 0 0 0-6.33M8.83 15.17a1 1 0 0 0 .71.29 1 1 0 0 0 .71-.29l4.92-4.92a1 1 0 1 0-1.42-1.42l-4.92 4.92a1 1 0 0 0 0 1.42"></path></svg></span><span class="sr-only" data-pagefind-ignore>Section titled “Namespaces”</span></a></div>
+<table>
+<thead>
+<tr>
+<th>Method</th>
+<th>Path</th>
+<th>Operation</th>
+<th>Class</th>
+<th>Capability</th>
+<th>Write</th>
+<th>Notes</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>GET</td>
+<td><code dir="auto">/api/v1/namespaces</code></td>
+<td><code dir="auto">list-namespaces</code></td>
+<td><code dir="auto">authenticated</code></td>
+<td>—</td>
+<td></td>
+<td>Own plus public namespaces.</td>
+</tr>
+<tr>
+<td>POST</td>
+<td><code dir="auto">/api/v1/namespaces</code></td>
+<td><code dir="auto">create-namespace</code></td>
+<td><code dir="auto">authenticated</code></td>
+<td>—</td>
+<td>✓</td>
+<td>Owned by the calling user. With SELF_SERVICE_NAMESPACES=false a global viewer gets 403, checked in the handler.</td>
+</tr>
+<tr>
+<td>GET</td>
+<td><code dir="auto">/api/v1/namespaces/by-name/{name}</code></td>
+<td><code dir="auto">get-namespace-by-name</code></td>
+<td><code dir="auto">authenticated</code></td>
+<td>—</td>
+<td></td>
+<td>A private namespace the caller does not own 404s.</td>
+</tr>
+<tr>
+<td>DELETE</td>
+<td><code dir="auto">/api/v1/namespaces/{id}</code></td>
+<td><code dir="auto">delete-namespace</code></td>
+<td><code dir="auto">capability</code></td>
+<td><code dir="auto">delete_namespace</code></td>
+<td>✓</td>
+<td>delete_namespace capability check in handler; deletes everything ingested under the namespace.</td>
+</tr>
+<tr>
+<td>GET</td>
+<td><code dir="auto">/api/v1/namespaces/{id}</code></td>
+<td><code dir="auto">get-namespace</code></td>
+<td><code dir="auto">authenticated</code></td>
+<td>—</td>
+<td></td>
+<td>A private namespace the caller does not own 404s, so its existence is not leaked.</td>
+</tr>
+<tr>
+<td>PATCH</td>
+<td><code dir="auto">/api/v1/namespaces/{id}</code></td>
+<td><code dir="auto">update-namespace</code></td>
+<td><code dir="auto">capability</code></td>
+<td><code dir="auto">manage_member</code></td>
+<td>✓</td>
+<td>manage_member capability check in handler.</td>
+</tr>
+<tr>
+<td>GET</td>
+<td><code dir="auto">/api/v1/namespaces/{id}/members</code></td>
+<td><code dir="auto">list-namespace-members</code></td>
+<td><code dir="auto">capability</code></td>
+<td><code dir="auto">manage_member</code></td>
+<td></td>
+<td>RequireCapability(manage_member) middleware, on the {id} path param. Who may see the roster is who may change it.</td>
+</tr>
+<tr>
+<td>DELETE</td>
+<td><code dir="auto">/api/v1/namespaces/{id}/members/{userId}</code></td>
+<td><code dir="auto">remove-namespace-member</code></td>
+<td><code dir="auto">capability</code></td>
+<td><code dir="auto">manage_member</code></td>
+<td>✓</td>
+<td>RequireCapability(manage_member) middleware, on the {id} path param. Removing the owner is a 409.</td>
+</tr>
+<tr>
+<td>PUT</td>
+<td><code dir="auto">/api/v1/namespaces/{id}/members/{userId}</code></td>
+<td><code dir="auto">set-namespace-member</code></td>
+<td><code dir="auto">capability</code></td>
+<td><code dir="auto">manage_member</code></td>
+<td>✓</td>
+<td>RequireCapability(manage_member) middleware, on the {id} path param. A caller may not grant a role they do not hold themselves; demoting or removing the owner, or granting a second one, is a 409.</td>
+</tr>
+</tbody>
+</table>
+<div class="sl-heading-wrapper level-h3"><h3 id="registries">Registries</h3><a class="sl-anchor-link" href="#registries"><span aria-hidden="true" class="sl-anchor-icon"><svg width="16" height="16" viewBox="0 0 24 24" fill="currentColor"><path d="m12.11 15.39-3.88 3.88a2.52 2.52 0 0 1-3.5 0 2.47 2.47 0 0 1 0-3.5l3.88-3.88a1 1 0 1 0-1.42-1.42l-3.88 3.89a4.48 4.48 0 0 0 6.33 6.33l3.89-3.88a1 1 0 0 0-1.42-1.42m8.58-12.08a4.49 4.49 0 0 0-6.33 0l-3.89 3.88a1 1 0 1 0 1.42 1.42l3.88-3.88a2.52 2.52 0 0 1 3.5 0 2.47 2.47 0 0 1 0 3.5l-3.88 3.88a1 1 0 0 0 0 1.42 1 1 0 0 0 1.42 0l3.88-3.89a4.49 4.49 0 0 0 0-6.33M8.83 15.17a1 1 0 0 0 .71.29 1 1 0 0 0 .71-.29l4.92-4.92a1 1 0 1 0-1.42-1.42l-4.92 4.92a1 1 0 0 0 0 1.42"></path></svg></span><span class="sr-only" data-pagefind-ignore>Section titled “Registries”</span></a></div>
+<table>
+<thead>
+<tr>
+<th>Method</th>
+<th>Path</th>
+<th>Operation</th>
+<th>Class</th>
+<th>Capability</th>
+<th>Write</th>
+<th>Notes</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>GET</td>
+<td><code dir="auto">/api/v1/registries</code></td>
+<td><code dir="auto">list-registries</code></td>
+<td><code dir="auto">authenticated</code></td>
+<td>—</td>
+<td></td>
+<td>Own plus public registries.</td>
+</tr>
+<tr>
+<td>POST</td>
+<td><code dir="auto">/api/v1/registries</code></td>
+<td><code dir="auto">create-registry</code></td>
+<td><code dir="auto">authenticated</code></td>
+<td>—</td>
+<td>✓</td>
+<td>A new or omitted <code dir="auto">namespace</code> is created and owned by the caller. Naming an existing namespace requires manage_source in it, checked in the handler; a non-member gets 404. Minting a namespace with SELF_SERVICE_NAMESPACES=false is 403 for a global viewer.</td>
+</tr>
+<tr>
+<td>GET</td>
+<td><code dir="auto">/api/v1/registries/by-name/{name}</code></td>
+<td><code dir="auto">get-registry-by-name</code></td>
+<td><code dir="auto">authenticated</code></td>
+<td>—</td>
+<td></td>
+<td>A private registry the caller does not own 404s.</td>
+</tr>
+<tr>
+<td>GET</td>
+<td><code dir="auto">/api/v1/registries/drift-feed</code></td>
+<td><code dir="auto">list-recent-drift</code></td>
+<td><code dir="auto">authenticated</code></td>
+<td>—</td>
+<td></td>
+<td>Rows filtered via visible_namespace_ids; admins see every namespace.</td>
+</tr>
+<tr>
+<td>POST</td>
+<td><code dir="auto">/api/v1/registries/preview</code></td>
+<td><code dir="auto">preview-registry-config</code></td>
+<td><code dir="auto">authenticated</code></td>
+<td>—</td>
+<td>✓</td>
+<td>Dials the caller-supplied registry like create-registry’s first poll would, under the same egress policy; saves and submits nothing.</td>
+</tr>
+<tr>
+<td>POST</td>
+<td><code dir="auto">/api/v1/registries/test-connection</code></td>
+<td><code dir="auto">test-registry-connection</code></td>
+<td><code dir="auto">admin</code></td>
+<td>—</td>
+<td>✓</td>
+<td>Dials an arbitrary caller-supplied host from inside the cluster.</td>
+</tr>
+<tr>
+<td>GET</td>
+<td><code dir="auto">/api/v1/registries/trust-summary</code></td>
+<td><code dir="auto">get-registry-trust-summary</code></td>
+<td><code dir="auto">authenticated</code></td>
+<td>—</td>
+<td></td>
+<td>Rows filtered via visible_namespace_ids; admins see every namespace.</td>
+</tr>
+<tr>
+<td>DELETE</td>
+<td><code dir="auto">/api/v1/registries/{id}</code></td>
+<td><code dir="auto">delete-registry</code></td>
+<td><code dir="auto">capability</code></td>
+<td><code dir="auto">manage_source</code></td>
+<td>✓</td>
+<td>RequireCapability(manage_source) middleware.</td>
+</tr>
+<tr>
+<td>GET</td>
+<td><code dir="auto">/api/v1/registries/{id}</code></td>
+<td><code dir="auto">get-registry</code></td>
+<td><code dir="auto">authenticated</code></td>
+<td>—</td>
+<td></td>
+<td>A private registry the caller does not own 404s.</td>
+</tr>
+<tr>
+<td>PATCH</td>
+<td><code dir="auto">/api/v1/registries/{id}</code></td>
+<td><code dir="auto">update-registry</code></td>
+<td><code dir="auto">capability</code></td>
+<td><code dir="auto">manage_source</code></td>
+<td>✓</td>
+<td>RequireCapability(manage_source) middleware.</td>
+</tr>
+<tr>
+<td>GET</td>
+<td><code dir="auto">/api/v1/registries/{id}/preview</code></td>
+<td><code dir="auto">get-registry-preview</code></td>
+<td><code dir="auto">capability</code></td>
+<td><code dir="auto">trigger_scan</code></td>
+<td></td>
+<td>RequireCapability(trigger_scan) middleware: it spends the registry’s stored credentials, as a scan does.</td>
+</tr>
+<tr>
+<td>POST</td>
+<td><code dir="auto">/api/v1/registries/{id}/scan</code></td>
+<td><code dir="auto">scan-registry</code></td>
+<td><code dir="auto">capability</code></td>
+<td><code dir="auto">trigger_scan</code></td>
+<td>✓</td>
+<td>RequireCapability(trigger_scan) middleware.</td>
+</tr>
+<tr>
+<td>POST</td>
+<td><code dir="auto">/api/v1/registries/{id}/webhook</code></td>
+<td><code dir="auto">registry-webhook</code></td>
+<td><code dir="auto">secret</code></td>
+<td>—</td>
+<td></td>
+<td>HMAC over the body against the registry’s webhook secret; no user identity.</td>
+</tr>
+<tr>
+<td>POST</td>
+<td><code dir="auto">/api/v1/registries/{id}/webhook-secret</code></td>
+<td><code dir="auto">regenerate-webhook-secret</code></td>
+<td><code dir="auto">capability</code></td>
+<td><code dir="auto">read_secret</code></td>
+<td>✓</td>
+<td>RequireCapability(read_secret) middleware; response contains the new secret.</td>
+</tr>
+</tbody>
+</table>
+<div class="sl-heading-wrapper level-h3"><h3 id="sboms">SBOMs</h3><a class="sl-anchor-link" href="#sboms"><span aria-hidden="true" class="sl-anchor-icon"><svg width="16" height="16" viewBox="0 0 24 24" fill="currentColor"><path d="m12.11 15.39-3.88 3.88a2.52 2.52 0 0 1-3.5 0 2.47 2.47 0 0 1 0-3.5l3.88-3.88a1 1 0 1 0-1.42-1.42l-3.88 3.89a4.48 4.48 0 0 0 6.33 6.33l3.89-3.88a1 1 0 0 0-1.42-1.42m8.58-12.08a4.49 4.49 0 0 0-6.33 0l-3.89 3.88a1 1 0 1 0 1.42 1.42l3.88-3.88a2.52 2.52 0 0 1 3.5 0 2.47 2.47 0 0 1 0 3.5l-3.88 3.88a1 1 0 0 0 0 1.42 1 1 0 0 0 1.42 0l3.88-3.89a4.49 4.49 0 0 0 0-6.33M8.83 15.17a1 1 0 0 0 .71.29 1 1 0 0 0 .71-.29l4.92-4.92a1 1 0 1 0-1.42-1.42l-4.92 4.92a1 1 0 0 0 0 1.42"></path></svg></span><span class="sr-only" data-pagefind-ignore>Section titled “SBOMs”</span></a></div>
+<table>
+<thead>
+<tr>
+<th>Method</th>
+<th>Path</th>
+<th>Operation</th>
+<th>Class</th>
+<th>Capability</th>
+<th>Write</th>
+<th>Notes</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>GET</td>
+<td><code dir="auto">/api/v1/sboms</code></td>
+<td><code dir="auto">list-sboms</code></td>
+<td><code dir="auto">public</code></td>
+<td>—</td>
+<td></td>
+<td>VisibilityFilter.</td>
+</tr>
+<tr>
+<td>POST</td>
+<td><code dir="auto">/api/v1/sboms</code></td>
+<td><code dir="auto">ingest-sbom</code></td>
+<td><code dir="auto">capability</code></td>
+<td><code dir="auto">ingest</code></td>
+<td>✓</td>
+<td>resolveIngestSource requires the capability in the namespace behind ?source=; RequireMember is the floor beneath it.</td>
+</tr>
+<tr>
+<td>GET</td>
+<td><code dir="auto">/api/v1/sboms/diff</code></td>
+<td><code dir="auto">diff-sboms</code></td>
+<td><code dir="auto">public</code></td>
+<td>—</td>
+<td></td>
+<td>VisibilityFilter on both sides.</td>
+</tr>
+<tr>
+<td>GET</td>
+<td><code dir="auto">/api/v1/sboms/diff-tree</code></td>
+<td><code dir="auto">diff-tree</code></td>
+<td><code dir="auto">public</code></td>
+<td>—</td>
+<td></td>
+<td>VisibilityFilter on both sides.</td>
+</tr>
+<tr>
+<td>GET</td>
+<td><code dir="auto">/api/v1/sboms/lookup</code></td>
+<td><code dir="auto">lookup-sbom</code></td>
+<td><code dir="auto">public</code></td>
+<td>—</td>
+<td></td>
+<td>VisibilityFilter applied before the ambiguity count (ADR-042).</td>
+</tr>
+<tr>
+<td>DELETE</td>
+<td><code dir="auto">/api/v1/sboms/{id}</code></td>
+<td><code dir="auto">delete-sbom</code></td>
+<td><code dir="auto">capability</code></td>
+<td><code dir="auto">delete_artifact</code></td>
+<td>✓</td>
+<td>RequireCapability(delete_artifact) middleware on the SBOM’s namespace.</td>
+</tr>
+<tr>
+<td>GET</td>
+<td><code dir="auto">/api/v1/sboms/{id}</code></td>
+<td><code dir="auto">get-sbom</code></td>
+<td><code dir="auto">public</code></td>
+<td>—</td>
+<td></td>
+<td>VisibilityFilter.</td>
+</tr>
+<tr>
+<td>GET</td>
+<td><code dir="auto">/api/v1/sboms/{id}/components</code></td>
+<td><code dir="auto">list-sbom-components</code></td>
+<td><code dir="auto">public</code></td>
+<td>—</td>
+<td></td>
+<td>VisibilityFilter.</td>
+</tr>
+<tr>
+<td>GET</td>
+<td><code dir="auto">/api/v1/sboms/{id}/dependencies</code></td>
+<td><code dir="auto">get-sbom-dependencies</code></td>
+<td><code dir="auto">public</code></td>
+<td>—</td>
+<td></td>
+<td>VisibilityFilter.</td>
+</tr>
+<tr>
+<td>GET</td>
+<td><code dir="auto">/api/v1/sboms/{id}/drift</code></td>
+<td><code dir="auto">list-sbom-drift-history</code></td>
+<td><code dir="auto">public</code></td>
+<td>—</td>
+<td></td>
+<td>VisibilityFilter.</td>
+</tr>
+<tr>
+<td>GET</td>
+<td><code dir="auto">/api/v1/sboms/{id}/vulns</code></td>
+<td><code dir="auto">list-sbom-vulns</code></td>
+<td><code dir="auto">public</code></td>
+<td>—</td>
+<td></td>
+<td>VisibilityFilter.</td>
+</tr>
+</tbody>
+</table>
+<div class="sl-heading-wrapper level-h3"><h3 id="sources">Sources</h3><a class="sl-anchor-link" href="#sources"><span aria-hidden="true" class="sl-anchor-icon"><svg width="16" height="16" viewBox="0 0 24 24" fill="currentColor"><path d="m12.11 15.39-3.88 3.88a2.52 2.52 0 0 1-3.5 0 2.47 2.47 0 0 1 0-3.5l3.88-3.88a1 1 0 1 0-1.42-1.42l-3.88 3.89a4.48 4.48 0 0 0 6.33 6.33l3.89-3.88a1 1 0 0 0-1.42-1.42m8.58-12.08a4.49 4.49 0 0 0-6.33 0l-3.89 3.88a1 1 0 1 0 1.42 1.42l3.88-3.88a2.52 2.52 0 0 1 3.5 0 2.47 2.47 0 0 1 0 3.5l-3.88 3.88a1 1 0 0 0 0 1.42 1 1 0 0 0 1.42 0l3.88-3.89a4.49 4.49 0 0 0 0-6.33M8.83 15.17a1 1 0 0 0 .71.29 1 1 0 0 0 .71-.29l4.92-4.92a1 1 0 1 0-1.42-1.42l-4.92 4.92a1 1 0 0 0 0 1.42"></path></svg></span><span class="sr-only" data-pagefind-ignore>Section titled “Sources”</span></a></div>
+<table>
+<thead>
+<tr>
+<th>Method</th>
+<th>Path</th>
+<th>Operation</th>
+<th>Class</th>
+<th>Capability</th>
+<th>Write</th>
+<th>Notes</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>GET</td>
+<td><code dir="auto">/api/v1/sources</code></td>
+<td><code dir="auto">list-sources</code></td>
+<td><code dir="auto">authenticated</code></td>
+<td>—</td>
+<td></td>
+<td>Visibility resolved through the owning namespace.</td>
+</tr>
+<tr>
+<td>POST</td>
+<td><code dir="auto">/api/v1/sources</code></td>
+<td><code dir="auto">create-source</code></td>
+<td><code dir="auto">capability</code></td>
+<td><code dir="auto">manage_source</code></td>
+<td>✓</td>
+<td>manage_source capability on the body’s namespace_id.</td>
+</tr>
+<tr>
+<td>DELETE</td>
+<td><code dir="auto">/api/v1/sources/{id}</code></td>
+<td><code dir="auto">delete-source</code></td>
+<td><code dir="auto">capability</code></td>
+<td><code dir="auto">manage_source</code></td>
+<td>✓</td>
+<td>manage_source capability on the source’s namespace.</td>
+</tr>
+<tr>
+<td>GET</td>
+<td><code dir="auto">/api/v1/sources/{id}</code></td>
+<td><code dir="auto">get-source</code></td>
+<td><code dir="auto">authenticated</code></td>
+<td>—</td>
+<td></td>
+<td>404s when the owning namespace is private and unowned.</td>
+</tr>
+<tr>
+<td>PATCH</td>
+<td><code dir="auto">/api/v1/sources/{id}</code></td>
+<td><code dir="auto">update-source</code></td>
+<td><code dir="auto">capability</code></td>
+<td><code dir="auto">manage_source</code></td>
+<td>✓</td>
+<td>manage_source capability on the source’s namespace.</td>
+</tr>
+</tbody>
+</table>
+<div class="sl-heading-wrapper level-h3"><h3 id="stats">Stats</h3><a class="sl-anchor-link" href="#stats"><span aria-hidden="true" class="sl-anchor-icon"><svg width="16" height="16" viewBox="0 0 24 24" fill="currentColor"><path d="m12.11 15.39-3.88 3.88a2.52 2.52 0 0 1-3.5 0 2.47 2.47 0 0 1 0-3.5l3.88-3.88a1 1 0 1 0-1.42-1.42l-3.88 3.89a4.48 4.48 0 0 0 6.33 6.33l3.89-3.88a1 1 0 0 0-1.42-1.42m8.58-12.08a4.49 4.49 0 0 0-6.33 0l-3.89 3.88a1 1 0 1 0 1.42 1.42l3.88-3.88a2.52 2.52 0 0 1 3.5 0 2.47 2.47 0 0 1 0 3.5l-3.88 3.88a1 1 0 0 0 0 1.42 1 1 0 0 0 1.42 0l3.88-3.89a4.49 4.49 0 0 0 0-6.33M8.83 15.17a1 1 0 0 0 .71.29 1 1 0 0 0 .71-.29l4.92-4.92a1 1 0 1 0-1.42-1.42l-4.92 4.92a1 1 0 0 0 0 1.42"></path></svg></span><span class="sr-only" data-pagefind-ignore>Section titled “Stats”</span></a></div>
+<table>
+<thead>
+<tr>
+<th>Method</th>
+<th>Path</th>
+<th>Operation</th>
+<th>Class</th>
+<th>Capability</th>
+<th>Write</th>
+<th>Notes</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>GET</td>
+<td><code dir="auto">/api/v1/stats</code></td>
+<td><code dir="auto">get-dashboard-stats</code></td>
+<td><code dir="auto">public</code></td>
+<td>—</td>
+<td></td>
+<td>VisibilityFilter.</td>
+</tr>
+</tbody>
+</table>
+<div class="sl-heading-wrapper level-h3"><h3 id="vulnerabilities">Vulnerabilities</h3><a class="sl-anchor-link" href="#vulnerabilities"><span aria-hidden="true" class="sl-anchor-icon"><svg width="16" height="16" viewBox="0 0 24 24" fill="currentColor"><path d="m12.11 15.39-3.88 3.88a2.52 2.52 0 0 1-3.5 0 2.47 2.47 0 0 1 0-3.5l3.88-3.88a1 1 0 1 0-1.42-1.42l-3.88 3.89a4.48 4.48 0 0 0 6.33 6.33l3.89-3.88a1 1 0 0 0-1.42-1.42m8.58-12.08a4.49 4.49 0 0 0-6.33 0l-3.89 3.88a1 1 0 1 0 1.42 1.42l3.88-3.88a2.52 2.52 0 0 1 3.5 0 2.47 2.47 0 0 1 0 3.5l-3.88 3.88a1 1 0 0 0 0 1.42 1 1 0 0 0 1.42 0l3.88-3.89a4.49 4.49 0 0 0 0-6.33M8.83 15.17a1 1 0 0 0 .71.29 1 1 0 0 0 .71-.29l4.92-4.92a1 1 0 1 0-1.42-1.42l-4.92 4.92a1 1 0 0 0 0 1.42"></path></svg></span><span class="sr-only" data-pagefind-ignore>Section titled “Vulnerabilities”</span></a></div>
+<table>
+<thead>
+<tr>
+<th>Method</th>
+<th>Path</th>
+<th>Operation</th>
+<th>Class</th>
+<th>Capability</th>
+<th>Write</th>
+<th>Notes</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>GET</td>
+<td><code dir="auto">/api/v1/vulns</code></td>
+<td><code dir="auto">list-top-vulnerabilities</code></td>
+<td><code dir="auto">public</code></td>
+<td>—</td>
+<td></td>
+<td>VisibilityFilter.</td>
+</tr>
+<tr>
+<td>GET</td>
+<td><code dir="auto">/api/v1/vulns/{id}</code></td>
+<td><code dir="auto">get-vulnerability</code></td>
+<td><code dir="auto">public</code></td>
+<td>—</td>
+<td></td>
+<td>Advisory data is not tenant-scoped.</td>
+</tr>
+<tr>
+<td>GET</td>
+<td><code dir="auto">/api/v1/vulns/{id}/workloads</code></td>
+<td><code dir="auto">list-vulnerability-workloads</code></td>
+<td><code dir="auto">authenticated</code></td>
+<td>—</td>
+<td></td>
+<td>Workload rows filtered via visible_namespace_ids on the owning namespace, so an invisible cluster contributes nothing rather than 403ing.</td>
+</tr>
+</tbody>
+</table>
+<div class="sl-heading-wrapper level-h2"><h2 id="development-only-operations">Development-only operations</h2><a class="sl-anchor-link" href="#development-only-operations"><span aria-hidden="true" class="sl-anchor-icon"><svg width="16" height="16" viewBox="0 0 24 24" fill="currentColor"><path d="m12.11 15.39-3.88 3.88a2.52 2.52 0 0 1-3.5 0 2.47 2.47 0 0 1 0-3.5l3.88-3.88a1 1 0 1 0-1.42-1.42l-3.88 3.89a4.48 4.48 0 0 0 6.33 6.33l3.89-3.88a1 1 0 0 0-1.42-1.42m8.58-12.08a4.49 4.49 0 0 0-6.33 0l-3.89 3.88a1 1 0 1 0 1.42 1.42l3.88-3.88a2.52 2.52 0 0 1 3.5 0 2.47 2.47 0 0 1 0 3.5l-3.88 3.88a1 1 0 0 0 0 1.42 1 1 0 0 0 1.42 0l3.88-3.89a4.49 4.49 0 0 0 0-6.33M8.83 15.17a1 1 0 0 0 .71.29 1 1 0 0 0 .71-.29l4.92-4.92a1 1 0 1 0-1.42-1.42l-4.92 4.92a1 1 0 0 0 0 1.42"></path></svg></span><span class="sr-only" data-pagefind-ignore>Section titled “Development-only operations”</span></a></div>
+<p>Declared in <code dir="auto">authRules</code> but <strong>not registered above</strong>, because the matrix is generated
+from a router built without a development config. These operations do not exist in a
+production build — they are absent from the route table and from <code dir="auto">web/openapi.json</code>,
+not merely refused at runtime.</p>
+<table>
+<thead>
+<tr>
+<th>Operation</th>
+<th>Class</th>
+<th>Capability</th>
+<th>Write</th>
+<th>Notes</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code dir="auto">dev-mint-session</code></td>
+<td><code dir="auto">public</code></td>
+<td>—</td>
+<td></td>
+<td>POST /api/v1/dev/session. Development builds only; not registered when ENVIRONMENT != development. Mints a real session cookie for a persona seeded by scripts/dev-auth.sh.</td>
+</tr>
+</tbody>
+</table>
+</div><footer class="sl-flex" data-astro-cid-ddtxxk7k><div class="meta sl-flex" data-astro-cid-ddtxxk7k><a href="https://github.com/pfenerty/ocidex/edit/main/site/src/content/docs/reference/authorization.md" class="sl-flex print:hidden" data-astro-cid-qlekgd3o><svg data-astro-cid-qlekgd3o="true" aria-hidden="true" width="16" height="16" viewBox="0 0 24 24" fill="currentColor" style="--sl-icon-size: 1.2em;" data-astro-cid-hkc32dio><path d="M22 7.24a1 1 0 0 0-.29-.71l-4.24-4.24a1 1 0 0 0-1.1-.22 1 1 0 0 0-.32.22l-2.83 2.83L2.29 16.05a1 1 0 0 0-.29.71V21a1 1 0 0 0 1 1h4.24a1 1 0 0 0 .76-.29l10.87-10.93L21.71 8c.1-.1.17-.2.22-.33a1 1 0 0 0 0-.24v-.14l.07-.05ZM6.83 20H4v-2.83l9.93-9.93 2.83 2.83L6.83 20ZM18.17 8.66l-2.83-2.83 1.42-1.41 2.82 2.82-1.41 1.42Z"/></svg>Edit page</a></div><div class="pagination-links print:hidden" dir="ltr" data-astro-cid-b5raizh3><a href="/next/reference/cli/" rel="prev" data-astro-cid-b5raizh3><svg data-astro-cid-b5raizh3="true" aria-hidden="true" width="16" height="16" viewBox="0 0 24 24" fill="currentColor" style="--sl-icon-size: 1.5rem;" data-astro-cid-hkc32dio><path d="M17 11H9.41l3.3-3.29a1.004 1.004 0 1 0-1.42-1.42l-5 5a1 1 0 0 0-.21.33 1 1 0 0 0 0 .76 1 1 0 0 0 .21.33l5 5a1.002 1.002 0 0 0 1.639-.325 1 1 0 0 0-.219-1.095L9.41 13H17a1 1 0 0 0 0-2Z"/></svg><span data-astro-cid-b5raizh3>Previous<br data-astro-cid-b5raizh3><span class="link-title" data-astro-cid-b5raizh3>CLI</span></span></a><a href="/next/reference/api/" rel="next" data-astro-cid-b5raizh3><svg data-astro-cid-b5raizh3="true" aria-hidden="true" width="16" height="16" viewBox="0 0 24 24" fill="currentColor" style="--sl-icon-size: 1.5rem;" data-astro-cid-hkc32dio><path d="M17.92 11.62a1.001 1.001 0 0 0-.21-.33l-5-5a1.003 1.003 0 1 0-1.42 1.42l3.3 3.29H7a1 1 0 0 0 0 2h7.59l-3.3 3.29a1.002 1.002 0 0 0 .325 1.639 1 1 0 0 0 1.095-.219l5-5a1 1 0 0 0 .21-.33 1 1 0 0 0 0-.76Z"/></svg><span data-astro-cid-b5raizh3>Next<br data-astro-cid-b5raizh3><span class="link-title" data-astro-cid-b5raizh3>Overview</span></span></a></div></footer></div></div></main></div></div></div></div></body></html>

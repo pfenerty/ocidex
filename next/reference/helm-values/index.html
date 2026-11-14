@@ -1,0 +1,1372 @@
+<!DOCTYPE html><html lang="en" dir="ltr" data-theme="dark" data-has-toc data-has-sidebar data-astro-cid-g5ptsecz><head><meta charset="utf-8"/><meta name="viewport" content="width=device-width, initial-scale=1"/><title>Helm values | OCIDex</title><link rel="canonical" href="https://docs.ocidex.app/next/reference/helm-values/"/><link rel="sitemap" href="/next/sitemap-index.xml"/><link rel="shortcut icon" href="/next/favicon.svg" type="image/svg+xml"/><meta name="generator" content="Astro v7.4.12"/><meta name="generator" content="Starlight v0.43.1"/><meta property="og:title" content="Helm values"/><meta property="og:type" content="article"/><meta property="og:url" content="https://docs.ocidex.app/next/reference/helm-values/"/><meta property="og:locale" content="en"/><meta property="og:description" content="Every value the OCIDex Helm charts accept, with its default."/><meta property="og:site_name" content="OCIDex"/><meta name="twitter:card" content="summary_large_image"/><meta name="description" content="Every value the OCIDex Helm charts accept, with its default."/><script>
+	(() => {
+		const storedTheme =
+			typeof localStorage !== 'undefined' && localStorage.getItem('starlight-theme');
+		const theme =
+			storedTheme ||
+			(window.matchMedia('(prefers-color-scheme: light)').matches ? 'light' : 'dark');
+		document.documentElement.dataset.theme = theme === 'light' ? 'light' : 'dark';
+	})();
+</script><link rel="stylesheet" href="/next/_astro/print.C9eyqPGL.css" media="print"><link rel="stylesheet" href="/next/_astro/middleware.Cq-TfOOG.css"><style>@layer starlight.components.icon{svg[data-astro-cid-hkc32dio]{color:var(--sl-icon-color);font-size:var(--sl-icon-size,1em);width:1em;height:1em;overflow:visible}}
+</style><script type="module" src="/next/_astro/page.cNngjUgL.js"></script></head><body data-astro-cid-g5ptsecz><a class="sl-skip-link" href="#_top" data-astro-cid-qb7clj6f>Skip to content</a><div class="page sl-flex" data-astro-cid-yntsjkba><header class="header" data-astro-cid-yntsjkba><div class="header" data-astro-cid-by6fddyj><div class="title-wrapper sl-flex" data-astro-cid-by6fddyj><a href="/next/" class="site-title sl-flex" data-astro-cid-6rvad3va><img alt src="/next/_astro/logo.QlhC4dj9.svg" width="32" height="32" data-astro-cid-6rvad3va><span translate="no" data-astro-cid-6rvad3va>OCIDex</span></a></div><div class="sl-flex print:hidden" data-astro-cid-by6fddyj><site-search data-translations="{&quot;placeholder&quot;:&quot;Search&quot;}" data-astro-cid-b5kgnn7o="true"><button data-open-modal disabled aria-label="Search" aria-keyshortcuts="Control+K" data-astro-cid-b5kgnn7o><svg data-astro-cid-b5kgnn7o="true" aria-hidden="true" width="16" height="16" viewBox="0 0 24 24" fill="currentColor" style="--sl-icon-size: 1em;" data-astro-cid-hkc32dio><path d="M21.71 20.29 18 16.61A9 9 0 1 0 16.61 18l3.68 3.68a.999.999 0 0 0 1.42 0 1 1 0 0 0 0-1.39ZM11 18a7 7 0 1 1 0-14 7 7 0 0 1 0 14Z"/></svg><span class="sl-hidden md:sl-block" aria-hidden="true" data-astro-cid-b5kgnn7o>Search</span><kbd class="sl-hidden md:sl-flex" style="display: none" data-astro-cid-b5kgnn7o><kbd data-astro-cid-b5kgnn7o>Ctrl</kbd><kbd data-astro-cid-b5kgnn7o>K</kbd></kbd></button><dialog style="padding: 0" aria-label="Search" data-astro-cid-b5kgnn7o><div class="dialog-frame sl-flex" data-astro-cid-b5kgnn7o><button data-close-modal class="sl-flex md:sl-hidden" data-astro-cid-b5kgnn7o>Cancel</button><div class="search-container" data-astro-cid-b5kgnn7o><div id="starlight__search" data-astro-cid-b5kgnn7o></div></div></div></dialog></site-search><script>
+	(() => {
+		const openBtn = document.querySelector('button[data-open-modal]');
+		const shortcut = openBtn?.querySelector('kbd');
+		if (!openBtn || !(shortcut instanceof HTMLElement)) return;
+		const platformKey = shortcut.querySelector('kbd');
+		if (platformKey && /(Mac|iPhone|iPod|iPad)/i.test(navigator.platform)) {
+			platformKey.textContent = '⌘';
+			openBtn.setAttribute('aria-keyshortcuts', 'Meta+K');
+		}
+		shortcut.style.display = '';
+	})();
+</script><script type="module" src="/next/_astro/Search.astro_astro_type_script_index_0_lang.BM_DdRWO.js"></script></div><div class="sl-hidden md:sl-flex print:hidden right-group" data-astro-cid-by6fddyj><div class="sl-flex social-icons" data-astro-cid-by6fddyj><a href="https://github.com/pfenerty/ocidex" rel="me" class="sl-flex" data-astro-cid-n2mnl6yq><span class="sr-only" data-astro-cid-n2mnl6yq>GitHub</span><svg data-astro-cid-n2mnl6yq="true" aria-hidden="true" width="16" height="16" viewBox="0 0 24 24" fill="currentColor" style="--sl-icon-size: 1em;" data-astro-cid-hkc32dio><path d="M12 .3a12 12 0 0 0-3.8 23.38c.6.12.83-.26.83-.57L9 21.07c-3.34.72-4.04-1.61-4.04-1.61-.55-1.39-1.34-1.76-1.34-1.76-1.08-.74.09-.73.09-.73 1.2.09 1.83 1.24 1.83 1.24 1.08 1.83 2.81 1.3 3.5 1 .1-.78.42-1.31.76-1.61-2.67-.3-5.47-1.33-5.47-5.93 0-1.31.47-2.38 1.24-3.22-.14-.3-.54-1.52.1-3.18 0 0 1-.32 3.3 1.23a11.5 11.5 0 0 1 6 0c2.28-1.55 3.29-1.23 3.29-1.23.64 1.66.24 2.88.12 3.18a4.65 4.65 0 0 1 1.23 3.22c0 4.61-2.8 5.63-5.48 5.92.42.36.81 1.1.81 2.22l-.01 3.29c0 .31.2.69.82.57A12 12 0 0 0 12 .3Z"/></svg></a></div><starlight-theme-select data-astro-cid-smhvfpqh="true"><label style="--sl-select-width: 6.25em" data-astro-cid-2z5xp7gb><span class="sr-only" data-astro-cid-2z5xp7gb>Select theme</span><span class="icon label-icon" data-astro-cid-2z5xp7gb><svg class="sl-theme-icon-dark" data-astro-cid-smhvfpqh="true" aria-hidden="true" width="16" height="16" viewBox="0 0 24 24" fill="currentColor" style="--sl-icon-size: 1em;" data-astro-cid-hkc32dio><path d="M21.64 13a1 1 0 0 0-1.05-.14 8.049 8.049 0 0 1-3.37.73 8.15 8.15 0 0 1-8.14-8.1 8.59 8.59 0 0 1 .25-2A1 1 0 0 0 8 2.36a10.14 10.14 0 1 0 14 11.69 1 1 0 0 0-.36-1.05Zm-9.5 6.69A8.14 8.14 0 0 1 7.08 5.22v.27a10.15 10.15 0 0 0 10.14 10.14 9.784 9.784 0 0 0 2.1-.22 8.11 8.11 0 0 1-7.18 4.32v-.04Z"/></svg><svg class="sl-theme-icon-light" data-astro-cid-smhvfpqh="true" aria-hidden="true" width="16" height="16" viewBox="0 0 24 24" fill="currentColor" style="--sl-icon-size: 1em;" data-astro-cid-hkc32dio><path d="M5 12a1 1 0 0 0-1-1H3a1 1 0 0 0 0 2h1a1 1 0 0 0 1-1Zm.64 5-.71.71a1 1 0 0 0 0 1.41 1 1 0 0 0 1.41 0l.71-.71A1 1 0 0 0 5.64 17ZM12 5a1 1 0 0 0 1-1V3a1 1 0 0 0-2 0v1a1 1 0 0 0 1 1Zm5.66 2.34a1 1 0 0 0 .7-.29l.71-.71a1 1 0 1 0-1.41-1.41l-.66.71a1 1 0 0 0 0 1.41 1 1 0 0 0 .66.29Zm-12-.29a1 1 0 0 0 1.41 0 1 1 0 0 0 0-1.41l-.71-.71a1.004 1.004 0 1 0-1.43 1.41l.73.71ZM21 11h-1a1 1 0 0 0 0 2h1a1 1 0 0 0 0-2Zm-2.64 6A1 1 0 0 0 17 18.36l.71.71a1 1 0 0 0 1.41 0 1 1 0 0 0 0-1.41l-.76-.66ZM12 6.5a5.5 5.5 0 1 0 5.5 5.5A5.51 5.51 0 0 0 12 6.5Zm0 9a3.5 3.5 0 1 1 0-7 3.5 3.5 0 0 1 0 7Zm0 3.5a1 1 0 0 0-1 1v1a1 1 0 0 0 2 0v-1a1 1 0 0 0-1-1Z"/></svg><svg class="sl-theme-icon-auto" data-astro-cid-smhvfpqh="true" aria-hidden="true" width="16" height="16" viewBox="0 0 24 24" fill="currentColor" style="--sl-icon-size: 1em;" data-astro-cid-hkc32dio><path d="M21 14h-1V7a3 3 0 0 0-3-3H7a3 3 0 0 0-3 3v7H3a1 1 0 0 0-1 1v2a3 3 0 0 0 3 3h14a3 3 0 0 0 3-3v-2a1 1 0 0 0-1-1ZM6 7a1 1 0 0 1 1-1h10a1 1 0 0 1 1 1v7H6V7Zm14 10a1 1 0 0 1-1 1H5a1 1 0 0 1-1-1v-1h16v1Z"/></svg></span><select autocomplete="off" data-astro-cid-2z5xp7gb><option value="dark" data-astro-cid-2z5xp7gb>Dark</option><option value="light" data-astro-cid-2z5xp7gb>Light</option><option value="auto" selected data-astro-cid-2z5xp7gb>Auto</option></select><svg class="icon caret" data-astro-cid-2z5xp7gb="true" aria-hidden="true" width="16" height="16" viewBox="0 0 24 24" fill="currentColor" style="--sl-icon-size: 1em;" data-astro-cid-hkc32dio><path d="M17 9.17a1 1 0 0 0-1.41 0L12 12.71 8.46 9.17a1 1 0 1 0-1.41 1.42l4.24 4.24a1.002 1.002 0 0 0 1.42 0L17 10.59a1.002 1.002 0 0 0 0-1.42Z"/></svg></label></starlight-theme-select><script>(() => {
+		const theme = (typeof localStorage !== 'undefined' && localStorage.getItem('starlight-theme'));
+		if (theme) document.querySelectorAll('starlight-theme-select select').forEach((s) => { s.value = theme; });
+	})();</script><script type="module">var e=`starlight-theme`,t=e=>e===`auto`||e===`dark`||e===`light`?e:`auto`,n=()=>t(typeof localStorage<`u`&&localStorage.getItem(e));function r(t){typeof localStorage<`u`&&localStorage.setItem(e,t===`light`||t===`dark`?t:``)}var i=()=>matchMedia(`(prefers-color-scheme: light)`).matches?`light`:`dark`;function a(e){document.querySelectorAll(`starlight-theme-select select`).forEach(t=>{t.value=e}),document.documentElement.dataset.theme=e===`auto`?i():e,r(e)}matchMedia(`(prefers-color-scheme: light)`).addEventListener(`change`,()=>{n()===`auto`&&a(`auto`)});var o=class extends HTMLElement{constructor(){super(),a(n()),this.querySelector(`select`)?.addEventListener(`change`,e=>{e.currentTarget instanceof HTMLSelectElement&&a(t(e.currentTarget.value))})}};customElements.define(`starlight-theme-select`,o);</script><script type="module">var e=class extends HTMLElement{constructor(){super();let e=this.querySelector(`select`);e&&(e.addEventListener(`change`,e=>{e.currentTarget instanceof HTMLSelectElement&&(window.location.pathname=e.currentTarget.value)}),window.addEventListener(`pageshow`,t=>{if(!t.persisted)return;let n=e.querySelector(`option[selected]`)?.index;n!==e.selectedIndex&&(e.selectedIndex=n??0)}))}};customElements.define(`starlight-lang-select`,e);</script></div></div></header><nav class="sidebar print:hidden" aria-label="Main" data-astro-cid-yntsjkba><button popovertarget="starlight__sidebar" class="sl-menu-button sl-flex md:sl-hidden print:hidden" data-astro-cid-r2osgdlg><svg class="open-menu" data-astro-cid-r2osgdlg="true" aria-hidden="true" width="16" height="16" viewBox="0 0 24 24" fill="currentColor" style="--sl-icon-size: 1em;" data-astro-cid-hkc32dio><path d="M3 8h18a1 1 0 1 0 0-2H3a1 1 0 0 0 0 2Zm18 8H3a1 1 0 0 0 0 2h18a1 1 0 0 0 0-2Zm0-5H3a1 1 0 0 0 0 2h18a1 1 0 0 0 0-2Z"/></svg><svg class="close-menu" data-astro-cid-r2osgdlg="true" aria-hidden="true" width="16" height="16" viewBox="0 0 24 24" fill="currentColor" style="--sl-icon-size: 1em;" data-astro-cid-hkc32dio><path d="m13.41 12 6.3-6.29a1.004 1.004 0 1 0-1.42-1.42L12 10.59l-6.29-6.3a1.004 1.004 0 0 0-1.42 1.42l6.3 6.29-6.3 6.29a1 1 0 0 0 0 1.42.998.998 0 0 0 1.42 0l6.29-6.3 6.29 6.3a.999.999 0 0 0 1.42 0 1 1 0 0 0 0-1.42L13.41 12Z"/></svg><span class="sr-only" data-astro-cid-r2osgdlg>Menu</span></button><script type="module">var e=class extends HTMLElement{constructor(){super();let e=matchMedia(`(min-width: 50em)`),t=()=>{this.popover=e.matches?null:`auto`};t(),e.addEventListener(`change`,()=>t()),this.addEventListener(`toggle`,({newState:e})=>this.trapFocus(e===`open`))}trapFocus(e){document.querySelectorAll(`.main-frame, .sl-skip-link`).forEach(t=>{t.toggleAttribute(`inert`,e)})}};customElements.define(`sl-sidebar-pane`,e);</script><sl-sidebar-pane popover id="starlight__sidebar" class="sidebar-pane" data-astro-cid-yntsjkba="true"><div class="sidebar-content sl-flex" data-astro-cid-yntsjkba><sl-sidebar-state-persist data-hash="15wnwhw" data-astro-cid-ipdry5cl="true"><script aria-hidden="true">
+		(() => {
+			try {
+				if (!matchMedia('(min-width: 50em)').matches) return;
+				/** @type {HTMLElement | null} */
+				const target = document.querySelector('sl-sidebar-state-persist');
+				const state = JSON.parse(sessionStorage.getItem('sl-sidebar-state') || '0');
+				if (!target || !state || target.dataset.hash !== state.hash) return;
+				window._starlightScrollRestore = state.scroll;
+				customElements.define(
+					'sl-sidebar-restore',
+					class SidebarRestore extends HTMLElement {
+						connectedCallback() {
+							try {
+								const idx = parseInt(this.dataset.index || '');
+								const details = this.closest('details');
+								if (details && typeof state.open[idx] === 'boolean') details.open = state.open[idx];
+							} catch {}
+						}
+					}
+				);
+			} catch {}
+		})();
+	</script><ul class="top-level" data-astro-cid-rmhv4bp6><li data-astro-cid-rmhv4bp6><details open data-astro-cid-rmhv4bp6><summary data-astro-cid-rmhv4bp6><span class="group-label" data-astro-cid-rmhv4bp6><span class="large" data-astro-cid-rmhv4bp6>Get started</span></span><svg class="caret" data-astro-cid-rmhv4bp6="true" aria-hidden="true" width="16" height="16" viewBox="0 0 24 24" fill="currentColor" style="--sl-icon-size: 1.25rem;" data-astro-cid-hkc32dio><path d="m14.83 11.29-4.24-4.24a1 1 0 1 0-1.42 1.41L12.71 12l-3.54 3.54a1 1 0 0 0 0 1.41 1 1 0 0 0 .71.29 1 1 0 0 0 .71-.29l4.24-4.24a1.002 1.002 0 0 0 0-1.42Z"/></svg></summary><sl-sidebar-restore data-index="0"></sl-sidebar-restore><ul data-astro-cid-rmhv4bp6><li data-astro-cid-rmhv4bp6><a href="/next/getting-started/quickstart/" data-astro-cid-rmhv4bp6><span data-astro-cid-rmhv4bp6>Quickstart</span></a></li></ul></details></li><li data-astro-cid-rmhv4bp6><details open data-astro-cid-rmhv4bp6><summary data-astro-cid-rmhv4bp6><span class="group-label" data-astro-cid-rmhv4bp6><span class="large" data-astro-cid-rmhv4bp6>Concepts</span></span><svg class="caret" data-astro-cid-rmhv4bp6="true" aria-hidden="true" width="16" height="16" viewBox="0 0 24 24" fill="currentColor" style="--sl-icon-size: 1.25rem;" data-astro-cid-hkc32dio><path d="m14.83 11.29-4.24-4.24a1 1 0 1 0-1.42 1.41L12.71 12l-3.54 3.54a1 1 0 0 0 0 1.41 1 1 0 0 0 .71.29 1 1 0 0 0 .71-.29l4.24-4.24a1.002 1.002 0 0 0 0-1.42Z"/></svg></summary><sl-sidebar-restore data-index="1"></sl-sidebar-restore><ul data-astro-cid-rmhv4bp6><li data-astro-cid-rmhv4bp6><a href="/next/concepts/overview/" data-astro-cid-rmhv4bp6><span data-astro-cid-rmhv4bp6>How OCIDex works</span></a></li><li data-astro-cid-rmhv4bp6><a href="/next/concepts/artifacts-and-sboms/" data-astro-cid-rmhv4bp6><span data-astro-cid-rmhv4bp6>Artifacts, SBOMs and components</span></a></li><li data-astro-cid-rmhv4bp6><a href="/next/concepts/sources-and-registries/" data-astro-cid-rmhv4bp6><span data-astro-cid-rmhv4bp6>Sources and registries</span></a></li><li data-astro-cid-rmhv4bp6><a href="/next/concepts/enrichment/" data-astro-cid-rmhv4bp6><span data-astro-cid-rmhv4bp6>Enrichment</span></a></li><li data-astro-cid-rmhv4bp6><a href="/next/concepts/vulnerabilities/" data-astro-cid-rmhv4bp6><span data-astro-cid-rmhv4bp6>Vulnerability matching</span></a></li><li data-astro-cid-rmhv4bp6><a href="/next/concepts/diffs-and-changelog/" data-astro-cid-rmhv4bp6><span data-astro-cid-rmhv4bp6>Diffs and the changelog</span></a></li><li data-astro-cid-rmhv4bp6><a href="/next/concepts/namespaces-and-access/" data-astro-cid-rmhv4bp6><span data-astro-cid-rmhv4bp6>Namespaces and access</span></a></li><li data-astro-cid-rmhv4bp6><a href="/next/concepts/clusters-and-coverage/" data-astro-cid-rmhv4bp6><span data-astro-cid-rmhv4bp6>Clusters and coverage</span></a></li></ul></details></li><li data-astro-cid-rmhv4bp6><details open data-astro-cid-rmhv4bp6><summary data-astro-cid-rmhv4bp6><span class="group-label" data-astro-cid-rmhv4bp6><span class="large" data-astro-cid-rmhv4bp6>Guides</span></span><svg class="caret" data-astro-cid-rmhv4bp6="true" aria-hidden="true" width="16" height="16" viewBox="0 0 24 24" fill="currentColor" style="--sl-icon-size: 1.25rem;" data-astro-cid-hkc32dio><path d="m14.83 11.29-4.24-4.24a1 1 0 1 0-1.42 1.41L12.71 12l-3.54 3.54a1 1 0 0 0 0 1.41 1 1 0 0 0 .71.29 1 1 0 0 0 .71-.29l4.24-4.24a1.002 1.002 0 0 0 0-1.42Z"/></svg></summary><sl-sidebar-restore data-index="2"></sl-sidebar-restore><ul data-astro-cid-rmhv4bp6><li data-astro-cid-rmhv4bp6><details open data-astro-cid-rmhv4bp6><summary data-astro-cid-rmhv4bp6><span class="group-label" data-astro-cid-rmhv4bp6><span class="large" data-astro-cid-rmhv4bp6>Operate</span></span><svg class="caret" data-astro-cid-rmhv4bp6="true" aria-hidden="true" width="16" height="16" viewBox="0 0 24 24" fill="currentColor" style="--sl-icon-size: 1.25rem;" data-astro-cid-hkc32dio><path d="m14.83 11.29-4.24-4.24a1 1 0 1 0-1.42 1.41L12.71 12l-3.54 3.54a1 1 0 0 0 0 1.41 1 1 0 0 0 .71.29 1 1 0 0 0 .71-.29l4.24-4.24a1.002 1.002 0 0 0 0-1.42Z"/></svg></summary><sl-sidebar-restore data-index="3"></sl-sidebar-restore><ul data-astro-cid-rmhv4bp6><li data-astro-cid-rmhv4bp6><a href="/next/guides/operate/overview/" data-astro-cid-rmhv4bp6><span data-astro-cid-rmhv4bp6>Operator guide</span></a></li><li data-astro-cid-rmhv4bp6><a href="/next/guides/operate/install/" data-astro-cid-rmhv4bp6><span data-astro-cid-rmhv4bp6>Install with Helm</span></a></li><li data-astro-cid-rmhv4bp6><a href="/next/guides/operate/authentication/" data-astro-cid-rmhv4bp6><span data-astro-cid-rmhv4bp6>Sign-in and access</span></a></li><li data-astro-cid-rmhv4bp6><a href="/next/guides/operate/production/" data-astro-cid-rmhv4bp6><span data-astro-cid-rmhv4bp6>Production checklist</span></a></li><li data-astro-cid-rmhv4bp6><a href="/next/guides/operate/workers/" data-astro-cid-rmhv4bp6><span data-astro-cid-rmhv4bp6>Scanning and workers</span></a></li><li data-astro-cid-rmhv4bp6><a href="/next/guides/operate/clusters-and-operator/" data-astro-cid-rmhv4bp6><span data-astro-cid-rmhv4bp6>Clusters and the operator</span></a></li><li data-astro-cid-rmhv4bp6><a href="/next/guides/operate/upgrade/" data-astro-cid-rmhv4bp6><span data-astro-cid-rmhv4bp6>Upgrade</span></a></li><li data-astro-cid-rmhv4bp6><a href="/next/guides/operate/backup/" data-astro-cid-rmhv4bp6><span data-astro-cid-rmhv4bp6>Back up and restore</span></a></li><li data-astro-cid-rmhv4bp6><a href="/next/guides/operate/maintenance/" data-astro-cid-rmhv4bp6><span data-astro-cid-rmhv4bp6>Routine maintenance</span></a></li><li data-astro-cid-rmhv4bp6><a href="/next/guides/operate/monitoring/" data-astro-cid-rmhv4bp6><span data-astro-cid-rmhv4bp6>Monitoring</span></a></li><li data-astro-cid-rmhv4bp6><a href="/next/guides/operate/sizing/" data-astro-cid-rmhv4bp6><span data-astro-cid-rmhv4bp6>Sizing</span></a></li><li data-astro-cid-rmhv4bp6><a href="/next/guides/operate/troubleshooting/" data-astro-cid-rmhv4bp6><span data-astro-cid-rmhv4bp6>Troubleshooting</span></a></li><li data-astro-cid-rmhv4bp6><a href="/next/guides/operate/verify-artifacts/" data-astro-cid-rmhv4bp6><span data-astro-cid-rmhv4bp6>Verify release artifacts</span></a></li></ul></details></li><li data-astro-cid-rmhv4bp6><details open data-astro-cid-rmhv4bp6><summary data-astro-cid-rmhv4bp6><span class="group-label" data-astro-cid-rmhv4bp6><span class="large" data-astro-cid-rmhv4bp6>Use</span></span><svg class="caret" data-astro-cid-rmhv4bp6="true" aria-hidden="true" width="16" height="16" viewBox="0 0 24 24" fill="currentColor" style="--sl-icon-size: 1.25rem;" data-astro-cid-hkc32dio><path d="m14.83 11.29-4.24-4.24a1 1 0 1 0-1.42 1.41L12.71 12l-3.54 3.54a1 1 0 0 0 0 1.41 1 1 0 0 0 .71.29 1 1 0 0 0 .71-.29l4.24-4.24a1.002 1.002 0 0 0 0-1.42Z"/></svg></summary><sl-sidebar-restore data-index="4"></sl-sidebar-restore><ul data-astro-cid-rmhv4bp6><li data-astro-cid-rmhv4bp6><a href="/next/guides/use/overview/" data-astro-cid-rmhv4bp6><span data-astro-cid-rmhv4bp6>User guide</span></a></li></ul></details></li><li data-astro-cid-rmhv4bp6><details open data-astro-cid-rmhv4bp6><summary data-astro-cid-rmhv4bp6><span class="group-label" data-astro-cid-rmhv4bp6><span class="large" data-astro-cid-rmhv4bp6>Integrate</span></span><svg class="caret" data-astro-cid-rmhv4bp6="true" aria-hidden="true" width="16" height="16" viewBox="0 0 24 24" fill="currentColor" style="--sl-icon-size: 1.25rem;" data-astro-cid-hkc32dio><path d="m14.83 11.29-4.24-4.24a1 1 0 1 0-1.42 1.41L12.71 12l-3.54 3.54a1 1 0 0 0 0 1.41 1 1 0 0 0 .71.29 1 1 0 0 0 .71-.29l4.24-4.24a1.002 1.002 0 0 0 0-1.42Z"/></svg></summary><sl-sidebar-restore data-index="5"></sl-sidebar-restore><ul data-astro-cid-rmhv4bp6><li data-astro-cid-rmhv4bp6><a href="/next/guides/integrate/overview/" data-astro-cid-rmhv4bp6><span data-astro-cid-rmhv4bp6>Integrator guide</span></a></li><li data-astro-cid-rmhv4bp6><a href="/next/guides/integrate/api/" data-astro-cid-rmhv4bp6><span data-astro-cid-rmhv4bp6>The REST API</span></a></li><li data-astro-cid-rmhv4bp6><a href="/next/guides/integrate/cli/" data-astro-cid-rmhv4bp6><span data-astro-cid-rmhv4bp6>ocidex-cli</span></a></li><li data-astro-cid-rmhv4bp6><a href="/next/guides/integrate/ci/" data-astro-cid-rmhv4bp6><span data-astro-cid-rmhv4bp6>Push SBOMs from CI</span></a></li><li data-astro-cid-rmhv4bp6><a href="/next/guides/integrate/mcp/" data-astro-cid-rmhv4bp6><span data-astro-cid-rmhv4bp6>MCP server</span></a></li></ul></details></li></ul></details></li><li data-astro-cid-rmhv4bp6><details open data-astro-cid-rmhv4bp6><summary data-astro-cid-rmhv4bp6><span class="group-label" data-astro-cid-rmhv4bp6><span class="large" data-astro-cid-rmhv4bp6>Reference</span></span><svg class="caret" data-astro-cid-rmhv4bp6="true" aria-hidden="true" width="16" height="16" viewBox="0 0 24 24" fill="currentColor" style="--sl-icon-size: 1.25rem;" data-astro-cid-hkc32dio><path d="m14.83 11.29-4.24-4.24a1 1 0 1 0-1.42 1.41L12.71 12l-3.54 3.54a1 1 0 0 0 0 1.41 1 1 0 0 0 .71.29 1 1 0 0 0 .71-.29l4.24-4.24a1.002 1.002 0 0 0 0-1.42Z"/></svg></summary><sl-sidebar-restore data-index="6"></sl-sidebar-restore><ul data-astro-cid-rmhv4bp6><li data-astro-cid-rmhv4bp6><a href="/next/reference/overview/" data-astro-cid-rmhv4bp6><span data-astro-cid-rmhv4bp6>Reference</span></a></li><li data-astro-cid-rmhv4bp6><a href="/next/reference/configuration/" data-astro-cid-rmhv4bp6><span data-astro-cid-rmhv4bp6>Configuration</span></a></li><li data-astro-cid-rmhv4bp6><a href="/next/reference/helm-values/" aria-current="page" data-astro-cid-rmhv4bp6><span data-astro-cid-rmhv4bp6>Helm values</span></a></li><li data-astro-cid-rmhv4bp6><a href="/next/reference/cli/" data-astro-cid-rmhv4bp6><span data-astro-cid-rmhv4bp6>CLI</span></a></li><li data-astro-cid-rmhv4bp6><a href="/next/reference/authorization/" data-astro-cid-rmhv4bp6><span data-astro-cid-rmhv4bp6>Authorization matrix</span></a></li><li data-astro-cid-rmhv4bp6><details data-astro-cid-rmhv4bp6><summary data-astro-cid-rmhv4bp6><span class="group-label" data-astro-cid-rmhv4bp6><span class="large" data-astro-cid-rmhv4bp6>REST API</span></span><svg class="caret" data-astro-cid-rmhv4bp6="true" aria-hidden="true" width="16" height="16" viewBox="0 0 24 24" fill="currentColor" style="--sl-icon-size: 1.25rem;" data-astro-cid-hkc32dio><path d="m14.83 11.29-4.24-4.24a1 1 0 1 0-1.42 1.41L12.71 12l-3.54 3.54a1 1 0 0 0 0 1.41 1 1 0 0 0 .71.29 1 1 0 0 0 .71-.29l4.24-4.24a1.002 1.002 0 0 0 0-1.42Z"/></svg></summary><sl-sidebar-restore data-index="7"></sl-sidebar-restore><ul data-astro-cid-rmhv4bp6><li data-astro-cid-rmhv4bp6><a href="/next/reference/api/" data-astro-cid-rmhv4bp6><span data-astro-cid-rmhv4bp6>Overview</span></a></li><li data-astro-cid-rmhv4bp6><details data-astro-cid-rmhv4bp6><summary data-astro-cid-rmhv4bp6><span class="group-label" data-astro-cid-rmhv4bp6><span class="large" data-astro-cid-rmhv4bp6>Artifacts</span></span><svg class="caret" data-astro-cid-rmhv4bp6="true" aria-hidden="true" width="16" height="16" viewBox="0 0 24 24" fill="currentColor" style="--sl-icon-size: 1.25rem;" data-astro-cid-hkc32dio><path d="m14.83 11.29-4.24-4.24a1 1 0 1 0-1.42 1.41L12.71 12l-3.54 3.54a1 1 0 0 0 0 1.41 1 1 0 0 0 .71.29 1 1 0 0 0 .71-.29l4.24-4.24a1.002 1.002 0 0 0 0-1.42Z"/></svg></summary><sl-sidebar-restore data-index="8"></sl-sidebar-restore><ul data-astro-cid-rmhv4bp6><li data-astro-cid-rmhv4bp6><a href="/next/reference/api/operations/tags/artifacts/" data-astro-cid-rmhv4bp6><span data-astro-cid-rmhv4bp6>Overview</span></a></li><li data-astro-cid-rmhv4bp6><a href="/next/reference/api/operations/list-artifacts/" data-astro-cid-rmhv4bp6><span data-astro-cid-rmhv4bp6>List artifacts</span><span class="sl-badge caution small sl-openapi-method-get" data-astro-cid-rmhv4bp6="true" data-astro-cid-f4zorn72>GET</span></a></li><li data-astro-cid-rmhv4bp6><a href="/next/reference/api/operations/lookup-artifact/" data-astro-cid-rmhv4bp6><span data-astro-cid-rmhv4bp6>Resolve an artifact by name</span><span class="sl-badge caution small sl-openapi-method-get" data-astro-cid-rmhv4bp6="true" data-astro-cid-f4zorn72>GET</span></a></li><li data-astro-cid-rmhv4bp6><a href="/next/reference/api/operations/get-artifact/" data-astro-cid-rmhv4bp6><span data-astro-cid-rmhv4bp6>Get an artifact</span><span class="sl-badge caution small sl-openapi-method-get" data-astro-cid-rmhv4bp6="true" data-astro-cid-f4zorn72>GET</span></a></li><li data-astro-cid-rmhv4bp6><a href="/next/reference/api/operations/delete-artifact/" data-astro-cid-rmhv4bp6><span data-astro-cid-rmhv4bp6>Delete an artifact</span><span class="sl-badge caution small sl-openapi-method-delete" data-astro-cid-rmhv4bp6="true" data-astro-cid-f4zorn72>DELETE</span></a></li><li data-astro-cid-rmhv4bp6><a href="/next/reference/api/operations/get-artifact-changelog/" data-astro-cid-rmhv4bp6><span data-astro-cid-rmhv4bp6>Get artifact changelog</span><span class="sl-badge caution small sl-openapi-method-get" data-astro-cid-rmhv4bp6="true" data-astro-cid-f4zorn72>GET</span></a></li><li data-astro-cid-rmhv4bp6><a href="/next/reference/api/operations/get-artifact-contains/" data-astro-cid-rmhv4bp6><span data-astro-cid-rmhv4bp6>List tracked artifacts this artifact ships</span><span class="sl-badge caution small sl-openapi-method-get" data-astro-cid-rmhv4bp6="true" data-astro-cid-f4zorn72>GET</span></a></li><li data-astro-cid-rmhv4bp6><a href="/next/reference/api/operations/get-artifact-license-summary/" data-astro-cid-rmhv4bp6><span data-astro-cid-rmhv4bp6>Get artifact license summary</span><span class="sl-badge caution small sl-openapi-method-get" data-astro-cid-rmhv4bp6="true" data-astro-cid-f4zorn72>GET</span></a></li><li data-astro-cid-rmhv4bp6><a href="/next/reference/api/operations/list-artifact-sboms/" data-astro-cid-rmhv4bp6><span data-astro-cid-rmhv4bp6>List SBOMs for an artifact</span><span class="sl-badge caution small sl-openapi-method-get" data-astro-cid-rmhv4bp6="true" data-astro-cid-f4zorn72>GET</span></a></li><li data-astro-cid-rmhv4bp6><a href="/next/reference/api/operations/get-artifact-usages/" data-astro-cid-rmhv4bp6><span data-astro-cid-rmhv4bp6>List artifacts that ship this artifact</span><span class="sl-badge caution small sl-openapi-method-get" data-astro-cid-rmhv4bp6="true" data-astro-cid-f4zorn72>GET</span></a></li><li data-astro-cid-rmhv4bp6><a href="/next/reference/api/operations/list-artifact-versions/" data-astro-cid-rmhv4bp6><span data-astro-cid-rmhv4bp6>List versions for an artifact</span><span class="sl-badge caution small sl-openapi-method-get" data-astro-cid-rmhv4bp6="true" data-astro-cid-f4zorn72>GET</span></a></li><li data-astro-cid-rmhv4bp6><a href="/next/reference/api/operations/get-artifact-vuln-summary/" data-astro-cid-rmhv4bp6><span data-astro-cid-rmhv4bp6>Get artifact vulnerability summary</span><span class="sl-badge caution small sl-openapi-method-get" data-astro-cid-rmhv4bp6="true" data-astro-cid-f4zorn72>GET</span></a></li><li data-astro-cid-rmhv4bp6><a href="/next/reference/api/operations/list-artifact-vulns/" data-astro-cid-rmhv4bp6><span data-astro-cid-rmhv4bp6>List vulnerabilities across an artifact&#39;s versions</span><span class="sl-badge caution small sl-openapi-method-get" data-astro-cid-rmhv4bp6="true" data-astro-cid-f4zorn72>GET</span></a></li></ul></details></li><li data-astro-cid-rmhv4bp6><details data-astro-cid-rmhv4bp6><summary data-astro-cid-rmhv4bp6><span class="group-label" data-astro-cid-rmhv4bp6><span class="large" data-astro-cid-rmhv4bp6>SBOMs</span></span><svg class="caret" data-astro-cid-rmhv4bp6="true" aria-hidden="true" width="16" height="16" viewBox="0 0 24 24" fill="currentColor" style="--sl-icon-size: 1.25rem;" data-astro-cid-hkc32dio><path d="m14.83 11.29-4.24-4.24a1 1 0 1 0-1.42 1.41L12.71 12l-3.54 3.54a1 1 0 0 0 0 1.41 1 1 0 0 0 .71.29 1 1 0 0 0 .71-.29l4.24-4.24a1.002 1.002 0 0 0 0-1.42Z"/></svg></summary><sl-sidebar-restore data-index="9"></sl-sidebar-restore><ul data-astro-cid-rmhv4bp6><li data-astro-cid-rmhv4bp6><a href="/next/reference/api/operations/tags/sboms/" data-astro-cid-rmhv4bp6><span data-astro-cid-rmhv4bp6>Overview</span></a></li><li data-astro-cid-rmhv4bp6><a href="/next/reference/api/operations/list-sboms/" data-astro-cid-rmhv4bp6><span data-astro-cid-rmhv4bp6>List SBOMs</span><span class="sl-badge caution small sl-openapi-method-get" data-astro-cid-rmhv4bp6="true" data-astro-cid-f4zorn72>GET</span></a></li><li data-astro-cid-rmhv4bp6><a href="/next/reference/api/operations/ingest-sbom/" data-astro-cid-rmhv4bp6><span data-astro-cid-rmhv4bp6>Ingest an SBOM</span><span class="sl-badge caution small sl-openapi-method-post" data-astro-cid-rmhv4bp6="true" data-astro-cid-f4zorn72>POST</span></a></li><li data-astro-cid-rmhv4bp6><a href="/next/reference/api/operations/diff-sboms/" data-astro-cid-rmhv4bp6><span data-astro-cid-rmhv4bp6>Diff two SBOMs</span><span class="sl-badge caution small sl-openapi-method-get" data-astro-cid-rmhv4bp6="true" data-astro-cid-f4zorn72>GET</span></a></li><li data-astro-cid-rmhv4bp6><a href="/next/reference/api/operations/diff-tree/" data-astro-cid-rmhv4bp6><span data-astro-cid-rmhv4bp6>Diff two SBOMs with dependency tree</span><span class="sl-badge caution small sl-openapi-method-get" data-astro-cid-rmhv4bp6="true" data-astro-cid-f4zorn72>GET</span></a></li><li data-astro-cid-rmhv4bp6><a href="/next/reference/api/operations/lookup-sbom/" data-astro-cid-rmhv4bp6><span data-astro-cid-rmhv4bp6>Resolve an SBOM by artifact name and version</span><span class="sl-badge caution small sl-openapi-method-get" data-astro-cid-rmhv4bp6="true" data-astro-cid-f4zorn72>GET</span></a></li><li data-astro-cid-rmhv4bp6><a href="/next/reference/api/operations/get-sbom/" data-astro-cid-rmhv4bp6><span data-astro-cid-rmhv4bp6>Get an SBOM</span><span class="sl-badge caution small sl-openapi-method-get" data-astro-cid-rmhv4bp6="true" data-astro-cid-f4zorn72>GET</span></a></li><li data-astro-cid-rmhv4bp6><a href="/next/reference/api/operations/delete-sbom/" data-astro-cid-rmhv4bp6><span data-astro-cid-rmhv4bp6>Delete an SBOM</span><span class="sl-badge caution small sl-openapi-method-delete" data-astro-cid-rmhv4bp6="true" data-astro-cid-f4zorn72>DELETE</span></a></li><li data-astro-cid-rmhv4bp6><a href="/next/reference/api/operations/list-sbom-components/" data-astro-cid-rmhv4bp6><span data-astro-cid-rmhv4bp6>List components in an SBOM</span><span class="sl-badge caution small sl-openapi-method-get" data-astro-cid-rmhv4bp6="true" data-astro-cid-f4zorn72>GET</span></a></li><li data-astro-cid-rmhv4bp6><a href="/next/reference/api/operations/get-sbom-dependencies/" data-astro-cid-rmhv4bp6><span data-astro-cid-rmhv4bp6>Get SBOM dependency graph</span><span class="sl-badge caution small sl-openapi-method-get" data-astro-cid-rmhv4bp6="true" data-astro-cid-f4zorn72>GET</span></a></li><li data-astro-cid-rmhv4bp6><a href="/next/reference/api/operations/list-sbom-drift-history/" data-astro-cid-rmhv4bp6><span data-astro-cid-rmhv4bp6>List provenance drift history for an SBOM</span><span class="sl-badge caution small sl-openapi-method-get" data-astro-cid-rmhv4bp6="true" data-astro-cid-f4zorn72>GET</span></a></li><li data-astro-cid-rmhv4bp6><a href="/next/reference/api/operations/list-sbom-vulns/" data-astro-cid-rmhv4bp6><span data-astro-cid-rmhv4bp6>List vulnerabilities in an SBOM</span><span class="sl-badge caution small sl-openapi-method-get" data-astro-cid-rmhv4bp6="true" data-astro-cid-f4zorn72>GET</span></a></li></ul></details></li><li data-astro-cid-rmhv4bp6><details data-astro-cid-rmhv4bp6><summary data-astro-cid-rmhv4bp6><span class="group-label" data-astro-cid-rmhv4bp6><span class="large" data-astro-cid-rmhv4bp6>Components</span></span><svg class="caret" data-astro-cid-rmhv4bp6="true" aria-hidden="true" width="16" height="16" viewBox="0 0 24 24" fill="currentColor" style="--sl-icon-size: 1.25rem;" data-astro-cid-hkc32dio><path d="m14.83 11.29-4.24-4.24a1 1 0 1 0-1.42 1.41L12.71 12l-3.54 3.54a1 1 0 0 0 0 1.41 1 1 0 0 0 .71.29 1 1 0 0 0 .71-.29l4.24-4.24a1.002 1.002 0 0 0 0-1.42Z"/></svg></summary><sl-sidebar-restore data-index="10"></sl-sidebar-restore><ul data-astro-cid-rmhv4bp6><li data-astro-cid-rmhv4bp6><a href="/next/reference/api/operations/tags/components/" data-astro-cid-rmhv4bp6><span data-astro-cid-rmhv4bp6>Overview</span></a></li><li data-astro-cid-rmhv4bp6><a href="/next/reference/api/operations/search-components/" data-astro-cid-rmhv4bp6><span data-astro-cid-rmhv4bp6>Search components</span><span class="sl-badge caution small sl-openapi-method-get" data-astro-cid-rmhv4bp6="true" data-astro-cid-f4zorn72>GET</span></a></li><li data-astro-cid-rmhv4bp6><a href="/next/reference/api/operations/search-distinct-components/" data-astro-cid-rmhv4bp6><span data-astro-cid-rmhv4bp6>Search distinct components</span><span class="sl-badge caution small sl-openapi-method-get" data-astro-cid-rmhv4bp6="true" data-astro-cid-f4zorn72>GET</span></a></li><li data-astro-cid-rmhv4bp6><a href="/next/reference/api/operations/list-component-purl-types/" data-astro-cid-rmhv4bp6><span data-astro-cid-rmhv4bp6>List component PURL types</span><span class="sl-badge caution small sl-openapi-method-get" data-astro-cid-rmhv4bp6="true" data-astro-cid-f4zorn72>GET</span></a></li><li data-astro-cid-rmhv4bp6><a href="/next/reference/api/operations/list-component-version-summaries/" data-astro-cid-rmhv4bp6><span data-astro-cid-rmhv4bp6>List a component&#39;s distinct versions</span><span class="sl-badge caution small sl-openapi-method-get" data-astro-cid-rmhv4bp6="true" data-astro-cid-f4zorn72>GET</span></a></li><li data-astro-cid-rmhv4bp6><a href="/next/reference/api/operations/get-component-versions/" data-astro-cid-rmhv4bp6><span data-astro-cid-rmhv4bp6>Get component versions</span><span class="sl-badge caution small sl-openapi-method-get" data-astro-cid-rmhv4bp6="true" data-astro-cid-f4zorn72>GET</span></a></li><li data-astro-cid-rmhv4bp6><a href="/next/reference/api/operations/get-component/" data-astro-cid-rmhv4bp6><span data-astro-cid-rmhv4bp6>Get a component</span><span class="sl-badge caution small sl-openapi-method-get" data-astro-cid-rmhv4bp6="true" data-astro-cid-f4zorn72>GET</span></a></li><li data-astro-cid-rmhv4bp6><a href="/next/reference/api/operations/get-component-vulns/" data-astro-cid-rmhv4bp6><span data-astro-cid-rmhv4bp6>List vulnerabilities for a component</span><span class="sl-badge caution small sl-openapi-method-get" data-astro-cid-rmhv4bp6="true" data-astro-cid-f4zorn72>GET</span></a></li></ul></details></li><li data-astro-cid-rmhv4bp6><details data-astro-cid-rmhv4bp6><summary data-astro-cid-rmhv4bp6><span class="group-label" data-astro-cid-rmhv4bp6><span class="large" data-astro-cid-rmhv4bp6>Licenses</span></span><svg class="caret" data-astro-cid-rmhv4bp6="true" aria-hidden="true" width="16" height="16" viewBox="0 0 24 24" fill="currentColor" style="--sl-icon-size: 1.25rem;" data-astro-cid-hkc32dio><path d="m14.83 11.29-4.24-4.24a1 1 0 1 0-1.42 1.41L12.71 12l-3.54 3.54a1 1 0 0 0 0 1.41 1 1 0 0 0 .71.29 1 1 0 0 0 .71-.29l4.24-4.24a1.002 1.002 0 0 0 0-1.42Z"/></svg></summary><sl-sidebar-restore data-index="11"></sl-sidebar-restore><ul data-astro-cid-rmhv4bp6><li data-astro-cid-rmhv4bp6><a href="/next/reference/api/operations/tags/licenses/" data-astro-cid-rmhv4bp6><span data-astro-cid-rmhv4bp6>Overview</span></a></li><li data-astro-cid-rmhv4bp6><a href="/next/reference/api/operations/list-licenses/" data-astro-cid-rmhv4bp6><span data-astro-cid-rmhv4bp6>List licenses</span><span class="sl-badge caution small sl-openapi-method-get" data-astro-cid-rmhv4bp6="true" data-astro-cid-f4zorn72>GET</span></a></li><li data-astro-cid-rmhv4bp6><a href="/next/reference/api/operations/lookup-license/" data-astro-cid-rmhv4bp6><span data-astro-cid-rmhv4bp6>Resolve a license by SPDX identifier</span><span class="sl-badge caution small sl-openapi-method-get" data-astro-cid-rmhv4bp6="true" data-astro-cid-f4zorn72>GET</span></a></li><li data-astro-cid-rmhv4bp6><a href="/next/reference/api/operations/list-components-by-license/" data-astro-cid-rmhv4bp6><span data-astro-cid-rmhv4bp6>List components by license</span><span class="sl-badge caution small sl-openapi-method-get" data-astro-cid-rmhv4bp6="true" data-astro-cid-f4zorn72>GET</span></a></li></ul></details></li><li data-astro-cid-rmhv4bp6><details data-astro-cid-rmhv4bp6><summary data-astro-cid-rmhv4bp6><span class="group-label" data-astro-cid-rmhv4bp6><span class="large" data-astro-cid-rmhv4bp6>Vulnerabilities</span></span><svg class="caret" data-astro-cid-rmhv4bp6="true" aria-hidden="true" width="16" height="16" viewBox="0 0 24 24" fill="currentColor" style="--sl-icon-size: 1.25rem;" data-astro-cid-hkc32dio><path d="m14.83 11.29-4.24-4.24a1 1 0 1 0-1.42 1.41L12.71 12l-3.54 3.54a1 1 0 0 0 0 1.41 1 1 0 0 0 .71.29 1 1 0 0 0 .71-.29l4.24-4.24a1.002 1.002 0 0 0 0-1.42Z"/></svg></summary><sl-sidebar-restore data-index="12"></sl-sidebar-restore><ul data-astro-cid-rmhv4bp6><li data-astro-cid-rmhv4bp6><a href="/next/reference/api/operations/tags/vulnerabilities/" data-astro-cid-rmhv4bp6><span data-astro-cid-rmhv4bp6>Overview</span></a></li><li data-astro-cid-rmhv4bp6><a href="/next/reference/api/operations/list-top-vulnerabilities/" data-astro-cid-rmhv4bp6><span data-astro-cid-rmhv4bp6>List top vulnerabilities</span><span class="sl-badge caution small sl-openapi-method-get" data-astro-cid-rmhv4bp6="true" data-astro-cid-f4zorn72>GET</span></a></li><li data-astro-cid-rmhv4bp6><a href="/next/reference/api/operations/get-vulnerability/" data-astro-cid-rmhv4bp6><span data-astro-cid-rmhv4bp6>Get vulnerability detail</span><span class="sl-badge caution small sl-openapi-method-get" data-astro-cid-rmhv4bp6="true" data-astro-cid-f4zorn72>GET</span></a></li><li data-astro-cid-rmhv4bp6><a href="/next/reference/api/operations/list-vulnerability-workloads/" data-astro-cid-rmhv4bp6><span data-astro-cid-rmhv4bp6>List running workloads affected by a vulnerability</span><span class="sl-badge caution small sl-openapi-method-get" data-astro-cid-rmhv4bp6="true" data-astro-cid-f4zorn72>GET</span></a></li></ul></details></li><li data-astro-cid-rmhv4bp6><details data-astro-cid-rmhv4bp6><summary data-astro-cid-rmhv4bp6><span class="group-label" data-astro-cid-rmhv4bp6><span class="large" data-astro-cid-rmhv4bp6>Clusters</span></span><svg class="caret" data-astro-cid-rmhv4bp6="true" aria-hidden="true" width="16" height="16" viewBox="0 0 24 24" fill="currentColor" style="--sl-icon-size: 1.25rem;" data-astro-cid-hkc32dio><path d="m14.83 11.29-4.24-4.24a1 1 0 1 0-1.42 1.41L12.71 12l-3.54 3.54a1 1 0 0 0 0 1.41 1 1 0 0 0 .71.29 1 1 0 0 0 .71-.29l4.24-4.24a1.002 1.002 0 0 0 0-1.42Z"/></svg></summary><sl-sidebar-restore data-index="13"></sl-sidebar-restore><ul data-astro-cid-rmhv4bp6><li data-astro-cid-rmhv4bp6><a href="/next/reference/api/operations/tags/clusters/" data-astro-cid-rmhv4bp6><span data-astro-cid-rmhv4bp6>Overview</span></a></li><li data-astro-cid-rmhv4bp6><a href="/next/reference/api/operations/list-clusters/" data-astro-cid-rmhv4bp6><span data-astro-cid-rmhv4bp6>List clusters</span><span class="sl-badge caution small sl-openapi-method-get" data-astro-cid-rmhv4bp6="true" data-astro-cid-f4zorn72>GET</span></a></li><li data-astro-cid-rmhv4bp6><a href="/next/reference/api/operations/create-cluster/" data-astro-cid-rmhv4bp6><span data-astro-cid-rmhv4bp6>Register a cluster</span><span class="sl-badge caution small sl-openapi-method-post" data-astro-cid-rmhv4bp6="true" data-astro-cid-f4zorn72>POST</span></a></li><li data-astro-cid-rmhv4bp6><a href="/next/reference/api/operations/get-cluster/" data-astro-cid-rmhv4bp6><span data-astro-cid-rmhv4bp6>Get a cluster</span><span class="sl-badge caution small sl-openapi-method-get" data-astro-cid-rmhv4bp6="true" data-astro-cid-f4zorn72>GET</span></a></li><li data-astro-cid-rmhv4bp6><a href="/next/reference/api/operations/delete-cluster/" data-astro-cid-rmhv4bp6><span data-astro-cid-rmhv4bp6>Delete a cluster</span><span class="sl-badge caution small sl-openapi-method-delete" data-astro-cid-rmhv4bp6="true" data-astro-cid-f4zorn72>DELETE</span></a></li><li data-astro-cid-rmhv4bp6><a href="/next/reference/api/operations/update-cluster/" data-astro-cid-rmhv4bp6><span data-astro-cid-rmhv4bp6>Rename a cluster</span><span class="sl-badge caution small sl-openapi-method-patch" data-astro-cid-rmhv4bp6="true" data-astro-cid-f4zorn72>PATCH</span></a></li><li data-astro-cid-rmhv4bp6><a href="/next/reference/api/operations/list-cluster-images/" data-astro-cid-rmhv4bp6><span data-astro-cid-rmhv4bp6>List running images</span><span class="sl-badge caution small sl-openapi-method-get" data-astro-cid-rmhv4bp6="true" data-astro-cid-f4zorn72>GET</span></a></li><li data-astro-cid-rmhv4bp6><a href="/next/reference/api/operations/ingest-cluster-unknown-images/" data-astro-cid-rmhv4bp6><span data-astro-cid-rmhv4bp6>Scan the cluster&#39;s unscanned running images</span><span class="sl-badge caution small sl-openapi-method-post" data-astro-cid-rmhv4bp6="true" data-astro-cid-f4zorn72>POST</span></a></li><li data-astro-cid-rmhv4bp6><a href="/next/reference/api/operations/put-cluster-inventory/" data-astro-cid-rmhv4bp6><span data-astro-cid-rmhv4bp6>Push a cluster inventory snapshot</span><span class="sl-badge caution small sl-openapi-method-post" data-astro-cid-rmhv4bp6="true" data-astro-cid-f4zorn72>POST</span></a></li><li data-astro-cid-rmhv4bp6><a href="/next/reference/api/operations/list-cluster-k8s-namespaces/" data-astro-cid-rmhv4bp6><span data-astro-cid-rmhv4bp6>List reported Kubernetes namespaces</span><span class="sl-badge caution small sl-openapi-method-get" data-astro-cid-rmhv4bp6="true" data-astro-cid-f4zorn72>GET</span></a></li><li data-astro-cid-rmhv4bp6><a href="/next/reference/api/operations/list-cluster-unknown-images/" data-astro-cid-rmhv4bp6><span data-astro-cid-rmhv4bp6>List running images with no ingested SBOM</span><span class="sl-badge caution small sl-openapi-method-get" data-astro-cid-rmhv4bp6="true" data-astro-cid-f4zorn72>GET</span></a></li><li data-astro-cid-rmhv4bp6><a href="/next/reference/api/operations/list-cluster-vulns/" data-astro-cid-rmhv4bp6><span data-astro-cid-rmhv4bp6>List vulnerabilities running in a cluster</span><span class="sl-badge caution small sl-openapi-method-get" data-astro-cid-rmhv4bp6="true" data-astro-cid-f4zorn72>GET</span></a></li><li data-astro-cid-rmhv4bp6><a href="/next/reference/api/operations/list-cluster-workloads/" data-astro-cid-rmhv4bp6><span data-astro-cid-rmhv4bp6>List running workloads</span><span class="sl-badge caution small sl-openapi-method-get" data-astro-cid-rmhv4bp6="true" data-astro-cid-f4zorn72>GET</span></a></li><li data-astro-cid-rmhv4bp6><a href="/next/reference/api/operations/list-my-clusters/" data-astro-cid-rmhv4bp6><span data-astro-cid-rmhv4bp6>List my clusters</span><span class="sl-badge caution small sl-openapi-method-get" data-astro-cid-rmhv4bp6="true" data-astro-cid-f4zorn72>GET</span></a></li></ul></details></li><li data-astro-cid-rmhv4bp6><details data-astro-cid-rmhv4bp6><summary data-astro-cid-rmhv4bp6><span class="group-label" data-astro-cid-rmhv4bp6><span class="large" data-astro-cid-rmhv4bp6>Registries</span></span><svg class="caret" data-astro-cid-rmhv4bp6="true" aria-hidden="true" width="16" height="16" viewBox="0 0 24 24" fill="currentColor" style="--sl-icon-size: 1.25rem;" data-astro-cid-hkc32dio><path d="m14.83 11.29-4.24-4.24a1 1 0 1 0-1.42 1.41L12.71 12l-3.54 3.54a1 1 0 0 0 0 1.41 1 1 0 0 0 .71.29 1 1 0 0 0 .71-.29l4.24-4.24a1.002 1.002 0 0 0 0-1.42Z"/></svg></summary><sl-sidebar-restore data-index="14"></sl-sidebar-restore><ul data-astro-cid-rmhv4bp6><li data-astro-cid-rmhv4bp6><a href="/next/reference/api/operations/tags/registries/" data-astro-cid-rmhv4bp6><span data-astro-cid-rmhv4bp6>Overview</span></a></li><li data-astro-cid-rmhv4bp6><a href="/next/reference/api/operations/list-registries/" data-astro-cid-rmhv4bp6><span data-astro-cid-rmhv4bp6>List registries</span><span class="sl-badge caution small sl-openapi-method-get" data-astro-cid-rmhv4bp6="true" data-astro-cid-f4zorn72>GET</span></a></li><li data-astro-cid-rmhv4bp6><a href="/next/reference/api/operations/create-registry/" data-astro-cid-rmhv4bp6><span data-astro-cid-rmhv4bp6>Create a registry</span><span class="sl-badge caution small sl-openapi-method-post" data-astro-cid-rmhv4bp6="true" data-astro-cid-f4zorn72>POST</span></a></li><li data-astro-cid-rmhv4bp6><a href="/next/reference/api/operations/get-registry-by-name/" data-astro-cid-rmhv4bp6><span data-astro-cid-rmhv4bp6>Get a registry by name</span><span class="sl-badge caution small sl-openapi-method-get" data-astro-cid-rmhv4bp6="true" data-astro-cid-f4zorn72>GET</span></a></li><li data-astro-cid-rmhv4bp6><a href="/next/reference/api/operations/list-recent-drift/" data-astro-cid-rmhv4bp6><span data-astro-cid-rmhv4bp6>Recent provenance drift feed</span><span class="sl-badge caution small sl-openapi-method-get" data-astro-cid-rmhv4bp6="true" data-astro-cid-f4zorn72>GET</span></a></li><li data-astro-cid-rmhv4bp6><a href="/next/reference/api/operations/preview-registry-config/" data-astro-cid-rmhv4bp6><span data-astro-cid-rmhv4bp6>Preview what an unsaved registry would scan</span><span class="sl-badge caution small sl-openapi-method-post" data-astro-cid-rmhv4bp6="true" data-astro-cid-f4zorn72>POST</span></a></li><li data-astro-cid-rmhv4bp6><a href="/next/reference/api/operations/test-registry-connection/" data-astro-cid-rmhv4bp6><span data-astro-cid-rmhv4bp6>Test registry connectivity</span><span class="sl-badge caution small sl-openapi-method-post" data-astro-cid-rmhv4bp6="true" data-astro-cid-f4zorn72>POST</span></a></li><li data-astro-cid-rmhv4bp6><a href="/next/reference/api/operations/get-registry-trust-summary/" data-astro-cid-rmhv4bp6><span data-astro-cid-rmhv4bp6>Per-registry signing-status counts</span><span class="sl-badge caution small sl-openapi-method-get" data-astro-cid-rmhv4bp6="true" data-astro-cid-f4zorn72>GET</span></a></li><li data-astro-cid-rmhv4bp6><a href="/next/reference/api/operations/get-registry/" data-astro-cid-rmhv4bp6><span data-astro-cid-rmhv4bp6>Get a registry</span><span class="sl-badge caution small sl-openapi-method-get" data-astro-cid-rmhv4bp6="true" data-astro-cid-f4zorn72>GET</span></a></li><li data-astro-cid-rmhv4bp6><a href="/next/reference/api/operations/delete-registry/" data-astro-cid-rmhv4bp6><span data-astro-cid-rmhv4bp6>Delete a registry</span><span class="sl-badge caution small sl-openapi-method-delete" data-astro-cid-rmhv4bp6="true" data-astro-cid-f4zorn72>DELETE</span></a></li><li data-astro-cid-rmhv4bp6><a href="/next/reference/api/operations/update-registry/" data-astro-cid-rmhv4bp6><span data-astro-cid-rmhv4bp6>Update a registry (partial)</span><span class="sl-badge caution small sl-openapi-method-patch" data-astro-cid-rmhv4bp6="true" data-astro-cid-f4zorn72>PATCH</span></a></li><li data-astro-cid-rmhv4bp6><a href="/next/reference/api/operations/get-registry-preview/" data-astro-cid-rmhv4bp6><span data-astro-cid-rmhv4bp6>Preview what a registry&#39;s next walk would scan</span><span class="sl-badge caution small sl-openapi-method-get" data-astro-cid-rmhv4bp6="true" data-astro-cid-f4zorn72>GET</span></a></li><li data-astro-cid-rmhv4bp6><a href="/next/reference/api/operations/scan-registry/" data-astro-cid-rmhv4bp6><span data-astro-cid-rmhv4bp6>Trigger ad-hoc registry scan</span><span class="sl-badge caution small sl-openapi-method-post" data-astro-cid-rmhv4bp6="true" data-astro-cid-f4zorn72>POST</span></a></li><li data-astro-cid-rmhv4bp6><a href="/next/reference/api/operations/registry-webhook/" data-astro-cid-rmhv4bp6><span data-astro-cid-rmhv4bp6>Receive registry push notifications</span><span class="sl-badge caution small sl-openapi-method-post" data-astro-cid-rmhv4bp6="true" data-astro-cid-f4zorn72>POST</span></a></li><li data-astro-cid-rmhv4bp6><a href="/next/reference/api/operations/regenerate-webhook-secret/" data-astro-cid-rmhv4bp6><span data-astro-cid-rmhv4bp6>Regenerate webhook secret</span><span class="sl-badge caution small sl-openapi-method-post" data-astro-cid-rmhv4bp6="true" data-astro-cid-f4zorn72>POST</span></a></li></ul></details></li><li data-astro-cid-rmhv4bp6><details data-astro-cid-rmhv4bp6><summary data-astro-cid-rmhv4bp6><span class="group-label" data-astro-cid-rmhv4bp6><span class="large" data-astro-cid-rmhv4bp6>Sources</span></span><svg class="caret" data-astro-cid-rmhv4bp6="true" aria-hidden="true" width="16" height="16" viewBox="0 0 24 24" fill="currentColor" style="--sl-icon-size: 1.25rem;" data-astro-cid-hkc32dio><path d="m14.83 11.29-4.24-4.24a1 1 0 1 0-1.42 1.41L12.71 12l-3.54 3.54a1 1 0 0 0 0 1.41 1 1 0 0 0 .71.29 1 1 0 0 0 .71-.29l4.24-4.24a1.002 1.002 0 0 0 0-1.42Z"/></svg></summary><sl-sidebar-restore data-index="15"></sl-sidebar-restore><ul data-astro-cid-rmhv4bp6><li data-astro-cid-rmhv4bp6><a href="/next/reference/api/operations/tags/sources/" data-astro-cid-rmhv4bp6><span data-astro-cid-rmhv4bp6>Overview</span></a></li><li data-astro-cid-rmhv4bp6><a href="/next/reference/api/operations/list-sources/" data-astro-cid-rmhv4bp6><span data-astro-cid-rmhv4bp6>List sources</span><span class="sl-badge caution small sl-openapi-method-get" data-astro-cid-rmhv4bp6="true" data-astro-cid-f4zorn72>GET</span></a></li><li data-astro-cid-rmhv4bp6><a href="/next/reference/api/operations/create-source/" data-astro-cid-rmhv4bp6><span data-astro-cid-rmhv4bp6>Create an upload source</span><span class="sl-badge caution small sl-openapi-method-post" data-astro-cid-rmhv4bp6="true" data-astro-cid-f4zorn72>POST</span></a></li><li data-astro-cid-rmhv4bp6><a href="/next/reference/api/operations/get-source/" data-astro-cid-rmhv4bp6><span data-astro-cid-rmhv4bp6>Get a source</span><span class="sl-badge caution small sl-openapi-method-get" data-astro-cid-rmhv4bp6="true" data-astro-cid-f4zorn72>GET</span></a></li><li data-astro-cid-rmhv4bp6><a href="/next/reference/api/operations/delete-source/" data-astro-cid-rmhv4bp6><span data-astro-cid-rmhv4bp6>Delete a source</span><span class="sl-badge caution small sl-openapi-method-delete" data-astro-cid-rmhv4bp6="true" data-astro-cid-f4zorn72>DELETE</span></a></li><li data-astro-cid-rmhv4bp6><a href="/next/reference/api/operations/update-source/" data-astro-cid-rmhv4bp6><span data-astro-cid-rmhv4bp6>Rename a source</span><span class="sl-badge caution small sl-openapi-method-patch" data-astro-cid-rmhv4bp6="true" data-astro-cid-f4zorn72>PATCH</span></a></li></ul></details></li><li data-astro-cid-rmhv4bp6><details data-astro-cid-rmhv4bp6><summary data-astro-cid-rmhv4bp6><span class="group-label" data-astro-cid-rmhv4bp6><span class="large" data-astro-cid-rmhv4bp6>Namespaces</span></span><svg class="caret" data-astro-cid-rmhv4bp6="true" aria-hidden="true" width="16" height="16" viewBox="0 0 24 24" fill="currentColor" style="--sl-icon-size: 1.25rem;" data-astro-cid-hkc32dio><path d="m14.83 11.29-4.24-4.24a1 1 0 1 0-1.42 1.41L12.71 12l-3.54 3.54a1 1 0 0 0 0 1.41 1 1 0 0 0 .71.29 1 1 0 0 0 .71-.29l4.24-4.24a1.002 1.002 0 0 0 0-1.42Z"/></svg></summary><sl-sidebar-restore data-index="16"></sl-sidebar-restore><ul data-astro-cid-rmhv4bp6><li data-astro-cid-rmhv4bp6><a href="/next/reference/api/operations/tags/namespaces/" data-astro-cid-rmhv4bp6><span data-astro-cid-rmhv4bp6>Overview</span></a></li><li data-astro-cid-rmhv4bp6><a href="/next/reference/api/operations/list-namespaces/" data-astro-cid-rmhv4bp6><span data-astro-cid-rmhv4bp6>List namespaces</span><span class="sl-badge caution small sl-openapi-method-get" data-astro-cid-rmhv4bp6="true" data-astro-cid-f4zorn72>GET</span></a></li><li data-astro-cid-rmhv4bp6><a href="/next/reference/api/operations/create-namespace/" data-astro-cid-rmhv4bp6><span data-astro-cid-rmhv4bp6>Create a namespace</span><span class="sl-badge caution small sl-openapi-method-post" data-astro-cid-rmhv4bp6="true" data-astro-cid-f4zorn72>POST</span></a></li><li data-astro-cid-rmhv4bp6><a href="/next/reference/api/operations/get-namespace-by-name/" data-astro-cid-rmhv4bp6><span data-astro-cid-rmhv4bp6>Get a namespace by name</span><span class="sl-badge caution small sl-openapi-method-get" data-astro-cid-rmhv4bp6="true" data-astro-cid-f4zorn72>GET</span></a></li><li data-astro-cid-rmhv4bp6><a href="/next/reference/api/operations/get-namespace/" data-astro-cid-rmhv4bp6><span data-astro-cid-rmhv4bp6>Get a namespace</span><span class="sl-badge caution small sl-openapi-method-get" data-astro-cid-rmhv4bp6="true" data-astro-cid-f4zorn72>GET</span></a></li><li data-astro-cid-rmhv4bp6><a href="/next/reference/api/operations/delete-namespace/" data-astro-cid-rmhv4bp6><span data-astro-cid-rmhv4bp6>Delete a namespace</span><span class="sl-badge caution small sl-openapi-method-delete" data-astro-cid-rmhv4bp6="true" data-astro-cid-f4zorn72>DELETE</span></a></li><li data-astro-cid-rmhv4bp6><a href="/next/reference/api/operations/update-namespace/" data-astro-cid-rmhv4bp6><span data-astro-cid-rmhv4bp6>Update a namespace (partial)</span><span class="sl-badge caution small sl-openapi-method-patch" data-astro-cid-rmhv4bp6="true" data-astro-cid-f4zorn72>PATCH</span></a></li><li data-astro-cid-rmhv4bp6><a href="/next/reference/api/operations/list-namespace-members/" data-astro-cid-rmhv4bp6><span data-astro-cid-rmhv4bp6>List namespace members</span><span class="sl-badge caution small sl-openapi-method-get" data-astro-cid-rmhv4bp6="true" data-astro-cid-f4zorn72>GET</span></a></li><li data-astro-cid-rmhv4bp6><a href="/next/reference/api/operations/set-namespace-member/" data-astro-cid-rmhv4bp6><span data-astro-cid-rmhv4bp6>Add a member or change their role</span><span class="sl-badge caution small sl-openapi-method-put" data-astro-cid-rmhv4bp6="true" data-astro-cid-f4zorn72>PUT</span></a></li><li data-astro-cid-rmhv4bp6><a href="/next/reference/api/operations/remove-namespace-member/" data-astro-cid-rmhv4bp6><span data-astro-cid-rmhv4bp6>Remove a member</span><span class="sl-badge caution small sl-openapi-method-delete" data-astro-cid-rmhv4bp6="true" data-astro-cid-f4zorn72>DELETE</span></a></li></ul></details></li><li data-astro-cid-rmhv4bp6><details data-astro-cid-rmhv4bp6><summary data-astro-cid-rmhv4bp6><span class="group-label" data-astro-cid-rmhv4bp6><span class="large" data-astro-cid-rmhv4bp6>Jobs</span></span><svg class="caret" data-astro-cid-rmhv4bp6="true" aria-hidden="true" width="16" height="16" viewBox="0 0 24 24" fill="currentColor" style="--sl-icon-size: 1.25rem;" data-astro-cid-hkc32dio><path d="m14.83 11.29-4.24-4.24a1 1 0 1 0-1.42 1.41L12.71 12l-3.54 3.54a1 1 0 0 0 0 1.41 1 1 0 0 0 .71.29 1 1 0 0 0 .71-.29l4.24-4.24a1.002 1.002 0 0 0 0-1.42Z"/></svg></summary><sl-sidebar-restore data-index="17"></sl-sidebar-restore><ul data-astro-cid-rmhv4bp6><li data-astro-cid-rmhv4bp6><a href="/next/reference/api/operations/tags/jobs/" data-astro-cid-rmhv4bp6><span data-astro-cid-rmhv4bp6>Overview</span></a></li><li data-astro-cid-rmhv4bp6><a href="/next/reference/api/operations/retry-all-failed-enrichment-jobs/" data-astro-cid-rmhv4bp6><span data-astro-cid-rmhv4bp6>Retry every failed enrichment job</span><span class="sl-badge caution small sl-openapi-method-post" data-astro-cid-rmhv4bp6="true" data-astro-cid-f4zorn72>POST</span></a></li><li data-astro-cid-rmhv4bp6><a href="/next/reference/api/operations/retry-enrichment-job/" data-astro-cid-rmhv4bp6><span data-astro-cid-rmhv4bp6>Retry a failed enrichment job</span><span class="sl-badge caution small sl-openapi-method-post" data-astro-cid-rmhv4bp6="true" data-astro-cid-f4zorn72>POST</span></a></li><li data-astro-cid-rmhv4bp6><a href="/next/reference/api/operations/retry-all-failed-scan-jobs/" data-astro-cid-rmhv4bp6><span data-astro-cid-rmhv4bp6>Retry every failed scan job</span><span class="sl-badge caution small sl-openapi-method-post" data-astro-cid-rmhv4bp6="true" data-astro-cid-f4zorn72>POST</span></a></li><li data-astro-cid-rmhv4bp6><a href="/next/reference/api/operations/cancel-scan-job/" data-astro-cid-rmhv4bp6><span data-astro-cid-rmhv4bp6>Cancel a queued scan job</span><span class="sl-badge caution small sl-openapi-method-post" data-astro-cid-rmhv4bp6="true" data-astro-cid-f4zorn72>POST</span></a></li><li data-astro-cid-rmhv4bp6><a href="/next/reference/api/operations/retry-scan-job/" data-astro-cid-rmhv4bp6><span data-astro-cid-rmhv4bp6>Retry a failed scan job</span><span class="sl-badge caution small sl-openapi-method-post" data-astro-cid-rmhv4bp6="true" data-astro-cid-f4zorn72>POST</span></a></li><li data-astro-cid-rmhv4bp6><a href="/next/reference/api/operations/list-enrichment-jobs/" data-astro-cid-rmhv4bp6><span data-astro-cid-rmhv4bp6>List enrichment jobs</span><span class="sl-badge caution small sl-openapi-method-get" data-astro-cid-rmhv4bp6="true" data-astro-cid-f4zorn72>GET</span></a></li><li data-astro-cid-rmhv4bp6><a href="/next/reference/api/operations/enrichment-jobs-summary/" data-astro-cid-rmhv4bp6><span data-astro-cid-rmhv4bp6>Per-enricher enrichment job counts</span><span class="sl-badge caution small sl-openapi-method-get" data-astro-cid-rmhv4bp6="true" data-astro-cid-f4zorn72>GET</span></a></li><li data-astro-cid-rmhv4bp6><a href="/next/reference/api/operations/list-scan-jobs/" data-astro-cid-rmhv4bp6><span data-astro-cid-rmhv4bp6>List scan jobs</span><span class="sl-badge caution small sl-openapi-method-get" data-astro-cid-rmhv4bp6="true" data-astro-cid-f4zorn72>GET</span></a></li><li data-astro-cid-rmhv4bp6><a href="/next/reference/api/operations/get-scan-job/" data-astro-cid-rmhv4bp6><span data-astro-cid-rmhv4bp6>Get a scan job</span><span class="sl-badge caution small sl-openapi-method-get" data-astro-cid-rmhv4bp6="true" data-astro-cid-f4zorn72>GET</span></a></li></ul></details></li><li data-astro-cid-rmhv4bp6><details data-astro-cid-rmhv4bp6><summary data-astro-cid-rmhv4bp6><span class="group-label" data-astro-cid-rmhv4bp6><span class="large" data-astro-cid-rmhv4bp6>Auth</span></span><svg class="caret" data-astro-cid-rmhv4bp6="true" aria-hidden="true" width="16" height="16" viewBox="0 0 24 24" fill="currentColor" style="--sl-icon-size: 1.25rem;" data-astro-cid-hkc32dio><path d="m14.83 11.29-4.24-4.24a1 1 0 1 0-1.42 1.41L12.71 12l-3.54 3.54a1 1 0 0 0 0 1.41 1 1 0 0 0 .71.29 1 1 0 0 0 .71-.29l4.24-4.24a1.002 1.002 0 0 0 0-1.42Z"/></svg></summary><sl-sidebar-restore data-index="18"></sl-sidebar-restore><ul data-astro-cid-rmhv4bp6><li data-astro-cid-rmhv4bp6><a href="/next/reference/api/operations/tags/auth/" data-astro-cid-rmhv4bp6><span data-astro-cid-rmhv4bp6>Overview</span></a></li><li data-astro-cid-rmhv4bp6><a href="/next/reference/api/operations/list-my-identities/" data-astro-cid-rmhv4bp6><span data-astro-cid-rmhv4bp6>List my linked identities</span><span class="sl-badge caution small sl-openapi-method-get" data-astro-cid-rmhv4bp6="true" data-astro-cid-f4zorn72>GET</span></a></li><li data-astro-cid-rmhv4bp6><a href="/next/reference/api/operations/link-identity/" data-astro-cid-rmhv4bp6><span data-astro-cid-rmhv4bp6>Start linking an identity</span><span class="sl-badge caution small sl-openapi-method-post" data-astro-cid-rmhv4bp6="true" data-astro-cid-f4zorn72>POST</span></a></li><li data-astro-cid-rmhv4bp6><a href="/next/reference/api/operations/unlink-identity/" data-astro-cid-rmhv4bp6><span data-astro-cid-rmhv4bp6>Unlink an identity</span><span class="sl-badge caution small sl-openapi-method-delete" data-astro-cid-rmhv4bp6="true" data-astro-cid-f4zorn72>DELETE</span></a></li><li data-astro-cid-rmhv4bp6><a href="/next/reference/api/operations/list-api-keys/" data-astro-cid-rmhv4bp6><span data-astro-cid-rmhv4bp6>List API keys</span><span class="sl-badge caution small sl-openapi-method-get" data-astro-cid-rmhv4bp6="true" data-astro-cid-f4zorn72>GET</span></a></li><li data-astro-cid-rmhv4bp6><a href="/next/reference/api/operations/create-api-key/" data-astro-cid-rmhv4bp6><span data-astro-cid-rmhv4bp6>Create API key</span><span class="sl-badge caution small sl-openapi-method-post" data-astro-cid-rmhv4bp6="true" data-astro-cid-f4zorn72>POST</span></a></li><li data-astro-cid-rmhv4bp6><a href="/next/reference/api/operations/delete-api-key/" data-astro-cid-rmhv4bp6><span data-astro-cid-rmhv4bp6>Delete API key</span><span class="sl-badge caution small sl-openapi-method-delete" data-astro-cid-rmhv4bp6="true" data-astro-cid-f4zorn72>DELETE</span></a></li><li data-astro-cid-rmhv4bp6><a href="/next/reference/api/operations/list-auth-providers/" data-astro-cid-rmhv4bp6><span data-astro-cid-rmhv4bp6>List identity providers</span><span class="sl-badge caution small sl-openapi-method-get" data-astro-cid-rmhv4bp6="true" data-astro-cid-f4zorn72>GET</span></a></li><li data-astro-cid-rmhv4bp6><a href="/next/reference/api/operations/list-users/" data-astro-cid-rmhv4bp6><span data-astro-cid-rmhv4bp6>List users</span><span class="sl-badge caution small sl-openapi-method-get" data-astro-cid-rmhv4bp6="true" data-astro-cid-f4zorn72>GET</span></a></li><li data-astro-cid-rmhv4bp6><a href="/next/reference/api/operations/get-me/" data-astro-cid-rmhv4bp6><span data-astro-cid-rmhv4bp6>Get current user</span><span class="sl-badge caution small sl-openapi-method-get" data-astro-cid-rmhv4bp6="true" data-astro-cid-f4zorn72>GET</span></a></li><li data-astro-cid-rmhv4bp6><a href="/next/reference/api/operations/list-my-activity/" data-astro-cid-rmhv4bp6><span data-astro-cid-rmhv4bp6>List my recent activity</span><span class="sl-badge caution small sl-openapi-method-get" data-astro-cid-rmhv4bp6="true" data-astro-cid-f4zorn72>GET</span></a></li><li data-astro-cid-rmhv4bp6><a href="/next/reference/api/operations/list-my-artifacts/" data-astro-cid-rmhv4bp6><span data-astro-cid-rmhv4bp6>List my artifacts</span><span class="sl-badge caution small sl-openapi-method-get" data-astro-cid-rmhv4bp6="true" data-astro-cid-f4zorn72>GET</span></a></li><li data-astro-cid-rmhv4bp6><a href="/next/reference/api/operations/list-my-drift-feed/" data-astro-cid-rmhv4bp6><span data-astro-cid-rmhv4bp6>List provenance drift on my artifacts</span><span class="sl-badge caution small sl-openapi-method-get" data-astro-cid-rmhv4bp6="true" data-astro-cid-f4zorn72>GET</span></a></li><li data-astro-cid-rmhv4bp6><a href="/next/reference/api/operations/list-my-namespaces/" data-astro-cid-rmhv4bp6><span data-astro-cid-rmhv4bp6>List my namespaces</span><span class="sl-badge caution small sl-openapi-method-get" data-astro-cid-rmhv4bp6="true" data-astro-cid-f4zorn72>GET</span></a></li><li data-astro-cid-rmhv4bp6><a href="/next/reference/api/operations/list-my-registries/" data-astro-cid-rmhv4bp6><span data-astro-cid-rmhv4bp6>List my registries</span><span class="sl-badge caution small sl-openapi-method-get" data-astro-cid-rmhv4bp6="true" data-astro-cid-f4zorn72>GET</span></a></li><li data-astro-cid-rmhv4bp6><a href="/next/reference/api/operations/list-my-sources/" data-astro-cid-rmhv4bp6><span data-astro-cid-rmhv4bp6>List my sources</span><span class="sl-badge caution small sl-openapi-method-get" data-astro-cid-rmhv4bp6="true" data-astro-cid-f4zorn72>GET</span></a></li><li data-astro-cid-rmhv4bp6><a href="/next/reference/api/operations/list-my-vulnerabilities/" data-astro-cid-rmhv4bp6><span data-astro-cid-rmhv4bp6>List vulnerabilities affecting my artifacts</span><span class="sl-badge caution small sl-openapi-method-get" data-astro-cid-rmhv4bp6="true" data-astro-cid-f4zorn72>GET</span></a></li><li data-astro-cid-rmhv4bp6><a href="/next/reference/api/operations/list-my-watches/" data-astro-cid-rmhv4bp6><span data-astro-cid-rmhv4bp6>List my watched artifacts</span><span class="sl-badge caution small sl-openapi-method-get" data-astro-cid-rmhv4bp6="true" data-astro-cid-f4zorn72>GET</span></a></li><li data-astro-cid-rmhv4bp6><a href="/next/reference/api/operations/list-my-watch-feed/" data-astro-cid-rmhv4bp6><span data-astro-cid-rmhv4bp6>List changes to my watched artifacts</span><span class="sl-badge caution small sl-openapi-method-get" data-astro-cid-rmhv4bp6="true" data-astro-cid-f4zorn72>GET</span></a></li><li data-astro-cid-rmhv4bp6><a href="/next/reference/api/operations/watch-artifact/" data-astro-cid-rmhv4bp6><span data-astro-cid-rmhv4bp6>Watch an artifact</span><span class="sl-badge caution small sl-openapi-method-put" data-astro-cid-rmhv4bp6="true" data-astro-cid-f4zorn72>PUT</span></a></li><li data-astro-cid-rmhv4bp6><a href="/next/reference/api/operations/unwatch-artifact/" data-astro-cid-rmhv4bp6><span data-astro-cid-rmhv4bp6>Unwatch an artifact</span><span class="sl-badge caution small sl-openapi-method-delete" data-astro-cid-rmhv4bp6="true" data-astro-cid-f4zorn72>DELETE</span></a></li><li data-astro-cid-rmhv4bp6><a href="/next/reference/api/operations/update-user-role/" data-astro-cid-rmhv4bp6><span data-astro-cid-rmhv4bp6>Update user role</span><span class="sl-badge caution small sl-openapi-method-patch" data-astro-cid-rmhv4bp6="true" data-astro-cid-f4zorn72>PATCH</span></a></li></ul></details></li><li data-astro-cid-rmhv4bp6><details data-astro-cid-rmhv4bp6><summary data-astro-cid-rmhv4bp6><span class="group-label" data-astro-cid-rmhv4bp6><span class="large" data-astro-cid-rmhv4bp6>Admin</span></span><svg class="caret" data-astro-cid-rmhv4bp6="true" aria-hidden="true" width="16" height="16" viewBox="0 0 24 24" fill="currentColor" style="--sl-icon-size: 1.25rem;" data-astro-cid-hkc32dio><path d="m14.83 11.29-4.24-4.24a1 1 0 1 0-1.42 1.41L12.71 12l-3.54 3.54a1 1 0 0 0 0 1.41 1 1 0 0 0 .71.29 1 1 0 0 0 .71-.29l4.24-4.24a1.002 1.002 0 0 0 0-1.42Z"/></svg></summary><sl-sidebar-restore data-index="19"></sl-sidebar-restore><ul data-astro-cid-rmhv4bp6><li data-astro-cid-rmhv4bp6><a href="/next/reference/api/operations/tags/admin/" data-astro-cid-rmhv4bp6><span data-astro-cid-rmhv4bp6>Overview</span></a></li><li data-astro-cid-rmhv4bp6><a href="/next/reference/api/operations/retry-all-failed-enrichment-jobs/" data-astro-cid-rmhv4bp6><span data-astro-cid-rmhv4bp6>Retry every failed enrichment job</span><span class="sl-badge caution small sl-openapi-method-post" data-astro-cid-rmhv4bp6="true" data-astro-cid-f4zorn72>POST</span></a></li><li data-astro-cid-rmhv4bp6><a href="/next/reference/api/operations/retry-enrichment-job/" data-astro-cid-rmhv4bp6><span data-astro-cid-rmhv4bp6>Retry a failed enrichment job</span><span class="sl-badge caution small sl-openapi-method-post" data-astro-cid-rmhv4bp6="true" data-astro-cid-f4zorn72>POST</span></a></li><li data-astro-cid-rmhv4bp6><a href="/next/reference/api/operations/retry-all-failed-scan-jobs/" data-astro-cid-rmhv4bp6><span data-astro-cid-rmhv4bp6>Retry every failed scan job</span><span class="sl-badge caution small sl-openapi-method-post" data-astro-cid-rmhv4bp6="true" data-astro-cid-f4zorn72>POST</span></a></li><li data-astro-cid-rmhv4bp6><a href="/next/reference/api/operations/cancel-scan-job/" data-astro-cid-rmhv4bp6><span data-astro-cid-rmhv4bp6>Cancel a queued scan job</span><span class="sl-badge caution small sl-openapi-method-post" data-astro-cid-rmhv4bp6="true" data-astro-cid-f4zorn72>POST</span></a></li><li data-astro-cid-rmhv4bp6><a href="/next/reference/api/operations/retry-scan-job/" data-astro-cid-rmhv4bp6><span data-astro-cid-rmhv4bp6>Retry a failed scan job</span><span class="sl-badge caution small sl-openapi-method-post" data-astro-cid-rmhv4bp6="true" data-astro-cid-f4zorn72>POST</span></a></li><li data-astro-cid-rmhv4bp6><a href="/next/reference/api/operations/get-system-status/" data-astro-cid-rmhv4bp6><span data-astro-cid-rmhv4bp6>Get system status</span><span class="sl-badge caution small sl-openapi-method-get" data-astro-cid-rmhv4bp6="true" data-astro-cid-f4zorn72>GET</span></a></li></ul></details></li><li data-astro-cid-rmhv4bp6><details data-astro-cid-rmhv4bp6><summary data-astro-cid-rmhv4bp6><span class="group-label" data-astro-cid-rmhv4bp6><span class="large" data-astro-cid-rmhv4bp6>Stats</span></span><svg class="caret" data-astro-cid-rmhv4bp6="true" aria-hidden="true" width="16" height="16" viewBox="0 0 24 24" fill="currentColor" style="--sl-icon-size: 1.25rem;" data-astro-cid-hkc32dio><path d="m14.83 11.29-4.24-4.24a1 1 0 1 0-1.42 1.41L12.71 12l-3.54 3.54a1 1 0 0 0 0 1.41 1 1 0 0 0 .71.29 1 1 0 0 0 .71-.29l4.24-4.24a1.002 1.002 0 0 0 0-1.42Z"/></svg></summary><sl-sidebar-restore data-index="20"></sl-sidebar-restore><ul data-astro-cid-rmhv4bp6><li data-astro-cid-rmhv4bp6><a href="/next/reference/api/operations/tags/stats/" data-astro-cid-rmhv4bp6><span data-astro-cid-rmhv4bp6>Overview</span></a></li><li data-astro-cid-rmhv4bp6><a href="/next/reference/api/operations/get-dashboard-stats/" data-astro-cid-rmhv4bp6><span data-astro-cid-rmhv4bp6>Get dashboard summary statistics</span><span class="sl-badge caution small sl-openapi-method-get" data-astro-cid-rmhv4bp6="true" data-astro-cid-f4zorn72>GET</span></a></li></ul></details></li><li data-astro-cid-rmhv4bp6><details data-astro-cid-rmhv4bp6><summary data-astro-cid-rmhv4bp6><span class="group-label" data-astro-cid-rmhv4bp6><span class="large" data-astro-cid-rmhv4bp6>Discovery</span></span><svg class="caret" data-astro-cid-rmhv4bp6="true" aria-hidden="true" width="16" height="16" viewBox="0 0 24 24" fill="currentColor" style="--sl-icon-size: 1.25rem;" data-astro-cid-hkc32dio><path d="m14.83 11.29-4.24-4.24a1 1 0 1 0-1.42 1.41L12.71 12l-3.54 3.54a1 1 0 0 0 0 1.41 1 1 0 0 0 .71.29 1 1 0 0 0 .71-.29l4.24-4.24a1.002 1.002 0 0 0 0-1.42Z"/></svg></summary><sl-sidebar-restore data-index="21"></sl-sidebar-restore><ul data-astro-cid-rmhv4bp6><li data-astro-cid-rmhv4bp6><a href="/next/reference/api/operations/tags/discovery/" data-astro-cid-rmhv4bp6><span data-astro-cid-rmhv4bp6>Overview</span></a></li><li data-astro-cid-rmhv4bp6><a href="/next/reference/api/operations/get-discovery/" data-astro-cid-rmhv4bp6><span data-astro-cid-rmhv4bp6>Get the public discovery payload</span><span class="sl-badge caution small sl-openapi-method-get" data-astro-cid-rmhv4bp6="true" data-astro-cid-f4zorn72>GET</span></a></li></ul></details></li><li data-astro-cid-rmhv4bp6><details data-astro-cid-rmhv4bp6><summary data-astro-cid-rmhv4bp6><span class="group-label" data-astro-cid-rmhv4bp6><span class="large" data-astro-cid-rmhv4bp6>Meta</span></span><svg class="caret" data-astro-cid-rmhv4bp6="true" aria-hidden="true" width="16" height="16" viewBox="0 0 24 24" fill="currentColor" style="--sl-icon-size: 1.25rem;" data-astro-cid-hkc32dio><path d="m14.83 11.29-4.24-4.24a1 1 0 1 0-1.42 1.41L12.71 12l-3.54 3.54a1 1 0 0 0 0 1.41 1 1 0 0 0 .71.29 1 1 0 0 0 .71-.29l4.24-4.24a1.002 1.002 0 0 0 0-1.42Z"/></svg></summary><sl-sidebar-restore data-index="22"></sl-sidebar-restore><ul data-astro-cid-rmhv4bp6><li data-astro-cid-rmhv4bp6><a href="/next/reference/api/operations/tags/meta/" data-astro-cid-rmhv4bp6><span data-astro-cid-rmhv4bp6>Overview</span></a></li><li data-astro-cid-rmhv4bp6><a href="/next/reference/api/operations/api-version/" data-astro-cid-rmhv4bp6><span data-astro-cid-rmhv4bp6>API version</span><span class="sl-badge caution small sl-openapi-method-get" data-astro-cid-rmhv4bp6="true" data-astro-cid-f4zorn72>GET</span></a></li></ul></details></li><li data-astro-cid-rmhv4bp6><details data-astro-cid-rmhv4bp6><summary data-astro-cid-rmhv4bp6><span class="group-label" data-astro-cid-rmhv4bp6><span class="large" data-astro-cid-rmhv4bp6>Health</span></span><svg class="caret" data-astro-cid-rmhv4bp6="true" aria-hidden="true" width="16" height="16" viewBox="0 0 24 24" fill="currentColor" style="--sl-icon-size: 1.25rem;" data-astro-cid-hkc32dio><path d="m14.83 11.29-4.24-4.24a1 1 0 1 0-1.42 1.41L12.71 12l-3.54 3.54a1 1 0 0 0 0 1.41 1 1 0 0 0 .71.29 1 1 0 0 0 .71-.29l4.24-4.24a1.002 1.002 0 0 0 0-1.42Z"/></svg></summary><sl-sidebar-restore data-index="23"></sl-sidebar-restore><ul data-astro-cid-rmhv4bp6><li data-astro-cid-rmhv4bp6><a href="/next/reference/api/operations/tags/health/" data-astro-cid-rmhv4bp6><span data-astro-cid-rmhv4bp6>Overview</span></a></li><li data-astro-cid-rmhv4bp6><a href="/next/reference/api/operations/health-check/" data-astro-cid-rmhv4bp6><span data-astro-cid-rmhv4bp6>Liveness check</span><span class="sl-badge caution small sl-openapi-method-get" data-astro-cid-rmhv4bp6="true" data-astro-cid-f4zorn72>GET</span></a></li><li data-astro-cid-rmhv4bp6><a href="/next/reference/api/operations/readiness-check/" data-astro-cid-rmhv4bp6><span data-astro-cid-rmhv4bp6>Readiness check</span><span class="sl-badge caution small sl-openapi-method-get" data-astro-cid-rmhv4bp6="true" data-astro-cid-f4zorn72>GET</span></a></li></ul></details></li></ul></details></li></ul></details></li></ul><script aria-hidden="true">
+		(() => {
+			const scroller = document.getElementById('starlight__sidebar');
+			if (!window._starlightScrollRestore || !scroller) return;
+			scroller.scrollTop = window._starlightScrollRestore;
+			delete window._starlightScrollRestore;
+		})();
+	</script></sl-sidebar-state-persist><div class="md:sl-hidden"><div class="mobile-preferences sl-flex" data-astro-cid-p4azlveh><div class="social-icons" data-astro-cid-p4azlveh><a href="https://github.com/pfenerty/ocidex" rel="me" class="sl-flex" data-astro-cid-n2mnl6yq><span class="sr-only" data-astro-cid-n2mnl6yq>GitHub</span><svg data-astro-cid-n2mnl6yq="true" aria-hidden="true" width="16" height="16" viewBox="0 0 24 24" fill="currentColor" style="--sl-icon-size: 1em;" data-astro-cid-hkc32dio><path d="M12 .3a12 12 0 0 0-3.8 23.38c.6.12.83-.26.83-.57L9 21.07c-3.34.72-4.04-1.61-4.04-1.61-.55-1.39-1.34-1.76-1.34-1.76-1.08-.74.09-.73.09-.73 1.2.09 1.83 1.24 1.83 1.24 1.08 1.83 2.81 1.3 3.5 1 .1-.78.42-1.31.76-1.61-2.67-.3-5.47-1.33-5.47-5.93 0-1.31.47-2.38 1.24-3.22-.14-.3-.54-1.52.1-3.18 0 0 1-.32 3.3 1.23a11.5 11.5 0 0 1 6 0c2.28-1.55 3.29-1.23 3.29-1.23.64 1.66.24 2.88.12 3.18a4.65 4.65 0 0 1 1.23 3.22c0 4.61-2.8 5.63-5.48 5.92.42.36.81 1.1.81 2.22l-.01 3.29c0 .31.2.69.82.57A12 12 0 0 0 12 .3Z"/></svg></a></div><starlight-theme-select data-astro-cid-smhvfpqh="true"><label style="--sl-select-width: 6.25em" data-astro-cid-2z5xp7gb><span class="sr-only" data-astro-cid-2z5xp7gb>Select theme</span><span class="icon label-icon" data-astro-cid-2z5xp7gb><svg class="sl-theme-icon-dark" data-astro-cid-smhvfpqh="true" aria-hidden="true" width="16" height="16" viewBox="0 0 24 24" fill="currentColor" style="--sl-icon-size: 1em;" data-astro-cid-hkc32dio><path d="M21.64 13a1 1 0 0 0-1.05-.14 8.049 8.049 0 0 1-3.37.73 8.15 8.15 0 0 1-8.14-8.1 8.59 8.59 0 0 1 .25-2A1 1 0 0 0 8 2.36a10.14 10.14 0 1 0 14 11.69 1 1 0 0 0-.36-1.05Zm-9.5 6.69A8.14 8.14 0 0 1 7.08 5.22v.27a10.15 10.15 0 0 0 10.14 10.14 9.784 9.784 0 0 0 2.1-.22 8.11 8.11 0 0 1-7.18 4.32v-.04Z"/></svg><svg class="sl-theme-icon-light" data-astro-cid-smhvfpqh="true" aria-hidden="true" width="16" height="16" viewBox="0 0 24 24" fill="currentColor" style="--sl-icon-size: 1em;" data-astro-cid-hkc32dio><path d="M5 12a1 1 0 0 0-1-1H3a1 1 0 0 0 0 2h1a1 1 0 0 0 1-1Zm.64 5-.71.71a1 1 0 0 0 0 1.41 1 1 0 0 0 1.41 0l.71-.71A1 1 0 0 0 5.64 17ZM12 5a1 1 0 0 0 1-1V3a1 1 0 0 0-2 0v1a1 1 0 0 0 1 1Zm5.66 2.34a1 1 0 0 0 .7-.29l.71-.71a1 1 0 1 0-1.41-1.41l-.66.71a1 1 0 0 0 0 1.41 1 1 0 0 0 .66.29Zm-12-.29a1 1 0 0 0 1.41 0 1 1 0 0 0 0-1.41l-.71-.71a1.004 1.004 0 1 0-1.43 1.41l.73.71ZM21 11h-1a1 1 0 0 0 0 2h1a1 1 0 0 0 0-2Zm-2.64 6A1 1 0 0 0 17 18.36l.71.71a1 1 0 0 0 1.41 0 1 1 0 0 0 0-1.41l-.76-.66ZM12 6.5a5.5 5.5 0 1 0 5.5 5.5A5.51 5.51 0 0 0 12 6.5Zm0 9a3.5 3.5 0 1 1 0-7 3.5 3.5 0 0 1 0 7Zm0 3.5a1 1 0 0 0-1 1v1a1 1 0 0 0 2 0v-1a1 1 0 0 0-1-1Z"/></svg><svg class="sl-theme-icon-auto" data-astro-cid-smhvfpqh="true" aria-hidden="true" width="16" height="16" viewBox="0 0 24 24" fill="currentColor" style="--sl-icon-size: 1em;" data-astro-cid-hkc32dio><path d="M21 14h-1V7a3 3 0 0 0-3-3H7a3 3 0 0 0-3 3v7H3a1 1 0 0 0-1 1v2a3 3 0 0 0 3 3h14a3 3 0 0 0 3-3v-2a1 1 0 0 0-1-1ZM6 7a1 1 0 0 1 1-1h10a1 1 0 0 1 1 1v7H6V7Zm14 10a1 1 0 0 1-1 1H5a1 1 0 0 1-1-1v-1h16v1Z"/></svg></span><select autocomplete="off" data-astro-cid-2z5xp7gb><option value="dark" data-astro-cid-2z5xp7gb>Dark</option><option value="light" data-astro-cid-2z5xp7gb>Light</option><option value="auto" selected data-astro-cid-2z5xp7gb>Auto</option></select><svg class="icon caret" data-astro-cid-2z5xp7gb="true" aria-hidden="true" width="16" height="16" viewBox="0 0 24 24" fill="currentColor" style="--sl-icon-size: 1em;" data-astro-cid-hkc32dio><path d="M17 9.17a1 1 0 0 0-1.41 0L12 12.71 8.46 9.17a1 1 0 1 0-1.41 1.42l4.24 4.24a1.002 1.002 0 0 0 1.42 0L17 10.59a1.002 1.002 0 0 0 0-1.42Z"/></svg></label></starlight-theme-select><script>(() => {
+		const theme = (typeof localStorage !== 'undefined' && localStorage.getItem('starlight-theme'));
+		if (theme) document.querySelectorAll('starlight-theme-select select').forEach((s) => { s.value = theme; });
+	})();</script></div></div></div></sl-sidebar-pane></nav><div class="main-frame" data-astro-cid-yntsjkba><script type="module">var e=document.getElementById(`starlight__sidebar`),t=e?.querySelector(`sl-sidebar-state-persist`),n=`sl-sidebar-state`,r=()=>{let r=[],i=t?.dataset.hash||``;try{let e=sessionStorage.getItem(n),t=JSON.parse(e||`{}`);Array.isArray(t.open)&&t.hash===i&&(r=t.open)}catch{}return{hash:i,open:r,scroll:e?.scrollTop||0}},i=e=>{try{sessionStorage.setItem(n,JSON.stringify(e))}catch{}},a=()=>i(r()),o=(e,t)=>{let n=r();n.open[t]=e,i(n)};t?.addEventListener(`click`,e=>{if(!(e.target instanceof Element))return;let t=e.target.closest(`summary`)?.closest(`details`);if(!t)return;let n=t.querySelector(`sl-sidebar-restore`),r=parseInt(n?.dataset.index||``);isNaN(r)||o(!t.open,r)}),addEventListener(`visibilitychange`,()=>{document.visibilityState===`hidden`&&a()});</script><div class="lg:sl-flex" data-astro-cid-lrzkfocr><aside class="right-sidebar-container print:hidden" data-astro-cid-lrzkfocr><div class="right-sidebar" data-astro-cid-lrzkfocr><div class="lg:sl-hidden" data-astro-cid-qok35upx><mobile-starlight-toc data-min-h="2" data-max-h="3" data-astro-cid-66cqc7ze="true"><nav aria-labelledby="starlight__on-this-page--mobile" data-astro-cid-66cqc7ze><details id="starlight__mobile-toc" data-astro-cid-66cqc7ze><summary id="starlight__on-this-page--mobile" class="sl-flex" data-astro-cid-66cqc7ze><span class="toggle sl-flex" data-astro-cid-66cqc7ze>On this page<svg class="caret" data-astro-cid-66cqc7ze="true" aria-hidden="true" width="16" height="16" viewBox="0 0 24 24" fill="currentColor" style="--sl-icon-size: 1rem;" data-astro-cid-hkc32dio><path d="m14.83 11.29-4.24-4.24a1 1 0 1 0-1.42 1.41L12.71 12l-3.54 3.54a1 1 0 0 0 0 1.41 1 1 0 0 0 .71.29 1 1 0 0 0 .71-.29l4.24-4.24a1.002 1.002 0 0 0 0-1.42Z"/></svg></span><span class="display-current" data-astro-cid-66cqc7ze></span></summary><div class="dropdown" data-astro-cid-66cqc7ze><ul class="isMobile" style="--depth: 0;" data-astro-cid-jugkfwgx><li style="--depth: 0;" data-astro-cid-jugkfwgx><a href="#_top" style="--depth: 0;" data-astro-cid-jugkfwgx><span style="--depth: 0;" data-astro-cid-jugkfwgx>Overview</span></a></li><li style="--depth: 0;" data-astro-cid-jugkfwgx><a href="#ocidex" style="--depth: 0;" data-astro-cid-jugkfwgx><span style="--depth: 0;" data-astro-cid-jugkfwgx>ocidex</span></a></li><li style="--depth: 0;" data-astro-cid-jugkfwgx><a href="#ocidex-operator" style="--depth: 0;" data-astro-cid-jugkfwgx><span style="--depth: 0;" data-astro-cid-jugkfwgx>ocidex-operator</span></a></li><li style="--depth: 0;" data-astro-cid-jugkfwgx><a href="#ocidex-k8s-agent" style="--depth: 0;" data-astro-cid-jugkfwgx><span style="--depth: 0;" data-astro-cid-jugkfwgx>ocidex-k8s-agent</span></a></li></ul></div></details></nav></mobile-starlight-toc><script type="module" src="/next/_astro/MobileTableOfContents.astro_astro_type_script_index_0_lang.C3fM4Kra.js"></script></div><div class="right-sidebar-panel sl-hidden lg:sl-block" data-astro-cid-qok35upx><div class="sl-container" data-astro-cid-qok35upx><starlight-toc data-min-h="2" data-max-h="3"><nav aria-labelledby="starlight__on-this-page"><h2 id="starlight__on-this-page">On this page</h2><ul style="--depth: 0;" data-astro-cid-jugkfwgx><li style="--depth: 0;" data-astro-cid-jugkfwgx><a href="#_top" style="--depth: 0;" data-astro-cid-jugkfwgx><span style="--depth: 0;" data-astro-cid-jugkfwgx>Overview</span></a></li><li style="--depth: 0;" data-astro-cid-jugkfwgx><a href="#ocidex" style="--depth: 0;" data-astro-cid-jugkfwgx><span style="--depth: 0;" data-astro-cid-jugkfwgx>ocidex</span></a></li><li style="--depth: 0;" data-astro-cid-jugkfwgx><a href="#ocidex-operator" style="--depth: 0;" data-astro-cid-jugkfwgx><span style="--depth: 0;" data-astro-cid-jugkfwgx>ocidex-operator</span></a></li><li style="--depth: 0;" data-astro-cid-jugkfwgx><a href="#ocidex-k8s-agent" style="--depth: 0;" data-astro-cid-jugkfwgx><span style="--depth: 0;" data-astro-cid-jugkfwgx>ocidex-k8s-agent</span></a></li></ul></nav></starlight-toc><script type="module" src="/next/_astro/TableOfContents.astro_astro_type_script_index_0_lang.BpJaGz7G.js"></script></div></div></div></aside><div class="main-pane" data-astro-cid-lrzkfocr><main data-pagefind-body lang="en" dir="ltr" data-astro-cid-g5ptsecz><div class="sl-banner">You are reading the preview docs for unreleased work on <code>main</code>.<a href="https://docs.ocidex.app/">Read the docs for the latest release</a>.</div><div class="content-panel" data-astro-cid-a7po4psb><div class="sl-container" data-astro-cid-a7po4psb><h1 id="_top" data-astro-cid-bebwqqxs>Helm values</h1></div></div><div class="content-panel" data-astro-cid-a7po4psb><div class="sl-container" data-astro-cid-a7po4psb><div class="sl-markdown-content"><!-- Generated by `make docs-generate` (cmd/docgen). Do not edit by hand. -->
+<p>The charts are published to <code dir="auto">oci://ghcr.io/pfenerty/charts</code>. This page lists every
+value with its default and the comment that documents it in the chart’s <code dir="auto">values.yaml</code>.
+A value whose default is a map or list shows it inline.</p>
+<div class="sl-heading-wrapper level-h2"><h2 id="ocidex">ocidex</h2><a class="sl-anchor-link" href="#ocidex"><span aria-hidden="true" class="sl-anchor-icon"><svg width="16" height="16" viewBox="0 0 24 24" fill="currentColor"><path d="m12.11 15.39-3.88 3.88a2.52 2.52 0 0 1-3.5 0 2.47 2.47 0 0 1 0-3.5l3.88-3.88a1 1 0 1 0-1.42-1.42l-3.88 3.89a4.48 4.48 0 0 0 6.33 6.33l3.89-3.88a1 1 0 0 0-1.42-1.42m8.58-12.08a4.49 4.49 0 0 0-6.33 0l-3.89 3.88a1 1 0 1 0 1.42 1.42l3.88-3.88a2.52 2.52 0 0 1 3.5 0 2.47 2.47 0 0 1 0 3.5l-3.88 3.88a1 1 0 0 0 0 1.42 1 1 0 0 0 1.42 0l3.88-3.89a4.49 4.49 0 0 0 0-6.33M8.83 15.17a1 1 0 0 0 .71.29 1 1 0 0 0 .71-.29l4.92-4.92a1 1 0 1 0-1.42-1.42l-4.92 4.92a1 1 0 0 0 0 1.42"></path></svg></span><span class="sr-only" data-pagefind-ignore>Section titled “ocidex”</span></a></div>
+<p>The application: API, web, NATS, scanner, enrichers, vuln-worker and the migrate Job.</p>
+<table>
+<thead>
+<tr>
+<th>Key</th>
+<th>Default</th>
+<th>Description</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>image.<wbr>registry</code></td>
+<td><code dir="auto">ghcr.io/pfenerty</code></td>
+<td></td>
+</tr>
+<tr>
+<td><code>image.<wbr>tag</code></td>
+<td>“”</td>
+<td>tag defaults to Chart.appVersion (set to sha-&lt;short&gt; or vX.Y.Z at package time). Override with <code dir="auto">--set</code> image.tag=&lt;tag&gt; to pin a specific version.</td>
+</tr>
+<tr>
+<td><code>image.<wbr>pullPolicy</code></td>
+<td><code dir="auto">IfNotPresent</code></td>
+<td></td>
+</tr>
+<tr>
+<td><code>image.<wbr>digests</code></td>
+<td><code dir="auto">{}</code></td>
+<td>digests pins each component to an immutable sha256 digest and is baked in at release-package time by the helm-release CI task (release builds only; empty for main/dev sha builds). An explicit image.tag takes precedence over digests. Keys are the component names: api, scanner-worker, oci-metadata-worker, git-worker, user-enricher-worker, provenance-worker, vuln-worker, web.</td>
+</tr>
+<tr>
+<td><code>existingSecret</code></td>
+<td><code dir="auto">ocidex-secrets</code></td>
+<td>Name of a pre-created Secret containing DATABASE_URL, SESSION_SECRET, DATA_ENCRYPTION_KEYS/DATA_ENCRYPTION_ACTIVE_KEY, and the credentials for at least one identity provider (see above).</td>
+</tr>
+<tr>
+<td><code>egressGuard</code></td>
+<td></td>
+<td>Which addresses the API, scanner worker and enrichers may dial when they reach a user-supplied registry (EGRESS_*; <a href="https://docs.ocidex.app/guides/operate/production/#egress-policy">https://docs.ocidex.app/guides/operate/production/#egress-policy</a>). Loopback, link-local (cloud metadata) and multicast are always refused unless allowCidrs names them. Scanning an in-cluster registry needs allowPrivate, or better, allowCidrs naming just its service/pod address. This is the process- level check; networkPolicy.egress below is the network-level one.</td>
+</tr>
+<tr>
+<td><code>egressGuard.<wbr>allowPrivate</code></td>
+<td><code dir="auto">false</code></td>
+<td></td>
+</tr>
+<tr>
+<td><code>egressGuard.<wbr>allowCidrs</code></td>
+<td><code dir="auto">[]</code></td>
+<td></td>
+</tr>
+<tr>
+<td><code>egressGuard.<wbr>denyCidrs</code></td>
+<td><code dir="auto">[]</code></td>
+<td></td>
+</tr>
+<tr>
+<td><code>api.<wbr>replicas</code></td>
+<td><code dir="auto">2</code></td>
+<td>Two replicas by default: every background loop in the API is either leader-elected or safe to run on each replica (see “High availability” in <a href="https://docs.ocidex.app/guides/operate/production/">https://docs.ocidex.app/guides/operate/production/</a>).</td>
+</tr>
+<tr>
+<td><code>api.<wbr>podDisruptionBudget</code></td>
+<td></td>
+<td>A PodDisruptionBudget keeps one API pod through node drains. Rendered only when replicas &gt; 1, since minAvailable 1 of 1 would block every drain.</td>
+</tr>
+<tr>
+<td><code>api.<wbr>podDisruptionBudget.<wbr>enabled</code></td>
+<td><code dir="auto">true</code></td>
+<td></td>
+</tr>
+<tr>
+<td><code>api.<wbr>podDisruptionBudget.<wbr>minAvailable</code></td>
+<td><code dir="auto">1</code></td>
+<td></td>
+</tr>
+<tr>
+<td><code>api.<wbr>topologySpread</code></td>
+<td></td>
+<td>Spread replicas across nodes when there are nodes to spread across. ScheduleAnyway keeps a single-node cluster schedulable.</td>
+</tr>
+<tr>
+<td><code>api.<wbr>topologySpread.<wbr>enabled</code></td>
+<td><code dir="auto">true</code></td>
+<td></td>
+</tr>
+<tr>
+<td><code>api.<wbr>topologySpread.<wbr>topologyKey</code></td>
+<td><code dir="auto">kubernetes.io/hostname</code></td>
+<td></td>
+</tr>
+<tr>
+<td><code>api.<wbr>topologySpread.<wbr>whenUnsatisfiable</code></td>
+<td><code dir="auto">ScheduleAnyway</code></td>
+<td></td>
+</tr>
+<tr>
+<td><code>api.<wbr>env.<wbr>environment</code></td>
+<td><code dir="auto">production</code></td>
+<td></td>
+</tr>
+<tr>
+<td><code>api.<wbr>env.<wbr>logLevel</code></td>
+<td><code dir="auto">info</code></td>
+<td></td>
+</tr>
+<tr>
+<td><code>api.<wbr>env.<wbr>bootstrapAdmins</code></td>
+<td>“”</td>
+<td>BOOTSTRAP_ADMINS: identities promoted to installation admin at sign-in, comma-separated “github:&lt;user id&gt;” or “oidc:&lt;name&gt;:&lt;sub&gt;”. A fresh install has no admin until one of these signs in.</td>
+</tr>
+<tr>
+<td><code>api.<wbr>env.<wbr>signupMode</code></td>
+<td><code dir="auto">open</code></td>
+<td>SIGNUP_MODE: “open” provisions any identity the issuers vouch for; “existing” admits only existing accounts plus bootstrapAdmins.</td>
+</tr>
+<tr>
+<td><code>api.<wbr>env.<wbr>selfServiceNamespaces</code></td>
+<td><code dir="auto">true</code></td>
+<td>SELF_SERVICE_NAMESPACES: “false” stops global viewers creating namespaces (or registries that mint one). See <a href="https://docs.ocidex.app/guides/operate/authentication/">https://docs.ocidex.app/guides/operate/authentication/</a>.</td>
+</tr>
+<tr>
+<td><code>api.<wbr>env.<wbr>sessionCookieSameSite</code></td>
+<td><code dir="auto">lax</code></td>
+<td>SESSION_COOKIE_SAMESITE: “lax” works whenever the SPA and the API share a registrable domain (ocidex.example.com + api.ocidex.example.com). Set “none” only when the SPA is served from a different site. See <a href="https://docs.ocidex.app/guides/operate/authentication/#sessions-and-cookies">https://docs.ocidex.app/guides/operate/authentication/#sessions-and-cookies</a>.</td>
+</tr>
+<tr>
+<td><code>api.<wbr>env.<wbr>authRateLimit</code></td>
+<td><code dir="auto">30</code></td>
+<td>AUTH_RATE_LIMIT: sign-in requests per minute per client IP; “0” disables.</td>
+</tr>
+<tr>
+<td><code>api.<wbr>env.<wbr>trustedProxyCidrs</code></td>
+<td>“”</td>
+<td>TRUSTED_PROXY_CIDRS: the ingress/proxy ranges whose X-Forwarded-For is believed when resolving the client IP. Empty keys every request by the direct peer — behind an ingress, that is the ingress itself.</td>
+</tr>
+<tr>
+<td><code>api.<wbr>env.<wbr>trustedProxyHops</code></td>
+<td><code dir="auto">0</code></td>
+<td>TRUSTED_PROXY_HOPS: how many proxies stand in front of the API (1 for a plain ingress); the client is that many X-Forwarded-For entries from the right. Needs no addresses, but trusts that every path to the API goes through all of them. “0” is off.</td>
+</tr>
+<tr>
+<td><code>api.<wbr>env.<wbr>clientIpHeader</code></td>
+<td>“”</td>
+<td>CLIENT_IP_HEADER: a header the edge overwrites with the client IP, e.g. CF-Connecting-IP. Wins over trustedProxyHops. Safe only when nothing reaches the API without passing that edge. Precedence and caveats: <a href="https://docs.ocidex.app/guides/operate/production/#client-ips-behind-a-proxy">https://docs.ocidex.app/guides/operate/production/#client-ips-behind-a-proxy</a></td>
+</tr>
+<tr>
+<td><code>api.<wbr>env.<wbr>apiRateLimitIngest</code></td>
+<td><code dir="auto">120</code></td>
+<td>API_RATE_LIMIT_INGEST / API_RATE_LIMIT_HEAVY: per-principal requests per minute for SBOM ingest and for the expensive artifact/component reads. “0” disables. Admins and the operator key are not exempt; raise these if a CI or operator key ingests faster.</td>
+</tr>
+<tr>
+<td><code>api.<wbr>env.<wbr>apiRateLimitHeavy</code></td>
+<td><code dir="auto">120</code></td>
+<td></td>
+</tr>
+<tr>
+<td><code>api.<wbr>env.<wbr>frontendUrl</code></td>
+<td>“”</td>
+<td></td>
+</tr>
+<tr>
+<td><code>api.<wbr>env.<wbr>corsAllowedOrigins</code></td>
+<td>“”</td>
+<td></td>
+</tr>
+<tr>
+<td><code>api.<wbr>env.<wbr>apiBaseUrl</code></td>
+<td>“”</td>
+<td></td>
+</tr>
+<tr>
+<td><code>api.<wbr>env.<wbr>githubRedirectUrl</code></td>
+<td>“”</td>
+<td></td>
+</tr>
+<tr>
+<td><code>api.<wbr>env.<wbr>scannerEnabled</code></td>
+<td><code dir="auto">true</code></td>
+<td></td>
+</tr>
+<tr>
+<td><code>api.<wbr>env.<wbr>registryPollerEnabled</code></td>
+<td><code dir="auto">true</code></td>
+<td></td>
+</tr>
+<tr>
+<td><code>api.<wbr>env.<wbr>natsStreamReplicas</code></td>
+<td><code dir="auto">1</code></td>
+<td></td>
+</tr>
+<tr>
+<td><code>api.<wbr>env.<wbr>retention</code></td>
+<td></td>
+<td>SBOM retention (ADR-0056, <a href="https://docs.ocidex.app/guides/operate/maintenance/">https://docs.ocidex.app/guides/operate/maintenance/</a>). Off by default; run “dry-run” first, which logs what a sweep would delete.</td>
+</tr>
+<tr>
+<td><code>api.<wbr>env.<wbr>retention.<wbr>mode</code></td>
+<td><code dir="auto">off</code></td>
+<td>off | dry-run | on</td>
+</tr>
+<tr>
+<td><code>api.<wbr>env.<wbr>retention.<wbr>keepLast</code></td>
+<td><code dir="auto">20</code></td>
+<td>versions per series for non-registry SBOMs; “0” turns that off</td>
+</tr>
+<tr>
+<td><code>api.<wbr>env.<wbr>retention.<wbr>maxAge</code></td>
+<td>“”</td>
+<td>optional Go duration, e.g. “2160h”</td>
+</tr>
+<tr>
+<td><code>api.<wbr>env.<wbr>retention.<wbr>registryWindow</code></td>
+<td><code dir="auto">true</code></td>
+<td>prune registry SBOMs whose tag left the scan window</td>
+</tr>
+<tr>
+<td><code>api.<wbr>env.<wbr>retention.<wbr>interval</code></td>
+<td><code dir="auto">6h</code></td>
+<td></td>
+</tr>
+<tr>
+<td><code>api.<wbr>env.<wbr>retention.<wbr>batch</code></td>
+<td><code dir="auto">50</code></td>
+<td></td>
+</tr>
+<tr>
+<td><code>api.<wbr>resources.<wbr>requests.<wbr>cpu</code></td>
+<td><code dir="auto">50m</code></td>
+<td></td>
+</tr>
+<tr>
+<td><code>api.<wbr>resources.<wbr>requests.<wbr>memory</code></td>
+<td><code dir="auto">64Mi</code></td>
+<td></td>
+</tr>
+<tr>
+<td><code>api.<wbr>resources.<wbr>limits.<wbr>cpu</code></td>
+<td><code dir="auto">250m</code></td>
+<td></td>
+</tr>
+<tr>
+<td><code>api.<wbr>resources.<wbr>limits.<wbr>memory</code></td>
+<td><code dir="auto">128Mi</code></td>
+<td></td>
+</tr>
+<tr>
+<td><code>scannerWorker.<wbr>replicas</code></td>
+<td><code dir="auto">1</code></td>
+<td>Ignored when keda.enabled=true; KEDA ScaledObject owns replica count.</td>
+</tr>
+<tr>
+<td><code>scannerWorker.<wbr>env.<wbr>maxConcurrency</code></td>
+<td><code dir="auto">1</code></td>
+<td></td>
+</tr>
+<tr>
+<td><code>scannerWorker.<wbr>env.<wbr>natsStreamReplicas</code></td>
+<td><code dir="auto">1</code></td>
+<td></td>
+</tr>
+<tr>
+<td><code>scannerWorker.<wbr>env.<wbr>databaseMaxConnections</code></td>
+<td><code dir="auto">3</code></td>
+<td></td>
+</tr>
+<tr>
+<td><code>scannerWorker.<wbr>env.<wbr>logLevel</code></td>
+<td><code dir="auto">info</code></td>
+<td></td>
+</tr>
+<tr>
+<td><code>scannerWorker.<wbr>env.<wbr>environment</code></td>
+<td><code dir="auto">production</code></td>
+<td></td>
+</tr>
+<tr>
+<td><code>scannerWorker.<wbr>env.<wbr>maxImageBytes</code></td>
+<td><code dir="auto">2147483648</code></td>
+<td>Compressed-layer ceiling above which an image is failed from its manifest rather than pulled (SCANNER_MAX_IMAGE_BYTES). Must stay below what resources.limits.memory can actually catalogue – see the note there. Empty falls back to the binary’s own default (2GiB).</td>
+</tr>
+<tr>
+<td><code>scannerWorker.<wbr>tmpSizeLimit</code></td>
+<td><code dir="auto">8Gi</code></td>
+<td>Caps the node ephemeral storage the /tmp emptyDir may consume while syft unpacks image layers (see deployment-scanner-worker.yaml). Exceeding it evicts this pod rather than filling the node’s disk. Raise it if scans of very large images start failing on eviction rather than on a scan error. Only rendered when securityContext.readOnlyRootFilesystem is true. 8Gi holds a ~1GB-compressed image: syft writes each layer down and then unpacks it, so peak usage is well over the compressed size on the manifest.</td>
+</tr>
+<tr>
+<td><code>scannerWorker.<wbr>resources.<wbr>requests.<wbr>cpu</code></td>
+<td><code dir="auto">100m</code></td>
+<td></td>
+</tr>
+<tr>
+<td><code>scannerWorker.<wbr>resources.<wbr>requests.<wbr>memory</code></td>
+<td><code dir="auto">256Mi</code></td>
+<td></td>
+</tr>
+<tr>
+<td><code>scannerWorker.<wbr>resources.<wbr>limits.<wbr>cpu</code></td>
+<td><code dir="auto">1500m</code></td>
+<td></td>
+</tr>
+<tr>
+<td><code>scannerWorker.<wbr>resources.<wbr>limits.<wbr>memory</code></td>
+<td><code dir="auto">4Gi</code></td>
+<td>syft holds the file catalogue for the whole unpacked rootfs in memory, so the ceiling here is what decides the largest image that can be scanned – and exceeding it is an OOMKill, not a scan error: the container dies without writing last_error, the stuck sweep requeues the row, and the next attempt kills the worker again along with whatever else shared the pod. quay.io/cilium/cilium-envoy (one 1.05GB layer) looped that way for 13 days at 1536Mi. 4Gi covers it; images past SCANNER_MAX_IMAGE_BYTES are rejected from the manifest instead, so this limit and that ceiling must be raised together.</td>
+</tr>
+<tr>
+<td><code>enricherWorkers</code></td>
+<td><code dir="auto">[{"consumer":"enrich-hint-oci-metadata","name":"oci-metadata-worker"},{"consumer":"enrich-hint-git","name":"git-worker"},{"consumer":"enrich-hint-user","name":"user-enricher-worker"},{"consumer":"enrich-hint-provenance","env":{"maxConcurrency":"2"},"name":"provenance-worker","resources":{"limits":{"cpu":"250m","memory":"512Mi"},"requests":{"cpu":"20m","memory":"128Mi"}}}]</code></td>
+<td>Per-enricher worker microservices (ADR-033). Each entry in <code dir="auto">enricherWorkers</code> becomes a Deployment (+ PodMonitor + KEDA ScaledObject) running a single enricher and claiming its own enricher_name partition. <code dir="auto">consumer</code> is the JetStream durable (HintDurable in cmd/&lt;name&gt;/main.go) KEDA scales on. <code dir="auto">enricherWorkerDefaults</code> holds the sizing/env shared by all of them; an entry may set its own <code dir="auto">resources</code> to override that default for just that worker.</td>
+</tr>
+<tr>
+<td><code>enricherWorkerDefaults.<wbr>replicas</code></td>
+<td><code dir="auto">2</code></td>
+<td></td>
+</tr>
+<tr>
+<td><code>enricherWorkerDefaults.<wbr>env.<wbr>maxConcurrency</code></td>
+<td><code dir="auto">10</code></td>
+<td>Jobs a worker claims and runs at once (ENRICHMENT_MAX_CONCURRENCY). Fine at 10 for the cheap enrichers; per-entry <code dir="auto">env.maxConcurrency</code> overrides it for one that is not cheap.</td>
+</tr>
+<tr>
+<td><code>enricherWorkerDefaults.<wbr>env.<wbr>natsStreamReplicas</code></td>
+<td><code dir="auto">1</code></td>
+<td></td>
+</tr>
+<tr>
+<td><code>enricherWorkerDefaults.<wbr>env.<wbr>databaseMaxConnections</code></td>
+<td><code dir="auto">3</code></td>
+<td></td>
+</tr>
+<tr>
+<td><code>enricherWorkerDefaults.<wbr>env.<wbr>logLevel</code></td>
+<td><code dir="auto">info</code></td>
+<td></td>
+</tr>
+<tr>
+<td><code>enricherWorkerDefaults.<wbr>env.<wbr>environment</code></td>
+<td><code dir="auto">production</code></td>
+<td></td>
+</tr>
+<tr>
+<td><code>enricherWorkerDefaults.<wbr>resources.<wbr>requests.<wbr>cpu</code></td>
+<td><code dir="auto">20m</code></td>
+<td></td>
+</tr>
+<tr>
+<td><code>enricherWorkerDefaults.<wbr>resources.<wbr>requests.<wbr>memory</code></td>
+<td><code dir="auto">32Mi</code></td>
+<td></td>
+</tr>
+<tr>
+<td><code>enricherWorkerDefaults.<wbr>resources.<wbr>limits.<wbr>cpu</code></td>
+<td><code dir="auto">250m</code></td>
+<td></td>
+</tr>
+<tr>
+<td><code>enricherWorkerDefaults.<wbr>resources.<wbr>limits.<wbr>memory</code></td>
+<td><code dir="auto">128Mi</code></td>
+<td></td>
+</tr>
+<tr>
+<td><code>vulnWorker</code></td>
+<td></td>
+<td>Scheduled OSV.dev refresh of the package-keyed vulnerability store. Singleton: a Postgres advisory lock (service.LeaderElect) makes &gt;1 replica safe, but 1 is sufficient. Talks only to Postgres and OSV.dev — no NATS, no KEDA.</td>
+</tr>
+<tr>
+<td><code>vulnWorker.<wbr>enabled</code></td>
+<td><code dir="auto">true</code></td>
+<td></td>
+</tr>
+<tr>
+<td><code>vulnWorker.<wbr>replicas</code></td>
+<td><code dir="auto">1</code></td>
+<td></td>
+</tr>
+<tr>
+<td><code>vulnWorker.<wbr>env.<wbr>databaseMaxConnections</code></td>
+<td><code dir="auto">3</code></td>
+<td></td>
+</tr>
+<tr>
+<td><code>vulnWorker.<wbr>env.<wbr>logLevel</code></td>
+<td><code dir="auto">info</code></td>
+<td></td>
+</tr>
+<tr>
+<td><code>vulnWorker.<wbr>env.<wbr>environment</code></td>
+<td><code dir="auto">production</code></td>
+<td></td>
+</tr>
+<tr>
+<td><code>vulnWorker.<wbr>env.<wbr>refreshEnabled</code></td>
+<td><code dir="auto">true</code></td>
+<td></td>
+</tr>
+<tr>
+<td><code>vulnWorker.<wbr>env.<wbr>refreshInterval</code></td>
+<td><code dir="auto">6h</code></td>
+<td></td>
+</tr>
+<tr>
+<td><code>vulnWorker.<wbr>db</code></td>
+<td></td>
+<td>grype vulnerability database (ADR-049). ~3 GB on disk, rebuilt daily upstream; an update needs room for the download plus two copies during the swap.</td>
+</tr>
+<tr>
+<td><code>vulnWorker.<wbr>db.<wbr>path</code></td>
+<td><code dir="auto">/var/lib/ocidex/grype-db</code></td>
+<td></td>
+</tr>
+<tr>
+<td><code>vulnWorker.<wbr>db.<wbr>maxAge</code></td>
+<td><code dir="auto">120h</code></td>
+<td></td>
+</tr>
+<tr>
+<td><code>vulnWorker.<wbr>db.<wbr>updateURL</code></td>
+<td>“”</td>
+<td>Empty = grype’s default listing (<a href="https://grype.anchore.io/databases">https://grype.anchore.io/databases</a>).</td>
+</tr>
+<tr>
+<td><code>vulnWorker.<wbr>db.<wbr>persistence.<wbr>enabled</code></td>
+<td><code dir="auto">true</code></td>
+<td>false falls back to an emptyDir of the same size: every restart re-downloads.</td>
+</tr>
+<tr>
+<td><code>vulnWorker.<wbr>db.<wbr>persistence.<wbr>size</code></td>
+<td><code dir="auto">10Gi</code></td>
+<td></td>
+</tr>
+<tr>
+<td><code>vulnWorker.<wbr>db.<wbr>persistence.<wbr>storageClass</code></td>
+<td>“”</td>
+<td></td>
+</tr>
+<tr>
+<td><code>vulnWorker.<wbr>db.<wbr>persistence.<wbr>existingClaim</code></td>
+<td>“”</td>
+<td></td>
+</tr>
+<tr>
+<td><code>vulnWorker.<wbr>resources.<wbr>requests.<wbr>cpu</code></td>
+<td><code dir="auto">20m</code></td>
+<td></td>
+</tr>
+<tr>
+<td><code>vulnWorker.<wbr>resources.<wbr>requests.<wbr>memory</code></td>
+<td><code dir="auto">128Mi</code></td>
+<td></td>
+</tr>
+<tr>
+<td><code>vulnWorker.<wbr>resources.<wbr>limits.<wbr>cpu</code></td>
+<td><code dir="auto">1</code></td>
+<td></td>
+</tr>
+<tr>
+<td><code>vulnWorker.<wbr>resources.<wbr>limits.<wbr>memory</code></td>
+<td><code dir="auto">2Gi</code></td>
+<td>The worker’s own heap is ~150Mi; the rest is page cache for the grype DB, which counts against this limit. At 512Mi a match pass slowed from ~2s to ~9s per SBOM as the cache was squeezed; at 2Gi it held ~2s (ocidex-cecc.2).</td>
+</tr>
+<tr>
+<td><code>web.<wbr>replicas</code></td>
+<td><code dir="auto">1</code></td>
+<td></td>
+</tr>
+<tr>
+<td><code>web.<wbr>resources.<wbr>requests.<wbr>cpu</code></td>
+<td><code dir="auto">10m</code></td>
+<td></td>
+</tr>
+<tr>
+<td><code>web.<wbr>resources.<wbr>requests.<wbr>memory</code></td>
+<td><code dir="auto">32Mi</code></td>
+<td></td>
+</tr>
+<tr>
+<td><code>web.<wbr>resources.<wbr>limits.<wbr>cpu</code></td>
+<td><code dir="auto">100m</code></td>
+<td></td>
+</tr>
+<tr>
+<td><code>web.<wbr>resources.<wbr>limits.<wbr>memory</code></td>
+<td><code dir="auto">64Mi</code></td>
+<td></td>
+</tr>
+<tr>
+<td><code>migrate</code></td>
+<td></td>
+<td>Runs <code dir="auto">ocidex migrate up</code> from the api image as a pre-install/pre-upgrade hook. Disable only if you apply migrations out of band (e.g. <code dir="auto">make migrate-up</code>).</td>
+</tr>
+<tr>
+<td><code>migrate.<wbr>enabled</code></td>
+<td><code dir="auto">true</code></td>
+<td></td>
+</tr>
+<tr>
+<td><code>nats.<wbr>image</code></td>
+<td></td>
+<td>Declared here rather than inline in the StatefulSet so Renovate’s helm-values manager can see and bump it.</td>
+</tr>
+<tr>
+<td><code>nats.<wbr>image.<wbr>repository</code></td>
+<td><code dir="auto">docker.io/nats</code></td>
+<td></td>
+</tr>
+<tr>
+<td><code>nats.<wbr>image.<wbr>tag</code></td>
+<td><code dir="auto">2-alpine@sha256:afae2fdbe2e326c65e1246cb83b9d05d319188734f3bd577ac8072daae78a10f</code></td>
+<td></td>
+</tr>
+<tr>
+<td><code>nats.<wbr>storage.<wbr>emptyDir</code></td>
+<td><code dir="auto">false</code></td>
+<td></td>
+</tr>
+<tr>
+<td><code>nats.<wbr>storage.<wbr>size</code></td>
+<td><code dir="auto">1Gi</code></td>
+<td></td>
+</tr>
+<tr>
+<td><code>nats.<wbr>storage.<wbr>storageClass</code></td>
+<td>“”</td>
+<td></td>
+</tr>
+<tr>
+<td><code>nats.<wbr>resources.<wbr>requests.<wbr>cpu</code></td>
+<td><code dir="auto">20m</code></td>
+<td></td>
+</tr>
+<tr>
+<td><code>nats.<wbr>resources.<wbr>requests.<wbr>memory</code></td>
+<td><code dir="auto">32Mi</code></td>
+<td></td>
+</tr>
+<tr>
+<td><code>nats.<wbr>resources.<wbr>limits.<wbr>cpu</code></td>
+<td><code dir="auto">100m</code></td>
+<td></td>
+</tr>
+<tr>
+<td><code>nats.<wbr>resources.<wbr>limits.<wbr>memory</code></td>
+<td><code dir="auto">64Mi</code></td>
+<td></td>
+</tr>
+<tr>
+<td><code>nats.<wbr>podSecurityContext</code></td>
+<td></td>
+<td>NATS has its own security context rather than reusing the chart-wide keys below: docker.io/nats:2-alpine declares no non-root user in /etc/passwd, so runAsNonRoot is only satisfiable with an explicit numeric runAsUser, which the project’s own images do not need. fsGroup is set for storage classes that honour it. Classes that do not (local-path is a hostPath provisioner; the kubelet applies fsGroup only to volume types supporting ownership management) still work on a <em>fresh</em> volume, because local-path creates the volume root 0777 and nats-server creates its own jetstream/ dir inside it as this uid. UPGRADE CAVEAT: an install predating ocidex-s3tu ran NATS as root, so its store dir is 0700 root:root and uid 1000 cannot open it — NATS dies with “[FTL] Can’t start JetStream: storage directory is not writable”. Recreate the PVC; see templates/NOTES.txt. The store is a doorbell cache, not the queue of record (ADR-024) — Postgres holds the jobs.</td>
+</tr>
+<tr>
+<td><code>nats.<wbr>podSecurityContext.<wbr>runAsNonRoot</code></td>
+<td><code dir="auto">true</code></td>
+<td></td>
+</tr>
+<tr>
+<td><code>nats.<wbr>podSecurityContext.<wbr>runAsUser</code></td>
+<td><code dir="auto">1000</code></td>
+<td></td>
+</tr>
+<tr>
+<td><code>nats.<wbr>podSecurityContext.<wbr>runAsGroup</code></td>
+<td><code dir="auto">1000</code></td>
+<td></td>
+</tr>
+<tr>
+<td><code>nats.<wbr>podSecurityContext.<wbr>fsGroup</code></td>
+<td><code dir="auto">1000</code></td>
+<td></td>
+</tr>
+<tr>
+<td><code>nats.<wbr>podSecurityContext.<wbr>seccompProfile.<wbr>type</code></td>
+<td><code dir="auto">RuntimeDefault</code></td>
+<td></td>
+</tr>
+<tr>
+<td><code>nats.<wbr>securityContext.<wbr>allowPrivilegeEscalation</code></td>
+<td><code dir="auto">false</code></td>
+<td></td>
+</tr>
+<tr>
+<td><code>nats.<wbr>securityContext.<wbr>capabilities.<wbr>drop</code></td>
+<td><code dir="auto">["ALL"]</code></td>
+<td></td>
+</tr>
+<tr>
+<td><code>nats.<wbr>securityContext.<wbr>readOnlyRootFilesystem</code></td>
+<td><code dir="auto">true</code></td>
+<td></td>
+</tr>
+<tr>
+<td><code>podSecurityContext</code></td>
+<td></td>
+<td>Defaults satisfy the PodSecurity “restricted” profile so the chart installs into a namespace labelled pod-security.kubernetes.io/enforce=restricted (ocidex-1d9). Applied to every workload the project builds itself; NATS carries its own equivalent block under <code dir="auto">nats</code> above. runAsNonRoot needs no runAsUser: every Go runtime stage in docker/Dockerfile is gcr.io/distroless/static-debian13:nonroot and docker/web/Dockerfile is cgr.dev/chainguard/nginx, both of which declare USER 65532 in the image config, which is where the kubelet reads the non-root assertion from.</td>
+</tr>
+<tr>
+<td><code>podSecurityContext.<wbr>runAsNonRoot</code></td>
+<td><code dir="auto">true</code></td>
+<td></td>
+</tr>
+<tr>
+<td><code>podSecurityContext.<wbr>seccompProfile.<wbr>type</code></td>
+<td><code dir="auto">RuntimeDefault</code></td>
+<td></td>
+</tr>
+<tr>
+<td><code>securityContext</code></td>
+<td></td>
+<td>readOnlyRootFilesystem is defence in depth, not a “restricted” requirement. Two workloads write to their own filesystem and mount emptyDirs over exactly the paths they need rather than dropping this setting: nginx (/run and /var/lib/nginx/tmp, deployment-web.yaml) and the scanner worker, whose syft dependency unpacks image layers into /tmp (deployment-scanner-worker.yaml). The vuln-worker writes only its grype database volume (deployment-vuln-worker.yaml). Adding a workload that shells out, unpacks archives, or caches to disk means auditing it against this setting — ocidex-gsip was six days of total scan outage from missing that step.</td>
+</tr>
+<tr>
+<td><code>securityContext.<wbr>allowPrivilegeEscalation</code></td>
+<td><code dir="auto">false</code></td>
+<td></td>
+</tr>
+<tr>
+<td><code>securityContext.<wbr>capabilities.<wbr>drop</code></td>
+<td><code dir="auto">["ALL"]</code></td>
+<td></td>
+</tr>
+<tr>
+<td><code>securityContext.<wbr>readOnlyRootFilesystem</code></td>
+<td><code dir="auto">true</code></td>
+<td></td>
+</tr>
+<tr>
+<td><code>keda</code></td>
+<td></td>
+<td>Requires the KEDA operator to be installed in the cluster. When enabled, the scanner-worker Deployment has no replica count set; KEDA’s ScaledObject manages scaling based on NATS JetStream consumer lag.</td>
+</tr>
+<tr>
+<td><code>keda.<wbr>enabled</code></td>
+<td><code dir="auto">false</code></td>
+<td></td>
+</tr>
+<tr>
+<td><code>keda.<wbr>scanner.<wbr>minReplicas</code></td>
+<td><code dir="auto">1</code></td>
+<td></td>
+</tr>
+<tr>
+<td><code>keda.<wbr>scanner.<wbr>maxReplicas</code></td>
+<td><code dir="auto">5</code></td>
+<td></td>
+</tr>
+<tr>
+<td><code>keda.<wbr>scanner.<wbr>stream</code></td>
+<td><code dir="auto">SCANS</code></td>
+<td></td>
+</tr>
+<tr>
+<td><code>keda.<wbr>scanner.<wbr>consumer</code></td>
+<td><code dir="auto">scanner-worker</code></td>
+<td></td>
+</tr>
+<tr>
+<td><code>keda.<wbr>scanner.<wbr>lagThreshold</code></td>
+<td><code dir="auto">5</code></td>
+<td></td>
+</tr>
+<tr>
+<td><code>keda.<wbr>scanner.<wbr>activationLagThreshold</code></td>
+<td><code dir="auto">1</code></td>
+<td></td>
+</tr>
+<tr>
+<td><code>keda.<wbr>enrichment.<wbr>minReplicas</code></td>
+<td><code dir="auto">1</code></td>
+<td>Shared scaling bounds for every per-enricher worker; the per-worker JetStream consumer comes from enricherWorkers[].consumer.</td>
+</tr>
+<tr>
+<td><code>keda.<wbr>enrichment.<wbr>maxReplicas</code></td>
+<td><code dir="auto">4</code></td>
+<td></td>
+</tr>
+<tr>
+<td><code>keda.<wbr>enrichment.<wbr>stream</code></td>
+<td><code dir="auto">ENRICHMENTS</code></td>
+<td></td>
+</tr>
+<tr>
+<td><code>keda.<wbr>enrichment.<wbr>lagThreshold</code></td>
+<td><code dir="auto">10</code></td>
+<td></td>
+</tr>
+<tr>
+<td><code>keda.<wbr>enrichment.<wbr>activationLagThreshold</code></td>
+<td><code dir="auto">1</code></td>
+<td></td>
+</tr>
+<tr>
+<td><code>monitoring</code></td>
+<td></td>
+<td>Every component serves Prometheus /metrics on :9090 (ADR-0054): the api on its own “metrics” port, the workers on their “health” port. No Service port or route exposes it. enabled renders a PodMonitor per component, which requires the Prometheus Operator; scrapers also need networkPolicy.ingress.metricsFrom when policies are on.</td>
+</tr>
+<tr>
+<td><code>monitoring.<wbr>enabled</code></td>
+<td><code dir="auto">false</code></td>
+<td></td>
+</tr>
+<tr>
+<td><code>monitoring.<wbr>additionalLabels</code></td>
+<td><code dir="auto">{}</code></td>
+<td>Additional labels to add to PodMonitor resources (e.g. for label-based Prometheus scrape selection).</td>
+</tr>
+<tr>
+<td><code>monitoring.<wbr>resourceAttributes</code></td>
+<td>“”</td>
+<td>OTEL_RESOURCE_ATTRIBUTES for every component; they appear on target_info. e.g. “deployment.environment.name=prod”</td>
+</tr>
+<tr>
+<td><code>monitoring.<wbr>otel</code></td>
+<td></td>
+<td>OpenTelemetry export (ADR-0055), set on every component. Empty values are not set, so the binaries’ defaults apply: no tracing, metrics on /metrics only. OTLP auth (OTEL_EXPORTER_OTLP_HEADERS) belongs in existingSecret, never here.</td>
+</tr>
+<tr>
+<td><code>monitoring.<wbr>otel.<wbr>tracesExporter</code></td>
+<td>“”</td>
+<td>otlp or console; empty = off.</td>
+</tr>
+<tr>
+<td><code>monitoring.<wbr>otel.<wbr>metricsExporter</code></td>
+<td>“”</td>
+<td>Comma-separated prometheus, otlp, none; empty = prometheus.</td>
+</tr>
+<tr>
+<td><code>monitoring.<wbr>otel.<wbr>endpoint</code></td>
+<td>“”</td>
+<td>e.g. <a href="http://alloy.monitoring.svc.cluster.local:4318">http://alloy.monitoring.svc.cluster.local:4318</a> (http/protobuf) or :4317 (grpc).</td>
+</tr>
+<tr>
+<td><code>monitoring.<wbr>otel.<wbr>protocol</code></td>
+<td>“”</td>
+<td>http/protobuf (default) or grpc.</td>
+</tr>
+<tr>
+<td><code>monitoring.<wbr>otel.<wbr>sampler</code></td>
+<td>“”</td>
+<td>parentbased_traceidratio (default), always_on, …; samplerArg is its ratio.</td>
+</tr>
+<tr>
+<td><code>monitoring.<wbr>otel.<wbr>samplerArg</code></td>
+<td>“”</td>
+<td></td>
+</tr>
+<tr>
+<td><code>monitoring.<wbr>otel.<wbr>egress</code></td>
+<td><code dir="auto">[]</code></td>
+<td>With networkPolicy.enabled: the collector’s pods or namespace (NetworkPolicyPeer list) and port. An in-cluster collector is otherwise blocked; egress.internet excludes private ranges.</td>
+</tr>
+<tr>
+<td><code>monitoring.<wbr>otel.<wbr>egressPort</code></td>
+<td><code dir="auto">4318</code></td>
+<td></td>
+</tr>
+<tr>
+<td><code>monitoring.<wbr>dashboard</code></td>
+<td></td>
+<td>Grafana dashboard (dashboards/ocidex.json) as a ConfigMap for the Grafana sidecar. Independent of enabled: it only needs the metrics scraped somehow.</td>
+</tr>
+<tr>
+<td><code>monitoring.<wbr>dashboard.<wbr>enabled</code></td>
+<td><code dir="auto">false</code></td>
+<td></td>
+</tr>
+<tr>
+<td><code>monitoring.<wbr>dashboard.<wbr>namespace</code></td>
+<td>“”</td>
+<td>The sidecar’s search namespace, when it is not the release namespace.</td>
+</tr>
+<tr>
+<td><code>monitoring.<wbr>dashboard.<wbr>labels</code></td>
+<td></td>
+<td>Labels the sidecar selects on (kube-prometheus-stack / grafana chart default).</td>
+</tr>
+<tr>
+<td><code>monitoring.<wbr>dashboard.<wbr>labels.<wbr>grafana_<wbr>dashboard</code></td>
+<td><code dir="auto">1</code></td>
+<td></td>
+</tr>
+<tr>
+<td><code>monitoring.<wbr>dashboard.<wbr>annotations</code></td>
+<td><code dir="auto">{}</code></td>
+<td>e.g. {grafana_folder: OCIDex} with the sidecar’s folderAnnotation.</td>
+</tr>
+<tr>
+<td><code>gatewayApi</code></td>
+<td></td>
+<td>Requires Gateway API CRDs (v1) and a conformant Gateway controller (e.g. Cilium). The web container serves static assets only — it contains no reverse proxy. The webHostname HTTPRoute is what routes /api, /auth, /health and /ready to the API, giving the SPA a same-origin API. With gatewayApi.enabled=false you must supply that routing yourself, either with equivalent Ingress rules or by building the frontend with VITE_API_URL set to the API’s own origin (and listing the frontend origin in api.env.corsAllowedOrigins).</td>
+</tr>
+<tr>
+<td><code>gatewayApi.<wbr>enabled</code></td>
+<td><code dir="auto">false</code></td>
+<td></td>
+</tr>
+<tr>
+<td><code>gatewayApi.<wbr>gatewayName</code></td>
+<td>“”</td>
+<td></td>
+</tr>
+<tr>
+<td><code>gatewayApi.<wbr>gatewayNamespace</code></td>
+<td>“”</td>
+<td></td>
+</tr>
+<tr>
+<td><code>gatewayApi.<wbr>apiHostname</code></td>
+<td>“”</td>
+<td></td>
+</tr>
+<tr>
+<td><code>gatewayApi.<wbr>webHostname</code></td>
+<td>“”</td>
+<td></td>
+</tr>
+<tr>
+<td><code>gatewayApi.<wbr>tlsSecretName</code></td>
+<td>“”</td>
+<td></td>
+</tr>
+<tr>
+<td><code>networkPolicy</code></td>
+<td></td>
+<td>Plain networking.k8s.io/v1 NetworkPolicy, so any enforcing CNI works. When enabled, every pod in the release is default-deny in both directions and gets only: web, nats and migrate get no internet. Peers are NetworkPolicyPeer objects (podSelector / namespaceSelector / ipBlock).</td>
+</tr>
+<tr>
+<td><code>networkPolicy.<wbr>enabled</code></td>
+<td><code dir="auto">false</code></td>
+<td></td>
+</tr>
+<tr>
+<td><code>networkPolicy.<wbr>ingress.<wbr>from</code></td>
+<td><code dir="auto">[]</code></td>
+<td>Reaches api and web: the Gateway / Ingress controller’s pods. e.g. [{namespaceSelector: {matchLabels: {kubernetes.io/metadata.name: gateway-system}}}]</td>
+</tr>
+<tr>
+<td><code>networkPolicy.<wbr>ingress.<wbr>apiFrom</code></td>
+<td><code dir="auto">[]</code></td>
+<td>Reaches api only: in-cluster API clients such as ocidex-operator and ocidex-k8s-agent.</td>
+</tr>
+<tr>
+<td><code>networkPolicy.<wbr>ingress.<wbr>metricsFrom</code></td>
+<td><code dir="auto">[]</code></td>
+<td>Scrapes the workers’ health/metrics port (9090) and NATS monitoring (8222): Prometheus, and KEDA’s operator when keda.enabled (its nats-jetstream scaler polls 8222).</td>
+</tr>
+<tr>
+<td><code>networkPolicy.<wbr>egress.<wbr>dns</code></td>
+<td><code dir="auto">[{"namespaceSelector":{"matchLabels":{"kubernetes.io/metadata.name":"kube-system"}},"podSelector":{"matchLabels":{"k8s-app":"kube-dns"}}}]</code></td>
+<td>Where DNS lives. The default matches kube-dns/CoreDNS in kube-system.</td>
+</tr>
+<tr>
+<td><code>networkPolicy.<wbr>egress.<wbr>database</code></td>
+<td><code dir="auto">[]</code></td>
+<td>Postgres. Required when enabled. e.g. a CloudNativePG cluster in the release namespace: [{podSelector: {matchLabels: {cnpg.io/cluster: ocidex-pg}}}]</td>
+</tr>
+<tr>
+<td><code>networkPolicy.<wbr>egress.<wbr>databasePort</code></td>
+<td><code dir="auto">5432</code></td>
+<td></td>
+</tr>
+<tr>
+<td><code>networkPolicy.<wbr>egress.<wbr>internet.<wbr>enabled</code></td>
+<td><code dir="auto">true</code></td>
+<td></td>
+</tr>
+<tr>
+<td><code>networkPolicy.<wbr>egress.<wbr>internet.<wbr>except</code></td>
+<td><code dir="auto">["10.0.0.0/8","100.64.0.0/10","169.254.0.0/16","172.16.0.0/12","192.168.0.0/16","fc00::/7","fe80::/10"]</code></td>
+<td>Carved out of 0.0.0.0/0 and ::/0. Must cover the cluster’s pod and service CIDRs on CNIs where ipBlock matches in-cluster IPs; the defaults cover the usual private ranges, CGNAT (tailnets) and link-local (cloud metadata).</td>
+</tr>
+<tr>
+<td><code>networkPolicy.<wbr>extraIngress</code></td>
+<td><code dir="auto">[]</code></td>
+<td>Appended to the release-wide policy as-is: NetworkPolicyIngressRule / NetworkPolicyEgressRule lists (e.g. an in-cluster registry or OIDC provider).</td>
+</tr>
+<tr>
+<td><code>networkPolicy.<wbr>extraEgress</code></td>
+<td><code dir="auto">[]</code></td>
+<td></td>
+</tr>
+</tbody>
+</table>
+<div class="sl-heading-wrapper level-h2"><h2 id="ocidex-operator">ocidex-operator</h2><a class="sl-anchor-link" href="#ocidex-operator"><span aria-hidden="true" class="sl-anchor-icon"><svg width="16" height="16" viewBox="0 0 24 24" fill="currentColor"><path d="m12.11 15.39-3.88 3.88a2.52 2.52 0 0 1-3.5 0 2.47 2.47 0 0 1 0-3.5l3.88-3.88a1 1 0 1 0-1.42-1.42l-3.88 3.89a4.48 4.48 0 0 0 6.33 6.33l3.89-3.88a1 1 0 0 0-1.42-1.42m8.58-12.08a4.49 4.49 0 0 0-6.33 0l-3.89 3.88a1 1 0 1 0 1.42 1.42l3.88-3.88a2.52 2.52 0 0 1 3.5 0 2.47 2.47 0 0 1 0 3.5l-3.88 3.88a1 1 0 0 0 0 1.42 1 1 0 0 0 1.42 0l3.88-3.89a4.49 4.49 0 0 0 0-6.33M8.83 15.17a1 1 0 0 0 .71.29 1 1 0 0 0 .71-.29l4.92-4.92a1 1 0 1 0-1.42-1.42l-4.92 4.92a1 1 0 0 0 0 1.42"></path></svg></span><span class="sr-only" data-pagefind-ignore>Section titled “ocidex-operator”</span></a></div>
+<p>The optional operator that manages registries, scans and API keys as Kubernetes resources.</p>
+<table>
+<thead>
+<tr>
+<th>Key</th>
+<th>Default</th>
+<th>Description</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>image.<wbr>repository</code></td>
+<td><code dir="auto">ghcr.io/pfenerty/ocidex-operator</code></td>
+<td></td>
+</tr>
+<tr>
+<td><code>image.<wbr>tag</code></td>
+<td>“”</td>
+<td>tag defaults to Chart.appVersion (set to sha-&lt;short&gt; or vX.Y.Z at package time). Override with <code dir="auto">--set</code> image.tag=&lt;tag&gt; to pin a specific version.</td>
+</tr>
+<tr>
+<td><code>image.<wbr>pullPolicy</code></td>
+<td><code dir="auto">IfNotPresent</code></td>
+<td></td>
+</tr>
+<tr>
+<td><code>image.<wbr>digest</code></td>
+<td>“”</td>
+<td>digest pins the operator image to an immutable sha256 digest and is baked in at release-package time by the helm-release CI task (release builds only; empty for main/dev sha builds). An explicit image.tag takes precedence over digest.</td>
+</tr>
+<tr>
+<td><code>server</code></td>
+<td></td>
+<td>server.url is the base URL of the OCIDex API server (OCIDEX_SERVER). Example: “<a href="http://ocidex-api.ocidex.svc.cluster.local:8080">http://ocidex-api.ocidex.svc.cluster.local:8080</a>”</td>
+</tr>
+<tr>
+<td><code>server.<wbr>url</code></td>
+<td>“”</td>
+<td></td>
+</tr>
+<tr>
+<td><code>apiKey</code></td>
+<td></td>
+<td>apiKey configures where the operator reads its OCIDex API key (OCIDEX_API_KEY).</td>
+</tr>
+<tr>
+<td><code>apiKey.<wbr>secretName</code></td>
+<td><code dir="auto">ocidex-operator-secrets</code></td>
+<td></td>
+</tr>
+<tr>
+<td><code>apiKey.<wbr>secretKey</code></td>
+<td><code dir="auto">OCIDEX_API_KEY</code></td>
+<td></td>
+</tr>
+<tr>
+<td><code>watchNamespace</code></td>
+<td>“”</td>
+<td>watchNamespace restricts the operator to reconciling CRs in the namespaces listed here. Required — prevents multiple operator instances from stepping on each other. Accepts a comma-separated list (“ocidex-dev,ocidex”). Changing this value is an operational contract, not a tuning knob: OCIRegistry resources carry an ocidex.io/registry-protection finalizer that only a watching operator removes, so any CR left in a namespace that drops off this list keeps its finalizer forever and leaves the namespace stuck Terminating (ocidex-1eo). Follow the retarget procedure in <a href="https://docs.ocidex.app/guides/operate/clusters-and-operator/">https://docs.ocidex.app/guides/operate/clusters-and-operator/</a> before changing it.</td>
+</tr>
+<tr>
+<td><code>leaderElect</code></td>
+<td><code dir="auto">true</code></td>
+<td>leaderElect enables leader election for multi-replica deployments.</td>
+</tr>
+<tr>
+<td><code>leaderElection</code></td>
+<td></td>
+<td>leaderElection tunes the lease timings. Defaults are wider than controller-runtime’s 15s/10s/2s because the per-request API-server timeout is derived as renewDeadline/2 — the 5s that controller-runtime’s defaults imply is not enough headroom on a loaded control plane, and a single slow Lease GET terminates the process (ocidex-vh6). Invariants enforced at startup: leaseDuration &gt; renewDeadline &gt; retryPeriod * 1.2.</td>
+</tr>
+<tr>
+<td><code>leaderElection.<wbr>leaseDuration</code></td>
+<td><code dir="auto">60s</code></td>
+<td></td>
+</tr>
+<tr>
+<td><code>leaderElection.<wbr>renewDeadline</code></td>
+<td><code dir="auto">40s</code></td>
+<td></td>
+</tr>
+<tr>
+<td><code>leaderElection.<wbr>retryPeriod</code></td>
+<td><code dir="auto">10s</code></td>
+<td></td>
+</tr>
+<tr>
+<td><code>resources.<wbr>requests.<wbr>cpu</code></td>
+<td><code dir="auto">50m</code></td>
+<td></td>
+</tr>
+<tr>
+<td><code>resources.<wbr>requests.<wbr>memory</code></td>
+<td><code dir="auto">64Mi</code></td>
+<td></td>
+</tr>
+<tr>
+<td><code>resources.<wbr>limits.<wbr>cpu</code></td>
+<td><code dir="auto">200m</code></td>
+<td></td>
+</tr>
+<tr>
+<td><code>resources.<wbr>limits.<wbr>memory</code></td>
+<td><code dir="auto">128Mi</code></td>
+<td></td>
+</tr>
+<tr>
+<td><code>podSecurityContext</code></td>
+<td></td>
+<td>podSecurityContext / securityContext default to the settings the PodSecurity “restricted” profile requires, so the chart installs cleanly into a namespace labelled pod-security.kubernetes.io/enforce=restricted (ocidex-1d9). They are values rather than hardcoded template blocks for the same reason resources and leaderElection are: an operator can loosen them without forking the chart. runAsNonRoot needs no accompanying runAsUser — docker/Dockerfile builds the operator on gcr.io/distroless/static-debian13:nonroot, which declares USER 65532, and the kubelet reads the non-root assertion off the image config.</td>
+</tr>
+<tr>
+<td><code>podSecurityContext.<wbr>runAsNonRoot</code></td>
+<td><code dir="auto">true</code></td>
+<td></td>
+</tr>
+<tr>
+<td><code>podSecurityContext.<wbr>seccompProfile.<wbr>type</code></td>
+<td><code dir="auto">RuntimeDefault</code></td>
+<td></td>
+</tr>
+<tr>
+<td><code>securityContext</code></td>
+<td></td>
+<td>readOnlyRootFilesystem is not required by “restricted” — it is defence in depth, and safe here because controller-runtime writes nothing to disk unless webhooks are configured (this chart configures none). Verified at runtime, not assumed: see the ocidex-1d9 notes.</td>
+</tr>
+<tr>
+<td><code>securityContext.<wbr>allowPrivilegeEscalation</code></td>
+<td><code dir="auto">false</code></td>
+<td></td>
+</tr>
+<tr>
+<td><code>securityContext.<wbr>capabilities.<wbr>drop</code></td>
+<td><code dir="auto">["ALL"]</code></td>
+<td></td>
+</tr>
+<tr>
+<td><code>securityContext.<wbr>readOnlyRootFilesystem</code></td>
+<td><code dir="auto">true</code></td>
+<td></td>
+</tr>
+<tr>
+<td><code>networkPolicy</code></td>
+<td></td>
+<td>Plain networking.k8s.io/v1 NetworkPolicy. When enabled the pod is default-deny in both directions and gets only DNS, the OCIDex API (egress.server), the Kubernetes API server (egress.apiServer), and ingress from ingress.metricsFrom on the operator’s metrics port (8080). Peers are NetworkPolicyPeer objects (podSelector / namespaceSelector / ipBlock). The Kubernetes API server has no portable selector. On most CNIs list its endpoints as ipBlocks (<code dir="auto">kubectl get endpoints kubernetes</code>). Cilium does not match the API server by ipBlock: leave apiServer empty and add a CiliumNetworkPolicy with <code dir="auto">toEntities: [kube-apiserver]</code> next to the release.</td>
+</tr>
+<tr>
+<td><code>networkPolicy.<wbr>enabled</code></td>
+<td><code dir="auto">false</code></td>
+<td></td>
+</tr>
+<tr>
+<td><code>networkPolicy.<wbr>ingress.<wbr>metricsFrom</code></td>
+<td><code dir="auto">[]</code></td>
+<td>Prometheus, if anything scrapes the pod.</td>
+</tr>
+<tr>
+<td><code>networkPolicy.<wbr>egress.<wbr>dns</code></td>
+<td><code dir="auto">[{"namespaceSelector":{"matchLabels":{"kubernetes.io/metadata.name":"kube-system"}},"podSelector":{"matchLabels":{"k8s-app":"kube-dns"}}}]</code></td>
+<td>Where DNS lives. The default matches kube-dns/CoreDNS in kube-system.</td>
+</tr>
+<tr>
+<td><code>networkPolicy.<wbr>egress.<wbr>server</code></td>
+<td><code dir="auto">[]</code></td>
+<td>The OCIDex API (server.url). Required when enabled. It is an in-cluster API: its namespace or pods, e.g. [{namespaceSelector: {matchLabels: {kubernetes.io/metadata.name: ocidex}}}].</td>
+</tr>
+<tr>
+<td><code>networkPolicy.<wbr>egress.<wbr>apiServer</code></td>
+<td><code dir="auto">[]</code></td>
+<td></td>
+</tr>
+<tr>
+<td><code>networkPolicy.<wbr>extraIngress</code></td>
+<td><code dir="auto">[]</code></td>
+<td>Appended as-is: NetworkPolicyIngressRule / NetworkPolicyEgressRule lists.</td>
+</tr>
+<tr>
+<td><code>networkPolicy.<wbr>extraEgress</code></td>
+<td><code dir="auto">[]</code></td>
+<td></td>
+</tr>
+</tbody>
+</table>
+<div class="sl-heading-wrapper level-h2"><h2 id="ocidex-k8s-agent">ocidex-k8s-agent</h2><a class="sl-anchor-link" href="#ocidex-k8s-agent"><span aria-hidden="true" class="sl-anchor-icon"><svg width="16" height="16" viewBox="0 0 24 24" fill="currentColor"><path d="m12.11 15.39-3.88 3.88a2.52 2.52 0 0 1-3.5 0 2.47 2.47 0 0 1 0-3.5l3.88-3.88a1 1 0 1 0-1.42-1.42l-3.88 3.89a4.48 4.48 0 0 0 6.33 6.33l3.89-3.88a1 1 0 0 0-1.42-1.42m8.58-12.08a4.49 4.49 0 0 0-6.33 0l-3.89 3.88a1 1 0 1 0 1.42 1.42l3.88-3.88a2.52 2.52 0 0 1 3.5 0 2.47 2.47 0 0 1 0 3.5l-3.88 3.88a1 1 0 0 0 0 1.42 1 1 0 0 0 1.42 0l3.88-3.89a4.49 4.49 0 0 0 0-6.33M8.83 15.17a1 1 0 0 0 .71.29 1 1 0 0 0 .71-.29l4.92-4.92a1 1 0 1 0-1.42-1.42l-4.92 4.92a1 1 0 0 0 0 1.42"></path></svg></span><span class="sr-only" data-pagefind-ignore>Section titled “ocidex-k8s-agent”</span></a></div>
+<p>The inventory agent, installed once in each cluster OCIDex should see.</p>
+<table>
+<thead>
+<tr>
+<th>Key</th>
+<th>Default</th>
+<th>Description</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>image.<wbr>repository</code></td>
+<td><code dir="auto">ghcr.io/pfenerty/ocidex-k8s-agent</code></td>
+<td></td>
+</tr>
+<tr>
+<td><code>image.<wbr>tag</code></td>
+<td>“”</td>
+<td>tag defaults to Chart.appVersion (set to sha-&lt;short&gt; or vX.Y.Z at package time). Override with <code dir="auto">--set</code> image.tag=&lt;tag&gt; to pin a specific version.</td>
+</tr>
+<tr>
+<td><code>image.<wbr>pullPolicy</code></td>
+<td><code dir="auto">IfNotPresent</code></td>
+<td></td>
+</tr>
+<tr>
+<td><code>image.<wbr>digest</code></td>
+<td>“”</td>
+<td>digest pins the agent image to an immutable sha256 digest and is baked in at release-package time by the helm-release CI task (release builds only; empty for main/dev sha builds). An explicit image.tag takes precedence over digest.</td>
+</tr>
+<tr>
+<td><code>server</code></td>
+<td></td>
+<td>server.url is the base URL of the OCIDex API server (OCIDEX_SERVER). Unlike the other charts this is usually a cluster-EXTERNAL URL, since OCIDex generally runs elsewhere. Example: “<a href="https://ocidex.app">https://ocidex.app</a>”</td>
+</tr>
+<tr>
+<td><code>server.<wbr>url</code></td>
+<td>“”</td>
+<td></td>
+</tr>
+<tr>
+<td><code>apiKey</code></td>
+<td></td>
+<td>apiKey configures where the agent reads its OCIDex API key (OCIDEX_API_KEY). The key needs the push_inventory capability, and must belong to a member of the namespace the cluster is registered under whose role grants it (ADR-044 K8, ADR-046).</td>
+</tr>
+<tr>
+<td><code>apiKey.<wbr>secretName</code></td>
+<td><code dir="auto">ocidex-k8s-agent-secrets</code></td>
+<td></td>
+</tr>
+<tr>
+<td><code>apiKey.<wbr>secretKey</code></td>
+<td><code dir="auto">OCIDEX_API_KEY</code></td>
+<td></td>
+</tr>
+<tr>
+<td><code>cluster.<wbr>id</code></td>
+<td>“”</td>
+<td>id is the UUID of the cluster record in OCIDex (OCIDEX_CLUSTER_ID). Register the cluster first (UI, or POST /api/v1/clusters) and paste its id here. Supplied rather than discovered: a Kubernetes cluster has no stable self-identifier the agent could derive, and a guessed one would let a redeployed agent silently start replacing a different cluster’s inventory.</td>
+</tr>
+<tr>
+<td><code>namespaces</code></td>
+<td><code dir="auto">[]</code></td>
+<td>namespaces restricts the agent to the namespaces listed here. Empty means every namespace, which is the intended default. Narrowing this list does not merely stop reporting the dropped namespaces — each push is a full snapshot that REPLACES the cluster’s inventory (ADR-044 K7), so the next push prunes their workloads. That is correct behaviour, but it is a deletion, not a filter.</td>
+</tr>
+<tr>
+<td><code>reportInterval</code></td>
+<td><code dir="auto">5m</code></td>
+<td>reportInterval is how often the long-lived agent pushes a snapshot (OCIDEX_REPORT_INTERVAL). Inventory changes at deployment speed, not request speed, so minutes is the right unit; every push is a full snapshot, so a missed one self-heals.</td>
+</tr>
+<tr>
+<td><code>logLevel</code></td>
+<td><code dir="auto">info</code></td>
+<td></td>
+</tr>
+<tr>
+<td><code>environment</code></td>
+<td><code dir="auto">production</code></td>
+<td></td>
+</tr>
+<tr>
+<td><code>resources.<wbr>requests.<wbr>cpu</code></td>
+<td><code dir="auto">25m</code></td>
+<td></td>
+</tr>
+<tr>
+<td><code>resources.<wbr>requests.<wbr>memory</code></td>
+<td><code dir="auto">64Mi</code></td>
+<td></td>
+</tr>
+<tr>
+<td><code>resources.<wbr>limits.<wbr>cpu</code></td>
+<td><code dir="auto">200m</code></td>
+<td></td>
+</tr>
+<tr>
+<td><code>resources.<wbr>limits.<wbr>memory</code></td>
+<td><code dir="auto">128Mi</code></td>
+<td></td>
+</tr>
+<tr>
+<td><code>podSecurityContext</code></td>
+<td></td>
+<td>podSecurityContext / securityContext default to the settings the PodSecurity “restricted” profile requires, so the chart installs cleanly into a namespace labelled pod-security.kubernetes.io/enforce=restricted. runAsNonRoot needs no accompanying runAsUser — docker/Dockerfile builds the agent on gcr.io/distroless/static-debian13:nonroot, which declares USER 65532, and the kubelet reads the non-root assertion off the image config.</td>
+</tr>
+<tr>
+<td><code>podSecurityContext.<wbr>runAsNonRoot</code></td>
+<td><code dir="auto">true</code></td>
+<td></td>
+</tr>
+<tr>
+<td><code>podSecurityContext.<wbr>seccompProfile.<wbr>type</code></td>
+<td><code dir="auto">RuntimeDefault</code></td>
+<td></td>
+</tr>
+<tr>
+<td><code>securityContext</code></td>
+<td></td>
+<td>readOnlyRootFilesystem is not required by “restricted” — it is defence in depth, and safe here because the agent writes nothing to disk: it lists pods and POSTs a snapshot.</td>
+</tr>
+<tr>
+<td><code>securityContext.<wbr>allowPrivilegeEscalation</code></td>
+<td><code dir="auto">false</code></td>
+<td></td>
+</tr>
+<tr>
+<td><code>securityContext.<wbr>capabilities.<wbr>drop</code></td>
+<td><code dir="auto">["ALL"]</code></td>
+<td></td>
+</tr>
+<tr>
+<td><code>securityContext.<wbr>readOnlyRootFilesystem</code></td>
+<td><code dir="auto">true</code></td>
+<td></td>
+</tr>
+<tr>
+<td><code>monitoring</code></td>
+<td></td>
+<td>The agent serves Prometheus /metrics on its health port (9090, ADR-0054). enabled renders a PodMonitor, which requires the Prometheus Operator.</td>
+</tr>
+<tr>
+<td><code>monitoring.<wbr>enabled</code></td>
+<td><code dir="auto">false</code></td>
+<td></td>
+</tr>
+<tr>
+<td><code>monitoring.<wbr>additionalLabels</code></td>
+<td><code dir="auto">{}</code></td>
+<td>Additional labels to add to the PodMonitor (e.g. for label-based scrape selection).</td>
+</tr>
+<tr>
+<td><code>monitoring.<wbr>otel</code></td>
+<td></td>
+<td>OpenTelemetry export (ADR-0055); empty values are not set. See the ocidex chart’s monitoring.otel. OTLP auth headers: otel.headersSecret (a Secret key holding OTEL_EXPORTER_OTLP_HEADERS).</td>
+</tr>
+<tr>
+<td><code>monitoring.<wbr>otel.<wbr>tracesExporter</code></td>
+<td>“”</td>
+<td></td>
+</tr>
+<tr>
+<td><code>monitoring.<wbr>otel.<wbr>metricsExporter</code></td>
+<td>“”</td>
+<td></td>
+</tr>
+<tr>
+<td><code>monitoring.<wbr>otel.<wbr>endpoint</code></td>
+<td>“”</td>
+<td></td>
+</tr>
+<tr>
+<td><code>monitoring.<wbr>otel.<wbr>protocol</code></td>
+<td>“”</td>
+<td></td>
+</tr>
+<tr>
+<td><code>monitoring.<wbr>otel.<wbr>sampler</code></td>
+<td>“”</td>
+<td></td>
+</tr>
+<tr>
+<td><code>monitoring.<wbr>otel.<wbr>samplerArg</code></td>
+<td>“”</td>
+<td></td>
+</tr>
+<tr>
+<td><code>monitoring.<wbr>otel.<wbr>resourceAttributes</code></td>
+<td>“”</td>
+<td></td>
+</tr>
+<tr>
+<td><code>monitoring.<wbr>otel.<wbr>headersSecret.<wbr>name</code></td>
+<td>“”</td>
+<td></td>
+</tr>
+<tr>
+<td><code>monitoring.<wbr>otel.<wbr>headersSecret.<wbr>key</code></td>
+<td>“”</td>
+<td></td>
+</tr>
+<tr>
+<td><code>networkPolicy</code></td>
+<td></td>
+<td>Plain networking.k8s.io/v1 NetworkPolicy. When enabled the pod is default-deny in both directions and gets only DNS, the OCIDex API (egress.server), the Kubernetes API server (egress.apiServer), and ingress from ingress.metricsFrom on the agent’s health/metrics port (9090). Peers are NetworkPolicyPeer objects (podSelector / namespaceSelector / ipBlock). The Kubernetes API server has no portable selector. On most CNIs list its endpoints as ipBlocks (<code dir="auto">kubectl get endpoints kubernetes</code>). Cilium does not match the API server by ipBlock: leave apiServer empty and add a CiliumNetworkPolicy with <code dir="auto">toEntities: [kube-apiserver]</code> next to the release.</td>
+</tr>
+<tr>
+<td><code>networkPolicy.<wbr>enabled</code></td>
+<td><code dir="auto">false</code></td>
+<td></td>
+</tr>
+<tr>
+<td><code>networkPolicy.<wbr>ingress.<wbr>metricsFrom</code></td>
+<td><code dir="auto">[]</code></td>
+<td>Prometheus, if anything scrapes the pod.</td>
+</tr>
+<tr>
+<td><code>networkPolicy.<wbr>egress.<wbr>dns</code></td>
+<td><code dir="auto">[{"namespaceSelector":{"matchLabels":{"kubernetes.io/metadata.name":"kube-system"}},"podSelector":{"matchLabels":{"k8s-app":"kube-dns"}}}]</code></td>
+<td>Where DNS lives. The default matches kube-dns/CoreDNS in kube-system.</td>
+</tr>
+<tr>
+<td><code>networkPolicy.<wbr>egress.<wbr>server</code></td>
+<td><code dir="auto">[]</code></td>
+<td>The OCIDex API (server.url). Required when enabled. It is usually cluster-external (see server.url): an ipBlock, e.g. [{ipBlock: {cidr: 203.0.113.10/32}}]. In-cluster: its namespace or pods.</td>
+</tr>
+<tr>
+<td><code>networkPolicy.<wbr>egress.<wbr>apiServer</code></td>
+<td><code dir="auto">[]</code></td>
+<td></td>
+</tr>
+<tr>
+<td><code>networkPolicy.<wbr>extraIngress</code></td>
+<td><code dir="auto">[]</code></td>
+<td>Appended as-is: NetworkPolicyIngressRule / NetworkPolicyEgressRule lists.</td>
+</tr>
+<tr>
+<td><code>networkPolicy.<wbr>extraEgress</code></td>
+<td><code dir="auto">[]</code></td>
+<td></td>
+</tr>
+</tbody>
+</table>
+</div><footer class="sl-flex" data-astro-cid-ddtxxk7k><div class="meta sl-flex" data-astro-cid-ddtxxk7k><a href="https://github.com/pfenerty/ocidex/edit/main/site/src/content/docs/reference/helm-values.md" class="sl-flex print:hidden" data-astro-cid-qlekgd3o><svg data-astro-cid-qlekgd3o="true" aria-hidden="true" width="16" height="16" viewBox="0 0 24 24" fill="currentColor" style="--sl-icon-size: 1.2em;" data-astro-cid-hkc32dio><path d="M22 7.24a1 1 0 0 0-.29-.71l-4.24-4.24a1 1 0 0 0-1.1-.22 1 1 0 0 0-.32.22l-2.83 2.83L2.29 16.05a1 1 0 0 0-.29.71V21a1 1 0 0 0 1 1h4.24a1 1 0 0 0 .76-.29l10.87-10.93L21.71 8c.1-.1.17-.2.22-.33a1 1 0 0 0 0-.24v-.14l.07-.05ZM6.83 20H4v-2.83l9.93-9.93 2.83 2.83L6.83 20ZM18.17 8.66l-2.83-2.83 1.42-1.41 2.82 2.82-1.41 1.42Z"/></svg>Edit page</a></div><div class="pagination-links print:hidden" dir="ltr" data-astro-cid-b5raizh3><a href="/next/reference/configuration/" rel="prev" data-astro-cid-b5raizh3><svg data-astro-cid-b5raizh3="true" aria-hidden="true" width="16" height="16" viewBox="0 0 24 24" fill="currentColor" style="--sl-icon-size: 1.5rem;" data-astro-cid-hkc32dio><path d="M17 11H9.41l3.3-3.29a1.004 1.004 0 1 0-1.42-1.42l-5 5a1 1 0 0 0-.21.33 1 1 0 0 0 0 .76 1 1 0 0 0 .21.33l5 5a1.002 1.002 0 0 0 1.639-.325 1 1 0 0 0-.219-1.095L9.41 13H17a1 1 0 0 0 0-2Z"/></svg><span data-astro-cid-b5raizh3>Previous<br data-astro-cid-b5raizh3><span class="link-title" data-astro-cid-b5raizh3>Configuration</span></span></a><a href="/next/reference/cli/" rel="next" data-astro-cid-b5raizh3><svg data-astro-cid-b5raizh3="true" aria-hidden="true" width="16" height="16" viewBox="0 0 24 24" fill="currentColor" style="--sl-icon-size: 1.5rem;" data-astro-cid-hkc32dio><path d="M17.92 11.62a1.001 1.001 0 0 0-.21-.33l-5-5a1.003 1.003 0 1 0-1.42 1.42l3.3 3.29H7a1 1 0 0 0 0 2h7.59l-3.3 3.29a1.002 1.002 0 0 0 .325 1.639 1 1 0 0 0 1.095-.219l5-5a1 1 0 0 0 .21-.33 1 1 0 0 0 0-.76Z"/></svg><span data-astro-cid-b5raizh3>Next<br data-astro-cid-b5raizh3><span class="link-title" data-astro-cid-b5raizh3>CLI</span></span></a></div></footer></div></div></main></div></div></div></div></body></html>
