@@ -1,5 +1,5 @@
 import { Workspace, TaskVolumeSpec, TaskStepSpec, rawScript, taskPreset, warmCache, PAC_PARAMS } from "@tektonic-ci/core";
-import { GitHubStatusReporter, tektonDashboardUrl } from "@tektonic-ci/reporter-github";
+import { GitHubChecksReporter, tektonDashboardUrl } from "@tektonic-ci/reporter-github";
 
 // --- Images ─────────────────────────────────────────────────────────────────
 export const goImage = "ghcr.io/pfenerty/apko-cicd/golang:1.27";
@@ -23,31 +23,42 @@ export const gitleaksImage = "ghcr.io/pfenerty/apko-cicd/gitleaks:8.30.1";
 export const kyvernoImage = "ghcr.io/pfenerty/apko-cicd/kyverno:1.18.1-helm4";
 
 // ─── Status reporter ─────────────────────────────────────────────────────────
-// Each commit status links to its TaskRun (pending and reconciled ones to the
-// PipelineRun) on the tailnet-only Tekton Dashboard that homelab runs.
+// Each task reports as a GitHub check run: queued, in progress, then its result with a
+// table of its steps, the failing step's output tail and annotations parsed from it.
+// Queued and reconciled runs link the PipelineRun on the tailnet-only Tekton Dashboard,
+// running and finished ones the TaskRun.
+//
+// The Checks API takes only a GitHub App installation token, so the reporter steps (and
+// only those) read PAC's per-run App token: PAC substitutes {{ git_auth_secret }} in the
+// task files it applies. It is deliberately not a pod-wide GITHUB_TOKEN: Tekton gives pod
+// template env precedence over step env, so that would replace the github-pipeline-token
+// PAT the SARIF upload and gh-release steps set for themselves, and hand a repo-write
+// token to every step, PR test code included.
+//
+// ocidex is public, so a failing step's output tail is public too. No step prints a
+// secret: gitleaks runs with --redact, and the API key and PAT are never logged.
 const detailsUrl = tektonDashboardUrl("https://tekton-dashboard.bear-velociraptor.ts.net");
 
-export const statusReporter = new GitHubStatusReporter({
-  tokenSecretName: "github-pipeline-token",
+const checksReporterOptions = {
+  tokenSecretName: "{{ git_auth_secret }}",
+  tokenSecretKey: "git-provider-token",
   detailsUrl,
-  // 5 tasks report status → 5 steps in set-status-pending, each just an HTTP POST.
-  // Default 512Mi limit per step causes OOM on constrained nodes; these are tight
-  // but sufficient for nushell + a single GitHub API call.
+  // The pending task's one step POSTs a check run per context. The default 512Mi limit
+  // per step causes OOM on constrained nodes; these are tight but sufficient for nushell
+  // and a few GitHub API calls.
   pendingTaskComputeResources: {
     requests: { cpu: "25m", memory: "64Mi" },
     limits: { cpu: "200m", memory: "128Mi" },
   },
-});
+};
 
-// Report-only variant for tasks whose findings should post a red GitHub check
-// without failing the TaskRun/PipelineRun (e.g. security scans on push to main).
-export const reportOnlyStatusReporter = new GitHubStatusReporter({
-  tokenSecretName: "github-pipeline-token",
-  detailsUrl,
-  pendingTaskComputeResources: {
-    requests: { cpu: "25m", memory: "64Mi" },
-    limits: { cpu: "200m", memory: "128Mi" },
-  },
+export const statusReporter = new GitHubChecksReporter(checksReporterOptions);
+
+// Report-only variant for tasks whose findings should post a red check without failing
+// the TaskRun/PipelineRun (e.g. security scans on push to main). It shares the pending
+// and reconciler tasks with statusReporter, since failOnError only shapes the final step.
+export const reportOnlyStatusReporter = new GitHubChecksReporter({
+  ...checksReporterOptions,
   failOnError: false,
 });
 
@@ -181,8 +192,8 @@ export const dockerConfigVolume: TaskVolumeSpec = {
 // Best-effort SARIF upload to GitHub code-scanning (Security tab). Add as a trailing
 // step on a report-only security task; it ALWAYS exits 0 so a failed/again-throttled
 // upload never flips the task's own scan verdict. `category` keeps each tool's findings
-// separate in the Security tab. Requires the `github-pipeline-token` secret to carry the
-// `security-events: write` scope (in addition to repo:status used by the reporter).
+// separate in the Security tab. Requires the `github-pipeline-token` PAT to carry the
+// `security-events: write` scope. The check-run reporter uses PAC's App token instead.
 export function uploadSarifStep(sarifPath: string, category: string): TaskStepSpec {
   return {
     name: `sarif-upload-${category}`,

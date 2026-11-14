@@ -11,6 +11,8 @@ spec:
       type: string
     - name: pipeline-run-name
       type: string
+    - name: check-run-id
+      type: string
   stepTemplate:
     computeResources:
       limits:
@@ -30,40 +32,59 @@ spec:
           - ALL
     workingDir: $(workspaces.workspace.path)
   steps:
-    - env:
+    - computeResources:
+        requests:
+          cpu: 10m
+      env:
         - name: GITHUB_TOKEN
           valueFrom:
             secretKeyRef:
-              key: token
-              name: github-pipeline-token
+              key: git-provider-token
+              name: "{{ git_auth_secret }}"
       image: ghcr.io/pfenerty/apko-cicd/base:stable
       name: report-running
       onError: continue
       script: |-
         #!/usr/bin/env nu
         def log [msg: string] { print $"[(date now | format date '%H:%M:%S')] ($msg)" }
-        def post-status [label: string, body: record]: nothing -> bool {
-          let url = $"https://api.github.com/repos/$(params.repo-full-name)/statuses/$(params.revision)"
-          log $"($label): POST ($url)"
-          log $"($label): body: ($body | to json -r)"
-          try {
-            http post $url $body -t application/json -H [
-              Authorization $"token ($env.GITHUB_TOKEN)"
-              Accept "application/vnd.github+json"
-            ]
-            log $"($label): done"
-            true
-          } catch { |e|
-            log $"($label): error: ($e.msg)"
-            false
+        def gh [method: string, path: string, body?: record]: nothing -> any {
+          let url = $"https://api.github.com/repos/$(params.repo-full-name)($path)"
+          let headers = [
+            Authorization $"Bearer ($env.GITHUB_TOKEN)"
+            Accept "application/vnd.github+json"
+            X-GitHub-Api-Version "2022-11-28"
+          ]
+          match $method {
+            "POST" => { http post $url $body -t application/json -H $headers }
+            "PATCH" => { http patch $url $body -t application/json -H $headers }
+            _ => { http get $url -H $headers }
           }
         }
 
-        try { date now | format date '%s' | save -f /tekton/home/.status-started-at } catch { |e| log $"report-running: cannot record start time: ($e.msg)" }
+        def now-iso []: nothing -> string { date now | date to-timezone UTC | format date '%Y-%m-%dT%H:%M:%SZ' }
 
-        let body = ({ state: "pending", context: "eslint-lint-web", description: "Running" } | merge { target_url: "https://tekton-dashboard.bear-velociraptor.ts.net/#/namespaces/$(context.taskRun.namespace)/taskruns/$(context.taskRun.name)" })
-        post-status "report-running [eslint-lint-web]" $body | ignore
-    - image: ghcr.io/pfenerty/apko-cicd/base:stable
+        def param-id [value: string]: nothing -> any { if ($value | str trim) =~ '^\d+$' { $value | str trim } else { null } }
+
+        try { date now | format date '%s' | save -f /tekton/home/.status-started-at } catch { |e| log $"check-running: cannot record start time: ($e.msg)" }
+
+        let id = (param-id "$(params.check-run-id)")
+        let body = ({ status: "in_progress", started_at: (now-iso) } | merge { details_url: "https://tekton-dashboard.bear-velociraptor.ts.net/#/namespaces/$(context.taskRun.namespace)/taskruns/$(context.taskRun.name)" })
+        let id = if $id != null {
+          try { gh PATCH $"/check-runs/($id)" $body | ignore; log $"("check-running [eslint-lint-web]"): check run ($id) in progress" } catch { |e| log $"("check-running [eslint-lint-web]"): error: ($e.msg)" }
+          $id
+        } else {
+          # The pending task could not create the run; create it here instead.
+          try {
+            let id = (gh POST "/check-runs" ($body | merge { name: "eslint-lint-web", head_sha: "$(params.revision)" }) | get id | into string)
+            log $"("check-running [eslint-lint-web]"): created check run ($id)"
+            $id
+          } catch { |e| log $"("check-running [eslint-lint-web]"): error: ($e.msg)"; null }
+        }
+        if $id != null { $id | save -f /tekton/home/.check-run-id }
+    - computeResources:
+        requests:
+          cpu: 10m
+      image: ghcr.io/pfenerty/apko-cicd/base:stable
       name: restore-node-modules-cache
       script: |-
         #!/usr/bin/env nu
@@ -89,9 +110,12 @@ spec:
           try {
             ^zstd -d -T1 -c $archive | ^tar xf - -C $stage -o --no-same-permissions
           } catch { |e|
+            try { ^chmod -R u+w $stage } catch { }
             rm -rf $stage
             log $"restore-node-modules-cache: extract failed \(($e.msg)\)"
-            exit 1
+            rm -f $archive
+            log $"restore-node-modules-cache: removed unextractable archive, treating as a miss ($hash)"
+            exit 0
           }
           for p in ["node_modules"] {
             let staged = ($stage | path join $p)
@@ -142,13 +166,26 @@ spec:
         ^npm run lint
         log "OK: no lint errors"
         }
+        if ($env.TEKTONIC_OUTPUT_CAPTURED? | is-empty) {
+          try { "" | save -f /tekton/home/.step-output-eslint-lint }
+          try { ^chmod 0666 /tekton/home/.step-output-eslint-lint }
+          let rc = (with-env {TEKTONIC_OUTPUT_CAPTURED: "1"} { ^$nu.current-exe $env.CURRENT_FILE o+e>| tee { print -n -r } | tee { save -f /tekton/home/.step-output-eslint-lint } | complete | get exit_code })
+          try {
+            let b = (open --raw /tekton/home/.step-output-eslint-lint | into binary)
+            if ($b | bytes length) > 60000 { $b | bytes at (-60000).. | save -f /tekton/home/.step-output-eslint-lint }
+          }
+          exit $rc
+        }
         let __tek_rc = (try { main; 0 } catch { |e| print $"error [eslint-lint-web/eslint-lint]: ($e.msg)"; 1 })
         let __tek_prev = (try { open --raw /tekton/home/.exit-code | str trim | into int } catch { 0 })
         let __tek_worst = ([$__tek_prev $__tek_rc] | math max)
         $"($__tek_worst)" | save -f /tekton/home/.exit-code
         exit $__tek_rc
       workingDir: $(workspaces.workspace.path)/web
-    - image: ghcr.io/pfenerty/apko-cicd/base:stable
+    - computeResources:
+        requests:
+          cpu: 10m
+      image: ghcr.io/pfenerty/apko-cicd/base:stable
       name: save-node-modules-cache
       onError: continue
       script: |-
@@ -194,17 +231,38 @@ spec:
         let ratio = ($uncompressed / ($compressed | into int) | math round --precision 1)
         log $"save-node-modules-cache: saved ($compressed) ratio=($ratio)x in ($elapsed)s"
       workingDir: $(workspaces.workspace.path)/web
-    - env:
+    - computeResources:
+        requests:
+          cpu: 10m
+      env:
         - name: GITHUB_TOKEN
           valueFrom:
             secretKeyRef:
-              key: token
-              name: github-pipeline-token
+              key: git-provider-token
+              name: "{{ git_auth_secret }}"
       image: ghcr.io/pfenerty/apko-cicd/base:stable
       name: report-status
       script: |-
         #!/usr/bin/env nu
         def log [msg: string] { print $"[(date now | format date '%H:%M:%S')] ($msg)" }
+        def gh [method: string, path: string, body?: record]: nothing -> any {
+          let url = $"https://api.github.com/repos/$(params.repo-full-name)($path)"
+          let headers = [
+            Authorization $"Bearer ($env.GITHUB_TOKEN)"
+            Accept "application/vnd.github+json"
+            X-GitHub-Api-Version "2022-11-28"
+          ]
+          match $method {
+            "POST" => { http post $url $body -t application/json -H $headers }
+            "PATCH" => { http patch $url $body -t application/json -H $headers }
+            _ => { http get $url -H $headers }
+          }
+        }
+
+        def now-iso []: nothing -> string { date now | date to-timezone UTC | format date '%Y-%m-%dT%H:%M:%SZ' }
+
+        def param-id [value: string]: nothing -> any { if ($value | str trim) =~ '^\d+$' { $value | str trim } else { null } }
+
         def format-duration [secs: int]: nothing -> string {
           let secs = ([$secs 0] | math max)
           let h = $secs // 3600
@@ -221,11 +279,12 @@ spec:
         }
 
         let contract_code = (try { open --raw /tekton/home/.exit-code | str trim | into int } catch { 1 })
-        # A step that never ran has no file; 0 keeps it out of the max.
-        let step_codes = ([{ name: "eslint-lint", path: "/tekton/steps/step-eslint-lint/exitCode" }] | each { |s| { name: $s.name, code: (try { open --raw $s.path | str trim | into int } catch { 0 }) } })
+        let step_codes = ([{ name: "eslint-lint", path: "/tekton/steps/step-eslint-lint/exitCode", out: "/tekton/home/.step-output-eslint-lint" }] | each { |s|
+          let ran = ($s.path | path exists)
+          { name: $s.name, ran: $ran, out: $s.out, code: (if $ran { try { open --raw $s.path | str trim | into int } catch { 0 } } else { 0 }) }
+        })
         let exit_code = ([$contract_code ...($step_codes | each { |s| $s.code })] | math max)
-        let state = if $exit_code == 0 { "success" } else { "failure" }
-        # Name the first step that failed, so the check says where without opening the logs.
+        let conclusion = if $exit_code == 0 { "success" } else { "failure" }
         let failed_steps = ($step_codes | where code != 0)
         let result = if $exit_code == 0 {
           "Passed"
@@ -235,32 +294,40 @@ spec:
           let first = ($failed_steps | first)
           $"Failed: step ($first.name) exited ($first.code)"
         }
-        # Only a start step records the start time; without one the description carries no duration.
         let duration = (try { format-duration ((date now | format date '%s' | into int) - (open --raw /tekton/home/.status-started-at | str trim | into int)) } catch { null })
-        let desc = if $duration == null {
-          $result
-        } else if $exit_code == 0 {
-          $"Passed in ($duration)"
-        } else {
-          $"($result) \(($duration)\)"
+        let title = if $duration == null { $result } else { $"($result) in ($duration)" }
+
+        let rows = ($step_codes | each { |s|
+          let st = if not $s.ran { "did not run" } else if $s.code == 0 { "passed" } else { $"exited ($s.code)" }
+          $"| ($s.name) | ($st) |"
+        })
+        mut summary = (["| Step | Result |" "| --- | --- |" ...$rows] | str join "\n")
+        let tail = if ($failed_steps | is-empty) { "" } else {
+          try { open --raw ($failed_steps | first | get out) | into string | ansi strip | str trim -r } catch { "" }
+        }
+        if ($tail | is-not-empty) {
+          $summary = ([$summary "" $"### Output of ($failed_steps | first | get name)" "" "~~~~text" $tail "~~~~"] | str join "\n")
+        }
+        let annotations = if ($tail | is-empty) { [] } else {
+          $tail | lines | parse --regex "^(?<path>[\\w./@+-]+\\.[A-Za-z0-9]+):(?<line>\\d+)(?::(?<col>\\d+))?:\\s*(?<message>\\S.*)$" | first 50 | each { |m|
+            let line = ($m.line | into int)
+            { path: ($m.path | str replace -r '^\./' ''), start_line: $line, end_line: $line, annotation_level: "failure", message: ($m.message | str trim) }
+          }
         }
 
-        log $"report-status [eslint-lint-web]: exit-code=($exit_code) state=($state)"
-
-        let url = $"https://api.github.com/repos/$(params.repo-full-name)/statuses/$(params.revision)"
-        let body = ({ state: $state, context: "eslint-lint-web", description: $desc } | merge { target_url: "https://tekton-dashboard.bear-velociraptor.ts.net/#/namespaces/$(context.taskRun.namespace)/taskruns/$(context.taskRun.name)" })
-
-        log $"report-status [eslint-lint-web]: POST ($url)"
-        log $"report-status [eslint-lint-web]: body: ($body | to json -r)"
-
+        let output = ({ title: $title, summary: $summary } | merge (if ($annotations | is-empty) { {} } else { { annotations: $annotations } }))
+        let body = ({ status: "completed", conclusion: $conclusion, completed_at: (now-iso), output: $output } | merge { details_url: "https://tekton-dashboard.bear-velociraptor.ts.net/#/namespaces/$(context.taskRun.namespace)/taskruns/$(context.taskRun.name)" })
+        let id = (try { open --raw /tekton/home/.check-run-id | str trim } catch { param-id "$(params.check-run-id)" })
+        log $"("report-status [eslint-lint-web]"): exit-code=($exit_code) conclusion=($conclusion)"
         try {
-          http post $url $body -t application/json -H [
-            Authorization $"token ($env.GITHUB_TOKEN)"
-            Accept "application/vnd.github+json"
-          ]
-          log "report-status [eslint-lint-web]: done"
+          if $id != null {
+            gh PATCH $"/check-runs/($id)" $body | ignore
+          } else {
+            gh POST "/check-runs" ($body | merge { name: "eslint-lint-web", head_sha: "$(params.revision)" }) | ignore
+          }
+          log $"("report-status [eslint-lint-web]"): done"
         } catch { |e|
-          log $"report-status [eslint-lint-web]: error: ($e.msg)"
+          log $"("report-status [eslint-lint-web]"): error: ($e.msg)"
         }
         exit $exit_code
   workspaces:

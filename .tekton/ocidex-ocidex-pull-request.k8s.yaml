@@ -60,6 +60,36 @@ spec:
             value: $(tasks.tekton-check.status)
           - name: status-helm-check
             value: $(tasks.helm-check.status)
+          - name: check-run-go-build
+            value: $(tasks.set-status-pending-ocidex-pull-request.results.check-run-1f589d4f9dc0)
+          - name: check-run-eslint-lint-web
+            value: $(tasks.set-status-pending-ocidex-pull-request.results.check-run-06f17b989143)
+          - name: check-run-gofmt-check
+            value: $(tasks.set-status-pending-ocidex-pull-request.results.check-run-597c5002e426)
+          - name: check-run-go-lint
+            value: $(tasks.set-status-pending-ocidex-pull-request.results.check-run-fa7347d12d41)
+          - name: check-run-go-test
+            value: $(tasks.set-status-pending-ocidex-pull-request.results.check-run-7a0612208705)
+          - name: check-run-go-integration-test
+            value: $(tasks.set-status-pending-ocidex-pull-request.results.check-run-88490e4492ce)
+          - name: check-run-openapi-verify
+            value: $(tasks.set-status-pending-ocidex-pull-request.results.check-run-9b94606585d2)
+          - name: check-run-codegen-check
+            value: $(tasks.set-status-pending-ocidex-pull-request.results.check-run-d7821c2f8993)
+          - name: check-run-openapi-breaking
+            value: $(tasks.set-status-pending-ocidex-pull-request.results.check-run-5a073bbfa310)
+          - name: check-run-govulncheck-scan
+            value: $(tasks.set-status-pending-ocidex-pull-request.results.check-run-14a786f1c7c4)
+          - name: check-run-grype-vuln-web
+            value: $(tasks.set-status-pending-ocidex-pull-request.results.check-run-7fd7abd3f376)
+          - name: check-run-semgrep-sast
+            value: $(tasks.set-status-pending-ocidex-pull-request.results.check-run-94126e72e0d9)
+          - name: check-run-gitleaks-secrets
+            value: $(tasks.set-status-pending-ocidex-pull-request.results.check-run-6ff80b84857c)
+          - name: check-run-tekton-check
+            value: $(tasks.set-status-pending-ocidex-pull-request.results.check-run-1356812e5efc)
+          - name: check-run-helm-check
+            value: $(tasks.set-status-pending-ocidex-pull-request.results.check-run-1292575c9224)
         taskRef:
           kind: Task
           name: ocidex-reconcile-status-ocidex-pull-request
@@ -121,6 +151,8 @@ spec:
             value: $(params.revision)
           - name: pipeline-run-name
             value: $(context.pipelineRun.name)
+          - name: check-run-id
+            value: $(tasks.set-status-pending-ocidex-pull-request.results.check-run-1f589d4f9dc0)
         runAfter:
           - detect-go
           - set-status-pending-ocidex-pull-request
@@ -154,6 +186,8 @@ spec:
             value: $(params.revision)
           - name: pipeline-run-name
             value: $(context.pipelineRun.name)
+          - name: check-run-id
+            value: $(tasks.set-status-pending-ocidex-pull-request.results.check-run-06f17b989143)
         runAfter:
           - detect-node
           - set-status-pending-ocidex-pull-request
@@ -178,6 +212,8 @@ spec:
             value: $(params.revision)
           - name: pipeline-run-name
             value: $(context.pipelineRun.name)
+          - name: check-run-id
+            value: $(tasks.set-status-pending-ocidex-pull-request.results.check-run-597c5002e426)
         runAfter:
           - detect-go
           - set-status-pending-ocidex-pull-request
@@ -200,6 +236,8 @@ spec:
             value: $(params.revision)
           - name: pipeline-run-name
             value: $(context.pipelineRun.name)
+          - name: check-run-id
+            value: $(tasks.set-status-pending-ocidex-pull-request.results.check-run-fa7347d12d41)
         runAfter:
           - go-build
           - detect-go
@@ -225,6 +263,8 @@ spec:
             value: $(params.revision)
           - name: pipeline-run-name
             value: $(context.pipelineRun.name)
+          - name: check-run-id
+            value: $(tasks.set-status-pending-ocidex-pull-request.results.check-run-7a0612208705)
         runAfter:
           - go-build
           - detect-go
@@ -250,6 +290,8 @@ spec:
             value: $(params.revision)
           - name: pipeline-run-name
             value: $(context.pipelineRun.name)
+          - name: check-run-id
+            value: $(tasks.set-status-pending-ocidex-pull-request.results.check-run-88490e4492ce)
         runAfter:
           - go-test
           - detect-go
@@ -276,6 +318,8 @@ spec:
             value: $(params.revision)
           - name: pipeline-run-name
             value: $(context.pipelineRun.name)
+          - name: check-run-id
+            value: $(tasks.set-status-pending-ocidex-pull-request.results.check-run-9b94606585d2)
         runAfter:
           - go-build
           - eslint-lint-web
@@ -311,6 +355,8 @@ spec:
             value: $(params.revision)
           - name: pipeline-run-name
             value: $(context.pipelineRun.name)
+          - name: check-run-id
+            value: $(tasks.set-status-pending-ocidex-pull-request.results.check-run-d7821c2f8993)
         runAfter:
           - go-build
           - detect-codegen
@@ -336,6 +382,8 @@ spec:
             value: $(params.revision)
           - name: pipeline-run-name
             value: $(context.pipelineRun.name)
+          - name: check-run-id
+            value: $(tasks.set-status-pending-ocidex-pull-request.results.check-run-5a073bbfa310)
         runAfter:
           - detect-go
           - set-status-pending-ocidex-pull-request
@@ -360,6 +408,8 @@ spec:
             value: $(params.revision)
           - name: pipeline-run-name
             value: $(context.pipelineRun.name)
+          - name: check-run-id
+            value: $(tasks.set-status-pending-ocidex-pull-request.results.check-run-14a786f1c7c4)
         runAfter:
           - go-build
           - detect-go
@@ -387,6 +437,8 @@ spec:
             value: $(params.revision)
           - name: pipeline-run-name
             value: $(context.pipelineRun.name)
+          - name: check-run-id
+            value: $(tasks.set-status-pending-ocidex-pull-request.results.check-run-7fd7abd3f376)
         runAfter:
           - detect-node
           - set-status-pending-ocidex-pull-request
@@ -420,6 +472,8 @@ spec:
             value: $(params.revision)
           - name: pipeline-run-name
             value: $(context.pipelineRun.name)
+          - name: check-run-id
+            value: $(tasks.set-status-pending-ocidex-pull-request.results.check-run-94126e72e0d9)
         runAfter:
           - detect-source
           - set-status-pending-ocidex-pull-request
@@ -442,6 +496,8 @@ spec:
             value: $(params.revision)
           - name: pipeline-run-name
             value: $(context.pipelineRun.name)
+          - name: check-run-id
+            value: $(tasks.set-status-pending-ocidex-pull-request.results.check-run-6ff80b84857c)
         runAfter:
           - set-status-pending-ocidex-pull-request
         taskRef:
@@ -467,6 +523,8 @@ spec:
             value: $(params.revision)
           - name: pipeline-run-name
             value: $(context.pipelineRun.name)
+          - name: check-run-id
+            value: $(tasks.set-status-pending-ocidex-pull-request.results.check-run-1356812e5efc)
         runAfter:
           - detect-pipeline
           - set-status-pending-ocidex-pull-request
@@ -498,6 +556,8 @@ spec:
             value: $(params.revision)
           - name: pipeline-run-name
             value: $(context.pipelineRun.name)
+          - name: check-run-id
+            value: $(tasks.set-status-pending-ocidex-pull-request.results.check-run-1292575c9224)
         runAfter:
           - detect-charts
           - set-status-pending-ocidex-pull-request

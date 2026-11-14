@@ -11,6 +11,8 @@ spec:
       type: string
     - name: pipeline-run-name
       type: string
+    - name: check-run-id
+      type: string
   results:
     - description: Fully-qualified reference of the user-enricher-worker image (Tekton Chains subject)
       name: user-enricher-worker-IMAGE_URL
@@ -34,39 +36,55 @@ spec:
           - ALL
     workingDir: $(workspaces.workspace.path)
   steps:
-    - env:
+    - computeResources:
+        requests:
+          cpu: 10m
+      env:
         - name: GITHUB_TOKEN
           valueFrom:
             secretKeyRef:
-              key: token
-              name: github-pipeline-token
+              key: git-provider-token
+              name: "{{ git_auth_secret }}"
       image: ghcr.io/pfenerty/apko-cicd/base:stable
       name: report-running
       onError: continue
       script: |-
         #!/usr/bin/env nu
         def log [msg: string] { print $"[(date now | format date '%H:%M:%S')] ($msg)" }
-        def post-status [label: string, body: record]: nothing -> bool {
-          let url = $"https://api.github.com/repos/$(params.repo-full-name)/statuses/$(params.revision)"
-          log $"($label): POST ($url)"
-          log $"($label): body: ($body | to json -r)"
-          try {
-            http post $url $body -t application/json -H [
-              Authorization $"token ($env.GITHUB_TOKEN)"
-              Accept "application/vnd.github+json"
-            ]
-            log $"($label): done"
-            true
-          } catch { |e|
-            log $"($label): error: ($e.msg)"
-            false
+        def gh [method: string, path: string, body?: record]: nothing -> any {
+          let url = $"https://api.github.com/repos/$(params.repo-full-name)($path)"
+          let headers = [
+            Authorization $"Bearer ($env.GITHUB_TOKEN)"
+            Accept "application/vnd.github+json"
+            X-GitHub-Api-Version "2022-11-28"
+          ]
+          match $method {
+            "POST" => { http post $url $body -t application/json -H $headers }
+            "PATCH" => { http patch $url $body -t application/json -H $headers }
+            _ => { http get $url -H $headers }
           }
         }
 
-        try { date now | format date '%s' | save -f /tekton/home/.status-started-at } catch { |e| log $"report-running: cannot record start time: ($e.msg)" }
+        def now-iso []: nothing -> string { date now | date to-timezone UTC | format date '%Y-%m-%dT%H:%M:%SZ' }
 
-        let body = ({ state: "pending", context: "image-build-user-enricher-worker", description: "Running" } | merge { target_url: "https://tekton-dashboard.bear-velociraptor.ts.net/#/namespaces/$(context.taskRun.namespace)/taskruns/$(context.taskRun.name)" })
-        post-status "report-running [image-build-user-enricher-worker]" $body | ignore
+        def param-id [value: string]: nothing -> any { if ($value | str trim) =~ '^\d+$' { $value | str trim } else { null } }
+
+        try { date now | format date '%s' | save -f /tekton/home/.status-started-at } catch { |e| log $"check-running: cannot record start time: ($e.msg)" }
+
+        let id = (param-id "$(params.check-run-id)")
+        let body = ({ status: "in_progress", started_at: (now-iso) } | merge { details_url: "https://tekton-dashboard.bear-velociraptor.ts.net/#/namespaces/$(context.taskRun.namespace)/taskruns/$(context.taskRun.name)" })
+        let id = if $id != null {
+          try { gh PATCH $"/check-runs/($id)" $body | ignore; log $"("check-running [image-build-user-enricher-worker]"): check run ($id) in progress" } catch { |e| log $"("check-running [image-build-user-enricher-worker]"): error: ($e.msg)" }
+          $id
+        } else {
+          # The pending task could not create the run; create it here instead.
+          try {
+            let id = (gh POST "/check-runs" ($body | merge { name: "image-build-user-enricher-worker", head_sha: "$(params.revision)" }) | get id | into string)
+            log $"("check-running [image-build-user-enricher-worker]"): created check run ($id)"
+            $id
+          } catch { |e| log $"("check-running [image-build-user-enricher-worker]"): error: ($e.msg)"; null }
+        }
+        if $id != null { $id | save -f /tekton/home/.check-run-id }
     - computeResources:
         limits:
           cpu: 200m
@@ -95,6 +113,16 @@ spec:
         # Size of the carried-over store, for tuning keepBytes against reality. Best-effort:
         # a missing du must not fail the build.
         try { ^du -sh "$(workspaces.buildkit-cache.path)/root" } catch { print "du unavailable" }
+        }
+        if ($env.TEKTONIC_OUTPUT_CAPTURED? | is-empty) {
+          try { "" | save -f /tekton/home/.step-output-prepare-buildkit-root }
+          try { ^chmod 0666 /tekton/home/.step-output-prepare-buildkit-root }
+          let rc = (with-env {TEKTONIC_OUTPUT_CAPTURED: "1"} { ^$nu.current-exe $env.CURRENT_FILE o+e>| tee { print -n -r } | tee { save -f /tekton/home/.step-output-prepare-buildkit-root } | complete | get exit_code })
+          try {
+            let b = (open --raw /tekton/home/.step-output-prepare-buildkit-root | into binary)
+            if ($b | bytes length) > 60000 { $b | bytes at (-60000).. | save -f /tekton/home/.step-output-prepare-buildkit-root }
+          }
+          exit $rc
         }
         let __tek_rc = (try { main; 0 } catch { |e| print $"error [image-build-user-enricher-worker/prepare-buildkit-root]: ($e.msg)"; 1 })
         let __tek_prev = (try { open --raw /tekton/home/.exit-code | str trim | into int } catch { 0 })
@@ -149,6 +177,16 @@ spec:
         }
         ^du -sh ".buildctx"
         }
+        if ($env.TEKTONIC_OUTPUT_CAPTURED? | is-empty) {
+          try { "" | save -f /tekton/home/.step-output-prepare-build-context }
+          try { ^chmod 0666 /tekton/home/.step-output-prepare-build-context }
+          let rc = (with-env {TEKTONIC_OUTPUT_CAPTURED: "1"} { ^$nu.current-exe $env.CURRENT_FILE o+e>| tee { print -n -r } | tee { save -f /tekton/home/.step-output-prepare-build-context } | complete | get exit_code })
+          try {
+            let b = (open --raw /tekton/home/.step-output-prepare-build-context | into binary)
+            if ($b | bytes length) > 60000 { $b | bytes at (-60000).. | save -f /tekton/home/.step-output-prepare-build-context }
+          }
+          exit $rc
+        }
         let __tek_rc = (try { main; 0 } catch { |e| print $"error [image-build-user-enricher-worker/prepare-build-context]: ($e.msg)"; 1 })
         let __tek_prev = (try { open --raw /tekton/home/.exit-code | str trim | into int } catch { 0 })
         let __tek_worst = ([$__tek_prev $__tek_rc] | math max)
@@ -191,7 +229,7 @@ spec:
         log() { printf '[%s] %s\n' "$(date +%H:%M:%S)" "$*"; }
         [ -e /tekton/home/.exit-code ] || printf '%s' 0 > /tekton/home/.exit-code
         chmod 0666 /tekton/home/.exit-code 2>/dev/null || true
-        (
+        __tek_body() (
         # Push build: tags images as sha-<short> and main.
         # Per-image values come from step env: DOCKERFILE, IMAGE, optional TARGET,
         # IMAGE_TITLE, IMAGE_DESCRIPTION.
@@ -268,7 +306,18 @@ spec:
         fi
         exit "$rc"
         )
-        __tek_rc=$?
+        if command -v tee >/dev/null 2>&1; then
+          : > /tekton/home/.step-output-build-and-push 2>/dev/null; chmod 0666 /tekton/home/.step-output-build-and-push 2>/dev/null || true
+          exec 3>&1
+          __tek_rc=$( { { __tek_body 3>&- 4>&- 2>&1; echo $? >&4; } | tee /tekton/home/.step-output-build-and-push >&3; } 4>&1 )
+          exec 3>&-
+          if [ "$(wc -c < /tekton/home/.step-output-build-and-push 2>/dev/null || echo 0)" -gt 60000 ]; then
+            tail -c 60000 /tekton/home/.step-output-build-and-push > /tekton/home/.step-output-build-and-push.tmp && cat /tekton/home/.step-output-build-and-push.tmp > /tekton/home/.step-output-build-and-push; rm -f /tekton/home/.step-output-build-and-push.tmp
+          fi
+        else
+          __tek_body
+          __tek_rc=$?
+        fi
         if [ "$__tek_rc" -ne 0 ]; then log "error [image-build-user-enricher-worker/build-and-push]: exited with status $__tek_rc"; fi
         __tek_prev=$(cat /tekton/home/.exit-code 2>/dev/null || echo 0)
         if [ "$__tek_rc" -gt "$__tek_prev" ]; then __tek_prev="$__tek_rc"; fi
@@ -291,17 +340,38 @@ spec:
           readOnly: true
           subPath: .dockerconfigjson
       workingDir: $(workspaces.workspace.path)
-    - env:
+    - computeResources:
+        requests:
+          cpu: 10m
+      env:
         - name: GITHUB_TOKEN
           valueFrom:
             secretKeyRef:
-              key: token
-              name: github-pipeline-token
+              key: git-provider-token
+              name: "{{ git_auth_secret }}"
       image: ghcr.io/pfenerty/apko-cicd/base:stable
       name: report-status
       script: |-
         #!/usr/bin/env nu
         def log [msg: string] { print $"[(date now | format date '%H:%M:%S')] ($msg)" }
+        def gh [method: string, path: string, body?: record]: nothing -> any {
+          let url = $"https://api.github.com/repos/$(params.repo-full-name)($path)"
+          let headers = [
+            Authorization $"Bearer ($env.GITHUB_TOKEN)"
+            Accept "application/vnd.github+json"
+            X-GitHub-Api-Version "2022-11-28"
+          ]
+          match $method {
+            "POST" => { http post $url $body -t application/json -H $headers }
+            "PATCH" => { http patch $url $body -t application/json -H $headers }
+            _ => { http get $url -H $headers }
+          }
+        }
+
+        def now-iso []: nothing -> string { date now | date to-timezone UTC | format date '%Y-%m-%dT%H:%M:%SZ' }
+
+        def param-id [value: string]: nothing -> any { if ($value | str trim) =~ '^\d+$' { $value | str trim } else { null } }
+
         def format-duration [secs: int]: nothing -> string {
           let secs = ([$secs 0] | math max)
           let h = $secs // 3600
@@ -318,11 +388,12 @@ spec:
         }
 
         let contract_code = (try { open --raw /tekton/home/.exit-code | str trim | into int } catch { 1 })
-        # A step that never ran has no file; 0 keeps it out of the max.
-        let step_codes = ([{ name: "prepare-buildkit-root", path: "/tekton/steps/step-prepare-buildkit-root/exitCode" } { name: "prepare-build-context", path: "/tekton/steps/step-prepare-build-context/exitCode" } { name: "build-and-push", path: "/tekton/steps/step-build-and-push/exitCode" }] | each { |s| { name: $s.name, code: (try { open --raw $s.path | str trim | into int } catch { 0 }) } })
+        let step_codes = ([{ name: "prepare-buildkit-root", path: "/tekton/steps/step-prepare-buildkit-root/exitCode", out: "/tekton/home/.step-output-prepare-buildkit-root" } { name: "prepare-build-context", path: "/tekton/steps/step-prepare-build-context/exitCode", out: "/tekton/home/.step-output-prepare-build-context" } { name: "build-and-push", path: "/tekton/steps/step-build-and-push/exitCode", out: "/tekton/home/.step-output-build-and-push" }] | each { |s|
+          let ran = ($s.path | path exists)
+          { name: $s.name, ran: $ran, out: $s.out, code: (if $ran { try { open --raw $s.path | str trim | into int } catch { 0 } } else { 0 }) }
+        })
         let exit_code = ([$contract_code ...($step_codes | each { |s| $s.code })] | math max)
-        let state = if $exit_code == 0 { "success" } else { "failure" }
-        # Name the first step that failed, so the check says where without opening the logs.
+        let conclusion = if $exit_code == 0 { "success" } else { "failure" }
         let failed_steps = ($step_codes | where code != 0)
         let result = if $exit_code == 0 {
           "Passed"
@@ -332,32 +403,40 @@ spec:
           let first = ($failed_steps | first)
           $"Failed: step ($first.name) exited ($first.code)"
         }
-        # Only a start step records the start time; without one the description carries no duration.
         let duration = (try { format-duration ((date now | format date '%s' | into int) - (open --raw /tekton/home/.status-started-at | str trim | into int)) } catch { null })
-        let desc = if $duration == null {
-          $result
-        } else if $exit_code == 0 {
-          $"Passed in ($duration)"
-        } else {
-          $"($result) \(($duration)\)"
+        let title = if $duration == null { $result } else { $"($result) in ($duration)" }
+
+        let rows = ($step_codes | each { |s|
+          let st = if not $s.ran { "did not run" } else if $s.code == 0 { "passed" } else { $"exited ($s.code)" }
+          $"| ($s.name) | ($st) |"
+        })
+        mut summary = (["| Step | Result |" "| --- | --- |" ...$rows] | str join "\n")
+        let tail = if ($failed_steps | is-empty) { "" } else {
+          try { open --raw ($failed_steps | first | get out) | into string | ansi strip | str trim -r } catch { "" }
+        }
+        if ($tail | is-not-empty) {
+          $summary = ([$summary "" $"### Output of ($failed_steps | first | get name)" "" "~~~~text" $tail "~~~~"] | str join "\n")
+        }
+        let annotations = if ($tail | is-empty) { [] } else {
+          $tail | lines | parse --regex "^(?<path>[\\w./@+-]+\\.[A-Za-z0-9]+):(?<line>\\d+)(?::(?<col>\\d+))?:\\s*(?<message>\\S.*)$" | first 50 | each { |m|
+            let line = ($m.line | into int)
+            { path: ($m.path | str replace -r '^\./' ''), start_line: $line, end_line: $line, annotation_level: "failure", message: ($m.message | str trim) }
+          }
         }
 
-        log $"report-status [image-build-user-enricher-worker]: exit-code=($exit_code) state=($state)"
-
-        let url = $"https://api.github.com/repos/$(params.repo-full-name)/statuses/$(params.revision)"
-        let body = ({ state: $state, context: "image-build-user-enricher-worker", description: $desc } | merge { target_url: "https://tekton-dashboard.bear-velociraptor.ts.net/#/namespaces/$(context.taskRun.namespace)/taskruns/$(context.taskRun.name)" })
-
-        log $"report-status [image-build-user-enricher-worker]: POST ($url)"
-        log $"report-status [image-build-user-enricher-worker]: body: ($body | to json -r)"
-
+        let output = ({ title: $title, summary: $summary } | merge (if ($annotations | is-empty) { {} } else { { annotations: $annotations } }))
+        let body = ({ status: "completed", conclusion: $conclusion, completed_at: (now-iso), output: $output } | merge { details_url: "https://tekton-dashboard.bear-velociraptor.ts.net/#/namespaces/$(context.taskRun.namespace)/taskruns/$(context.taskRun.name)" })
+        let id = (try { open --raw /tekton/home/.check-run-id | str trim } catch { param-id "$(params.check-run-id)" })
+        log $"("report-status [image-build-user-enricher-worker]"): exit-code=($exit_code) conclusion=($conclusion)"
         try {
-          http post $url $body -t application/json -H [
-            Authorization $"token ($env.GITHUB_TOKEN)"
-            Accept "application/vnd.github+json"
-          ]
-          log "report-status [image-build-user-enricher-worker]: done"
+          if $id != null {
+            gh PATCH $"/check-runs/($id)" $body | ignore
+          } else {
+            gh POST "/check-runs" ($body | merge { name: "image-build-user-enricher-worker", head_sha: "$(params.revision)" }) | ignore
+          }
+          log $"("report-status [image-build-user-enricher-worker]"): done"
         } catch { |e|
-          log $"report-status [image-build-user-enricher-worker]: error: ($e.msg)"
+          log $"("report-status [image-build-user-enricher-worker]"): error: ($e.msg)"
         }
         exit $exit_code
   volumes:

@@ -11,6 +11,37 @@ spec:
       type: string
     - name: pipeline-run-name
       type: string
+  results:
+    - name: check-run-1f589d4f9dc0
+      type: string
+    - name: check-run-06f17b989143
+      type: string
+    - name: check-run-597c5002e426
+      type: string
+    - name: check-run-fa7347d12d41
+      type: string
+    - name: check-run-7a0612208705
+      type: string
+    - name: check-run-88490e4492ce
+      type: string
+    - name: check-run-9b94606585d2
+      type: string
+    - name: check-run-d7821c2f8993
+      type: string
+    - name: check-run-5a073bbfa310
+      type: string
+    - name: check-run-14a786f1c7c4
+      type: string
+    - name: check-run-7fd7abd3f376
+      type: string
+    - name: check-run-94126e72e0d9
+      type: string
+    - name: check-run-6ff80b84857c
+      type: string
+    - name: check-run-1356812e5efc
+      type: string
+    - name: check-run-1292575c9224
+      type: string
   stepTemplate:
     computeResources:
       limits:
@@ -37,39 +68,68 @@ spec:
         - name: GITHUB_TOKEN
           valueFrom:
             secretKeyRef:
-              key: token
-              name: github-pipeline-token
+              key: git-provider-token
+              name: "{{ git_auth_secret }}"
       image: ghcr.io/pfenerty/apko-cicd/base:stable
       name: pending
       onError: continue
       script: |-
         #!/usr/bin/env nu
         def log [msg: string] { print $"[(date now | format date '%H:%M:%S')] ($msg)" }
-        def post-status [label: string, body: record]: nothing -> bool {
-          let url = $"https://api.github.com/repos/$(params.repo-full-name)/statuses/$(params.revision)"
-          log $"($label): POST ($url)"
-          log $"($label): body: ($body | to json -r)"
-          try {
-            http post $url $body -t application/json -H [
-              Authorization $"token ($env.GITHUB_TOKEN)"
-              Accept "application/vnd.github+json"
-            ]
-            log $"($label): done"
-            true
-          } catch { |e|
-            log $"($label): error: ($e.msg)"
-            false
+        def gh [method: string, path: string, body?: record]: nothing -> any {
+          let url = $"https://api.github.com/repos/$(params.repo-full-name)($path)"
+          let headers = [
+            Authorization $"Bearer ($env.GITHUB_TOKEN)"
+            Accept "application/vnd.github+json"
+            X-GitHub-Api-Version "2022-11-28"
+          ]
+          match $method {
+            "POST" => { http post $url $body -t application/json -H $headers }
+            "PATCH" => { http patch $url $body -t application/json -H $headers }
+            _ => { http get $url -H $headers }
           }
         }
 
-        let contexts = ["go-build" "eslint-lint-web" "gofmt-check" "go-lint" "go-test" "go-integration-test" "openapi-verify" "codegen-check" "openapi-breaking" "govulncheck-scan" "grype-vuln-web" "semgrep-sast" "gitleaks-secrets" "tekton-check" "helm-check"]
+        def now-iso []: nothing -> string { date now | date to-timezone UTC | format date '%Y-%m-%dT%H:%M:%SZ' }
 
-        let failed = $contexts | each { |context|
-          let body = ({ state: "pending", context: $context, description: "Queued" } | merge { target_url: "https://tekton-dashboard.bear-velociraptor.ts.net/#/namespaces/$(context.taskRun.namespace)/pipelineruns/$(params.pipeline-run-name)" })
-          if (post-status $"status-pending [($context)]" $body) { null } else { $context }
+        def param-id [value: string]: nothing -> any { if ($value | str trim) =~ '^\d+$' { $value | str trim } else { null } }
+
+        let runs = [
+          { context: "go-build", result: "$(results.check-run-1f589d4f9dc0.path)" }
+          { context: "eslint-lint-web", result: "$(results.check-run-06f17b989143.path)" }
+          { context: "gofmt-check", result: "$(results.check-run-597c5002e426.path)" }
+          { context: "go-lint", result: "$(results.check-run-fa7347d12d41.path)" }
+          { context: "go-test", result: "$(results.check-run-7a0612208705.path)" }
+          { context: "go-integration-test", result: "$(results.check-run-88490e4492ce.path)" }
+          { context: "openapi-verify", result: "$(results.check-run-9b94606585d2.path)" }
+          { context: "codegen-check", result: "$(results.check-run-d7821c2f8993.path)" }
+          { context: "openapi-breaking", result: "$(results.check-run-5a073bbfa310.path)" }
+          { context: "govulncheck-scan", result: "$(results.check-run-14a786f1c7c4.path)" }
+          { context: "grype-vuln-web", result: "$(results.check-run-7fd7abd3f376.path)" }
+          { context: "semgrep-sast", result: "$(results.check-run-94126e72e0d9.path)" }
+          { context: "gitleaks-secrets", result: "$(results.check-run-6ff80b84857c.path)" }
+          { context: "tekton-check", result: "$(results.check-run-1356812e5efc.path)" }
+          { context: "helm-check", result: "$(results.check-run-1292575c9224.path)" }
+        ]
+
+        # Write every result before calling GitHub: a reporting task whose param names a result the
+        # pending task never wrote fails, and a GitHub outage must not take the pipeline with it.
+        for run in $runs { "none" | save -f $run.result }
+
+        let failed = $runs | each { |run|
+          let label = $"check-pending [($run.context)]"
+          try {
+            let id = (gh POST "/check-runs" ({ name: $run.context, head_sha: "$(params.revision)", status: "queued" } | merge { details_url: "https://tekton-dashboard.bear-velociraptor.ts.net/#/namespaces/$(context.taskRun.namespace)/pipelineruns/$(params.pipeline-run-name)" }) | get id | into string)
+            $id | save -f $run.result
+            log $"($label): created check run ($id)"
+            null
+          } catch { |e|
+            log $"($label): error: ($e.msg)"
+            $run.context
+          }
         } | compact
 
         if ($failed | is-not-empty) {
-          log $"status-pending: ($failed | length) failed: ($failed | str join ', ')"
+          log $"check-pending: ($failed | length) failed: ($failed | str join ', ')"
           exit 1
         }
