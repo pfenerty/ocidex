@@ -1,0 +1,393 @@
+apiVersion: tekton.dev/v1
+kind: Task
+metadata:
+  name: ocidex-docs-publish-release
+  namespace: ocidex-ci
+spec:
+  params:
+    - name: repo-full-name
+      type: string
+    - name: revision
+      type: string
+    - name: pipeline-run-name
+      type: string
+    - name: check-run-id
+      type: string
+  stepTemplate:
+    computeResources:
+      limits:
+        cpu: "1"
+        memory: 512Mi
+      requests:
+        cpu: 100m
+        memory: 128Mi
+    env:
+      - name: HOME
+        value: /tmp
+    imagePullPolicy: Always
+    securityContext:
+      allowPrivilegeEscalation: false
+      capabilities:
+        drop:
+          - ALL
+    workingDir: $(workspaces.workspace.path)
+  steps:
+    - computeResources:
+        requests:
+          cpu: 10m
+      env:
+        - name: GITHUB_TOKEN
+          valueFrom:
+            secretKeyRef:
+              key: git-provider-token
+              name: "{{ git_auth_secret }}"
+      image: ghcr.io/pfenerty/apko-cicd/base:stable
+      name: report-running
+      onError: continue
+      script: |-
+        #!/usr/bin/env nu
+        def log [msg: string] { print $"[(date now | format date '%H:%M:%S')] ($msg)" }
+        def gh [method: string, path: string, body?: record]: nothing -> any {
+          let url = $"https://api.github.com/repos/$(params.repo-full-name)($path)"
+          let headers = [
+            Authorization $"Bearer ($env.GITHUB_TOKEN)"
+            Accept "application/vnd.github+json"
+            X-GitHub-Api-Version "2022-11-28"
+          ]
+          match $method {
+            "POST" => { http post $url $body -t application/json -H $headers }
+            "PATCH" => { http patch $url $body -t application/json -H $headers }
+            _ => { http get $url -H $headers }
+          }
+        }
+
+        def now-iso []: nothing -> string { date now | date to-timezone UTC | format date '%Y-%m-%dT%H:%M:%SZ' }
+
+        def param-id [value: string]: nothing -> any { if ($value | str trim) =~ '^\d+$' { $value | str trim } else { null } }
+
+        try { date now | format date '%s' | save -f /tekton/home/.status-started-at } catch { |e| log $"check-running: cannot record start time: ($e.msg)" }
+
+        let id = (param-id "$(params.check-run-id)")
+        let body = ({ status: "in_progress", started_at: (now-iso) } | merge { details_url: "https://tekton-dashboard.bear-velociraptor.ts.net/#/namespaces/$(context.taskRun.namespace)/taskruns/$(context.taskRun.name)" })
+        let id = if $id != null {
+          try { gh PATCH $"/check-runs/($id)" $body | ignore; log $"("check-running [docs-publish-release]"): check run ($id) in progress" } catch { |e| log $"("check-running [docs-publish-release]"): error: ($e.msg)" }
+          $id
+        } else {
+          # The pending task could not create the run; create it here instead.
+          try {
+            let id = (gh POST "/check-runs" ($body | merge { name: "docs-publish-release", head_sha: "$(params.revision)" }) | get id | into string)
+            log $"("check-running [docs-publish-release]"): created check run ($id)"
+            $id
+          } catch { |e| log $"("check-running [docs-publish-release]"): error: ($e.msg)"; null }
+        }
+        if $id != null { $id | save -f /tekton/home/.check-run-id }
+    - computeResources:
+        requests:
+          cpu: 10m
+      image: ghcr.io/pfenerty/apko-cicd/base:stable
+      name: restore-site-node-modules-cache
+      script: |-
+        #!/usr/bin/env nu
+        def log [msg: string] { print $"[(date now | format date '%H:%M:%S')] ($msg)" }
+        let hash = (
+          ["package-lock.json"]
+          | each { |f| if ($f | path exists) { open --raw $f } else { "" } }
+          | str join | hash sha256 | str substring 0..15
+        )
+        $hash | save -f /tekton/home/.cache-site-node-modules-hash
+        if (["node_modules"] | any { |p| $p | path exists }) {
+          log $"restore-site-node-modules-cache: paths already exist, skipping restore ($hash)"
+          exit 0
+        }
+        let archive = $"$(workspaces.node-cache.path)/($hash).tar.zst"
+
+        if ($archive | path exists) {
+          let archive_size = (ls $archive | get size.0)
+          log $"restore-site-node-modules-cache: hit ($hash) size=($archive_size)"
+          let t0 = (date now)
+          let stage = $".cache-restore-(random uuid)"
+          mkdir $stage
+          try {
+            ^zstd -d -T1 -c $archive | ^tar xf - -C $stage -o --no-same-permissions
+          } catch { |e|
+            try { ^chmod -R u+w $stage } catch { }
+            rm -rf $stage
+            log $"restore-site-node-modules-cache: extract failed \(($e.msg)\)"
+            rm -f $archive
+            log $"restore-site-node-modules-cache: removed unextractable archive, treating as a miss ($hash)"
+            exit 0
+          }
+          for p in ["node_modules"] {
+            let staged = ($stage | path join $p)
+            if not ($staged | path exists) { continue }
+            if ($p | path exists) {
+              # Rename the live tree aside and move the new one in — never delete in place. The
+              # displaced tree is removed afterwards and best-effort: a concurrent writer still inside
+              # it can legitimately make that fail, and by then nothing resolves to it by path.
+              let displaced = $"($p).displaced-(random uuid)"
+              mv $p $displaced
+              mv $staged $p
+              try { ^chmod -R u+w $displaced; rm -rf $displaced } catch { |e|
+                log $"restore-site-node-modules-cache: displaced tree ($displaced) not removed: ($e.msg)"
+              }
+            } else {
+              let parent = ($p | path dirname)
+              if (($parent | str length) > 0) and ($parent != ".") { mkdir $parent }
+              mv $staged $p
+            }
+          }
+          rm -rf $stage
+          let elapsed = (((date now) - $t0) | into int) / 1_000_000_000
+          log $"restore-site-node-modules-cache: restored in ($elapsed)s"
+        } else {
+          log $"restore-site-node-modules-cache: miss ($hash)"
+        }
+      workingDir: $(workspaces.workspace.path)/site
+    - computeResources:
+        limits:
+          cpu: "2"
+          memory: 2Gi
+        requests:
+          cpu: 500m
+          memory: 1Gi
+      env:
+        - name: DOCS_CHANNEL
+          value: release
+        - name: GH_TOKEN
+          valueFrom:
+            secretKeyRef:
+              key: token
+              name: github-pipeline-token
+      image: ghcr.io/pfenerty/apko-cicd/nodejs:24
+      name: docs-publish
+      onError: continue
+      script: |-
+        #!/usr/bin/env nu
+        def log [msg: string] { print $"[(date now | format date '%H:%M:%S')] ($msg)" }
+        if not ("/tekton/home/.exit-code" | path exists) { try { "0" | save -f /tekton/home/.exit-code } }
+        try { ^chmod 0666 /tekton/home/.exit-code }
+        def main [] {
+        log $"node=(node --version) npm=(npm --version) uid=(id -u)"
+        log "Installing dependencies (npm ci)"
+        ^npm ci
+        ^git config --global --add safe.directory (pwd)
+        let channel = $env.DOCS_CHANNEL
+        let base = if $channel == "next" { "/next/" } else { "/" }
+        log $"Building the docs site for ($channel) at base ($base)"
+        with-env {DOCS_BASE: $base} { ^npm run build }
+
+        # The token travels as an auth header from git's env config, never in a URL or argv.
+        let auth = ($"x-access-token:($env.GH_TOKEN)" | encode base64)
+        $env.GIT_CONFIG_COUNT = "1"
+        $env.GIT_CONFIG_KEY_0 = "http.https://github.com/.extraheader"
+        $env.GIT_CONFIG_VALUE_0 = $"AUTHORIZATION: basic ($auth)"
+        let remote = "https://github.com/$(params.repo-full-name).git"
+        let site = (pwd)
+        let pages = "/tmp/gh-pages"
+
+        # A tag run and a main run can race on the branch: on a rejected push, start over from
+        # the new tip and re-apply, so neither channel's update is lost.
+        mut attempt = 1
+        loop {
+          rm -rf $pages
+          if (^git ls-remote --heads $remote gh-pages | str trim | is-empty) {
+            ^git init -q -b gh-pages $pages
+            ^git -C $pages remote add origin $remote
+          } else {
+            ^git clone -q --depth 1 --branch gh-pages $remote $pages
+          }
+          if $channel == "next" {
+            rm -rf $"($pages)/next"
+            cp -r $"($site)/dist" $"($pages)/next"
+          } else {
+            ls -a $pages | where {|e| ($e.name | path basename) not-in [".git" "next"] } | each {|e| rm -rf $e.name } | ignore
+            ls -a $"($site)/dist" | each {|e| cp -r $e.name $pages } | ignore
+          }
+          "docs.ocidex.app
+        " | save -f $"($pages)/CNAME"
+          "" | save -f $"($pages)/.nojekyll"
+
+          ^git -C $pages add -A
+          if (^git -C $pages status --porcelain | str trim | is-empty) {
+            log "OK: gh-pages already up to date"
+            break
+          }
+          (^git -C $pages -c user.name=ocidex-ci -c user.email=ocidex-ci@users.noreply.github.com
+            commit -q -m $"docs: publish ($channel) from $(params.revision)")
+          let push = (do { ^git -C $pages push -q origin gh-pages } | complete)
+          if $push.exit_code == 0 {
+            log $"OK: published ($channel) docs"
+            break
+          }
+          if $attempt >= 3 { error make { msg: $"push to gh-pages failed: ($push.stderr)" } }
+          log $"push rejected, retrying: attempt ($attempt) of 3"
+          $attempt += 1
+        }
+        }
+        if ($env.TEKTONIC_OUTPUT_CAPTURED? | is-empty) {
+          try { "" | save -f /tekton/home/.step-output-docs-publish }
+          try { ^chmod 0666 /tekton/home/.step-output-docs-publish }
+          let rc = (with-env {TEKTONIC_OUTPUT_CAPTURED: "1"} { ^$nu.current-exe $env.CURRENT_FILE o+e>| tee { print -n -r } | tee { save -f /tekton/home/.step-output-docs-publish } | complete | get exit_code })
+          try {
+            let b = (open --raw /tekton/home/.step-output-docs-publish | into binary)
+            if ($b | bytes length) > 60000 { $b | bytes at (-60000).. | save -f /tekton/home/.step-output-docs-publish }
+          }
+          exit $rc
+        }
+        let __tek_rc = (try { main; 0 } catch { |e| print $"error [docs-publish-release/docs-publish]: ($e.msg)"; 1 })
+        let __tek_prev = (try { open --raw /tekton/home/.exit-code | str trim | into int } catch { 0 })
+        let __tek_worst = ([$__tek_prev $__tek_rc] | math max)
+        $"($__tek_worst)" | save -f /tekton/home/.exit-code
+        exit $__tek_rc
+      workingDir: $(workspaces.workspace.path)/site
+    - computeResources:
+        requests:
+          cpu: 10m
+      image: ghcr.io/pfenerty/apko-cicd/base:stable
+      name: save-site-node-modules-cache
+      onError: continue
+      script: |-
+        #!/usr/bin/env nu
+        def log [msg: string] { print $"[(date now | format date '%H:%M:%S')] ($msg)" }
+        let hash = (try { open --raw /tekton/home/.cache-site-node-modules-hash | str trim } catch { "" })
+        if ($hash | is-empty) { log "save-site-node-modules-cache: no hash, skipping"; exit 0 }
+
+        let archive = $"$(workspaces.node-cache.path)/($hash).tar.zst"
+        if ($archive | path exists) { log $"save-site-node-modules-cache: ($hash) exists, skipping"; exit 0 }
+
+        let paths = ["node_modules"] | where { |p| ($p | path exists) }
+        if ($paths | is-empty) { log "save-site-node-modules-cache: no paths to cache"; exit 0 }
+
+        for p in $paths { ^chmod -R u+w $p }
+
+        let max = 3
+        if $max > 0 {
+          let entries = (try { ls $(workspaces.node-cache.path)/*.tar.zst | sort-by modified | reverse | skip $max } catch { [] })
+          for e in $entries { log $"save-site-node-modules-cache: evicting ($e.name | path basename)"; rm $e.name }
+        }
+
+        let uncompressed = ($paths | each { |p| try { du $p | get apparent.0 | into int } catch { 0 } } | math sum)
+        log $"save-site-node-modules-cache: compressing (($uncompressed / 1_000_000) | math round --precision 1)MB uncompressed ..."
+        let t0 = (date now)
+        # Write to a temp path and rename into place: a step killed mid-write (OOM, eviction,
+        # timeout) must never leave a truncated archive at the real hash-keyed path, since the
+        # skip-if-exists guard above means a corrupt archive there would never self-heal.
+        let tmp = $"($archive).tmp.(random uuid)"
+        # nushell aborts the enclosing block as soon as any external command in the pipe
+        # reports a non-zero exit (e.g. tar failing to read one of $paths), so cleanup must
+        # live in a catch — code placed after the pipe but outside try/catch never runs.
+        try {
+          ^tar cf - ...$paths | ^zstd -1 -T1 -o $tmp
+        } catch { |e|
+          rm -f $tmp
+          log $"save-site-node-modules-cache: compress failed (($e.msg)), discarding partial archive"
+          exit 1
+        }
+        mv -f $tmp $archive
+        let elapsed = (((date now) - $t0) | into int) / 1_000_000_000
+        let compressed = (ls $archive | get size.0)
+        let ratio = ($uncompressed / ($compressed | into int) | math round --precision 1)
+        log $"save-site-node-modules-cache: saved ($compressed) ratio=($ratio)x in ($elapsed)s"
+      workingDir: $(workspaces.workspace.path)/site
+    - computeResources:
+        requests:
+          cpu: 10m
+      env:
+        - name: GITHUB_TOKEN
+          valueFrom:
+            secretKeyRef:
+              key: git-provider-token
+              name: "{{ git_auth_secret }}"
+      image: ghcr.io/pfenerty/apko-cicd/base:stable
+      name: report-status
+      script: |-
+        #!/usr/bin/env nu
+        def log [msg: string] { print $"[(date now | format date '%H:%M:%S')] ($msg)" }
+        def gh [method: string, path: string, body?: record]: nothing -> any {
+          let url = $"https://api.github.com/repos/$(params.repo-full-name)($path)"
+          let headers = [
+            Authorization $"Bearer ($env.GITHUB_TOKEN)"
+            Accept "application/vnd.github+json"
+            X-GitHub-Api-Version "2022-11-28"
+          ]
+          match $method {
+            "POST" => { http post $url $body -t application/json -H $headers }
+            "PATCH" => { http patch $url $body -t application/json -H $headers }
+            _ => { http get $url -H $headers }
+          }
+        }
+
+        def now-iso []: nothing -> string { date now | date to-timezone UTC | format date '%Y-%m-%dT%H:%M:%SZ' }
+
+        def param-id [value: string]: nothing -> any { if ($value | str trim) =~ '^\d+$' { $value | str trim } else { null } }
+
+        def format-duration [secs: int]: nothing -> string {
+          let secs = ([$secs 0] | math max)
+          let h = $secs // 3600
+          let m = ($secs mod 3600) // 60
+          let s = $secs mod 60
+          let pad = { |n| $n | into string | fill -a right -w 2 -c '0' }
+          if $h > 0 {
+            $"($h)h(do $pad $m)m"
+          } else if $m > 0 {
+            $"($m)m(do $pad $s)s"
+          } else {
+            $"($s)s"
+          }
+        }
+
+        let contract_code = (try { open --raw /tekton/home/.exit-code | str trim | into int } catch { 1 })
+        let step_codes = ([{ name: "docs-publish", path: "/tekton/steps/step-docs-publish/exitCode", out: "/tekton/home/.step-output-docs-publish" }] | each { |s|
+          let ran = ($s.path | path exists)
+          { name: $s.name, ran: $ran, out: $s.out, code: (if $ran { try { open --raw $s.path | str trim | into int } catch { 0 } } else { 0 }) }
+        })
+        let exit_code = ([$contract_code ...($step_codes | each { |s| $s.code })] | math max)
+        let conclusion = if $exit_code == 0 { "success" } else { "failure" }
+        let failed_steps = ($step_codes | where code != 0)
+        let result = if $exit_code == 0 {
+          "Passed"
+        } else if ($failed_steps | is-empty) {
+          $"Failed: exit ($exit_code)"
+        } else {
+          let first = ($failed_steps | first)
+          $"Failed: step ($first.name) exited ($first.code)"
+        }
+        let duration = (try { format-duration ((date now | format date '%s' | into int) - (open --raw /tekton/home/.status-started-at | str trim | into int)) } catch { null })
+        let title = if $duration == null { $result } else { $"($result) in ($duration)" }
+
+        let rows = ($step_codes | each { |s|
+          let st = if not $s.ran { "did not run" } else if $s.code == 0 { "passed" } else { $"exited ($s.code)" }
+          $"| ($s.name) | ($st) |"
+        })
+        mut summary = (["| Step | Result |" "| --- | --- |" ...$rows] | str join "\n")
+        let tail = if ($failed_steps | is-empty) { "" } else {
+          try { open --raw ($failed_steps | first | get out) | into string | ansi strip | str trim -r } catch { "" }
+        }
+        if ($tail | is-not-empty) {
+          $summary = ([$summary "" $"### Output of ($failed_steps | first | get name)" "" "~~~~text" $tail "~~~~"] | str join "\n")
+        }
+        let annotations = if ($tail | is-empty) { [] } else {
+          $tail | lines | parse --regex "^(?<path>[\\w./@+-]+\\.[A-Za-z0-9]+):(?<line>\\d+)(?::(?<col>\\d+))?:\\s*(?<message>\\S.*)$" | first 50 | each { |m|
+            let line = ($m.line | into int)
+            { path: ($m.path | str replace -r '^\./' ''), start_line: $line, end_line: $line, annotation_level: "failure", message: ($m.message | str trim) }
+          }
+        }
+
+        let output = ({ title: $title, summary: $summary } | merge (if ($annotations | is-empty) { {} } else { { annotations: $annotations } }))
+        let body = ({ status: "completed", conclusion: $conclusion, completed_at: (now-iso), output: $output } | merge { details_url: "https://tekton-dashboard.bear-velociraptor.ts.net/#/namespaces/$(context.taskRun.namespace)/taskruns/$(context.taskRun.name)" })
+        let id = (try { open --raw /tekton/home/.check-run-id | str trim } catch { param-id "$(params.check-run-id)" })
+        log $"("report-status [docs-publish-release]"): exit-code=($exit_code) conclusion=($conclusion)"
+        try {
+          if $id != null {
+            gh PATCH $"/check-runs/($id)" $body | ignore
+          } else {
+            gh POST "/check-runs" ($body | merge { name: "docs-publish-release", head_sha: "$(params.revision)" }) | ignore
+          }
+          log $"("report-status [docs-publish-release]"): done"
+        } catch { |e|
+          log $"("report-status [docs-publish-release]"): error: ($e.msg)"
+        }
+        exit $exit_code
+  workspaces:
+    - name: node-cache
+    - name: workspace

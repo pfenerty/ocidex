@@ -51,6 +51,8 @@ spec:
       type: string
     - name: status-sbom-push
       type: string
+    - name: status-docs-publish-release
+      type: string
     - name: check-run-image-release-api
       type: string
     - name: check-run-go-test
@@ -90,6 +92,8 @@ spec:
     - name: check-run-gh-release
       type: string
     - name: check-run-sbom-push
+      type: string
+    - name: check-run-docs-publish-release
       type: string
   stepTemplate:
     computeResources:
@@ -164,6 +168,7 @@ spec:
           { status: "$(params.status-helm-release)", context: "helm-release", id: "$(params.check-run-helm-release)" }
           { status: "$(params.status-gh-release)", context: "gh-release", id: "$(params.check-run-gh-release)" }
           { status: "$(params.status-sbom-push)", context: "sbom-push", id: "$(params.check-run-sbom-push)" }
+          { status: "$(params.status-docs-publish-release)", context: "docs-publish-release", id: "$(params.check-run-docs-publish-release)" }
         ]
 
         let failed = $entries | each { |entry|

@@ -63,6 +63,8 @@ spec:
       type: string
     - name: status-sbom-push
       type: string
+    - name: status-docs-publish-next
+      type: string
     - name: check-run-gofmt-check
       type: string
     - name: check-run-go-lint
@@ -114,6 +116,8 @@ spec:
     - name: check-run-helm-publish
       type: string
     - name: check-run-sbom-push
+      type: string
+    - name: check-run-docs-publish-next
       type: string
   stepTemplate:
     computeResources:
@@ -194,6 +198,7 @@ spec:
           { status: "$(params.status-helm-check)", context: "helm-check", id: "$(params.check-run-helm-check)" }
           { status: "$(params.status-helm-publish)", context: "helm-publish", id: "$(params.check-run-helm-publish)" }
           { status: "$(params.status-sbom-push)", context: "sbom-push", id: "$(params.check-run-sbom-push)" }
+          { status: "$(params.status-docs-publish-next)", context: "docs-publish-next", id: "$(params.check-run-docs-publish-next)" }
         ]
 
         let failed = $entries | each { |entry|

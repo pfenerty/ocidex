@@ -52,6 +52,8 @@ spec:
       type: string
     - name: check-run-8d8e4887cf11
       type: string
+    - name: check-run-a8b2c69ca8ac
+      type: string
   stepTemplate:
     computeResources:
       limits:
@@ -125,6 +127,7 @@ spec:
           { context: "helm-release", result: "$(results.check-run-32a1d0876c57.path)" }
           { context: "gh-release", result: "$(results.check-run-e2a50882cb4f.path)" }
           { context: "sbom-push", result: "$(results.check-run-8d8e4887cf11.path)" }
+          { context: "docs-publish-release", result: "$(results.check-run-a8b2c69ca8ac.path)" }
         ]
 
         # Write every result before calling GitHub: a reporting task whose param names a result the

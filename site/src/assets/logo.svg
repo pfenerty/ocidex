@@ -1,0 +1,5 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 32 32" fill="none" role="img" aria-label="OCIDex">
+  <rect width="32" height="32" rx="6" fill="#1A1F2E"/>
+  <rect x="0" y="0" width="4" height="32" rx="2" fill="#DC3545"/>
+  <text x="7" y="23" font-family="Space Grotesk,Inter,system-ui,sans-serif" font-size="15" font-weight="700" fill="#E4E7F0">O<tspan fill="#5B8DEF">D</tspan></text>
+</svg>

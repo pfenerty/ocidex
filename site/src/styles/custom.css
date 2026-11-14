@@ -1,0 +1,54 @@
+/* OCIDex palette, taken from web/src/index.css so the docs read as the same product.
+   Red is identity (accent chrome); blue is navigation (links), as in the app. */
+@import url("https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500&family=Space+Grotesk:wght@500;700&display=swap");
+
+:root {
+  --sl-font: "Inter", -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+  --sl-font-mono: "JetBrains Mono", "Fira Code", "Cascadia Code", monospace;
+
+  /* Dark theme (Starlight's default). */
+  --sl-color-accent-low: #1e2a4a;
+  --sl-color-accent: #5b8def;
+  --sl-color-accent-high: #c9d8fb;
+  --sl-color-white: #ffffff;
+  --sl-color-gray-1: #e4e7f0;
+  --sl-color-gray-2: #c4c8d6;
+  --sl-color-gray-3: #8b90a5;
+  --sl-color-gray-4: #3a3f52;
+  --sl-color-gray-5: #2a2e3e;
+  --sl-color-gray-6: #161921;
+  --sl-color-black: #0c0e14;
+  --ocidex-brand: #dc3545;
+}
+
+:root[data-theme="light"] {
+  --sl-color-accent-low: #dbe5fb;
+  --sl-color-accent: #1d4ed8;
+  --sl-color-accent-high: #1e3a8a;
+  --sl-color-white: #1a1d27;
+  --sl-color-gray-1: #2a2e3e;
+  --sl-color-gray-2: #3a3f52;
+  --sl-color-gray-3: #5c6070;
+  --sl-color-gray-4: #a5a9b6;
+  --sl-color-gray-5: #e0ddd5;
+  --sl-color-gray-6: #f3f1ec;
+  --sl-color-gray-7: #f8f6f1;
+  --sl-color-black: #ffffff;
+  --ocidex-brand: #cc1429;
+}
+
+.site-title {
+  font-family: "Space Grotesk", "Inter", sans-serif;
+  font-weight: 700;
+}
+
+/* The app's red entry edge, on the header. */
+header.header {
+  border-top: 3px solid var(--ocidex-brand);
+}
+
+/* The /next/ preview banner. */
+.sl-banner {
+  background-color: var(--sl-color-accent-low);
+  color: var(--sl-color-white);
+}

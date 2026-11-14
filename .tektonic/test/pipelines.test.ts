@@ -115,6 +115,18 @@ describe("PR pipeline gating", () => {
     assert.equal(runs.has("go-build"), false);
   });
 
+  it("runs docs-build alone on a site-only change", () => {
+    const runs = runsFor(pr, ["site/src/content/docs/index.mdx"]);
+    const work = [...runs].filter((n) => !n.startsWith("detect-") && !n.startsWith("set-status-"));
+    assert.deepEqual(work.sort(), [...alwaysRun, "docs-build"].sort());
+  });
+
+  it("runs docs-build when a generated reference page's source changes", () => {
+    for (const f of ["internal/config/config.go", "web/openapi.json", "charts/ocidex/values.yaml"]) {
+      assert.equal(runsFor(pr, [f]).has("docs-build"), true, f);
+    }
+  });
+
   it("orders go-integration-test after go-test", () => {
     assert.ok(pr.runAfter("go-integration-test").includes("go-test"));
   });

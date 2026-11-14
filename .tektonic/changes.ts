@@ -86,3 +86,16 @@ export const codegenChanged = bucket("detect-codegen", [
   "config/operator/**",
   "charts/ocidex-operator/crds/**",
 ]);
+
+// Docs-site bucket (ADR-0057): the site itself plus every source a generated reference page
+// is built from, so a change that makes a generated page stale re-runs the check that
+// catches it. docs/ is not here: it holds contributor material that the site doesn't build.
+export const docsChanged = bucket("detect-docs", [
+  "site/**",
+  "web/openapi.json",
+  "internal/config/**",
+  "internal/authz/**",
+  "cmd/authmatrix/**",
+  "cmd/ocidex-cli/**",
+  "charts/**",
+]);

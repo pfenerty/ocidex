@@ -42,6 +42,8 @@ spec:
       type: string
     - name: check-run-1292575c9224
       type: string
+    - name: check-run-41758414a405
+      type: string
   stepTemplate:
     computeResources:
       limits:
@@ -110,6 +112,7 @@ spec:
           { context: "gitleaks-secrets", result: "$(results.check-run-6ff80b84857c.path)" }
           { context: "tekton-check", result: "$(results.check-run-1356812e5efc.path)" }
           { context: "helm-check", result: "$(results.check-run-1292575c9224.path)" }
+          { context: "docs-build", result: "$(results.check-run-41758414a405.path)" }
         ]
 
         # Write every result before calling GitHub: a reporting task whose param names a result the

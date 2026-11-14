@@ -10,6 +10,7 @@ import {
   pipelineChanged,
   chartsChanged,
   codegenChanged,
+  docsChanged,
 } from "./changes";
 import { goFmt } from "./jobs/go-fmt/spec";
 import { goBuild } from "./jobs/go-build/spec";
@@ -31,6 +32,7 @@ import { ghRelease } from "./jobs/gh-release/spec";
 import { tektonCheck } from "./jobs/tekton-check/spec";
 import { helmCheck } from "./jobs/helm-check/spec";
 import { sbomPush } from "./jobs/sbom-push/spec";
+import { docsBuild, docsPublishNext, docsPublishRelease } from "./jobs/docs/spec";
 
 // ─── Task groups ──────────────────────────────────────────────────────────────
 // Core build/verify tasks + the always-on security scans. Run ungated on push so
@@ -92,7 +94,16 @@ export const pushPipeline = new GitPipeline({
   // the image chain, and its sidecar-backed suite is not something the cold-run estimate
   // above accounted for.
   timeout: "3h",
-  tasks: [...coreTasks, ...securityTasks, ...serial(imageBuilds), helmCheck, helmPublish, sbomPush],
+  tasks: [
+    ...coreTasks,
+    ...securityTasks,
+    ...serial(imageBuilds),
+    helmCheck,
+    helmPublish,
+    sbomPush,
+    // The /next/ docs preview (ADR-0057); independent of the image chain.
+    docsPublishNext,
+  ],
 });
 
 // PR pipeline: gate the expensive Go jobs on whether the branch touched Go/Docker/db
@@ -134,6 +145,8 @@ export const prPipeline = new GitPipeline({
     // driver script changed. Leaf task on this pipeline (nothing publishes on a PR), so
     // gating it is safe; on push/tag it runs ungated as a `needs` of helm-publish/-release.
     gated(helmCheck, { when: chartsChanged }),
+    // Docs site build: link check, and (ocidex-mxy0.8) generated-page staleness.
+    gated(docsBuild, { when: docsChanged }),
   ],
 });
 
@@ -157,5 +170,5 @@ export const tagPipeline = new GitPipeline({
   timeout: "4h",
   // sbomPush pulls goBuild in via `needs` (it must not race another Go task's cache
   // restore). That extra compile is the price of cataloguing the tagged binaries.
-  tasks: [...serial(imageBuildsTag), helmCheck, helmRelease, ghRelease, sbomPush],
+  tasks: [...serial(imageBuildsTag), helmCheck, helmRelease, ghRelease, sbomPush, docsPublishRelease],
 });

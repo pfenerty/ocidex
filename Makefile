@@ -7,7 +7,7 @@ ifneq (,$(wildcard .env))
   export
 endif
 
-.PHONY: demo demo-down all build run fmt lint license-check vulncheck test test-coverage test-integration check init clean generate generate-check generate-client generate-client-check generate-operator generate-operator-check migrate-up migrate-down seed frontend frontend-dev frontend-dev-live frontend-dev-auth dev-auth-up dev-auth-down dev-auth-fixtures dev-auth-status dev-auth-reset dev-mock-idp frontend-init frontend-lint frontend-lint-fix frontend-typecheck frontend-test openapi openapi-check auth-matrix auth-matrix-check helm-check tekton-synth tekton-check dev-docker-check dev-registry dev-cluster-up dev-cluster-down dev-up dev-down release version help
+.PHONY: demo demo-down all build run fmt lint license-check vulncheck test test-coverage test-integration check init clean generate generate-check generate-client generate-client-check generate-operator generate-operator-check migrate-up migrate-down seed frontend frontend-dev frontend-dev-live frontend-dev-auth dev-auth-up dev-auth-down dev-auth-fixtures dev-auth-status dev-auth-reset dev-mock-idp frontend-init frontend-lint frontend-lint-fix frontend-typecheck frontend-test openapi openapi-check auth-matrix auth-matrix-check helm-check docs docs-dev docs-check tekton-synth tekton-check dev-docker-check dev-registry dev-cluster-up dev-cluster-down dev-up dev-down release version help
 
 all: check build ## Run all checks and build
 
@@ -53,7 +53,7 @@ test-coverage: ## Run tests with HTML coverage report
 test-integration: ## Run integration tests
 	go test -v -race ./tests/...
 
-check: fmt lint test license-check openapi-check auth-matrix-check generate-check generate-client-check generate-operator-check frontend-lint frontend-typecheck frontend-test helm-check ## Run fmt, lint, test, openapi staleness and Helm policy checks
+check: fmt lint test license-check openapi-check auth-matrix-check generate-check generate-client-check generate-operator-check frontend-lint frontend-typecheck frontend-test helm-check docs-check ## Run fmt, lint, test, openapi staleness and Helm policy checks
 
 init: ## Download dependencies (optional: tools build on first use)
 	go mod download
@@ -209,6 +209,16 @@ frontend-test: frontend-init ## Run frontend unit tests
 # Same script the CI helm-check task runs, so a green local run means a green CI run.
 helm-check: ## Lint Helm charts and validate rendered manifests against PodSecurity restricted
 	scripts/helm-policy-check.sh
+
+# The public docs site (ADR-0057), an Astro Starlight build in site/.
+docs: ## Build the docs site into site/dist (fails on a broken internal link)
+	cd site && npm ci && npm run build
+
+docs-dev: ## Serve the docs site locally with live reload
+	cd site && npm ci && npm run dev
+
+# What the CI docs-build task runs.
+docs-check: docs ## Verify the docs site builds and its internal links resolve
 
 tekton-synth: ## Synthesize Tekton pipeline YAML from TypeScript
 	cd .tektonic && npm ci && npx tektonic synth
