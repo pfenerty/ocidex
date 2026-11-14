@@ -2,6 +2,8 @@ package api
 
 import (
 	"net/http"
+	"net/url"
+	"regexp"
 	"strings"
 	"time"
 
@@ -127,6 +129,29 @@ const (
 	pathClusterByID           = "/api/v1/clusters/{id}"
 )
 
+// redirectLegacySchema sends huma's default /schemas/<Name>.json to the same
+// schema under /api. The target is always a path below apiSchemasPath on this
+// origin, and the name is checked and escaped, so it cannot redirect elsewhere.
+func redirectLegacySchema(w http.ResponseWriter, req *http.Request) {
+	name := chi.URLParam(req, "schema")
+	if !schemaNameRx.MatchString(name) {
+		http.NotFound(w, req)
+		return
+	}
+	target := apiSchemasPath + "/" + url.PathEscape(name)
+	http.Redirect(w, req, target, http.StatusMovedPermanently) //nolint:gosec // G710: fixed same-origin prefix, validated name
+}
+
+// schemaNameRx matches a huma schema file name: ErrorModel.json, ListSBOMsOutputBody.json.
+var schemaNameRx = regexp.MustCompile(`^[A-Za-z0-9_-]+(\.json)?$`)
+
+// apiSchemasPath serves the JSON Schemas response bodies link to via
+// "$schema"; legacySchemasPath is huma's default, kept as a redirect.
+const (
+	apiSchemasPath    = "/api/schemas"
+	legacySchemasPath = "/schemas"
+)
+
 // URL schemes, and the ENVIRONMENT value that gates production-only behaviour
 // (secure cookies, https callback URLs).
 const (
@@ -160,7 +185,6 @@ func NewRouter(h *Handler, corsOrigins, frontendURL, apiBaseURL string) chi.Rout
 	r.Use(RequestMetrics(h.meterProvider))
 	r.Use(middleware.Recoverer)
 	r.Use(SecurityHeaders)
-	r.Use(LegacyQueryNames)
 	allowedOrigins := parseCORSOrigins(corsOrigins, frontendURL)
 	r.Use(cors.Handler(cors.Options{
 		AllowedOrigins:   allowedOrigins,
@@ -202,6 +226,12 @@ func NewRouter(h *Handler, corsOrigins, frontendURL, apiBaseURL string) chi.Rout
 		{"cookieAuth": {}},
 	}
 
+	// Every response body's "$schema" and every error's Link: rel="describedBy"
+	// point at SchemasPath. It sits under /api, the prefix every deployment
+	// routes to this binary, so those links resolve instead of landing on the
+	// web tier's index.html (ocidex-m3yn). The old /schemas spelling redirects.
+	config.SchemasPath = apiSchemasPath
+
 	// huma's own /docs page is replaced by the branded reference at /api/docs
 	// (apiref.go), which every deployment's routing reaches.
 	config.DocsPath = ""
@@ -235,6 +265,8 @@ func NewRouter(h *Handler, corsOrigins, frontendURL, apiBaseURL string) chi.Rout
 	registerJobOps(api, h)
 	registerAuthOps(r, api, h)
 	registerDevOps(api, h)
+	r.Get(legacySchemasPath+"/{schema}", redirectLegacySchema)
+
 	registerAPIReference(r, api, apiBaseURL)
 
 	return r

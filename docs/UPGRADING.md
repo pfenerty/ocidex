@@ -118,7 +118,31 @@ Newest first. Each entry names the issue that made the change, so its full conte
 
 ### Next release (unreleased)
 
-Nothing yet.
+**Behavior changes to check after upgrading:**
+
+- **snake_case query parameters are no longer accepted (ocidex-6hfs).** Through 1.0 the server
+  translated the pre-1.0 spellings (`?subject_version=`, `?sort=cvss_score`) to their
+  camelCase names, as announced in the 1.0 notes. That translation is gone: a snake_case
+  parameter is now ignored like any other unknown one, so a filter silently stops filtering
+  and an ingest parameter such as `subject_name` is dropped. What to do: upgrade any CI image
+  or script that pins an `ocidex-cli` older than 1.0, and rename parameters in your own API
+  calls to camelCase (`subjectVersion`, `sort=cvssScore`).
+- **Response `$schema` links moved under `/api` (ocidex-m3yn).** Every JSON body's
+  `$schema`, and every error's `Link: rel="describedBy"` header, now points at
+  `/api/schemas/<Name>.json` instead of `/schemas/<Name>.json`. The old path was not routed
+  to the API on a standard install, so those links led to the web app; now they resolve.
+  `/schemas/<Name>.json` on the API itself redirects to the new path. Nothing to do unless
+  you compare `$schema` values literally.
+
+**Deprecations (removed in 2.0):**
+
+- **`ENRICHMENT_WORKERS` and `ENRICHMENT_QUEUE_SIZE` (ocidex-lwow).** Neither has done anything
+  since the job queue moved to the database; they were only echoed on the admin Status page.
+  The server and every worker now log a warning at startup when either is set, the Status page
+  no longer shows them, and `enrichment.workers` and `enrichment.queueSize` in
+  `GET /api/v1/admin/status` are marked deprecated. What to do: remove both from your
+  environment or Helm values. To change enrichment concurrency, set
+  `ENRICHMENT_MAX_CONCURRENCY` on the enricher workers.
 
 ### 1.0.0
 

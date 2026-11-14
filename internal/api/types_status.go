@@ -17,9 +17,11 @@ type SystemStatusOutput struct {
 
 // EnrichmentStatus describes the enrichment pipeline configuration.
 type EnrichmentStatus struct {
-	Enabled   bool `json:"enabled"`
-	Workers   int  `json:"workers"`
-	QueueSize int  `json:"queueSize"`
+	Enabled bool `json:"enabled"`
+	// Deprecated (ocidex-lwow): both echo env vars that no longer size anything.
+	// They stay in /api/v1 until 2.0 (ADR-052).
+	Workers   int `json:"workers" deprecated:"true" doc:"Deprecated: the value of ENRICHMENT_WORKERS, which no longer changes how many jobs run. Enricher concurrency is ENRICHMENT_MAX_CONCURRENCY on each enricher worker. Removed in 2.0."`
+	QueueSize int `json:"queueSize" deprecated:"true" doc:"Deprecated: the value of ENRICHMENT_QUEUE_SIZE, which limits nothing; the queue is the enrichment_jobs table. Removed in 2.0."`
 }
 
 // ScannerStatus describes the scanner configuration.

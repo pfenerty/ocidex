@@ -84,6 +84,7 @@ func run() error {
 		Level: cfg.SlogLevel(),
 	}))))
 	logStartup(cfg)
+	config.WarnDeprecated()
 
 	ctx := context.Background()
 

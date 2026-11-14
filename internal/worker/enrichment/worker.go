@@ -63,6 +63,7 @@ func Run(factory EnricherFactory, cfg RunConfig) error {
 	slog.SetDefault(slog.New(tracing.LogHandler(slog.NewJSONHandler(os.Stdout, &slog.HandlerOptions{
 		Level: appCfg.SlogLevel(),
 	}))))
+	config.WarnDeprecated()
 	slog.Info("starting enricher worker",
 		"environment", appCfg.Environment,
 		"log_level", appCfg.LogLevel,

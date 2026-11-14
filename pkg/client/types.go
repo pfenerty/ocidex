@@ -2434,9 +2434,15 @@ type EnrichmentJobsSummaryOutputBody struct {
 
 // EnrichmentStatus defines model for EnrichmentStatus.
 type EnrichmentStatus struct {
-	Enabled   bool  `json:"enabled"`
+	Enabled bool `json:"enabled"`
+
+	// QueueSize Deprecated: the value of ENRICHMENT_QUEUE_SIZE, which limits nothing; the queue is the enrichment_jobs table. Removed in 2.0.
+	// Deprecated: this property has been marked as deprecated upstream, but no `x-deprecated-reason` was set
 	QueueSize int64 `json:"queueSize"`
-	Workers   int64 `json:"workers"`
+
+	// Workers Deprecated: the value of ENRICHMENT_WORKERS, which no longer changes how many jobs run. Enricher concurrency is ENRICHMENT_MAX_CONCURRENCY on each enricher worker. Removed in 2.0.
+	// Deprecated: this property has been marked as deprecated upstream, but no `x-deprecated-reason` was set
+	Workers int64 `json:"workers"`
 }
 
 // ErrorDetail defines model for ErrorDetail.
