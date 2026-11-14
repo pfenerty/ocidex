@@ -3,6 +3,7 @@ package main
 import (
 	"fmt"
 	"io"
+	"os"
 	"regexp"
 	"strings"
 
@@ -46,6 +47,11 @@ sidebar:
 		writeCommand(&b, c)
 	}
 	out := blankRuns.ReplaceAllString(b.String(), "\n\n")
+	// Help text that names the config file resolves it against the generating
+	// user's home; the page must say ~ so it is the same on every machine.
+	if home, err := os.UserHomeDir(); err == nil && home != "" {
+		out = strings.ReplaceAll(out, home+string(os.PathSeparator), "~/")
+	}
 	_, err := io.WriteString(w, strings.TrimRight(out, "\n")+"\n")
 	return err
 }

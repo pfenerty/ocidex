@@ -1,14 +1,11 @@
 # API Versioning Policy
 
-OCIDex uses a URL-prefix versioning scheme. All stable endpoints are under `/api/v1/`.
+How maintainers keep the `/api/v1` contract. What it promises API clients is published in the
+[integrator guide](https://docs.ocidex.app/guides/integrate/api/#versions-and-compatibility); keep the two in step.
 
-## Current Stable Prefix
-
-```
-/api/v1/
-```
-
-This prefix is stable. All clients and integrations should use `/api/v1/` as the base path. The API reference is at `/api/docs`, and the machine-readable spec at `/api/openapi.json` (also `/api/openapi.yaml`, and `/openapi.json` for older clients).
+OCIDex uses a URL-prefix versioning scheme. All stable endpoints are under `/api/v1/`. Each
+server serves its reference at `/api/docs` and its spec at `/api/openapi.json` (also
+`/api/openapi.yaml`, and `/openapi.json` for older clients).
 
 ## Contract Version and Build Version
 

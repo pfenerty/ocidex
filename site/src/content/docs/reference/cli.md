@@ -285,7 +285,7 @@ ocidex-cli key list
 Save a server URL and API key to the config file.
 
 Prompts for whatever is not given as a flag, verifies the key by asking the
-server who you are, and only then writes `/Users/patrickfenerty/.config/ocidex/config.yaml` with
+server who you are, and only then writes `~/.config/ocidex/config.yaml` with
 mode 0600. A key that does not work is rejected here rather than at the next
 command.
 

@@ -152,7 +152,7 @@ claude mcp add ocidex -- ocidex-mcp
 ```
 
 Fourteen tools cover lookup, diff, changelog, vulnerabilities and ingest. See the
-[MCP Server guide](docs/MCP.md) for the full list, client configuration and troubleshooting.
+[MCP guide](https://docs.ocidex.app/guides/integrate/mcp/) for the full list, client configuration and troubleshooting.
 
 ### Ingest Your First SBOM
 
@@ -259,7 +259,7 @@ See the [configuration reference](https://docs.ocidex.app/reference/configuratio
 | [Configuration](https://docs.ocidex.app/reference/configuration/) | All environment variables with descriptions and defaults |
 | [Operator guide](https://docs.ocidex.app/guides/operate/) | Install, configure, upgrade and operate on Kubernetes |
 | [Releasing](docs/RELEASING.md) | Release checklist, tag pipeline, verification, and rollback |
-| [MCP Server](docs/MCP.md) | Serving the catalog to agents over stdio: setup, tools, troubleshooting |
+| [MCP Server](https://docs.ocidex.app/guides/integrate/mcp/) | Serving the catalog to agents over stdio: setup, tools, troubleshooting |
 | [API Versioning](docs/API_VERSIONING.md) | Versioning policy and breaking-change definition |
 | [Frontend Development](docs/FRONTEND_DEV.md) | Dev rigs, browser verification, contract tests |
 | [Tekton CI](docs/CI_TEKTON.md) | Fast pipeline iteration, gotchas, task script syntax |

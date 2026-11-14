@@ -4,6 +4,7 @@
 import { defineConfig } from "astro/config";
 import starlight from "@astrojs/starlight";
 import starlightLinksValidator from "starlight-links-validator";
+import starlightOpenAPI, { openAPISidebarGroups } from "starlight-openapi";
 import { baseLinks } from "./src/plugins/base-links.mjs";
 
 const base = process.env.DOCS_BASE ?? "/";
@@ -29,7 +30,27 @@ export default defineConfig({
       // link root-relative ("/guides/..."); the validator checks those at base "/" (the PR
       // build and the release build), and baseLinks prefixes them in the /next/ build. Relative
       // links are rejected because the validator cannot check them.
-      plugins: isNext ? [] : [starlightLinksValidator({ errorOnLocalLinks: true })],
+      plugins: [
+        // The REST API reference, rendered from the committed spec, which openapi-check
+        // keeps in step with the server (ADR-0057).
+        starlightOpenAPI([
+          {
+            base: "reference/api",
+            schema: "../web/openapi.json",
+            sidebar: { label: "REST API", collapsed: true, operations: { badges: true } },
+          },
+        ]),
+        ...(isNext
+          ? []
+          : [
+              starlightLinksValidator({
+                errorOnLocalLinks: true,
+                // Pages starlight-openapi generates are routes, not content, so the
+                // validator cannot see them.
+                exclude: ["/reference/api/", "/reference/api/**"],
+              }),
+            ]),
+      ],
       components: isNext ? { Banner: "./src/components/NextBanner.astro" } : {},
       sidebar: [
         { label: "Get started", items: [{ autogenerate: { directory: "getting-started" } }] },
@@ -42,7 +63,10 @@ export default defineConfig({
             { label: "Integrate", items: [{ autogenerate: { directory: "guides/integrate" } }] },
           ],
         },
-        { label: "Reference", items: [{ autogenerate: { directory: "reference" } }] },
+        {
+          label: "Reference",
+          items: [{ autogenerate: { directory: "reference" } }, ...openAPISidebarGroups],
+        },
       ],
     }),
   ],
