@@ -193,10 +193,18 @@ services:
       # Registries here are on the compose network or the host (ocidex-avsz.6).
       EGRESS_ALLOW_PRIVATE: "true"
 
-  # Vulnerability worker: refreshes the package-keyed OSV vulnerability store on a
-  # schedule (no NATS). Talks to Postgres and api.osv.dev. Singleton via a Postgres
-  # advisory lock, so scaling to >1 is safe. A short refresh interval is set here so
-  # newly ingested SBOMs light up quickly during local exploration.
+  # Vulnerability worker: matches stored SBOMs against the grype database (ADR-049)
+  # on a schedule (no NATS). Talks to Postgres and the grype database listing.
+  # Singleton via a Postgres advisory lock, so scaling to >1 is safe. A short refresh
+  # interval is set here so newly ingested SBOMs light up quickly during local
+  # exploration.
+  #
+  # The database (~3 GB unpacked) needs a writable directory. The image runs as
+  # distroless nonroot (uid 65532) and has no /var/lib/ocidex, the default
+  # VULN_DB_DIR, so without this volume the download can never install and every
+  # SBOM stays "not scanned" (ocidex-mxy0.11). The volume mounts over
+  # /home/nonroot, which the image owns as 65532, so Docker gives the new volume
+  # that owner; TMPDIR sits on it too, since grype unpacks the download there.
   vuln-worker:
     build:
       context: .
@@ -215,6 +223,10 @@ services:
       ENVIRONMENT: development
       VULN_REFRESH_ENABLED: "true"
       VULN_REFRESH_INTERVAL: "10m"
+      VULN_DB_DIR: /home/nonroot/grype-db
+      TMPDIR: /home/nonroot
+    volumes:
+      - grype-db:/home/nonroot
 
   web:
     build:
@@ -236,3 +248,4 @@ volumes:
   db-data:
   nats-data:
   zot-data:
+  grype-db:
