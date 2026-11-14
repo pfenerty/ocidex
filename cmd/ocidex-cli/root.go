@@ -114,6 +114,7 @@ is deliberately not a flag — see docs/adr/0029-cli-design.md.`,
 		newRegistryCmd(cfg), newArtifactCmd(cfg),
 		newComponentCmd(cfg), newJobCmd(cfg), newKeyCmd(cfg),
 		newLoginCmd(cfg), newLogoutCmd(), newVersionCmd())
+	cmd.AddCommand(newGenReferenceCmd(cmd))
 	return cmd, cfg
 }
 

@@ -6,7 +6,7 @@ import { goBuild } from "../go-build/spec";
 // Generated-code drift checks (ocidex-gyr0.5), one step per generator so every drift is
 // reported, not just the first (onError: continue; synth keeps the worst exit code). Each
 // mirrors its Makefile target: auth-matrix-check, generate-check, generate-client-check,
-// generate-operator-check. Change one, change both. The OpenAPI spec and TS types are
+// generate-operator-check, docs-generate-check. Change one, change both. The OpenAPI spec and TS types are
 // openapi-verify's job. needs: [goBuild] for cache warmth; the cache entry never restores
 // over the shared .go-mod/.go-build (see goCache in shared.ts).
 // Per step, not in stepTemplate: a pod's request is the SUM over its containers, and a
@@ -113,6 +113,25 @@ for f in (ls config/operator/crd/*.yaml | get name) {
   }
 }
 log "OK: operator files are up to date (else run 'make generate-operator')"
+`,
+      computeResources: checkResources.rest,
+      onError: "continue",
+    },
+    {
+      name: "docs-reference-check",
+      image: goImage,
+      script: nu`
+${goSetup}
+${goTmpSetup}
+let out = "/tmp/docs-reference-check"
+mkdir $out
+log "Regenerating the docs site's reference pages"
+^go run ./cmd/docgen -out $out
+^go run ./cmd/ocidex-cli gen-reference out> $"($out)/cli.md"
+for f in [configuration.md helm-values.md authorization.md cli.md] {
+  ^diff $"site/src/content/docs/reference/($f)" $"($out)/($f)"
+}
+log "OK: the reference pages are up to date (else run 'make docs-generate')"
 `,
       computeResources: checkResources.rest,
       onError: "continue",

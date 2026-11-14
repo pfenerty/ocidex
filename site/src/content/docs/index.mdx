@@ -1,0 +1,106 @@
+---
+title: OCIDex
+description: A catalog of the SBOMs of your container images. Know what is in them, what changed, what is vulnerable and what is running.
+template: splash
+hero:
+  title: Know what you ship, and what you run.
+  tagline: OCIDex keeps every SBOM of your container images and software, and tells you what is in them, what changed between versions, what is vulnerable today, and what is running in your clusters.
+  actions:
+    - text: Try it in five minutes
+      link: /getting-started/quickstart/
+      icon: right-arrow
+    - text: How it works
+      link: /concepts/overview/
+      variant: secondary
+    - text: GitHub
+      link: https://github.com/pfenerty/ocidex
+      icon: external
+      variant: minimal
+---
+
+import { Card, CardGrid, LinkCard } from "@astrojs/starlight/components";
+import { Image } from "astro:assets";
+import artifact from "../../assets/screenshots/artifact.png";
+import changelog from "../../assets/screenshots/changelog.png";
+import pkg from "../../assets/screenshots/package.png";
+import cluster from "../../assets/screenshots/cluster.png";
+
+## The problem
+
+You can generate an SBOM for every image you build. Most teams do, and then the SBOMs sit in a
+bucket or an attestation that nobody reads. The questions people actually ask stay hard:
+
+- A CVE was published this morning. **Which of our images have it, and which of those are running?**
+- This release is twice the size of the last one. **What changed?**
+- Legal wants to know. **Where do we ship GPL code?**
+
+Each SBOM has the answer for one image at one moment. OCIDex puts them together so you can ask
+across all of them, and over time.
+
+## What it does
+
+<CardGrid>
+  <Card title="Collects SBOMs" icon="download">
+    Scans your container registries itself, or accepts CycloneDX SBOMs from CI, the CLI or the API.
+    Every version is kept, per architecture and base distribution.
+  </Card>
+  <Card title="Diffs any two versions" icon="random">
+    A changelog for every artifact, and a diff between any two SBOMs, drawn as a dependency tree so
+    you see what each change came in through.
+  </Card>
+  <Card title="Keeps vulnerabilities current" icon="warning">
+    Matched against the grype database and re-matched daily. A new CVE shows up on an image you
+    scanned months ago, with no rescan.
+  </Card>
+  <Card title="Knows what is running" icon="laptop">
+    A small agent reports what each Kubernetes cluster runs. OCIDex shows which of it is assessed,
+    and can scan the rest for you.
+  </Card>
+  <Card title="Searches everything" icon="magnifier">
+    Find a package by name across every SBOM, see each version in use and where, and browse every
+    license by category.
+  </Card>
+  <Card title="Fits your access model" icon="approve-check">
+    Namespaces with public or private visibility, five roles, sign-in with GitHub or any OIDC
+    provider, and API keys that are never stronger than their owner.
+  </Card>
+</CardGrid>
+
+## A look around
+
+<Image src={artifact} alt="An artifact page: its versions, SBOM count, vulnerability count, signing status and when it was first seen" />
+
+Every artifact keeps its whole history: one SBOM per version and architecture, with its
+vulnerabilities and signing status.
+
+<Image src={changelog} alt="An artifact's changelog: each version compared with the one before, with counts of packages removed and upgraded" />
+
+The changelog shows what each new version added, removed and upgraded.
+
+<Image src={cluster} alt="A cluster page: how many running containers are matched to an SBOM, how many aren't, and the most severe running vulnerabilities" />
+
+A cluster page shows what's running, how much of it is assessed, and the worst of what's exposed.
+
+<Image src={pkg} alt="A package page listing each version of the package in use and the images that contain it" />
+
+A package page shows every version of it in use, and which artifacts carry each.
+
+## How it compares
+
+OCIDex sits next to tools you may already run. It doesn't replace most of them.
+
+| Tool | What it is | How OCIDex differs |
+| --- | --- | --- |
+| **syft, grype, Trivy** | Generate an SBOM, or scan one image, now | OCIDex uses syft and grype inside. It keeps every result, compares them over time, and re-matches old SBOMs against new advisories. |
+| **Dependency-Track** | An SBOM and vulnerability platform built around projects and policy | OCIDex is built around container images: registry scanning, multi-arch and distro-aware changelogs, image provenance, and what's running in clusters. |
+| **Registry scanners** (Harbor, GHCR, ECR) | Scan the images in one registry | OCIDex works across registries and uploads, keeps the full SBOM, and diffs versions. |
+| **GUAC** | A graph of supply-chain metadata to query | OCIDex is a ready-to-use application with a UI, rather than a graph to build tooling on. |
+
+## Next steps
+
+<CardGrid>
+  <LinkCard title="Quickstart" description="Run OCIDex on your machine and browse your first SBOM." href="/getting-started/quickstart/" />
+  <LinkCard title="Concepts" description="Artifacts, SBOMs, enrichment, diffs, namespaces and clusters." href="/concepts/overview/" />
+  <LinkCard title="Operate" description="Install and run OCIDex on Kubernetes." href="/guides/operate/overview/" />
+  <LinkCard title="Integrate" description="The API, ocidex-cli, MCP and CI recipes." href="/guides/integrate/overview/" />
+</CardGrid>

@@ -1,120 +1,128 @@
-# Upgrading OCIDex
+---
+title: Upgrade
+description: Upgrade OCIDex from one release to the next, and roll back when that goes wrong.
+sidebar:
+  order: 6
+---
 
-How to move a deployment from one release to the next, and what to do when that goes wrong.
-The compatibility promises behind this guide are in
-[ADR-052](adr/0052-v1-compatibility.md). For what changed in a release, see
-[CHANGELOG.md](../CHANGELOG.md). Anything you must **do** to upgrade is written here.
+OCIDex follows semantic versioning. What counts as a breaking change, and what the 1.x line
+promises, is in [ADR-052](https://github.com/pfenerty/ocidex/blob/main/docs/adr/0052-v1-compatibility.md).
+What changed in each release is in the
+[changelog](https://github.com/pfenerty/ocidex/blob/main/CHANGELOG.md). Anything you must **do** to
+upgrade is on this page.
 
 ## Supported upgrade paths
 
 | From | To | Path |
-|---|---|---|
+| --- | --- | --- |
 | Any 1.x | Any later 1.x | Direct. No intermediate stops. |
 | Latest 0.x minor | 1.0 | Direct. |
 | Older 0.x | 1.0 | Upgrade to the latest 0.x minor first, then to 1.0. |
 | Any version | An older version | Not supported as an upgrade. Restore a backup instead (see [Rolling back](#rolling-back)). |
 
-The API, the scanner worker, every enricher worker and the vuln worker must run the **same
-version**. A mixed-version deployment is only supported for the duration of a rolling upgrade.
+The API, the scanner, every enricher and the vulnerability worker must run the **same version**.
+Mixed versions are only supported during a rolling upgrade. Upgrade the inventory agent, the
+operator and `ocidex-cli` along with the server.
 
 ## Before every upgrade
 
-Upgrading is a good moment to re-check the
-[production hardening checklist](DEPLOYMENT.md#production-hardening-checklist), since new
-releases add settings to it.
+1. **Read the release's notes** under [Per-version notes](#per-version-notes), and do any step
+   marked *before upgrading* first. Skipping some of them stops the new version from starting.
+2. **Back up the database** (see [Back up and restore](/guides/operate/backup/)). Rolling back means
+   restoring this backup. Back up the Secret too: a database restored without its encryption keys
+   has unreadable registry credentials.
+3. **Note the current revision** with `helm history <release> -n <ns>`, so you know what to roll
+   back to.
 
-1. **Read this release's section** under [Per-version notes](#per-version-notes). Do any
-   step marked *before upgrading* first. Some of them stop the new version from starting if
-   they are skipped.
-2. **Back up the database.** Rollback means restoring this backup (see
-   [Rolling back](#rolling-back)). With CloudNativePG, take an on-demand `Backup` of the
-   `ocidex-pg` cluster and wait until its phase is `completed`. Without CNPG, take a
-   `pg_dump --format=custom` as the app role. Back up the `existingSecret` too, including
-   `DATA_ENCRYPTION_KEYS`. A database restored without its encryption keys has unreadable
-   registry credentials.
-3. **Note the current chart revision** (`helm history <release> -n <ns>`) so you know
-   what to roll back to.
+It's also a good moment to re-read the [production checklist](/guides/operate/production/), since
+releases add settings to it.
 
 ## What happens during an upgrade
 
-Database migrations run before any new pod serves traffic:
+Migrations run before any new pod serves traffic. With the chart, the migrate Job is a
+`pre-install,pre-upgrade` hook: it runs `ocidex migrate up`, then `ocidex migrate encrypt-secrets`,
+and the Deployments are updated only after it succeeds. Without the chart, run both with the
+**new** binary before you replace the running processes.
 
-- With the chart, the migrate Job is a `pre-install,pre-upgrade` Helm hook (see
-  [DEPLOYMENT.md § migrate Job](DEPLOYMENT.md#ocidex-dev-migrate-job-helm-hook-on-every-install-and-upgrade)).
-  An init container runs `ocidex migrate up`, then `ocidex migrate encrypt-secrets` runs.
-  Deployments are updated only after the Job succeeds.
-- Without the chart, run `ocidex migrate up` with the **new** binary before you replace the
-  running processes, then run `ocidex migrate encrypt-secrets`.
-
-Migrations are forward-only as a supported path. Each one runs in its own transaction, so a
-failure leaves the schema at the last migration that succeeded. The exception is index
-builds marked `NO TRANSACTION` (`CREATE INDEX CONCURRENTLY`, for example 00078). A failure
-there can leave an `INVALID` index behind. Drop it before you retry.
+Each migration runs in its own transaction, so a failure leaves the schema at the last one that
+succeeded. The exception is an index built with `CREATE INDEX CONCURRENTLY`, which can leave an
+`INVALID` index behind; drop it before retrying.
 
 ### If the migrate Job fails
 
-- The Helm upgrade fails and the Deployments are **not** updated. The previous version keeps
-  serving. Whether it still works against a partly migrated schema depends on how far the
-  migration got, so fix the cause promptly.
+- The upgrade fails, the Deployments are **not** updated, and the previous version keeps serving.
+  Fix the cause promptly: how well it works against a partly migrated schema depends on how far the
+  migration got.
 - Read the Job's logs: `kubectl -n <ns> logs job/<release>-migrate-<revision> --all-containers`.
-  Pods are reaped a few minutes after a failure. If the logs are gone,
-  `ocidex migrate audit` in a throwaway pod reproduces the ownership preflight read-only.
-- Common causes are listed in
-  [DEPLOYMENT.md § Troubleshooting](DEPLOYMENT.md#troubleshooting): the `DATABASE_URL`
-  shape, CNPG not yet `Ready`, objects owned by another role (the Job prints the
-  `ALTER ... OWNER TO` statements to run), or missing encryption keys.
-- After fixing the cause, run the same upgrade again. `migrate up` resumes from where it
-  stopped.
+  The pods are cleaned up a few minutes after a failure. If the logs are gone, run
+  `ocidex migrate audit` in a throwaway pod: it repeats the ownership check, read-only.
+- Common causes are in [Troubleshooting](/guides/operate/troubleshooting/#the-migrate-job-fails).
+- Then run the same upgrade again. `migrate up` resumes where it stopped.
+
+## Following releases with Flux
+
+With Flux, a `HelmRelease` that names a version range follows new charts as they're published:
+
+```yaml
+apiVersion: source.toolkit.fluxcd.io/v1
+kind: HelmRepository
+metadata:
+  name: ocidex
+  namespace: flux-system
+spec:
+  type: oci
+  url: oci://ghcr.io/pfenerty/charts
+  interval: 1h
+---
+apiVersion: helm.toolkit.fluxcd.io/v2
+kind: HelmRelease
+metadata:
+  name: ocidex
+  namespace: flux-system
+spec:
+  targetNamespace: ocidex
+  interval: 1h
+  chart:
+    spec:
+      chart: ocidex
+      version: "~1.0"     # patch releases of 1.0; ">=1.0.0" for every 1.x
+      sourceRef: { kind: HelmRepository, name: ocidex }
+  values: {}              # your values.yaml
+```
+
+A released chart pins every image by digest, so a chart version always means the same images.
+Leave `image.tag` unset; setting it overrides those digests.
+
+Every push to `main` also publishes a chart, versioned `0.1.0-main.<build>.<sha>`. A range of
+`">=0.0.0-0"` follows those, for a preview installation that tracks `main`.
+
+Before you widen the range to a new minor or major, read its notes below.
 
 ## Rolling back
 
 **The supported rollback is restoring the pre-upgrade backup and redeploying the previous
 version.**
 
-1. Scale every OCIDex Deployment to zero, or suspend the Flux `HelmRelease`.
-2. Restore the database from the backup taken in [Before every upgrade](#before-every-upgrade).
-   With CNPG, bootstrap a new cluster from the backup with `recovery` and point
-   `DATABASE_URL` at it.
-3. Redeploy the previous version: `helm rollback <release> <revision> -n <ns>`, or pin the
-   previous chart version in the `HelmRelease` (see
-   [DEPLOYMENT.md](DEPLOYMENT.md) for the Flux pin procedure).
+1. Scale every OCIDex Deployment to zero, or suspend the HelmRelease
+   (`flux suspend helmrelease ocidex -n flux-system`).
+2. Restore the database from the backup you took before upgrading (see
+   [Back up and restore](/guides/operate/backup/)).
+3. Redeploy the previous version: `helm rollback <release> <revision> -n <ns>`, or pin the previous
+   chart version in the HelmRelease and resume it. Remove the pin once a fixed release is out, or
+   Flux will hold the version there.
 
 Anything ingested after the backup is lost, so re-push those SBOMs or re-run the scans.
 
-A chart rollback alone (`helm rollback` or a Flux pin) does **not** roll back migrations.
-Migrations add columns and tables more often than they remove them, so the previous version
-usually runs against the newer schema. Only rely on that when the release's notes below say
-so.
+A chart rollback alone does **not** roll back migrations. Migrations add columns and tables more
+often than they remove them, so the previous version usually runs against the newer schema, but
+rely on that only when the release's notes below say so.
 
-`ocidex migrate down` exists for development. It is not a supported rollback, because
-several down steps lose data on purpose:
-
-- **00069** deletes every account that signed in only through a non-GitHub issuer.
-- **00070** restores the GitHub columns as nullable and refills them only from surviving
-  GitHub identities.
-
-## Operator CRDs
-
-The operator chart (`charts/ocidex-operator`) is **alpha** and has no compatibility
-guarantee (ADR-052). Its CRDs are in the chart's `crds/` directory, and **Helm installs
-them but never upgrades them**.
-
-- **Flux:** set `install.crds: CreateReplace` **and** `upgrade.crds: CreateReplace` on the
-  `HelmRelease`, and Flux applies CRD changes on every upgrade.
-- **Helm CLI:** apply the CRDs from the new chart before upgrading the release:
-
-  ```bash
-  helm pull oci://ghcr.io/pfenerty/charts/ocidex-operator --version <new> --untar
-  kubectl apply --server-side -f ocidex-operator/crds/
-  helm upgrade ocidex-operator oci://ghcr.io/pfenerty/charts/ocidex-operator --version <new> ...
-  ```
-
-A CRD version change (for example `v1alpha1` to `v1beta1`) gets its own migration note below.
+`ocidex migrate down` exists for development. It is not a supported rollback, because several of
+its steps lose data on purpose.
 
 ## Per-version notes
 
-Newest first. Each entry names the issue that made the change, so its full context is in
-`bd show <id>`.
+Newest first. Each entry names the issue that made the change.
 
 ### Next release (unreleased)
 
@@ -265,8 +273,7 @@ Newest first. Each entry names the issue that made the change, so its full conte
   component is never vulnerability-scanned), and component provenance plus `file_path` (until
   then ADR-048 command relationships miss those SBOMs). It is idempotent and a no-op on a
   fresh install. It reads every affected SBOM's `raw_bom`, so it is not part of the chart's
-  migrate hook. See [OPERATIONS.md](OPERATIONS.md) "Backfilling rows stored before ingest
-  derived them".
+  migrate hook. See [Backfilling rows stored before ingest derived them](/guides/operate/maintenance/#backfilling-older-rows).
 
 ### 0.1.0
 
@@ -280,13 +287,13 @@ Newest first. Each entry names the issue that made the change, so its full conte
   database. Losing it means re-entering every registry credential. The migrate hook runs
   `ocidex migrate encrypt-secrets` after `migrate up` and encrypts existing plaintext.
   Plaintext rows keep working until it runs. See
-  [OPERATIONS.md](OPERATIONS.md) "Rotating the credential encryption key".
+  [Rotating the credential encryption key](/guides/operate/maintenance/#rotating-the-credential-encryption-key).
 - **Set `BOOTSTRAP_ADMINS` (ocidex-avsz.1).** Migration 00008 made GitHub user `16961380`
   an installation admin in every database. Migration 00079 demotes that account to `viewer`
   unless it has a session or an API key. The first admin now comes from `BOOTSTRAP_ADMINS`
   (chart: `api.env.bootstrapAdmins`) and is promoted at sign-in. Set it **before**
   upgrading if you sign in as that account, or as any other admin you still need. See
-  [CONFIGURATION.md](CONFIGURATION.md#first-admin).
+  [The first admin](/guides/operate/authentication/#the-first-admin).
 - **Cross-site SPA deployments: set `SESSION_COOKIE_SAMESITE=none` (ocidex-mqav.2).** The
   session cookie is now `SameSite=Lax` in production. It was `SameSite=None`. Lax works
   whenever the SPA and the API share a registrable domain. If you serve the SPA from a
@@ -302,7 +309,7 @@ Newest first. Each entry names the issue that made the change, so its full conte
   address with `EGRESS_ALLOW_CIDRS` (chart: `egressGuard.allowCidrs`), or all private ranges
   with `EGRESS_ALLOW_PRIVATE=true` (chart: `egressGuard.allowPrivate`). Set the same values
   on every component; the chart does. See
-  [CONFIGURATION.md](CONFIGURATION.md#egress-policy).
+  [Egress policy](/guides/operate/production/#egress-policy).
 - **`CORS_ALLOWED_ORIGINS` must be exact origins in production (ocidex-mqav.3).** With
   `ENVIRONMENT=production`, the API refuses to start if `CORS_ALLOWED_ORIGINS` contains
   `*`, or any entry that isn't `scheme://host[:port]` (http or https, with no path,
@@ -313,7 +320,7 @@ Newest first. Each entry names the issue that made the change, so its full conte
   `api.env.trustedProxyCidrs`) to the ingress's address range, or every visitor shares the
   ingress's budget. If that range is not fixed, `TRUSTED_PROXY_HOPS` (`1` for a plain ingress)
   or `CLIENT_IP_HEADER` need no addresses; read their caveat in
-  [CONFIGURATION.md](CONFIGURATION.md#client-ip-behind-proxies) first (ocidex-w6st).
+  [Client IPs behind a proxy](/guides/operate/production/#client-ips-behind-a-proxy) first (ocidex-w6st).
 
 **Behavior changes to check after upgrading:**
 
@@ -347,22 +354,7 @@ Newest first. Each entry names the issue that made the change, so its full conte
   (default `open`, the previous behavior) and `SELF_SERVICE_NAMESPACES` (default `true`) let
   you limit sign-in to existing accounts and keep global viewers from creating namespaces.
   Nothing changes unless you set them. See
-  [CONFIGURATION.md](CONFIGURATION.md#installation-policy).
+  [Who may sign up](/guides/operate/authentication/#who-may-sign-up).
 
 **Chart rollback without a restore:** not safe for this release. Migration 00079 demotes the
 seeded admin, and the previous version does not read `BOOTSTRAP_ADMINS`.
-
-## Adding a note
-
-Any change that an operator has to act on gets an entry under **Next release** in the same
-PR. That includes:
-
-- a new required setting, or a removed or renamed env var or chart value;
-- a changed default;
-- a migration that is lossy or slow;
-- a CRD change.
-
-At release time, rename the heading to the version and start a new empty **Next
-release** section.
-On every release, git-cliff output replaces the `[unreleased]` section of `CHANGELOG.md`, so
-hand-written text there is lost.

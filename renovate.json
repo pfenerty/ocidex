@@ -86,6 +86,12 @@
       "groupName": "web dependencies"
     },
     {
+      "description": "Group the docs site's npm updates (site/, ADR-0057) on their own branch",
+      "matchManagers": ["npm"],
+      "matchFileNames": ["site/package.json"],
+      "groupName": "docs site dependencies"
+    },
+    {
       "description": "Container images are grouped by what they affect, one branch each, so a bump to one concern can't block or ride along with another (#232). Each rule names its files explicitly so the groups don't depend on rule order. App images: the builder and runtime bases of the images this repo ships. Chainguard nginx was otherwise its own PR every day.",
       "matchManagers": ["dockerfile"],
       "matchFileNames": ["docker/Dockerfile", "docker/web/Dockerfile"],

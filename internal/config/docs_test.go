@@ -29,35 +29,40 @@ var readOutsideStructs = map[string]string{
 	"OTEL_RESOURCE_ATTRIBUTES":    "the OpenTelemetry SDK",
 }
 
-// TestConfigurationDocMatchesStructs covers ocidex-vvw6.2: every env-tagged
-// field of every config struct is documented in docs/CONFIGURATION.md, and
-// every variable that document's tables name is one a struct declares or one
-// readOutsideStructs accounts for. Documentation drifted both ways before
-// (SCANNER_WORKERS outlived its code; SCANNER_POLL_INTERVAL was never written
-// down); this turns either into a failing test.
-func TestConfigurationDocMatchesStructs(t *testing.T) {
+// TestEnvDocsMatchStructs covers ocidex-vvw6.2, now against EnvDocs, the source of
+// the docs site's configuration reference (ocidex-mxy0.8): every env-tagged field
+// of every config struct is described, and every described variable is one a
+// struct declares or one readOutsideStructs accounts for. Documentation drifted
+// both ways before (SCANNER_WORKERS outlived its code; SCANNER_POLL_INTERVAL was
+// never written down); this turns either into a failing test.
+func TestEnvDocsMatchStructs(t *testing.T) {
 	declared := map[string]bool{}
-	for _, v := range []any{config.Config{}, config.VulnWorkerConfig{}, config.OperatorConfig{}, config.K8sAgentConfig{}} {
+	for _, v := range config.DocumentedStructs() {
 		collectEnvTags(reflect.TypeOf(v), declared)
 	}
 	if len(declared) < 50 {
 		t.Fatalf("found only %d env-tagged fields; the reflection walk is broken", len(declared))
 	}
 
-	raw, err := os.ReadFile("../../docs/CONFIGURATION.md")
-	if err != nil {
-		t.Fatal(err)
+	documented := map[string]bool{}
+	for _, d := range config.EnvDocs {
+		if documented[d.Name] {
+			t.Errorf("%s is described twice in EnvDocs", d.Name)
+		}
+		documented[d.Name] = true
+		if strings.TrimSpace(d.Description) == "" || d.Group == "" {
+			t.Errorf("%s has an empty description or group in EnvDocs", d.Name)
+		}
 	}
-	documented := documentedVariables(string(raw))
 
 	for _, name := range sortedKeys(declared) {
 		if !documented[name] {
-			t.Errorf("%s is read by a config struct but not documented in docs/CONFIGURATION.md", name)
+			t.Errorf("%s is read by a config struct but not described in EnvDocs", name)
 		}
 	}
 	for _, name := range sortedKeys(documented) {
 		if !declared[name] && readOutsideStructs[name] == "" {
-			t.Errorf("%s is documented in docs/CONFIGURATION.md but no config struct reads it", name)
+			t.Errorf("%s is described in EnvDocs but no config struct reads it", name)
 		}
 	}
 	for name, reader := range readOutsideStructs {
@@ -65,38 +70,37 @@ func TestConfigurationDocMatchesStructs(t *testing.T) {
 			t.Errorf("%s is now a struct field; drop it from readOutsideStructs (%s)", name, reader)
 		}
 		if !documented[name] {
-			t.Errorf("%s is in readOutsideStructs but not documented", name)
+			t.Errorf("%s is in readOutsideStructs but not described in EnvDocs", name)
 		}
 	}
 }
 
 // TestHardeningChecklistNamesDocumentedVariables covers ocidex-vvw6.4: every
-// variable DEPLOYMENT.md's production hardening checklist names is one
-// CONFIGURATION.md documents, so the checklist cannot recommend a setting
-// that does not exist or has been renamed.
+// variable the docs site's production hardening checklist names is one EnvDocs
+// describes, so the checklist cannot recommend a setting that does not exist or
+// has been renamed.
 func TestHardeningChecklistNamesDocumentedVariables(t *testing.T) {
-	cfg, err := os.ReadFile("../../docs/CONFIGURATION.md")
+	page, err := os.ReadFile("../../site/src/content/docs/guides/operate/production.md")
 	if err != nil {
 		t.Fatal(err)
 	}
-	deploy, err := os.ReadFile("../../docs/DEPLOYMENT.md")
-	if err != nil {
-		t.Fatal(err)
-	}
-	_, section, ok := strings.Cut(string(deploy), "\n## Production hardening checklist\n")
+	_, section, ok := strings.Cut(string(page), "\n## Production hardening checklist\n")
 	if !ok {
-		t.Fatal("DEPLOYMENT.md has no \"## Production hardening checklist\" section")
+		t.Fatal("production.md has no \"## Production hardening checklist\" section")
 	}
 	section, _, _ = strings.Cut(section, "\n## ")
 
-	documented := documentedVariables(string(cfg))
+	documented := map[string]bool{}
+	for _, d := range config.EnvDocs {
+		documented[d.Name] = true
+	}
 	named := documentedVariables(section)
 	if len(named) < 15 {
 		t.Fatalf("the checklist names only %d variables; the parse is broken", len(named))
 	}
 	for _, name := range sortedKeys(named) {
 		if !documented[name] {
-			t.Errorf("the hardening checklist names %s, which docs/CONFIGURATION.md does not document", name)
+			t.Errorf("the hardening checklist names %s, which EnvDocs does not describe", name)
 		}
 	}
 }

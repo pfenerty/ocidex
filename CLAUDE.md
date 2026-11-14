@@ -208,24 +208,21 @@ changing the area it governs, and write a new one for a decision of comparable w
 |---|---|
 | System design, data model, layering | [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md) |
 | Coding patterns, testing, adding an enricher | [docs/DEVELOPMENT.md](docs/DEVELOPMENT.md) |
-| Environment variables | [docs/CONFIGURATION.md](docs/CONFIGURATION.md) |
+| Environment variables | `internal/config/envdocs.go` → generated [reference](site/src/content/docs/reference/configuration.md) (`make docs-generate`) |
 | Tekton CI: fast iteration, gotchas, script syntax | [docs/CI_TEKTON.md](docs/CI_TEKTON.md) |
 | Frontend dev rigs, browser verification | [docs/FRONTEND_DEV.md](docs/FRONTEND_DEV.md) |
 | Local Talos + Tilt cluster loop | [docs/K8S_DEV.md](docs/K8S_DEV.md) |
-| Production deployment (K8s + Flux) | [docs/DEPLOYMENT.md](docs/DEPLOYMENT.md) |
-| Operations and runbooks | [docs/OPERATIONS.md](docs/OPERATIONS.md) |
+| Installing, operating, upgrading (user-facing) | Docs site, `site/src/content/docs/guides/operate/` ([ADR-0057](docs/adr/0057-public-docs-site.md)) |
 | SBOM ingestion paths | [docs/INGESTION.md](docs/INGESTION.md) |
 | Auth/authz matrix (generated) | [docs/AUTH_MATRIX.md](docs/AUTH_MATRIX.md) |
 | Namespace membership, roles, capabilities, key ceilings | [ADR-046](docs/adr/0046-namespace-membership-rbac.md) |
 | Identity providers, OIDC, account linking | [ADR-047](docs/adr/0047-provider-agnostic-identity.md) |
 | Diff views, identity rules, flavor axis | [docs/SBOM_DIFF.md](docs/SBOM_DIFF.md) |
 | Cluster page tabs, coverage semantics | [docs/CLUSTER_INVENTORY.md](docs/CLUSTER_INVENTORY.md) |
-| MCP server setup and tools | [docs/MCP.md](docs/MCP.md) |
+| MCP server setup and tools (user-facing) | `site/src/content/docs/guides/integrate/mcp.md` |
 | Vulnerability matching (grype), data sources, attribution | [ADR-049](docs/adr/0049-vulnerability-matching-via-grype.md), [docs/DATA_SOURCES.md](docs/DATA_SOURCES.md) |
-| Ephemeral `--once` job mode | [docs/EPHEMERAL_JOBS.md](docs/EPHEMERAL_JOBS.md) |
 | API versioning policy | [docs/API_VERSIONING.md](docs/API_VERSIONING.md) |
 | Image labeling | [docs/IMAGE_LABELING.md](docs/IMAGE_LABELING.md) |
-| Verifying released artifacts | [docs/verifying-artifacts.md](docs/verifying-artifacts.md) |
 | Cross-repo work (apko-cicd, tektonic) | [AGENTS.md](AGENTS.md), `~/code/CLAUDE.md` |
 
 <!-- BEGIN BEADS INTEGRATION v:1 profile:minimal hash:ca08a54f -->

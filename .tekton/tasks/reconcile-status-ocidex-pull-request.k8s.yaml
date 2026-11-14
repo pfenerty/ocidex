@@ -41,6 +41,8 @@ spec:
       type: string
     - name: status-helm-check
       type: string
+    - name: status-docs-build
+      type: string
     - name: check-run-go-build
       type: string
     - name: check-run-eslint-lint-web
@@ -70,6 +72,8 @@ spec:
     - name: check-run-tekton-check
       type: string
     - name: check-run-helm-check
+      type: string
+    - name: check-run-docs-build
       type: string
   stepTemplate:
     computeResources:
@@ -139,6 +143,7 @@ spec:
           { status: "$(params.status-gitleaks-secrets)", context: "gitleaks-secrets", id: "$(params.check-run-gitleaks-secrets)" }
           { status: "$(params.status-tekton-check)", context: "tekton-check", id: "$(params.check-run-tekton-check)" }
           { status: "$(params.status-helm-check)", context: "helm-check", id: "$(params.check-run-helm-check)" }
+          { status: "$(params.status-docs-build)", context: "docs-build", id: "$(params.check-run-docs-build)" }
         ]
 
         let failed = $entries | each { |entry|

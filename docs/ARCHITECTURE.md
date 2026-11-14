@@ -342,7 +342,7 @@ Each process ships as its own image, built from `docker/Dockerfile` (one target 
 `docker/web/Dockerfile` (nginx and the SPA). The Go images are distroless and the web image is Chainguard
 nginx. All run as non-root and carry their license texts under `/licenses` (ADR-038). The Helm chart in `charts/ocidex` deploys
 the API, web, NATS, scanner-worker, enricher workers and vuln-worker, plus the migrate Job. The
-operator has its own chart. Topology and values are in [DEPLOYMENT.md](DEPLOYMENT.md).
+operator has its own chart. Installing them is in the [operator guide](https://docs.ocidex.app/guides/operate/install/).
 
 `docker-compose.yml` runs the same set locally: PostgreSQL, NATS, the migrate step, the API, the
 scanner-worker, every enricher worker, the vuln-worker and the web tier.
@@ -352,7 +352,7 @@ scanner-worker, every enricher worker, the vuln-worker and the web tier.
 All configuration is via environment variables, parsed at startup using
 [caarlos0/env](https://github.com/caarlos0/env). The server fails fast if a required variable (like
 `DATABASE_URL`) is missing, with no silent defaults for critical config. Every variable is listed in
-[CONFIGURATION.md](CONFIGURATION.md).
+the [configuration reference](https://docs.ocidex.app/reference/configuration/), generated from `internal/config`.
 
 ### Health checks
 
