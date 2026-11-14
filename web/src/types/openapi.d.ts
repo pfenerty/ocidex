@@ -2660,9 +2660,17 @@ export interface components {
         };
         EnrichmentStatus: {
             enabled: boolean;
-            /** Format: int64 */
+            /**
+             * Format: int64
+             * @deprecated
+             * @description Deprecated: the value of ENRICHMENT_QUEUE_SIZE, which limits nothing; the queue is the enrichment_jobs table. Removed in 2.0.
+             */
             queueSize: number;
-            /** Format: int64 */
+            /**
+             * Format: int64
+             * @deprecated
+             * @description Deprecated: the value of ENRICHMENT_WORKERS, which no longer changes how many jobs run. Enricher concurrency is ENRICHMENT_MAX_CONCURRENCY on each enricher worker. Removed in 2.0.
+             */
             workers: number;
         };
         ErrorDetail: {

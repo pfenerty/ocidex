@@ -175,8 +175,8 @@ Controls how SBOMs are enriched after ingestion (OCI label extraction, user meta
 | `ENRICHMENT_POLL_INTERVAL` | `30s` | How often each enricher worker checks the database for queued jobs when no NATS hint arrives. This is what keeps the queue draining while NATS is down. |
 | `ENRICHMENT_STUCK_THRESHOLD` | `10m` | How long a `running` job can go without a heartbeat before the sweep requeues it, or fails it if its attempts are used up. |
 | `ENRICHMENT_MAX_ATTEMPTS` | `3` | Attempts per job before it is left `failed` for the Jobs page's Retry button. |
-| `ENRICHMENT_WORKERS` | `2` | Reported on the admin Status page only; it no longer changes how many jobs run. Use `ENRICHMENT_MAX_CONCURRENCY`. |
-| `ENRICHMENT_QUEUE_SIZE` | `100` | Reported on the admin Status page only; the queue is the `enrichment_jobs` table, which has no depth limit. |
+| `ENRICHMENT_WORKERS` | `2` | **Deprecated, removed in 2.0 (ocidex-lwow).** Has no effect; the process logs a warning when it is set. Use `ENRICHMENT_MAX_CONCURRENCY`. |
+| `ENRICHMENT_QUEUE_SIZE` | `100` | **Deprecated, removed in 2.0 (ocidex-lwow).** Has no effect; the queue is the `enrichment_jobs` table, which has no depth limit. The process logs a warning when it is set. |
 
 ### OCI Registry Scanner
 

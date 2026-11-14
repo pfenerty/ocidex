@@ -2477,10 +2477,14 @@
             "type": "boolean"
           },
           "queueSize": {
+            "deprecated": true,
+            "description": "Deprecated: the value of ENRICHMENT_QUEUE_SIZE, which limits nothing; the queue is the enrichment_jobs table. Removed in 2.0.",
             "format": "int64",
             "type": "integer"
           },
           "workers": {
+            "deprecated": true,
+            "description": "Deprecated: the value of ENRICHMENT_WORKERS, which no longer changes how many jobs run. Enricher concurrency is ENRICHMENT_MAX_CONCURRENCY on each enricher worker. Removed in 2.0.",
             "format": "int64",
             "type": "integer"
           }

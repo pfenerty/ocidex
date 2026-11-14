@@ -207,7 +207,6 @@ three measure 9-16Mi.
 | `ENRICHMENT_MAX_CONCURRENCY` | `enricherWorkerDefaults.env.maxConcurrency` | `10` (`provenance-worker`: `2`) |
 | `ENVIRONMENT` | `enricherWorkerDefaults.env.environment` | `development` |
 | `LOG_LEVEL` | `enricherWorkerDefaults.env.logLevel` | `info` |
-| `ENRICHMENT_WORKERS` | Default | `2` |
 | `PROVENANCE_TIMEOUT` | Default | `90s` (`provenance-worker` only) |
 | `PROVENANCE_MAX_LAYER_BYTES` | Default | `16777216` (16MiB; `provenance-worker` only) |
 | `GIT_MAX_RESPONSE_BYTES` | Default | `4194304` (4MiB; `git-worker` only) |

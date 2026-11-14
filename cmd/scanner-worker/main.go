@@ -58,6 +58,7 @@ func run() error {
 	slog.SetDefault(slog.New(tracing.LogHandler(slog.NewJSONHandler(os.Stdout, &slog.HandlerOptions{
 		Level: cfg.SlogLevel(),
 	}))))
+	config.WarnDeprecated()
 	slog.Info("starting scanner-worker",
 		"environment", cfg.Environment,
 		"log_level", cfg.LogLevel,

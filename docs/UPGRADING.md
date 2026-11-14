@@ -134,6 +134,16 @@ Newest first. Each entry names the issue that made the change, so its full conte
   `/schemas/<Name>.json` on the API itself redirects to the new path. Nothing to do unless
   you compare `$schema` values literally.
 
+**Deprecations (removed in 2.0):**
+
+- **`ENRICHMENT_WORKERS` and `ENRICHMENT_QUEUE_SIZE` (ocidex-lwow).** Neither has done anything
+  since the job queue moved to the database; they were only echoed on the admin Status page.
+  The server and every worker now log a warning at startup when either is set, the Status page
+  no longer shows them, and `enrichment.workers` and `enrichment.queueSize` in
+  `GET /api/v1/admin/status` are marked deprecated. What to do: remove both from your
+  environment or Helm values. To change enrichment concurrency, set
+  `ENRICHMENT_MAX_CONCURRENCY` on the enricher workers.
+
 ### 1.0.0
 
 **After upgrading:**

@@ -93,11 +93,6 @@ export function StatusTab() {
                                 <div class={`stat-value ${query.data?.enrichment.enabled === true ? "text-[var(--color-success)]" : "text-[var(--color-text-muted)]"}`}>
                                     {query.data?.enrichment.enabled === true ? "Enabled" : "Disabled"}
                                 </div>
-                                <Show when={query.data?.enrichment.enabled === true}>
-                                    <div class="text-muted text-sm mt-1">
-                                        {query.data?.enrichment.workers} workers · queue {query.data?.enrichment.queueSize}
-                                    </div>
-                                </Show>
                             </div>
                             <div class={cardState(query.data?.scanner.enabled === true ? "ok" : "off")}>
                                 <div class="stat-label">Scanner</div>
