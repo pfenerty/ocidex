@@ -29,6 +29,18 @@ export function useRecentDrift(params?: Accessor<{ limit?: number; cursor?: stri
     });
 }
 
+/**
+ * A registry is a source in a namespace (ADR-039), and creating one can create its
+ * namespace too, so the Sources tab, which groups registries by source and
+ * namespace, is stale unless all three are refetched. Invalidating only
+ * ["registries"] left a new registry invisible until a reload (ocidex-mxy0.11).
+ */
+function invalidateRegistryViews(queryClient: ReturnType<typeof useQueryClient>) {
+    return Promise.all(
+        [["registries"], ["sources"], ["namespaces"]].map((queryKey) => queryClient.invalidateQueries({ queryKey })),
+    );
+}
+
 export function useCreateRegistry() {
     const queryClient = useQueryClient();
     return createMutation(() => ({
@@ -56,7 +68,7 @@ export function useCreateRegistry() {
             tagOrder?: "auto" | "semver" | "created" | "lexical";
             maxTagAgeDays?: number;
         }) => unwrap(client.POST("/api/v1/registries", { body })),
-        onSuccess: () => queryClient.invalidateQueries({ queryKey: ["registries"] }),
+        onSuccess: () => invalidateRegistryViews(queryClient),
     }));
 }
 
@@ -96,7 +108,7 @@ export function useUpdateRegistry() {
                     body,
                 })
             ),
-        onSuccess: () => queryClient.invalidateQueries({ queryKey: ["registries"] }),
+        onSuccess: () => invalidateRegistryViews(queryClient),
     }));
 }
 
@@ -112,7 +124,7 @@ export function useDeleteRegistry() {
     return createMutation(() => ({
         mutationFn: (id: string) =>
             unwrap(client.DELETE("/api/v1/registries/{id}", { params: { path: { id } } })),
-        onSuccess: () => queryClient.invalidateQueries({ queryKey: ["registries"] }),
+        onSuccess: () => invalidateRegistryViews(queryClient),
     }));
 }
 
