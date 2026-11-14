@@ -139,6 +139,10 @@ File a bug for anything that fails, and link it from the release's issue.
 
 ## After the release
 
+- Walk the [quickstart](https://docs.ocidex.app/getting-started/quickstart/) by hand on a clean
+  checkout of the tag (`make demo-down`, delete the demo volumes, `make demo`), step by step as
+  written. It is the evaluator's first contact and nothing else tests it end to end. Fix the page,
+  or file a bug, for any step that doesn't match what you see.
 - Empty `web/openapi-breaking-accepted.txt`, keeping its header. The released spec is now
   the base for the `openapi-breaking` check, so the old entries match nothing.
 
