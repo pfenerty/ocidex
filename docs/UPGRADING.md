@@ -118,7 +118,15 @@ Newest first. Each entry names the issue that made the change, so its full conte
 
 ### Next release (unreleased)
 
-Nothing yet.
+**Behavior changes to check after upgrading:**
+
+- **snake_case query parameters are no longer accepted (ocidex-6hfs).** Through 1.0 the server
+  translated the pre-1.0 spellings (`?subject_version=`, `?sort=cvss_score`) to their
+  camelCase names, as announced in the 1.0 notes. That translation is gone: a snake_case
+  parameter is now ignored like any other unknown one, so a filter silently stops filtering
+  and an ingest parameter such as `subject_name` is dropped. What to do: upgrade any CI image
+  or script that pins an `ocidex-cli` older than 1.0, and rename parameters in your own API
+  calls to camelCase (`subjectVersion`, `sort=cvssScore`).
 
 ### 1.0.0
 

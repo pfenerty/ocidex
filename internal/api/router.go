@@ -152,7 +152,6 @@ func NewRouter(h *Handler, corsOrigins, frontendURL, apiBaseURL string) chi.Rout
 	r.Use(RequestMetrics(h.meterProvider))
 	r.Use(middleware.Recoverer)
 	r.Use(SecurityHeaders)
-	r.Use(LegacyQueryNames)
 	allowedOrigins := parseCORSOrigins(corsOrigins, frontendURL)
 	r.Use(cors.Handler(cors.Options{
 		AllowedOrigins:   allowedOrigins,
