@@ -12,7 +12,7 @@ with the 1.0 support scope when it is decided.
 | Anything older | No — upgrade |
 
 Running OCIDex safely is covered by the
-[production hardening checklist](docs/DEPLOYMENT.md#production-hardening-checklist).
+[production hardening checklist](https://docs.ocidex.app/guides/operate/production/#production-hardening-checklist).
 
 ## Reporting a vulnerability
 
@@ -51,5 +51,5 @@ are credited in the advisory unless they ask not to be.
 ## Verifying releases
 
 Every published image (`ghcr.io/pfenerty/ocidex-*`) is signed and carries build
-provenance and an SBOM. See [docs/verifying-artifacts.md](docs/verifying-artifacts.md) for
+provenance and an SBOM. See [Verify release artifacts](https://docs.ocidex.app/guides/operate/verify-artifacts/) for
 how to verify them, and [`cosign.pub`](cosign.pub) for the signing key.

@@ -22,11 +22,11 @@ The application: API, web, NATS, scanner, enrichers, vuln-worker and the migrate
 | <code>image.<wbr>pullPolicy</code> | `IfNotPresent` |  |
 | <code>image.<wbr>digests</code> | `{}` | digests pins each component to an immutable sha256 digest and is baked in at release-package time by the helm-release CI task (release builds only; empty for main/dev sha builds). An explicit image.tag takes precedence over digests. Keys are the component names: api, scanner-worker, oci-metadata-worker, git-worker, user-enricher-worker, provenance-worker, vuln-worker, web. |
 | <code>existingSecret</code> | `ocidex-secrets` | Name of a pre-created Secret containing DATABASE_URL, SESSION_SECRET, DATA_ENCRYPTION_KEYS/DATA_ENCRYPTION_ACTIVE_KEY, and the credentials for at least one identity provider (see above). |
-| <code>egressGuard</code> | | Which addresses the API, scanner worker and enrichers may dial when they reach a user-supplied registry (EGRESS_*; docs/CONFIGURATION.md "Egress Policy"). Loopback, link-local (cloud metadata) and multicast are always refused unless allowCidrs names them. Scanning an in-cluster registry needs allowPrivate, or better, allowCidrs naming just its service/pod address. This is the process- level check; networkPolicy.egress below is the network-level one. |
+| <code>egressGuard</code> | | Which addresses the API, scanner worker and enrichers may dial when they reach a user-supplied registry (EGRESS_*; https://docs.ocidex.app/guides/operate/production/#egress-policy). Loopback, link-local (cloud metadata) and multicast are always refused unless allowCidrs names them. Scanning an in-cluster registry needs allowPrivate, or better, allowCidrs naming just its service/pod address. This is the process- level check; networkPolicy.egress below is the network-level one. |
 | <code>egressGuard.<wbr>allowPrivate</code> | `false` |  |
 | <code>egressGuard.<wbr>allowCidrs</code> | `[]` |  |
 | <code>egressGuard.<wbr>denyCidrs</code> | `[]` |  |
-| <code>api.<wbr>replicas</code> | `2` | Two replicas by default: every background loop in the API is either leader-elected or safe to run on each replica (docs/DEPLOYMENT.md "API high availability"). |
+| <code>api.<wbr>replicas</code> | `2` | Two replicas by default: every background loop in the API is either leader-elected or safe to run on each replica (see "High availability" in https://docs.ocidex.app/guides/operate/production/). |
 | <code>api.<wbr>podDisruptionBudget</code> | | A PodDisruptionBudget keeps one API pod through node drains. Rendered only when replicas &gt; 1, since minAvailable 1 of 1 would block every drain. |
 | <code>api.<wbr>podDisruptionBudget.<wbr>enabled</code> | `true` |  |
 | <code>api.<wbr>podDisruptionBudget.<wbr>minAvailable</code> | `1` |  |
@@ -38,12 +38,12 @@ The application: API, web, NATS, scanner, enrichers, vuln-worker and the migrate
 | <code>api.<wbr>env.<wbr>logLevel</code> | `info` |  |
 | <code>api.<wbr>env.<wbr>bootstrapAdmins</code> | "" | BOOTSTRAP_ADMINS: identities promoted to installation admin at sign-in, comma-separated "github:&lt;user id&gt;" or "oidc:&lt;name&gt;:&lt;sub&gt;". A fresh install has no admin until one of these signs in. |
 | <code>api.<wbr>env.<wbr>signupMode</code> | `open` | SIGNUP_MODE: "open" provisions any identity the issuers vouch for; "existing" admits only existing accounts plus bootstrapAdmins. |
-| <code>api.<wbr>env.<wbr>selfServiceNamespaces</code> | `true` | SELF_SERVICE_NAMESPACES: "false" stops global viewers creating namespaces (or registries that mint one). See docs/DEPLOYMENT.md "Hardening". |
-| <code>api.<wbr>env.<wbr>sessionCookieSameSite</code> | `lax` | SESSION_COOKIE_SAMESITE: "lax" works whenever the SPA and the API share a registrable domain (ocidex.example.com + api.ocidex.example.com). Set "none" only when the SPA is served from a different site. See docs/CONFIGURATION.md. |
+| <code>api.<wbr>env.<wbr>selfServiceNamespaces</code> | `true` | SELF_SERVICE_NAMESPACES: "false" stops global viewers creating namespaces (or registries that mint one). See https://docs.ocidex.app/guides/operate/authentication/. |
+| <code>api.<wbr>env.<wbr>sessionCookieSameSite</code> | `lax` | SESSION_COOKIE_SAMESITE: "lax" works whenever the SPA and the API share a registrable domain (ocidex.example.com + api.ocidex.example.com). Set "none" only when the SPA is served from a different site. See https://docs.ocidex.app/guides/operate/authentication/#sessions-and-cookies. |
 | <code>api.<wbr>env.<wbr>authRateLimit</code> | `30` | AUTH_RATE_LIMIT: sign-in requests per minute per client IP; "0" disables. |
 | <code>api.<wbr>env.<wbr>trustedProxyCidrs</code> | "" | TRUSTED_PROXY_CIDRS: the ingress/proxy ranges whose X-Forwarded-For is believed when resolving the client IP. Empty keys every request by the direct peer — behind an ingress, that is the ingress itself. |
 | <code>api.<wbr>env.<wbr>trustedProxyHops</code> | `0` | TRUSTED_PROXY_HOPS: how many proxies stand in front of the API (1 for a plain ingress); the client is that many X-Forwarded-For entries from the right. Needs no addresses, but trusts that every path to the API goes through all of them. "0" is off. |
-| <code>api.<wbr>env.<wbr>clientIpHeader</code> | "" | CLIENT_IP_HEADER: a header the edge overwrites with the client IP, e.g. CF-Connecting-IP. Wins over trustedProxyHops. Safe only when nothing reaches the API without passing that edge. Precedence and caveats: docs/CONFIGURATION.md. |
+| <code>api.<wbr>env.<wbr>clientIpHeader</code> | "" | CLIENT_IP_HEADER: a header the edge overwrites with the client IP, e.g. CF-Connecting-IP. Wins over trustedProxyHops. Safe only when nothing reaches the API without passing that edge. Precedence and caveats: https://docs.ocidex.app/guides/operate/production/#client-ips-behind-a-proxy |
 | <code>api.<wbr>env.<wbr>apiRateLimitIngest</code> | `120` | API_RATE_LIMIT_INGEST / API_RATE_LIMIT_HEAVY: per-principal requests per minute for SBOM ingest and for the expensive artifact/component reads. "0" disables. Admins and the operator key are not exempt; raise these if a CI or operator key ingests faster. |
 | <code>api.<wbr>env.<wbr>apiRateLimitHeavy</code> | `120` |  |
 | <code>api.<wbr>env.<wbr>frontendUrl</code> | "" |  |
@@ -53,7 +53,7 @@ The application: API, web, NATS, scanner, enrichers, vuln-worker and the migrate
 | <code>api.<wbr>env.<wbr>scannerEnabled</code> | `true` |  |
 | <code>api.<wbr>env.<wbr>registryPollerEnabled</code> | `true` |  |
 | <code>api.<wbr>env.<wbr>natsStreamReplicas</code> | `1` |  |
-| <code>api.<wbr>env.<wbr>retention</code> | | SBOM retention (ADR-0056, docs/OPERATIONS.md "SBOM retention"). Off by default; run "dry-run" first, which logs what a sweep would delete. |
+| <code>api.<wbr>env.<wbr>retention</code> | | SBOM retention (ADR-0056, https://docs.ocidex.app/guides/operate/maintenance/). Off by default; run "dry-run" first, which logs what a sweep would delete. |
 | <code>api.<wbr>env.<wbr>retention.<wbr>mode</code> | `off` | off \| dry-run \| on |
 | <code>api.<wbr>env.<wbr>retention.<wbr>keepLast</code> | `20` | versions per series for non-registry SBOMs; "0" turns that off |
 | <code>api.<wbr>env.<wbr>retention.<wbr>maxAge</code> | "" | optional Go duration, e.g. "2160h" |
@@ -207,7 +207,7 @@ The optional operator that manages registries, scans and API keys as Kubernetes 
 | <code>apiKey</code> | | apiKey configures where the operator reads its OCIDex API key (OCIDEX_API_KEY). |
 | <code>apiKey.<wbr>secretName</code> | `ocidex-operator-secrets` |  |
 | <code>apiKey.<wbr>secretKey</code> | `OCIDEX_API_KEY` |  |
-| <code>watchNamespace</code> | "" | watchNamespace restricts the operator to reconciling CRs in the namespaces listed here. Required — prevents multiple operator instances from stepping on each other. Accepts a comma-separated list ("ocidex-dev,ocidex"). Changing this value is an operational contract, not a tuning knob: OCIRegistry resources carry an ocidex.io/registry-protection finalizer that only a watching operator removes, so any CR left in a namespace that drops off this list keeps its finalizer forever and leaves the namespace stuck Terminating (ocidex-1eo). Follow the retarget procedure in docs/OPERATIONS.md before changing it. |
+| <code>watchNamespace</code> | "" | watchNamespace restricts the operator to reconciling CRs in the namespaces listed here. Required — prevents multiple operator instances from stepping on each other. Accepts a comma-separated list ("ocidex-dev,ocidex"). Changing this value is an operational contract, not a tuning knob: OCIRegistry resources carry an ocidex.io/registry-protection finalizer that only a watching operator removes, so any CR left in a namespace that drops off this list keeps its finalizer forever and leaves the namespace stuck Terminating (ocidex-1eo). Follow the retarget procedure in https://docs.ocidex.app/guides/operate/clusters-and-operator/ before changing it. |
 | <code>leaderElect</code> | `true` | leaderElect enables leader election for multi-replica deployments. |
 | <code>leaderElection</code> | | leaderElection tunes the lease timings. Defaults are wider than controller-runtime's 15s/10s/2s because the per-request API-server timeout is derived as renewDeadline/2 — the 5s that controller-runtime's defaults imply is not enough headroom on a loaded control plane, and a single slow Lease GET terminates the process (ocidex-vh6). Invariants enforced at startup: leaseDuration &gt; renewDeadline &gt; retryPeriod * 1.2. |
 | <code>leaderElection.<wbr>leaseDuration</code> | `60s` |  |

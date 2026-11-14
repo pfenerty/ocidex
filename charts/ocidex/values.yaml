@@ -38,7 +38,7 @@ existingSecret: ocidex-secrets
 
 # --- Egress guard ------------------------------------------------------------
 # Which addresses the API, scanner worker and enrichers may dial when they reach
-# a user-supplied registry (EGRESS_*; docs/CONFIGURATION.md "Egress Policy").
+# a user-supplied registry (EGRESS_*; https://docs.ocidex.app/guides/operate/production/#egress-policy).
 # Loopback, link-local (cloud metadata) and multicast are always refused unless
 # allowCidrs names them. Scanning an in-cluster registry needs allowPrivate, or
 # better, allowCidrs naming just its service/pod address. This is the process-
@@ -51,8 +51,8 @@ egressGuard:
 # --- API server --------------------------------------------------------------
 api:
   # Two replicas by default: every background loop in the API is either
-  # leader-elected or safe to run on each replica (docs/DEPLOYMENT.md "API
-  # high availability").
+  # leader-elected or safe to run on each replica (see "High availability" in
+  # https://docs.ocidex.app/guides/operate/production/).
   replicas: 2
   # A PodDisruptionBudget keeps one API pod through node drains. Rendered only
   # when replicas > 1, since minAvailable 1 of 1 would block every drain.
@@ -76,12 +76,12 @@ api:
     # "existing" admits only existing accounts plus bootstrapAdmins.
     signupMode: open
     # SELF_SERVICE_NAMESPACES: "false" stops global viewers creating namespaces
-    # (or registries that mint one). See docs/DEPLOYMENT.md "Hardening".
+    # (or registries that mint one). See https://docs.ocidex.app/guides/operate/authentication/.
     selfServiceNamespaces: "true"
     # SESSION_COOKIE_SAMESITE: "lax" works whenever the SPA and the API share a
     # registrable domain (ocidex.example.com + api.ocidex.example.com). Set
     # "none" only when the SPA is served from a different site. See
-    # docs/CONFIGURATION.md.
+    # https://docs.ocidex.app/guides/operate/authentication/#sessions-and-cookies.
     sessionCookieSameSite: lax
     # AUTH_RATE_LIMIT: sign-in requests per minute per client IP; "0" disables.
     authRateLimit: "30"
@@ -97,7 +97,7 @@ api:
     # CLIENT_IP_HEADER: a header the edge overwrites with the client IP, e.g.
     # CF-Connecting-IP. Wins over trustedProxyHops. Safe only when nothing
     # reaches the API without passing that edge. Precedence and caveats:
-    # docs/CONFIGURATION.md.
+    # https://docs.ocidex.app/guides/operate/production/#client-ips-behind-a-proxy
     clientIpHeader: ""
     # API_RATE_LIMIT_INGEST / API_RATE_LIMIT_HEAVY: per-principal requests per
     # minute for SBOM ingest and for the expensive artifact/component reads.
@@ -112,7 +112,7 @@ api:
     scannerEnabled: "true"
     registryPollerEnabled: "true"
     natsStreamReplicas: "1"
-    # SBOM retention (ADR-0056, docs/OPERATIONS.md "SBOM retention"). Off by
+    # SBOM retention (ADR-0056, https://docs.ocidex.app/guides/operate/maintenance/). Off by
     # default; run "dry-run" first, which logs what a sweep would delete.
     retention:
       mode: "off"           # off | dry-run | on

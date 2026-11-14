@@ -26,7 +26,8 @@ Create it with (GitHub shown; swap in the OIDC keys for an OIDC-only install):
     --from-literal=DATA_ENCRYPTION_KEYS=k1:$(openssl rand -base64 32) \
     --from-literal=DATA_ENCRYPTION_ACTIVE_KEY=k1
 
-See docs/CONFIGURATION.md for the full list of supported fields.
+Install guide: https://docs.ocidex.app/guides/operate/install/
+Every supported variable: https://docs.ocidex.app/reference/configuration/
 
 === Optional integrations ===
 {{- if .Values.keda.enabled }}

@@ -2,7 +2,8 @@
 
 How a maintainer cuts, verifies and if necessary withdraws a release. What a release promises
 is in [ADR-052](adr/0052-v1-compatibility.md). What operators do to take one is in
-[UPGRADING.md](UPGRADING.md).
+the [upgrade guide](https://docs.ocidex.app/guides/operate/upgrade/), whose source is
+`site/src/content/docs/guides/operate/upgrade.md`.
 
 There are two kinds of release:
 
@@ -21,7 +22,7 @@ human action.
 - [ ] The last `ocidex-push` PipelineRun on `main` is green.
 - [ ] Every epic going into the release is merged, and `bd list --label v1.0 --status open`
       (or the release's label) shows nothing that should block it.
-- [ ] `docs/UPGRADING.md` has a **Next release** section covering every operator-facing
+- [ ] `site/src/content/docs/guides/operate/upgrade.md` has a **Next release** section covering every operator-facing
       change: new required settings, renamed or removed env vars and chart values, changed
       defaults, and lossy or slow migrations.
 - [ ] If the binaries use SDK API that hasn't been released yet, release the SDK first (see
@@ -44,7 +45,7 @@ human action.
    that no older section changed. The script appends one section based on the previous
    release. If that tag is not on `main`'s history, which is true of v0.0.1-rc.1 through
    v0.0.2, it uses the commit on `main` with the same tree and says so.
-3. **Rename the UPGRADING.md heading.** In `docs/UPGRADING.md`, change
+3. **Rename the upgrade notes heading.** In `site/src/content/docs/guides/operate/upgrade.md`, change
    `### Next release (unreleased)` to `### 0.1.0`, add an empty **Next release** section
    above it, and commit to `main` through the normal PR flow. `release.sh` needs a clean,
    synced tree, so this lands first.
@@ -87,7 +88,7 @@ The pipeline timeout is 4h.
 ## Verifying a release
 
 Run these steps after the pipeline goes green and record the output in the release's issue.
-[verifying-artifacts.md](verifying-artifacts.md) has the full background.
+[Verify release artifacts](https://docs.ocidex.app/guides/operate/verify-artifacts/) has the full background.
 
 ```bash
 V=v0.1.0
@@ -130,12 +131,25 @@ Then check each of the following:
 - **Version reporting.** `docker run --rm ghcr.io/pfenerty/ocidex-api:$V --version` prints
   `ocidex $V (commit …)`. A deployment of the chart answers `GET /api/v1/` with `"build": "$V"`.
 - **Upgrade path.** Upgrade a deployment of the previous release (the dev cluster, or a
-  throwaway one) by following UPGRADING.md. The migrate Job must succeed and the pods must
+  throwaway one) by following the upgrade guide. The migrate Job must succeed and the pods must
   become ready.
 - **`go install`.** `go install github.com/pfenerty/ocidex/cmd/ocidex-cli@$V` succeeds. It
   ignores `go.work`, so it proves the root's SDK requirement is a published version.
 
 File a bug for anything that fails, and link it from the release's issue.
+
+## Adding an upgrade note
+
+Any change an operator has to act on gets an entry under **Next release** in
+`site/src/content/docs/guides/operate/upgrade.md`, in the same PR. That includes:
+
+- a new required setting, or a removed or renamed env var or chart value;
+- a changed default;
+- a migration that is lossy or slow;
+- a CRD change.
+
+Name the issue that made the change. Hand-written text in `CHANGELOG.md`'s `[unreleased]`
+section is lost: git-cliff output replaces it on every release.
 
 ## After the release
 
@@ -156,8 +170,8 @@ with new digests under the same version.
   (`gh release delete vX.Y.Z`), and say why in its notes. Leave the tag, the images and the
   charts in place. Fix forward with `vX.Y.Z+1`.
 - **After it has been deployed:** operators go back to the previous version by following
-  [UPGRADING.md § Rolling back](UPGRADING.md#rolling-back), which restores the pre-upgrade
-  backup. Ship the fix as a new patch release, with an UPGRADING.md note saying who is
+  [the upgrade guide's rollback](https://docs.ocidex.app/guides/operate/upgrade/#rolling-back), which restores the pre-upgrade
+  backup. Ship the fix as a new patch release, with an upgrade note saying who is
   affected.
 - **A `latest` tag pointing at a bad release:** the next stable release moves it. If it
   cannot wait, re-tag `latest` to the previous release's digest with

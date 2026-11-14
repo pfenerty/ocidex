@@ -604,7 +604,7 @@ var backfillBatches = service.BackfillBatches{SBOMs: 50, Components: 10_000}
 // runBackfill is `ocidex migrate backfill`: it derives the columns ingest now
 // writes for rows stored before it did (service.Backfill). It reads every
 // affected SBOM's raw_bom, so it runs by hand, once, rather than in the
-// chart's migrate hook (docs/UPGRADING.md).
+// chart's migrate hook (site/src/content/docs/guides/operate/upgrade.md).
 func runBackfill(ctx context.Context, dbURL string) error {
 	pool, err := pgxpool.New(ctx, dbURL)
 	if err != nil {

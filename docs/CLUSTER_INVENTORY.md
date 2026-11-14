@@ -1,7 +1,7 @@
 # Cluster Inventory Guide
 
 A registered cluster runs the `ocidex-k8s-agent` (see
-[DEPLOYMENT.md](DEPLOYMENT.md#cluster-inventory-agent-separate-chart-per-target-cluster)), which
+[install guide](https://docs.ocidex.app/guides/operate/clusters-and-operator/)), which
 pushes a snapshot of every running container's image. This guide covers what the cluster page
 tells you, and what to do about each thing it reports.
 
@@ -194,5 +194,5 @@ failed — the job's error is on that page, not here.
 
 - [ADR-0044 — K8s inventory agent](adr/0044-k8s-inventory-agent.md) — normative rules, including
   K3 (digest normalization), K5 (the states must stay distinct) and K9 (auto-ingest).
-- [DEPLOYMENT.md](DEPLOYMENT.md#cluster-inventory-agent-separate-chart-per-target-cluster) —
+- [Installing the agent](https://docs.ocidex.app/guides/operate/clusters-and-operator/) —
   installing the agent.

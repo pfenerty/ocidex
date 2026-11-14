@@ -5,7 +5,7 @@
 //
 // It writes the SBOMs to a directory, or ingests them into a running instance
 // through pkg/client. "loadgen measure" times GET routes against an instance
-// (docs/SIZING.md). See docs/DEVELOPMENT.md "Synthetic corpus".
+// (https://docs.ocidex.app/guides/operate/sizing/). See docs/DEVELOPMENT.md "Synthetic corpus".
 package main
 
 import (

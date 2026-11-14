@@ -448,6 +448,29 @@ Ingest backs off and retries when the API answers 429. Its per-key ingest limit
 instance. The image names carry no digest: the digest goes in the ingest call's `digest`
 parameter, so ingest doesn't try to verify it against the synthetic registry host.
 
+### Measuring sizing
+
+The [sizing page](https://docs.ocidex.app/guides/operate/sizing/) reports a run of this corpus
+(ocidex-xxee.5): 100 artifacts × 100 versions × 500 components, seed 1. Repeat it to check a
+change against the 5s `slowRequestThreshold` budget:
+
+```bash
+# 1. Run the API against an empty, migrated database with the rate limits off
+#    (API_RATE_LIMIT_INGEST=0, API_RATE_LIMIT_HEAVY=0), and create an upload source
+#    and an API key with the ingest capability.
+
+# 2. Load the corpus.
+go run ./cmd/loadgen -url http://localhost:8080 -api-key "$KEY" -source <source-id> \
+  -seed 1 -artifacts 100 -versions 100 -components 500 -concurrency 8
+
+# 3. Time every GET route. routes.txt holds "<route> <path>" lines with real ids filled in.
+go run ./cmd/loadgen measure -url http://localhost:8080 -api-key "$KEY" \
+  -routes routes.txt -samples 20 > results.md
+```
+
+The vulnerability findings in the published run were inserted directly, because no vuln-worker
+ran, so the vulnerability routes saw the row counts a real match would give.
+
 ## Accepting a govulncheck finding
 
 `govulncheck-scan` (`.tektonic/jobs/go-vulncheck/spec.ts`) is the only Go vulnerability gate,

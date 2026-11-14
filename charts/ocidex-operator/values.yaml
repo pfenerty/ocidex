@@ -30,7 +30,8 @@ apiKey:
 # resources carry an ocidex.io/registry-protection finalizer that only a watching
 # operator removes, so any CR left in a namespace that drops off this list keeps
 # its finalizer forever and leaves the namespace stuck Terminating (ocidex-1eo).
-# Follow the retarget procedure in docs/OPERATIONS.md before changing it.
+# Follow the retarget procedure in
+# https://docs.ocidex.app/guides/operate/clusters-and-operator/ before changing it.
 watchNamespace: ""
 
 # leaderElect enables leader election for multi-replica deployments.
