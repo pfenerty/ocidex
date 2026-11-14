@@ -4,6 +4,7 @@ import { useToast } from "~/context/toast";
 import DataTable from "~/components/DataTable";
 import type { Column } from "~/components/DataTable";
 import type { APIKey, Capability } from "~/api/client";
+import { API_REFERENCE_URL } from "~/api/client";
 import { useListAPIKeys, useCreateAPIKey, useDeleteAPIKey } from "~/api/queries";
 import { Button, Card, CardHeader } from "~/components/ui";
 import { TimestampCell } from "~/components/cells";
@@ -207,6 +208,8 @@ export function APIKeysTab() {
                     <p class="text-muted mt-2 mb-0">
                         A key can never exceed what its owner's namespace roles allow — narrowing a
                         member's role narrows every key they hold, with no key change.
+                        Send a key as <code>Authorization: Bearer &lt;key&gt;</code>; the{" "}
+                        <a href={API_REFERENCE_URL}>API reference</a> lists every operation.
                     </p>
                 </form>
             </Card>

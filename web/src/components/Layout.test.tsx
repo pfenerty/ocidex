@@ -9,6 +9,7 @@ vi.mock("~/components/ThemeToggle", () => ({ default: () => null }));
 
 vi.mock("~/api/client", () => ({
     API_BASE_URL: "",
+    API_REFERENCE_URL: "/api/docs",
     client: {},
     APIClientError: class extends Error {},
     unwrap: vi.fn(),

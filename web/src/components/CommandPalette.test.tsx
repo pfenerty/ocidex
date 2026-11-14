@@ -188,6 +188,24 @@ describe("CommandPalette", () => {
         expect(mockNavigate).toHaveBeenCalledWith("/diff");
     });
 
+    it("loads the API reference rather than routing to it", () => {
+        const assign = vi.fn();
+        const original = window.location;
+        Object.defineProperty(window, "location", { configurable: true, value: { ...original, assign } });
+        try {
+            const { input, options, labels } = mount(undefined);
+            pressShortcut();
+            fireEvent.input(input(), { target: { value: "openapi" } });
+            expect(labels()[0]).toBe("API reference");
+            fireEvent.mouseDown(options()[0]);
+            // Served by the API at /api/docs, outside the SPA's routes.
+            expect(assign).toHaveBeenCalledWith("/api/docs");
+            expect(mockNavigate).not.toHaveBeenCalled();
+        } finally {
+            Object.defineProperty(window, "location", { configurable: true, value: original });
+        }
+    });
+
     it("offers a signed-out visitor only what they can reach", () => {
         const { labels } = mount(undefined);
         pressShortcut();
