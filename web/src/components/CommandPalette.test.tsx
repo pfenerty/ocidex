@@ -222,7 +222,9 @@ describe("CommandPalette", () => {
         const asMember = mount(member);
         pressShortcut();
         expect(asMember.labels()).toContain("Sources");
-        expect(asMember.labels()).not.toContain("API keys");
+        // Any member manages their own keys (ocidex-70eo.11).
+        expect(asMember.labels()).toContain("API keys");
+        expect(asMember.labels()).not.toContain("Jobs");
         expect(asMember.labels()).not.toContain("Sign in");
         asMember.unmount();
 

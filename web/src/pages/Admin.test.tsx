@@ -7,15 +7,22 @@ import Admin from "~/pages/Admin";
 // Each tab panel is stubbed to a single recognizable string: this file is about
 // which panel mounts, not what any of them render.
 vi.mock("~/pages/admin/UsersTab", () => ({ UsersTab: () => <div>panel:users</div> }));
-vi.mock("~/pages/admin/APIKeysTab", () => ({ APIKeysTab: () => <div>panel:keys</div> }));
+vi.mock("~/pages/admin/APIKeysTab", () => ({
+    APIKeysTab: (props: { initialName?: string; initialCapabilities?: string[] }) => (
+        <div>panel:keys name={props.initialName ?? ""} caps={(props.initialCapabilities ?? []).join(",")}</div>
+    ),
+    parseCapabilities: (raw: string | undefined) => (raw !== undefined && raw !== "" ? raw.split(",") : []),
+}));
 vi.mock("~/pages/admin/StatusTab", () => ({ StatusTab: () => <div>panel:status</div> }));
 vi.mock("~/pages/admin/SourcesTab", () => ({ SourcesTab: () => <div>panel:sources</div> }));
 vi.mock("~/pages/admin/NamespacesTab", () => ({ NamespacesTab: () => <div>panel:namespaces</div> }));
 vi.mock("~/pages/admin/JobsTab", () => ({ JobsTab: () => <div>panel:jobs</div> }));
 
 const mockLocation = { pathname: "/admin" };
+let mockSearch: Record<string, string> = {};
 vi.mock("@solidjs/router", () => ({
     useLocation: () => mockLocation,
+    useSearchParams: () => [mockSearch, vi.fn()],
     // `class` is passed through: the strip's active state rides on it now that
     // the tabs are <TabBar> links rather than inline styles.
     A: (props: { href: string; class?: string; children?: JSX.Element }) => (
@@ -45,6 +52,7 @@ describe("Admin", () => {
     beforeEach(() => {
         vi.clearAllMocks();
         mockLocation.pathname = "/admin";
+        mockSearch = {};
     });
 
     // The original defect: on first paint `user()` is undefined, so `tabs()` is
@@ -140,5 +148,26 @@ describe("Admin", () => {
         expect(container.textContent).toContain("panel:sources");
         expect(container.textContent).not.toContain("panel:jobs");
         expect(container.textContent).toContain("Registries and other ingest channels you can see");
+    });
+
+    // Every key endpoint is `member` and own-keys-only, and a namespace owner
+    // needs a key to install the cluster agent (ocidex-70eo.11).
+    it("gives a non-admin the API Keys tab", () => {
+        mockLocation.pathname = "/admin/keys";
+        mockUserFn = resolved({ id: "u-2", role: "user" });
+
+        const { container } = render(() => <Admin />);
+        expect(container.textContent).toContain("panel:keys");
+        const links = [...container.querySelectorAll(".tab-bar a")].map((a) => a.getAttribute("href"));
+        expect(links).toEqual(["/admin/keys", "/admin/sources", "/admin/account"]);
+    });
+
+    it("prefills the key form from the link's query string", () => {
+        mockLocation.pathname = "/admin/keys";
+        mockSearch = { name: "prod-agent", capabilities: "push_inventory" };
+        mockUserFn = resolved({ id: "u-2", role: "user" });
+
+        const { container } = render(() => <Admin />);
+        expect(container.textContent).toContain("name=prod-agent caps=push_inventory");
     });
 });

@@ -1,9 +1,9 @@
 import { Show, type JSX } from "solid-js";
-import { useLocation } from "@solidjs/router";
+import { useLocation, useSearchParams } from "@solidjs/router";
 import { useAuth } from "~/context/auth";
 import { SkeletonHeader } from "~/components/Skeleton";
 import { UsersTab } from "./admin/UsersTab";
-import { APIKeysTab } from "./admin/APIKeysTab";
+import { APIKeysTab, parseCapabilities } from "./admin/APIKeysTab";
 import { StatusTab } from "./admin/StatusTab";
 import { SourcesTab } from "./admin/SourcesTab";
 import { NamespacesTab } from "./admin/NamespacesTab";
@@ -11,6 +11,14 @@ import { JobsTab } from "./admin/JobsTab";
 import { AccountTab } from "./admin/AccountTab";
 import { PageHeader, TabBar } from "~/components/ui";
 import type { TabDef } from "~/components/ui";
+
+type TabParams = Partial<Record<string, string | string[]>>;
+
+/** The first value of a query parameter, which may repeat. */
+function param(params: TabParams, name: string): string | undefined {
+    const v = params[name];
+    return Array.isArray(v) ? v[0] : v;
+}
 
 interface AdminTab {
     label: string;
@@ -24,14 +32,30 @@ interface AdminTab {
      * editing one is `owner`, so a namespace owner can use that tab in full.
      * It lives here only because this is where it was first built, and the
      * cluster Gaps tab has to be able to send them to it.
+     *
+     * API Keys is the other: every key endpoint is `member` and scoped to the
+     * caller's own keys, and a namespace owner needs one to install the
+     * cluster agent (ocidex-70eo.11).
      */
     adminOnly: boolean;
-    render: () => JSX.Element;
+    /** Gets the query string, for tabs that a link can prefill. */
+    render: (params: TabParams) => JSX.Element;
 }
 
 const TABS: AdminTab[] = [
     { label: "Users", href: "/admin", paths: ["/admin"], adminOnly: true, render: () => <UsersTab /> },
-    { label: "API Keys", href: "/admin/keys", paths: ["/admin/keys"], adminOnly: true, render: () => <APIKeysTab /> },
+    {
+        label: "API Keys",
+        href: "/admin/keys",
+        paths: ["/admin/keys"],
+        adminOnly: false,
+        render: (params) => (
+            <APIKeysTab
+                initialName={param(params, "name")}
+                initialCapabilities={parseCapabilities(param(params, "capabilities"))}
+            />
+        ),
+    },
     {
         label: "Namespaces",
         href: "/admin/namespaces",
@@ -69,14 +93,16 @@ const TABS: AdminTab[] = [
  */
 const NON_ADMIN_SUBTITLES: Record<string, string> = {
     "/admin/sources": "Registries and other ingest channels you can see; actions follow your role in each namespace",
+    "/admin/keys": "Your own keys; each acts with at most your namespace roles",
     "/admin/account": "The issuers you can sign in with",
 };
 
 export default function Admin() {
     const location = useLocation();
+    const [searchParams] = useSearchParams();
     const { user } = useAuth();
     // A non-admin sees only the tabs they can actually use. Showing the other
-    // five would offer them a row of 403s.
+    // four would offer them a row of 403s.
     //
     // This is role-dependent, so it is wrong while the session is still in
     // flight: `user()` is undefined during the first paint and every visitor
@@ -86,7 +112,10 @@ export default function Admin() {
     // A non-admin who lands on an admin-only path (a stale bookmark, a shared
     // link) gets the tabs they do have rather than an empty page — the tab strip
     // already tells them which one they are on.
-    const active = () => tabs().find((t) => t.paths.includes(location.pathname)) ?? tabs()[0];
+    // For a non-admin that is Sources, not whichever tab sorts first.
+    const fallback = () =>
+        user()?.role === "admin" ? tabs()[0] : (tabs().find((t) => t.href === "/admin/sources") ?? tabs()[0]);
+    const active = () => tabs().find((t) => t.paths.includes(location.pathname)) ?? fallback();
     // The href doubles as the tab id: it is unique per tab and is what the
     // strip navigates to anyway.
     const tabDefs = (): TabDef<string>[] =>
@@ -121,7 +150,7 @@ export default function Admin() {
                 once and the panel is frozen at whichever tab was active on
                 mount, even as the strip above tracks the route. */}
             <Show when={active()} keyed>
-                {(tab) => tab.render()}
+                {(tab) => tab.render(searchParams)}
             </Show>
         </Show>
     );

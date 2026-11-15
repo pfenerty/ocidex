@@ -199,6 +199,13 @@ export function OverviewTab(props: {
  * transcribe.
  */
 function AgentSetup(props: { clusterId: string; clusterName: string }) {
+    // Opens the key form with only push_inventory chosen: the agent needs
+    // nothing else, and a narrower key is a smaller leak.
+    const agentKeyHref = () =>
+        `/admin/keys?${new URLSearchParams({
+            name: `${props.clusterName}-agent`,
+            capabilities: "push_inventory",
+        }).toString()}`;
     const install = () =>
         [
             "kubectl create namespace ocidex-agent",
@@ -221,8 +228,11 @@ function AgentSetup(props: { clusterId: string; clusterName: string }) {
             </p>
             <p class="text-muted">
                 Run these against the target cluster&apos;s kubeconfig context, with an API key
-                that has <code>read-write</code> scope and belongs to someone who owns this
-                cluster&apos;s namespace.
+                that has the <code>push_inventory</code> capability and belongs to someone who
+                owns this cluster&apos;s namespace.{" "}
+                <A href={agentKeyHref()} class="dash-link">
+                    Create an agent key
+                </A>
             </p>
             <pre class="agent-setup-commands">{install()}</pre>
             <p class="text-muted">

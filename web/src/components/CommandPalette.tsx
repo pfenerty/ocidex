@@ -71,7 +71,7 @@ const ENTRIES: readonly Entry[] = [
     // Sources sits under /admin for historical reasons only — any signed-in
     // user may manage the registries they own. See the note in Layout.tsx.
     { path: "/admin/sources", label: "Sources", group: "Manage", keywords: "registries ingest scan", visible: signedIn },
-    { path: "/admin/keys", label: "API keys", group: "Manage", keywords: "tokens credentials scopes", visible: isAdmin },
+    { path: "/admin/keys", label: "API keys", group: "Manage", keywords: "tokens credentials scopes capabilities agent", visible: signedIn },
     { path: "/admin/namespaces", label: "Namespaces", group: "Manage", keywords: "owners visibility tenants", visible: isAdmin },
     { path: "/admin/status", label: "Status", group: "Manage", keywords: "health workers queue", visible: isAdmin },
     { path: "/admin/jobs", label: "Jobs", group: "Manage", keywords: "scan enrichment queue failures", visible: isAdmin },
