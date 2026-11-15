@@ -111,6 +111,7 @@ cookies carry no ceiling and are unaffected.
 
 | Method | Path | Operation | Class | Capability | Write | Notes |
 |---|---|---|---|---|---|---|
+| GET | `/api/v1/artifacts/{id}/workloads` | `list-artifact-workloads` | `authenticated` | — |  | Workload rows filtered via visible_namespace_ids, as list-vulnerability-workloads. |
 | GET | `/api/v1/clusters` | `list-clusters` | `authenticated` | — |  | Visibility resolved through the owning namespace. |
 | POST | `/api/v1/clusters` | `create-cluster` | `capability` | `manage_cluster` | ✓ | manage_cluster capability on the body's namespace_id. |
 | POST | `/api/v1/clusters/connect` | `connect-cluster` | `capability` | `manage_cluster` | ✓ | manage_cluster and push_inventory on the body's namespace_id, in the handler. Creates the cluster and a cluster-bound credential in one transaction. |

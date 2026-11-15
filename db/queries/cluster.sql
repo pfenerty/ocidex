@@ -689,6 +689,36 @@ WHERE EXISTS (
 ORDER BY c.name ASC, w.k8s_namespace ASC, w.workload_name ASC
 LIMIT sqlc.narg('limit')::int;
 
+-- name: ListWorkloadsForArtifact :many
+-- Where an artifact is running (ocidex-70eo.8): every visible workload whose
+-- digest resolves to one of the artifact's SBOMs, by the same two-tier match
+-- as everything else here (ADR-044 K4). Same row shape as
+-- ListWorkloadsForVulnerability, so the UI renders both with one component.
+SELECT
+    sqlc.embed(w),
+    c.id            AS cluster_id_out,
+    c.name          AS cluster_name,
+    s.id            AS sbom_id,
+    s.artifact_id   AS artifact_id,
+    s.subject_version AS subject_version,
+    a.name          AS artifact_name,
+    (CASE WHEN s.digest = w.image_digest THEN 'exact' ELSE 'index' END)::text AS match_state
+FROM cluster_workload w
+JOIN cluster c ON c.id = w.cluster_id
+JOIN LATERAL (
+    SELECT s2.id, s2.artifact_id, s2.subject_version, s2.digest
+    FROM sbom s2
+    WHERE w.image_digest IS NOT NULL
+      AND (s2.digest = w.image_digest OR s2.index_digest = w.image_digest)
+    ORDER BY (s2.digest = w.image_digest) DESC, s2.created_at DESC
+    LIMIT 1
+) s ON true
+LEFT JOIN artifact a ON a.id = s.artifact_id
+WHERE s.artifact_id = @artifact_id::uuid
+  AND c.namespace_id IN (SELECT visible_namespace_ids(sqlc.narg('user_id')::uuid, sqlc.narg('is_admin')::boolean))
+ORDER BY c.name ASC, w.k8s_namespace ASC, w.workload_name ASC
+LIMIT sqlc.narg('limit')::int;
+
 -- Cluster agent credentials (ocidex-70eo.5). These are api_key rows bound to a
 -- cluster; the CHECK on api_key pins their ceiling to push_inventory. Every
 -- caller here has already passed manage_cluster on the cluster's namespace.

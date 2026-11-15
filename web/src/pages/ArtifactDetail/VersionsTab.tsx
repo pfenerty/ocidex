@@ -1,3 +1,4 @@
+import { clusterNames, runningForVersion, type RunningWorkload } from "./RunningTab";
 import { Show, For } from "solid-js";
 import { A } from "@solidjs/router";
 import type { ArtifactVersionSummary, PaginationMeta } from "~/api/client";
@@ -5,9 +6,12 @@ import DataTable from "~/components/DataTable";
 import type { Column, SortDir } from "~/components/DataTable";
 import { SigningBadge, TimestampCell } from "~/components/cells";
 import { VulnCountBadges } from "~/components/VulnBadge";
-import { Button } from "~/components/ui";
+import { Button, StatusPill } from "~/components/ui";
 
 export function VersionsTab(props: {
+    /** Where the artifact runs, for the Running column (ocidex-70eo.8);
+     * undefined for a signed-out reader, who gets no column. */
+    running?: RunningWorkload[];
     artifactId: string;
     /** Architecture and signing are OCI concepts; both columns are dropped for
      *  other artifact types rather than shown as a column of em-dashes. */
@@ -127,6 +131,27 @@ export function VersionsTab(props: {
             ),
         },
         ...(props.isContainer ? imageColumns : []),
+        ...(props.running !== undefined
+            ? [
+                  {
+                      header: "Running",
+                      render: (version: ArtifactVersionSummary) => {
+                          const names = clusterNames(
+                              runningForVersion(props.running ?? [], version.sbomId, version.versionKey),
+                          );
+                          return (
+                              <Show when={names.length > 0} fallback={<span class="text-muted">—</span>}>
+                                  <span class="flex flex-wrap gap-1">
+                                      <For each={names}>
+                                          {(n) => <StatusPill variant="success">{n}</StatusPill>}
+                                      </For>
+                                  </span>
+                              </Show>
+                          );
+                      },
+                  },
+              ]
+            : []),
         {
             header: "",
             // One SBOM per architecture is still one build, so the history

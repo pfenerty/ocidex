@@ -1110,6 +1110,16 @@ func registerClusterOps(api huma.API, h *Handler) {
 	}, h.RevokeClusterCredential)
 
 	huma.Register(api, huma.Operation{
+		OperationID: "list-artifact-workloads",
+		Method:      http.MethodGet,
+		Path:        "/api/v1/artifacts/{id}/workloads",
+		Summary:     "List where an artifact is running",
+		Description: "Kubernetes workloads running any version of this artifact, across every cluster visible to the caller, each with the version it runs.",
+		Tags:        []string{tagClusters},
+		Middlewares: huma.Middlewares{authMW},
+	}, h.ListArtifactWorkloads)
+
+	huma.Register(api, huma.Operation{
 		OperationID: "list-cluster-pushes",
 		Method:      http.MethodGet,
 		Path:        pathClusterByID + "/pushes",

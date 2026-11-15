@@ -570,6 +570,25 @@ func (h *Handler) ListVulnWorkloads(ctx context.Context, in *ListVulnWorkloadsIn
 	return out, nil
 }
 
+// ListArtifactWorkloads handles GET /api/v1/artifacts/{id}/workloads: where any
+// version of an artifact is running (ocidex-70eo.8). Visibility is the query's,
+// as for ListVulnWorkloads: invisible clusters contribute nothing.
+func (h *Handler) ListArtifactWorkloads(ctx context.Context, in *ListArtifactWorkloadsInput) (*ListVulnWorkloadsOutput, error) {
+	rows, err := h.clusterService.WorkloadsForArtifact(ctx, in.ID, in.Limit, visibilityFilterFromContext(ctx))
+	if err != nil {
+		return nil, mapServiceError(err)
+	}
+	out := &ListVulnWorkloadsOutput{}
+	out.Body.Data = make([]RunningWorkloadResponse, len(rows))
+	for i, w := range rows {
+		out.Body.Data[i] = RunningWorkloadResponse{
+			ClusterWorkloadResponse: toWorkloadResponse(w.ClusterWorkload),
+			ClusterName:             w.ClusterName,
+		}
+	}
+	return out, nil
+}
+
 // visibleCluster loads a cluster and 404s if the caller cannot see its
 // namespace. 404 rather than 403 so a private cluster's existence is not
 // confirmed to someone who cannot see it.

@@ -4,7 +4,7 @@ import { vulnTile } from "~/components/VulnTile";
 import { trustStatus, trustBadgeClass } from "~/utils/trust";
 import { relativeDate } from "~/utils/format";
 
-export type ArtifactTab = "versions" | "changelog" | "licenses" | "vulns" | "relationships";
+export type ArtifactTab = "versions" | "changelog" | "licenses" | "vulns" | "relationships" | "running";
 
 /**
  * The summary band for an artifact: what a reader needs before deciding whether

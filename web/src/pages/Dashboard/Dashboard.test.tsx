@@ -126,7 +126,7 @@ describe("Dashboard", () => {
         expect(getByText("No provenance drift on your artifacts.")).toBeDefined();
         expect(getByText("No known vulnerabilities in what you own.")).toBeDefined();
         expect(
-            getByText("No clusters registered. Register one to see what your clusters actually run."),
+            getByText("No clusters connected. Connect one to see what your clusters actually run."),
         ).toBeDefined();
     });
 
@@ -179,19 +179,25 @@ describe("Dashboard", () => {
                     namespaceId: "n1",
                     namespaceName: "prod",
                     lastSeenAt: new Date().toISOString(),
+                    health: { state: "healthy" },
+                    summary: { coverage: { total: 10, matched: 8, unknown: 2, unresolvable: 0, pods: 12 }, runningCriticals: 2 },
                     createdAt: new Date().toISOString(),
                     updatedAt: new Date().toISOString(),
                 },
             ]) as unknown as ReturnType<typeof useMyClusters>,
         );
 
-        const { getByText } = render(() => <Dashboard />);
+        const { getByText, container } = render(() => <Dashboard />);
         expect(getByText("workspace-ns").closest("a")?.getAttribute("href")).toBe("/admin/namespaces");
         expect(getByText("prod-eu-west").closest("a")?.getAttribute("href")).toBe("/clusters/c1");
         expect(getByText("ubuntu").closest("a")?.getAttribute("href")).toBe("/sboms/s1");
         expect(getByText("alpine").closest("a")?.getAttribute("href")).toBe("/sboms/s2");
         expect(getByText("CVE-2099-0001").closest("a")?.getAttribute("href")).toBe(
             "/vulnerabilities/CVE-2099-0001",
+        );
+        // ocidex-70eo.8: the panel opens with fleet health and running exposure.
+        expect(container.querySelector('[data-testid="cluster-fleet-summary"]')?.textContent).toContain(
+            "2 critical",
         );
     });
 

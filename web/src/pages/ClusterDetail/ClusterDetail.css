@@ -400,3 +400,12 @@
     -webkit-box-orient: vertical;
     overflow: hidden;
 }
+
+/* Workspace clusters panel header (ocidex-70eo.8). */
+.cluster-fleet-summary {
+    display: grid;
+    gap: 0.4rem;
+    padding: 0.5rem 0 0.75rem;
+    border-bottom: 1px solid var(--color-border);
+    margin-bottom: 0.25rem;
+}

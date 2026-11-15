@@ -79,6 +79,50 @@ export function useClusterPushes(id: Accessor<string | undefined>) {
     }));
 }
 
+/**
+ * useArtifactWorkloads — where any version of an artifact is running
+ * (ocidex-70eo.8). Signed-in only: inventory is never public, and the artifact
+ * page it serves is.
+ */
+export function useArtifactWorkloads(id: Accessor<string | undefined>, enabled: Accessor<boolean>) {
+    return createQuery(() => ({
+        queryKey: ["artifacts", id(), "workloads"] as const,
+        queryFn: () =>
+            unwrap(
+                client.GET("/api/v1/artifacts/{id}/workloads", {
+                    params: { path: { id: id() ?? "" }, query: { limit: 200 } },
+                }),
+            ),
+        enabled: id() !== undefined && enabled(),
+        select: (resp) => resp.data ?? [],
+    }));
+}
+
+/**
+ * useClusterSearch — clusters whose name matches a term, for the command
+ * palette (ocidex-70eo.8). Filtered in the browser: a caller sees a handful of
+ * clusters, and the list is the same request the Clusters page makes.
+ */
+export function useClusterSearch(term: Accessor<string>, enabled: Accessor<boolean>) {
+    return createQuery(() => ({
+        queryKey: ["clusters", undefined] as const,
+        queryFn: () => unwrap(client.GET("/api/v1/clusters", { params: { query: {} } })),
+        enabled: enabled() && term().length >= 2,
+        select: (resp) => {
+            const t = term().toLowerCase();
+            return (resp.data ?? [])
+                .filter((c) => c.name.toLowerCase().includes(t))
+                .slice(0, 5)
+                .map((c) => ({
+                    key: c.id,
+                    label: c.name,
+                    sub: `${c.namespaceName ?? ""} · ${c.health.state.replace("_", " ")}`,
+                    path: `/clusters/${c.id}`,
+                }));
+        },
+    }));
+}
+
 /** useConnectCluster — register a cluster with its first agent credential. */
 export function useConnectCluster() {
     const queryClient = useQueryClient();

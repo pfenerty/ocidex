@@ -8,7 +8,11 @@ import {
     useArtifactLicenseSummary,
     useArtifactUsages,
     useArtifactVulnSummary,
+    useArtifactWorkloads,
 } from "~/api/queries";
+import { useAuth } from "~/context/auth";
+import { StatusPill } from "~/components/ui";
+import { RunningTab, clusterNames } from "./RunningTab";
 import type { ArtifactVulnSortKey, VulnSeverityFilter } from "~/api/queries";
 import type { SortDir } from "~/components/DataTable";
 import { EmptyState } from "~/components/Feedback";
@@ -23,7 +27,7 @@ import { ChangelogTab } from "./ChangelogTab";
 import { RelationshipsTab } from "./RelationshipsTab";
 import { VulnerabilitiesTab, SEVERITIES, SORT_KEYS as VULN_SORT_KEYS } from "./VulnerabilitiesTab";
 
-const TABS: ArtifactTab[] = ["versions", "changelog", "licenses", "vulns", "relationships"];
+const TABS: ArtifactTab[] = ["versions", "changelog", "licenses", "vulns", "relationships", "running"];
 
 /** Search params arrive as string | string[]; take the first value either way. */
 function one(v: string | string[] | undefined): string | undefined {
@@ -175,12 +179,22 @@ export default function ArtifactDetail() {
 
     const vulnSummaryQuery = useArtifactVulnSummary(() => params.id);
 
+    // Where it runs (ocidex-70eo.8). Signed-in only: inventory is never
+    // public, and this page is.
+    const { user } = useAuth();
+    const signedIn = () => user() !== undefined;
+    const runningQuery = useArtifactWorkloads(() => params.id, signedIn);
+    const runningClusters = () => clusterNames(runningQuery.data ?? []);
+
     const tabs = (versionCount: number): TabDef<ArtifactTab>[] => [
         { id: "versions", label: `Versions (${versionCount})` },
         { id: "changelog", label: "Changelog" },
         { id: "licenses", label: "Licenses" },
         { id: "vulns", label: `Vulnerabilities (${vulnSummaryQuery.data?.summary.total ?? 0})` },
         { id: "relationships", label: "Relationships" },
+        ...(signedIn()
+            ? [{ id: "running" as const, label: `Running (${(runningQuery.data ?? []).length})` }]
+            : []),
     ];
 
     // Semver-vs-all is an ordering of the versions list, not a second place to
@@ -215,6 +229,17 @@ export default function ArtifactDetail() {
                         {(a) => (
                             <>
                                 <ArtifactHeader artifact={a()} breadcrumb={<Breadcrumb items={crumbs()} />} />
+
+                                <Show when={runningClusters().length > 0}>
+                                    <p class="mb-3" data-testid="running-in">
+                                        <button type="button" class="link-button" onClick={() => setTab("running")}>
+                                            <StatusPill variant="success" title={runningClusters().join(", ")}>
+                                                running in {runningClusters().length === 1 ? "1 cluster" : `${runningClusters().length} clusters`}
+                                            </StatusPill>
+                                        </button>{" "}
+                                        <span class="text-muted text-sm">{runningClusters().join(", ")}</span>
+                                    </p>
+                                </Show>
 
                                 <ArtifactBand
                                     artifact={a()}
@@ -283,6 +308,7 @@ export default function ArtifactDetail() {
                                         sortBy={versionSortBy()}
                                         sortDir={versionSortDir()}
                                         onSort={sortVersions}
+                                        running={runningQuery.data}
                                     />
                                 </Show>
 
@@ -346,6 +372,15 @@ export default function ArtifactDetail() {
                                         onPageChange={(offset) =>
                                             setSearchParams({ offset: offset === 0 ? undefined : String(offset) })
                                         }
+                                    />
+                                </Show>
+
+                                <Show when={tab() === "running"}>
+                                    <RunningTab
+                                        rows={runningQuery.data}
+                                        loading={runningQuery.isFetching}
+                                        isError={runningQuery.isError}
+                                        error={runningQuery.error}
                                     />
                                 </Show>
 

@@ -1326,6 +1326,99 @@ func (q *Queries) ListClustersByNamespace(ctx context.Context, namespaceID pgtyp
 	return items, nil
 }
 
+const listWorkloadsForArtifact = `-- name: ListWorkloadsForArtifact :many
+SELECT
+    w.id, w.cluster_id, w.k8s_namespace, w.workload_kind, w.workload_name, w.container_name, w.image_ref, w.image_digest, w.pod_count, w.first_seen_at, w.last_seen_at,
+    c.id            AS cluster_id_out,
+    c.name          AS cluster_name,
+    s.id            AS sbom_id,
+    s.artifact_id   AS artifact_id,
+    s.subject_version AS subject_version,
+    a.name          AS artifact_name,
+    (CASE WHEN s.digest = w.image_digest THEN 'exact' ELSE 'index' END)::text AS match_state
+FROM cluster_workload w
+JOIN cluster c ON c.id = w.cluster_id
+JOIN LATERAL (
+    SELECT s2.id, s2.artifact_id, s2.subject_version, s2.digest
+    FROM sbom s2
+    WHERE w.image_digest IS NOT NULL
+      AND (s2.digest = w.image_digest OR s2.index_digest = w.image_digest)
+    ORDER BY (s2.digest = w.image_digest) DESC, s2.created_at DESC
+    LIMIT 1
+) s ON true
+LEFT JOIN artifact a ON a.id = s.artifact_id
+WHERE s.artifact_id = $1::uuid
+  AND c.namespace_id IN (SELECT visible_namespace_ids($2::uuid, $3::boolean))
+ORDER BY c.name ASC, w.k8s_namespace ASC, w.workload_name ASC
+LIMIT $4::int
+`
+
+type ListWorkloadsForArtifactParams struct {
+	ArtifactID pgtype.UUID `json:"artifact_id"`
+	UserID     pgtype.UUID `json:"user_id"`
+	IsAdmin    pgtype.Bool `json:"is_admin"`
+	Limit      pgtype.Int4 `json:"limit"`
+}
+
+type ListWorkloadsForArtifactRow struct {
+	ClusterWorkload ClusterWorkload `json:"cluster_workload"`
+	ClusterIDOut    pgtype.UUID     `json:"cluster_id_out"`
+	ClusterName     string          `json:"cluster_name"`
+	SbomID          pgtype.UUID     `json:"sbom_id"`
+	ArtifactID      pgtype.UUID     `json:"artifact_id"`
+	SubjectVersion  pgtype.Text     `json:"subject_version"`
+	ArtifactName    pgtype.Text     `json:"artifact_name"`
+	MatchState      string          `json:"match_state"`
+}
+
+// Where an artifact is running (ocidex-70eo.8): every visible workload whose
+// digest resolves to one of the artifact's SBOMs, by the same two-tier match
+// as everything else here (ADR-044 K4). Same row shape as
+// ListWorkloadsForVulnerability, so the UI renders both with one component.
+func (q *Queries) ListWorkloadsForArtifact(ctx context.Context, arg ListWorkloadsForArtifactParams) ([]ListWorkloadsForArtifactRow, error) {
+	rows, err := q.db.Query(ctx, listWorkloadsForArtifact,
+		arg.ArtifactID,
+		arg.UserID,
+		arg.IsAdmin,
+		arg.Limit,
+	)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	items := []ListWorkloadsForArtifactRow{}
+	for rows.Next() {
+		var i ListWorkloadsForArtifactRow
+		if err := rows.Scan(
+			&i.ClusterWorkload.ID,
+			&i.ClusterWorkload.ClusterID,
+			&i.ClusterWorkload.K8sNamespace,
+			&i.ClusterWorkload.WorkloadKind,
+			&i.ClusterWorkload.WorkloadName,
+			&i.ClusterWorkload.ContainerName,
+			&i.ClusterWorkload.ImageRef,
+			&i.ClusterWorkload.ImageDigest,
+			&i.ClusterWorkload.PodCount,
+			&i.ClusterWorkload.FirstSeenAt,
+			&i.ClusterWorkload.LastSeenAt,
+			&i.ClusterIDOut,
+			&i.ClusterName,
+			&i.SbomID,
+			&i.ArtifactID,
+			&i.SubjectVersion,
+			&i.ArtifactName,
+			&i.MatchState,
+		); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
 const listWorkloadsForVulnerability = `-- name: ListWorkloadsForVulnerability :many
 SELECT
     w.id, w.cluster_id, w.k8s_namespace, w.workload_kind, w.workload_name, w.container_name, w.image_ref, w.image_digest, w.pod_count, w.first_seen_at, w.last_seen_at,

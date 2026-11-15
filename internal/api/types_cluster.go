@@ -417,6 +417,12 @@ type ListVulnWorkloadsOutput struct {
 	}
 }
 
+// ListArtifactWorkloadsInput is the request for GET /api/v1/artifacts/{id}/workloads.
+type ListArtifactWorkloadsInput struct {
+	ID    string `path:"id" doc:"Artifact UUID" format:"uuid"`
+	Limit int32  `query:"limit" default:"100" minimum:"1" maximum:"200"`
+}
+
 // ListClusterUnknownImagesInput is the request for
 // GET /api/v1/clusters/{id}/unknown-images.
 type ListClusterUnknownImagesInput struct {

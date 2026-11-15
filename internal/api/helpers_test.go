@@ -259,6 +259,10 @@ func (f *fakeClusterService) RotateCredential(_ context.Context, _, _ string, _ 
 	return service.ClusterCredential{}, nil
 }
 
+func (f *fakeClusterService) WorkloadsForArtifact(_ context.Context, _ string, _ int32, _ service.VisibilityFilter) ([]service.RunningWorkload, error) {
+	return nil, nil
+}
+
 func (f *fakeClusterService) RecordPush(_ context.Context, _ string, _ service.PushAttempt) error {
 	return nil
 }

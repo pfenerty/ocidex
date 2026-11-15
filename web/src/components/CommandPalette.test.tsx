@@ -31,11 +31,12 @@ vi.mock("~/api/queries", () => {
             { key: "v2", label: "CVE-2026-0002", sub: "HIGH", path: "/vulnerabilities/CVE-2026-0002" },
         ],
         licenses: [{ key: "l1", label: "OpenSSL License", sub: "OpenSSL", path: "/licenses/l1/components" }],
+        clusters: [{ key: "k1", label: "prod-eu-1", sub: "platform · healthy", path: "/clusters/k1" }],
     };
-    const make = (group: string) => (term: () => string) => ({
+    const make = (group: string) => (term: () => string, enabled: () => boolean = () => true) => ({
         get data() {
             const q = term().toLowerCase();
-            if (q.length < 2 || q === "boom") return undefined;
+            if (!enabled() || q.length < 2 || q === "boom") return undefined;
             return CORPUS[group].filter((h) => h.label.toLowerCase().includes(q));
         },
         get isError() {
@@ -49,6 +50,7 @@ vi.mock("~/api/queries", () => {
         useComponentSearch: make("components"),
         useVulnerabilitySearch: make("vulns"),
         useLicenseSearch: make("licenses"),
+        useClusterSearch: make("clusters"),
     };
 });
 
@@ -292,6 +294,23 @@ describe("CommandPalette", () => {
         // Explore/Vulnerabilities is first; the two CVEs follow it.
         fireEvent.mouseDown(options()[1]);
         expect(mockNavigate).toHaveBeenCalledWith("/vulnerabilities/CVE-2026-0001");
+    });
+
+    // ocidex-70eo.8: a cluster is findable by name, but only when signed in.
+    it("finds clusters by name for a signed-in user only", () => {
+        const signedIn = mount(member);
+        pressShortcut();
+        search(signedIn.input(), "prod-eu");
+        const hit = signedIn.options().find((o) => o.textContent.includes("prod-eu-1"));
+        expect(hit).toBeDefined();
+        fireEvent.mouseDown(hit as HTMLElement);
+        expect(mockNavigate).toHaveBeenCalledWith("/clusters/k1");
+        signedIn.unmount();
+
+        const anon = mount(undefined);
+        pressShortcut();
+        search(anon.input(), "prod-eu");
+        expect(anon.options().some((o) => o.textContent.includes("prod-eu-1"))).toBe(false);
     });
 
     it("walks route entries and catalog hits with one continuous highlight", () => {

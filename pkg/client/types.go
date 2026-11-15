@@ -4448,6 +4448,11 @@ type ListArtifactVulnsParamsSort string
 // ListArtifactVulnsParamsDir defines parameters for ListArtifactVulns.
 type ListArtifactVulnsParamsDir string
 
+// ListArtifactWorkloadsParams defines parameters for ListArtifactWorkloads.
+type ListArtifactWorkloadsParams struct {
+	Limit *int32 `form:"limit,omitempty" json:"limit,omitempty"`
+}
+
 // ListClustersParams defines parameters for ListClusters.
 type ListClustersParams struct {
 	// NamespaceId Limit to clusters in one namespace

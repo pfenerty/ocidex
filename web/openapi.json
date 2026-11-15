@@ -8741,6 +8741,63 @@
         ]
       }
     },
+    "/api/v1/artifacts/{id}/workloads": {
+      "get": {
+        "description": "Kubernetes workloads running any version of this artifact, across every cluster visible to the caller, each with the version it runs.",
+        "operationId": "list-artifact-workloads",
+        "parameters": [
+          {
+            "description": "Artifact UUID",
+            "in": "path",
+            "name": "id",
+            "required": true,
+            "schema": {
+              "description": "Artifact UUID",
+              "format": "uuid",
+              "type": "string"
+            }
+          },
+          {
+            "explode": false,
+            "in": "query",
+            "name": "limit",
+            "schema": {
+              "default": 100,
+              "format": "int32",
+              "maximum": 200,
+              "minimum": 1,
+              "type": "integer"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ListVulnWorkloadsOutputBody"
+                }
+              }
+            },
+            "description": "OK"
+          },
+          "default": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorModel"
+                }
+              }
+            },
+            "description": "Error"
+          }
+        },
+        "summary": "List where an artifact is running",
+        "tags": [
+          "Clusters"
+        ]
+      }
+    },
     "/api/v1/auth/identities": {
       "get": {
         "description": "The issuers the calling account can sign in with.",

@@ -17,6 +17,7 @@ import {
     useComponentSearch,
     useVulnerabilitySearch,
     useLicenseSearch,
+    useClusterSearch,
     MIN_SEARCH_TERM,
 } from "~/api/queries";
 import type { SearchHit } from "~/api/queries";
@@ -221,8 +222,11 @@ export default function CommandPalette() {
     const components = useComponentSearch(debounced);
     const vulns = useVulnerabilitySearch(debounced);
     const licenses = useLicenseSearch(debounced);
+    // Signed-in only: clusters are never public (ocidex-70eo.8).
+    const clusters = useClusterSearch(debounced, () => user() !== undefined);
 
     const searches = [
+        { group: "Clusters", query: clusters },
         { group: "Artifacts", query: artifacts },
         { group: "Components", query: components },
         { group: "Vulnerabilities", query: vulns },

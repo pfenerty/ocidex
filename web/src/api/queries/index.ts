@@ -33,6 +33,8 @@ export {
     useClusterCredentials,
     useConnectCluster,
     useClusterPushes,
+    useArtifactWorkloads,
+    useClusterSearch,
     useRefreshClusterInventory,
     useCreateClusterCredential,
     useRotateClusterCredential,

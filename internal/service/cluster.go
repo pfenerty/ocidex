@@ -368,6 +368,10 @@ type ClusterService interface {
 	// caller can see".
 	WorkloadsForVulnerability(ctx context.Context, canonicalID, clusterID string, limit int32, filter VisibilityFilter) ([]RunningWorkload, error)
 
+	// WorkloadsForArtifact answers "where is this artifact running"
+	// (ocidex-70eo.8), across every cluster the caller can see.
+	WorkloadsForArtifact(ctx context.Context, artifactID string, limit int32, filter VisibilityFilter) ([]RunningWorkload, error)
+
 	// UnknownImages lists the cluster's No-SBOM gap grouped by image, each
 	// resolved against the registries of the cluster's own namespace.
 	UnknownImages(ctx context.Context, clusterID string, limit, offset int32, filter VisibilityFilter) (UnknownImagesPage, error)
@@ -1069,4 +1073,36 @@ func imageFromRepo(r repository.ListClusterImagesRow) ClusterImage {
 		}
 	}
 	return out
+}
+
+func (s *clusterService) WorkloadsForArtifact(ctx context.Context, artifactID string, limit int32, filter VisibilityFilter) ([]RunningWorkload, error) {
+	aid, err := parseUUID(artifactID)
+	if err != nil {
+		return nil, ErrNotFound
+	}
+	lim, _ := clampPage(limit, 0)
+	rows, err := s.repo.ListWorkloadsForArtifact(ctx, repository.ListWorkloadsForArtifactParams{
+		ArtifactID: aid,
+		UserID:     filter.UserID,
+		IsAdmin:    filter.adminFlag(),
+		Limit:      pgtype.Int4{Int32: lim, Valid: true},
+	})
+	if err != nil {
+		return nil, fmt.Errorf("listing workloads for artifact: %w", err)
+	}
+	out := make([]RunningWorkload, len(rows))
+	for i, r := range rows {
+		out[i] = RunningWorkload{
+			ClusterWorkload: workloadFromRepo(repository.ListClusterWorkloadsRow{
+				ClusterWorkload: r.ClusterWorkload,
+				SbomID:          r.SbomID,
+				ArtifactID:      r.ArtifactID,
+				SubjectVersion:  r.SubjectVersion,
+				ArtifactName:    r.ArtifactName,
+				MatchState:      r.MatchState,
+			}),
+			ClusterName: r.ClusterName,
+		}
+	}
+	return out, nil
 }
