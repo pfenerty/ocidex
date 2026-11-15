@@ -68,7 +68,8 @@ function shots({ artifact, sboms, pkg, cluster }) {
     { name: "home", path: "/" },
     { name: "workspace", path: "/dashboard" },
     { name: "artifact", path: `/artifacts/${artifact.id}` },
-    { name: "changelog", path: `/artifacts/${artifact.id}?tab=changelog` },
+    // The cards start collapsed; open the newest so the picture shows the change table.
+    { name: "changelog", path: `/artifacts/${artifact.id}?tab=changelog`, prepare: expandFirstCard },
     { name: "vulnerabilities", path: `/artifacts/${artifact.id}?tab=vulns` },
     { name: "vulnerability-list", path: "/vulnerabilities" },
     { name: "licenses", path: "/licenses" },
@@ -85,6 +86,14 @@ function shots({ artifact, sboms, pkg, cluster }) {
     { name: "cluster", path: `/clusters/${cluster.id}` },
   );
   return list;
+}
+
+// Clicks the first collapsed changelog card open and waits for its body to render.
+async function expandFirstCard(page) {
+  const toggle = page.locator('[role="button"][aria-expanded="false"]').first();
+  await toggle.click();
+  await page.locator('[role="button"][aria-expanded="true"]').first().waitFor();
+  await page.waitForLoadState("networkidle");
 }
 
 const targets = shots(await subjects());
@@ -114,10 +123,11 @@ for (const prefix of ["/api/", "/auth/"]) {
 const hideDevChrome = '[data-testid="persona-switcher"] { display: none !important; }';
 
 const page = await context.newPage();
-for (const { name, path } of targets) {
+for (const { name, path, prepare } of targets) {
   await page.goto(ui + path, { waitUntil: "networkidle" });
   await page.addStyleTag({ content: hideDevChrome });
   await page.evaluate(() => document.fonts.ready);
+  if (prepare) await prepare(page);
   // Let skeletons resolve and charts finish their first layout.
   await page.waitForTimeout(500);
   const file = join(outDir, `${name}.png`);
