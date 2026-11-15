@@ -15,11 +15,13 @@ import (
 	"time"
 
 	"github.com/go-logr/logr"
+	corev1 "k8s.io/api/core/v1"
 	"k8s.io/apimachinery/pkg/runtime"
 	utilruntime "k8s.io/apimachinery/pkg/util/runtime"
 	clientgoscheme "k8s.io/client-go/kubernetes/scheme"
 	ctrl "sigs.k8s.io/controller-runtime"
 	"sigs.k8s.io/controller-runtime/pkg/cache"
+	crclient "sigs.k8s.io/controller-runtime/pkg/client"
 	"sigs.k8s.io/controller-runtime/pkg/healthz"
 	metricsserver "sigs.k8s.io/controller-runtime/pkg/metrics/server"
 
@@ -87,6 +89,9 @@ func run() error {
 		Cache: cache.Options{
 			DefaultNamespaces: nsCache,
 		},
+		Client: crclient.Options{
+			Cache: &crclient.CacheOptions{DisableFor: uncachedObjects()},
+		},
 	})
 	if err != nil {
 		return fmt.Errorf("creating manager: %w", err)
@@ -143,4 +148,15 @@ func run() error {
 		return fmt.Errorf("running manager: %w", err)
 	}
 	return nil
+}
+
+// uncachedObjects are read straight from the API server rather than through
+// the manager's informer cache (ocidex-osrl.1). A cached Get starts a
+// list/watch of the whole type on first use, and the operator's role grants
+// Secrets get only: the informer failed with "cannot list resource secrets"
+// forever, so no OCIRegistry with an authSecretRef ever reconciled. Reading
+// live also keeps every other Secret in the watched namespaces out of the
+// operator's memory.
+func uncachedObjects() []crclient.Object {
+	return []crclient.Object{&corev1.Secret{}}
 }
