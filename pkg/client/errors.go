@@ -25,8 +25,18 @@ type APIError struct {
 // Unwrap exposes the sentinel, if any.
 func (e *APIError) Unwrap() error { return e.sentinel }
 
+// Error names the sentinel, when there is one, ahead of the server's detail:
+// the detail alone may not say "forbidden" or "not found", and CLI users and
+// scripts read those words (ocidex-nnh2).
 func (e *APIError) Error() string {
-	return fmt.Sprintf("HTTP %d: %s", e.Status, e.Detail)
+	if e.sentinel == nil {
+		return fmt.Sprintf("HTTP %d: %s", e.Status, e.Detail)
+	}
+	name := e.sentinel.Error()
+	if e.Detail == "" || e.Detail == name {
+		return fmt.Sprintf("HTTP %d: %s", e.Status, name)
+	}
+	return fmt.Sprintf("HTTP %d: %s: %s", e.Status, name, e.Detail)
 }
 
 // ConflictError is returned when an ADR-042 resolver matched more than one
