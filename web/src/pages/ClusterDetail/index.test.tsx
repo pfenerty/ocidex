@@ -557,6 +557,26 @@ describe("ClusterDetail", () => {
         }
     });
 
+    // ocidex-70eo.13: no zero tiles, and no tabs that can only be empty, until
+    // something has reported. A tab in the URL cannot reach them either.
+    it("shows no coverage band and no inventory tabs before the first report", () => {
+        const clusterLastSeen = cluster.lastSeenAt;
+        cluster.lastSeenAt = "";
+        searchParams = { tab: "workloads" };
+        try {
+            const { container } = renderPage([], EMPTY, []);
+
+            expect(container.querySelectorAll(".coverage-tile")).toHaveLength(0);
+            const tabLabels = [...container.querySelectorAll(".tab-bar button, .tab-bar a")].map(
+                (t) => t.textContent,
+            );
+            expect(tabLabels).toEqual(["Overview"]);
+            expect(container.textContent).toContain("No agent has reported yet");
+        } finally {
+            cluster.lastSeenAt = clusterLastSeen;
+        }
+    });
+
     // A tab in the URL is what makes a filtered view something you can paste
     // into an issue.
     it("renders the tab named in the search param", () => {

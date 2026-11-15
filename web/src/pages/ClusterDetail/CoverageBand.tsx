@@ -18,6 +18,14 @@ import { plural } from "~/utils/format";
  * about it. The gap is now stated in the value's colour and its sub-label, and
  * the tint marks which tile you are looking at.
  */
+/**
+ * The class the router's <A> adds when its href matches the current route.
+ * Every tile's path is this cluster's page (the tab is in the query, which the
+ * router ignores), so its default, `active`, lit all four tiles at once
+ * (ocidex-70eo.13). Selection is ours to decide, from the tab and filter.
+ */
+const ROUTE_MATCH = "coverage-tile-route";
+
 export function CoverageBand(props: {
     coverage: WorkloadCoverage;
     clusterId: string;
@@ -40,7 +48,7 @@ export function CoverageBand(props: {
 
     return (
         <div class="tile-band">
-            <A class={cls(onWorkloads(undefined))} href={href("tab=workloads")}>
+            <A class={cls(onWorkloads(undefined))} activeClass={ROUTE_MATCH} href={href("tab=workloads")}>
                 <span class="tile-head">Containers</span>
                 <span class="tile-value">{props.coverage.total.toLocaleString()}</span>
                 {/* The count is workload-containers — one row per container of
@@ -53,12 +61,13 @@ export function CoverageBand(props: {
                     workload containers · {plural(props.coverage.pods, "pod")}
                 </span>
             </A>
-            <A class={cls(onWorkloads("exact"))} href={href("tab=workloads&matchState=exact")}>
+            <A class={cls(onWorkloads("exact"))} activeClass={ROUTE_MATCH} href={href("tab=workloads&matchState=exact")}>
                 <span class="tile-head">Matched</span>
                 <span class="tile-value">{props.coverage.matched.toLocaleString()}</span>
                 <span class="tile-sub">{pct()} of what is running</span>
             </A>
             <A
+                activeClass={ROUTE_MATCH}
                 class={cls(props.active === "gaps", props.coverage.unknown > 0)}
                 href={href("tab=gaps")}
             >
@@ -67,6 +76,7 @@ export function CoverageBand(props: {
                 <span class="tile-sub">not assessed — ingest to fix</span>
             </A>
             <A
+                activeClass={ROUTE_MATCH}
                 class={cls(props.active === "gaps", props.coverage.unresolvable > 0)}
                 href={href("tab=gaps")}
             >

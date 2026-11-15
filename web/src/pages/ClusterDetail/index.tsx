@@ -56,7 +56,15 @@ export default function ClusterDetail() {
     const [searchParams, setSearchParams] = useSearchParams();
     const clusterQuery = useCluster(() => params.id);
 
+    // Before the first snapshot there is nothing to count or list, and four
+    // zero tiles over three empty tabs read as a clean cluster (ADR-044 K5,
+    // ocidex-70eo.13). Until then the page is the Overview's setup card alone.
+    // Undefined while loading, which hides the band rather than flashing zeros.
+    const reported = () => (clusterQuery.data?.lastSeenAt ?? "") !== "";
+    const visibleTabs = () => (reported() ? tabs : tabs.filter((t) => t.id === "overview"));
+
     const tab = (): Tab => {
+        if (!reported()) return "overview";
         const t = one(searchParams.tab);
         return TABS.find((candidate) => candidate === t) ?? "overview";
     };
@@ -107,7 +115,7 @@ export default function ClusterDetail() {
                 )}
             </QueryBoundary>
 
-            <Show when={coverageQuery.data}>
+            <Show when={reported() && coverageQuery.data}>
                 {(data) => (
                     <CoverageBand
                         coverage={data().coverage}
@@ -119,7 +127,7 @@ export default function ClusterDetail() {
             </Show>
 
             <TabBar
-                tabs={tabs}
+                tabs={visibleTabs()}
                 active={tab()}
                 onSelect={(id) => {
                     // Filters belong to the tab that owns them; carrying a
