@@ -143,6 +143,10 @@ type ClusterRepository interface {
 	ListClusterCredentials(ctx context.Context, clusterID pgtype.UUID) ([]ListClusterCredentialsRow, error)
 	DeleteClusterCredential(ctx context.Context, arg DeleteClusterCredentialParams) (int64, error)
 	RotateClusterCredential(ctx context.Context, arg RotateClusterCredentialParams) (RotateClusterCredentialRow, error)
+	RecordClusterPush(ctx context.Context, arg RecordClusterPushParams) (int64, error)
+	PruneClusterPushes(ctx context.Context, arg PruneClusterPushesParams) error
+	MarkClusterPushError(ctx context.Context, arg MarkClusterPushErrorParams) error
+	ListClusterPushes(ctx context.Context, arg ListClusterPushesParams) ([]ClusterPush, error)
 	DeleteCluster(ctx context.Context, id pgtype.UUID) (int64, error)
 
 	UpsertClusterWorkload(ctx context.Context, arg UpsertClusterWorkloadParams) error

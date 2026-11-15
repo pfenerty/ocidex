@@ -714,3 +714,36 @@ SELECT sqlc.arg('user_id'), old.name, sqlc.arg('key_hash'), sqlc.arg('prefix'),
        ARRAY['push_inventory']::text[], sqlc.arg('cluster_id')
 FROM old
 RETURNING id, name, prefix, created_at;
+
+-- Push history and health (ocidex-70eo.4).
+
+-- name: RecordClusterPush :execrows
+-- A no-op for a cluster id that does not exist: a push to a mistyped id has
+-- no cluster to explain itself to.
+INSERT INTO cluster_push (cluster_id, accepted, status, reason, workloads, agent_version)
+SELECT c.id, sqlc.arg('accepted'), sqlc.arg('status'), sqlc.arg('reason'),
+       sqlc.narg('workloads'), sqlc.narg('agent_version')
+FROM cluster c WHERE c.id = sqlc.arg('cluster_id');
+
+-- name: PruneClusterPushes :exec
+-- Keeps the newest @keep rows for the cluster. Rejections are unauthenticated
+-- by nature, so the cap is what bounds what an anonymous caller can write.
+DELETE FROM cluster_push
+WHERE cluster_push.cluster_id = sqlc.arg('cluster_id')
+  AND cluster_push.id < (
+      SELECT COALESCE(MIN(k.id), 0) FROM (
+          SELECT p.id FROM cluster_push p
+          WHERE p.cluster_id = sqlc.arg('cluster_id')
+          ORDER BY p.id DESC LIMIT sqlc.arg('keep')::int
+      ) k
+  );
+
+-- name: MarkClusterPushError :exec
+-- Deliberately leaves updated_at alone: a rejected push is not an edit.
+UPDATE cluster SET last_push_error_at = now(), last_push_error = $2 WHERE id = $1;
+
+-- name: ListClusterPushes :many
+SELECT * FROM cluster_push
+WHERE cluster_id = $1
+ORDER BY id DESC
+LIMIT sqlc.arg('max')::int;

@@ -201,6 +201,26 @@ cluster itself would survive its minter leaving, but it would be a new kind of p
 roles to intersect against, and that is a change to ADR-046 rather than to this ADR. Ordinary
 `push_inventory` keys keep working, so existing agents need no change.
 
+### Rule K8b — Agent health is derived from pushes, refused ones included
+
+*Amendment, epic `ocidex-70eo` (story `ocidex-70eo.4`). K2 made `last_seen_at` the only
+signal, so a misconfigured agent and a dead one looked the same: both went stale.*
+
+Every push attempt to `POST /api/v1/clusters/{id}/inventory` is recorded in `cluster_push`,
+accepted or refused, with the HTTP status and a reason an operator can act on (revoked key,
+missing capability, a credential bound to another cluster, a schema failure, an oversized
+body). Refusals are recorded by a middleware that runs *before* authentication, because the
+failures that most need explaining happen there. The history is capped at 50 rows per cluster on
+insert; that cap is what bounds what an unauthenticated caller who knows a cluster id can write.
+A push to an id that is no cluster records nothing.
+
+Health is derived, never stored: `never_reported`, `healthy`, `stale` (no accepted push within
+three of the agent's own reported intervals, default 5m; a one-shot agent is never stale) or
+`erroring` (the latest refusal is newer than the latest accepted push). `ClusterResponse.health`
+carries the state and reason, and the API exports `ocidex_cluster_health{cluster,namespace,state}`
+for alerting. The agent logs the server's reason as its own field and counts pushes by outcome
+(`ocidex_agent_pushes_total`).
+
 ### Rule K9 — Unknown running images are ingested automatically, within the namespace
 
 *Amendment, epic `ocidex-6zoe`. This answers the last Consequence below: gaps that "appear forever

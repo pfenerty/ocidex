@@ -228,7 +228,7 @@ export function ClustersPanel(): JSX.Element {
                                 href={`/clusters/${c.id}`}
                                 title={c.name}
                                 sub={c.namespaceName}
-                                meta={<StalenessPill lastSeenAt={c.lastSeenAt} />}
+                                meta={<StalenessPill lastSeenAt={c.lastSeenAt} health={c.health} />}
                             />
                         )}
                     </For>

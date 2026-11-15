@@ -1,4 +1,4 @@
-import { For, Show, createSignal } from "solid-js";
+import { For, Match, Show, Switch, createSignal } from "solid-js";
 import { A } from "@solidjs/router";
 import DataTable from "~/components/DataTable";
 import type { Column } from "~/components/DataTable";
@@ -14,51 +14,66 @@ import {
     useMyNamespaces,
 } from "~/api/queries";
 
+type ClusterHealth = Cluster["health"];
+
 /**
- * StalenessPill renders when an agent last reported, and it is deliberately the
- * loudest thing in the row.
+ * StalenessPill renders the agent's health, and it is deliberately the loudest
+ * thing in the row.
  *
  * A cluster with no recent snapshot shows its *last* inventory, which looks
  * exactly like a current one. ADR-044 K5 is the rule this follows: an absence of
- * data must never read as an assertion of safety, so "never reported" and
- * "stale" are stated as warnings rather than left to be inferred from a
+ * data must never read as an assertion of safety, so "never reported", "stale"
+ * and "erroring" are stated as warnings rather than left to be inferred from a
  * timestamp the reader has to do arithmetic on.
  *
- * The threshold is generous relative to the chart's 5m default reportInterval —
- * a missed cycle or two is a blip, an hour of silence is a broken agent.
+ * The server derives the state (ocidex-70eo.4): staleness against the agent's
+ * own report interval, and erroring when it is pushing and being refused. The
+ * reason is the pill's title. The client-side hour threshold below is only a
+ * fallback for a response without health.
  */
 const STALE_AFTER_MS = 60 * 60 * 1000;
 
-export function StalenessPill(props: { lastSeenAt: string | undefined }) {
+export function StalenessPill(props: { lastSeenAt: string | undefined; health?: ClusterHealth }) {
     const seen = () => (props.lastSeenAt ?? "") !== "" ? props.lastSeenAt : undefined;
-    const isStale = () => {
+    const state = (): ClusterHealth["state"] => {
+        if (props.health !== undefined) return props.health.state;
         const s = seen();
-        if (s === undefined) return false;
-        return Date.now() - new Date(s).getTime() > STALE_AFTER_MS;
+        if (s === undefined) return "never_reported";
+        return Date.now() - new Date(s).getTime() > STALE_AFTER_MS ? "stale" : "healthy";
+    };
+    const reason = (fallback: string) => {
+        const r = props.health?.reason;
+        return r !== undefined && r !== "" ? r : fallback;
+    };
+    const when = () => {
+        const s = seen();
+        return s === undefined ? "" : ` · ${relativeDate(s)}`;
     };
     return (
-        <Show
-            when={seen()}
-            fallback={
-                <StatusPill variant="warning" title="No agent has ever pushed a snapshot for this cluster">
+        <Switch fallback={
+            <Show when={seen()}>
+                {(s) => <span title={formatDateTime(s())}>{relativeDate(s())}</span>}
+            </Show>
+        }>
+            <Match when={state() === "erroring"}>
+                <StatusPill variant="danger" title={reason("The agent is pushing and being refused")}>
+                    erroring{when()}
+                </StatusPill>
+            </Match>
+            <Match when={state() === "never_reported"}>
+                <StatusPill variant="warning" title={reason("No agent has ever pushed a snapshot for this cluster")}>
                     never reported
                 </StatusPill>
-            }
-        >
-            {(s) => (
-                <Show
-                    when={isStale()}
-                    fallback={<span title={formatDateTime(s())}>{relativeDate(s())}</span>}
+            </Match>
+            <Match when={state() === "stale"}>
+                <StatusPill
+                    variant="warning"
+                    title={reason("The inventory below may not be what is running now")}
                 >
-                    <StatusPill
-                        variant="warning"
-                        title={`Last snapshot ${formatDateTime(s())} — the inventory below may not be what is running now`}
-                    >
-                        stale · {relativeDate(s())}
-                    </StatusPill>
-                </Show>
-            )}
-        </Show>
+                    stale{when()}
+                </StatusPill>
+            </Match>
+        </Switch>
     );
 }
 
@@ -229,7 +244,7 @@ export default function Clusters() {
             header: "Last reported",
             sortKey: "last_seen",
             sortValue: (c) => c.lastSeenAt ?? "",
-            render: (c) => <StalenessPill lastSeenAt={c.lastSeenAt} />,
+            render: (c) => <StalenessPill lastSeenAt={c.lastSeenAt} health={c.health} />,
         },
         {
             header: "",

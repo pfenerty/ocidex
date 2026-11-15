@@ -194,6 +194,9 @@ func NewRouter(h *Handler, corsOrigins, frontendURL, apiBaseURL string) chi.Rout
 		AllowCredentials: true,
 		MaxAge:           300,
 	}))
+	// Outside authentication, so a push refused there is still recorded
+	// against its cluster (ocidex-70eo.4).
+	r.Use(RecordInventoryPushes(h.pushRecorder()))
 	r.Use(OptionalAuthenticate(h.authService))
 	r.Use(CrossOriginGuard(allowedOrigins, apiBaseURL))
 	r.Use(middleware.Timeout(30 * time.Second))
@@ -1087,6 +1090,16 @@ func registerClusterOps(api huma.API, h *Handler) {
 		DefaultStatus: http.StatusNoContent,
 		Middlewares:   huma.Middlewares{authMW, writeMW},
 	}, h.RevokeClusterCredential)
+
+	huma.Register(api, huma.Operation{
+		OperationID: "list-cluster-pushes",
+		Method:      http.MethodGet,
+		Path:        pathClusterByID + "/pushes",
+		Summary:     "List recent inventory pushes",
+		Description: "The cluster's most recent push attempts, accepted and rejected, newest first. A rejected push carries the reason it was refused.",
+		Tags:        []string{tagClusters},
+		Middlewares: huma.Middlewares{authMW},
+	}, h.ListClusterPushes)
 
 	huma.Register(api, huma.Operation{
 		OperationID: "list-cluster-workloads",

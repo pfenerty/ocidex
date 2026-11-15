@@ -630,6 +630,26 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/v1/clusters/{id}/pushes": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * List recent inventory pushes
+         * @description The cluster's most recent push attempts, accepted and rejected, newest first. A rejected push carries the reason it was refused.
+         */
+        get: operations["list-cluster-pushes"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/v1/clusters/{id}/unknown-images": {
         parameters: {
             query?: never;
@@ -2122,6 +2142,20 @@ export interface components {
             /** @description First 8 characters of the key */
             prefix: string;
         };
+        ClusterHealthResponse: {
+            /** @description Why, for every state but healthy */
+            reason?: string;
+            /**
+             * Format: int64
+             * @description Seconds after the last accepted push at which the cluster turns stale; absent for a one-shot agent
+             */
+            staleAfterSeconds?: number;
+            /**
+             * @description never_reported: nothing pushed yet. healthy: last push accepted and recent. stale: no accepted push within three report intervals. erroring: the agent is pushing and being refused.
+             * @enum {string}
+             */
+            state: "never_reported" | "healthy" | "stale" | "erroring";
+        };
         ClusterImageResponse: {
             artifactId?: string;
             artifactName?: string;
@@ -2156,6 +2190,23 @@ export interface components {
              */
             workloadCount: number;
         };
+        ClusterPushResponse: {
+            accepted: boolean;
+            agentVersion?: string;
+            at: string;
+            /** @description Why it was refused */
+            reason?: string;
+            /**
+             * Format: int64
+             * @description HTTP status the push received
+             */
+            status: number;
+            /**
+             * Format: int32
+             * @description Workload rows in an accepted snapshot
+             */
+            workloads?: number;
+        };
         ClusterResponse: {
             /**
              * Format: uri
@@ -2169,6 +2220,8 @@ export interface components {
             autoIngest: boolean;
             createdAt: string;
             description?: string;
+            /** @description The agent's health, derived from its pushes */
+            health: components["schemas"]["ClusterHealthResponse"];
             id: string;
             /** @description When an agent last pushed a snapshot. Empty means no agent has ever reported: a cluster showing no workloads for this reason is not a cluster running nothing. */
             lastSeenAt?: string;
@@ -3231,6 +3284,15 @@ export interface components {
              */
             readonly $schema?: string;
             data: components["schemas"]["NamespaceFacetResponse"][] | null;
+        };
+        ListClusterPushesOutputBody: {
+            /**
+             * Format: uri
+             * @description A URL to the JSON Schema for this object.
+             * @example https://example.com/api/schemas/ListClusterPushesOutputBody.json
+             */
+            readonly $schema?: string;
+            data: components["schemas"]["ClusterPushResponse"][] | null;
         };
         ListClusterUnknownImagesOutputBody: {
             /**
@@ -5975,6 +6037,40 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["ListClusterNamespacesOutputBody"];
+                };
+            };
+            /** @description Error */
+            default: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["ErrorModel"];
+                };
+            };
+        };
+    };
+    "list-cluster-pushes": {
+        parameters: {
+            query?: {
+                limit?: number;
+            };
+            header?: never;
+            path: {
+                /** @description Cluster UUID */
+                id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description OK */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ListClusterPushesOutputBody"];
                 };
             };
             /** @description Error */

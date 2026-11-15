@@ -105,6 +105,9 @@ func OptionalAuthenticate(authSvc service.AuthService) func(http.Handler) http.H
 			// rather than demoted to anonymous, which would still let it read
 			// public data.
 			if user.APIKeyClusterID != "" && !clusterCredentialRoute(r, user.APIKeyClusterID) {
+				if note := notePushFromContext(r.Context()); note != nil {
+					note.boundClusterID = user.APIKeyClusterID
+				}
 				writeClusterCredentialForbidden(w)
 				return
 			}

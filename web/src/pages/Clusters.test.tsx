@@ -122,6 +122,20 @@ describe("Clusters", () => {
         expect(container.textContent).toContain("stale");
     });
 
+    // ocidex-70eo.4: the server's verdict wins, and its reason is the title.
+    it("shows an erroring agent with the server's reason", () => {
+        const { container } = renderPage([
+            { ...prod, health: { state: "erroring", reason: "The agent's API key was not accepted" } },
+        ]);
+        const pill = [...container.querySelectorAll(".badge")].find((b) => b.textContent.startsWith("erroring"));
+        expect(pill?.getAttribute("title")).toBe("The agent's API key was not accepted");
+    });
+
+    it("trusts the server's stale verdict over the client's hour", () => {
+        const { container } = renderPage([{ ...prod, health: { state: "stale", reason: "No snapshot for 16m" } }]);
+        expect(container.textContent).toContain("stale");
+    });
+
     it("does not call a fresh cluster stale", () => {
         const { container } = renderPage();
         expect(container.textContent).not.toContain("stale");

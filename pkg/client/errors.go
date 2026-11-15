@@ -17,7 +17,13 @@ var (
 type APIError struct {
 	Status int
 	Detail string
+	// sentinel is the named error this status maps to, if any, so a 403 or
+	// 404 keeps the server's detail and still satisfies errors.Is.
+	sentinel error
 }
+
+// Unwrap exposes the sentinel, if any.
+func (e *APIError) Unwrap() error { return e.sentinel }
 
 func (e *APIError) Error() string {
 	return fmt.Sprintf("HTTP %d: %s", e.Status, e.Detail)
@@ -43,10 +49,12 @@ func (e *ConflictError) Unwrap() error { return ErrConflict }
 func mapError(status int, body []byte) error {
 	detail := extractDetail(body)
 	switch status {
+	// The detail is kept: "forbidden" alone does not tell an agent operator
+	// which capability is missing (ocidex-70eo.4).
 	case 403:
-		return ErrForbidden
+		return &APIError{Status: status, Detail: detail, sentinel: ErrForbidden}
 	case 404:
-		return ErrNotFound
+		return &APIError{Status: status, Detail: detail, sentinel: ErrNotFound}
 	case 409:
 		// Only a resolver conflict carries candidates. Other 409s (a duplicate
 		// registry name, say) stay the bare sentinel.

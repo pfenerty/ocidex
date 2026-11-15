@@ -36,6 +36,30 @@ func (e ArtifactVersionSummarySigningStatus) Valid() bool {
 	}
 }
 
+// Defines values for ClusterHealthResponseState.
+const (
+	Erroring      ClusterHealthResponseState = "erroring"
+	Healthy       ClusterHealthResponseState = "healthy"
+	NeverReported ClusterHealthResponseState = "never_reported"
+	Stale         ClusterHealthResponseState = "stale"
+)
+
+// Valid indicates whether the value is a known member of the ClusterHealthResponseState enum.
+func (e ClusterHealthResponseState) Valid() bool {
+	switch e {
+	case Erroring:
+		return true
+	case Healthy:
+		return true
+	case NeverReported:
+		return true
+	case Stale:
+		return true
+	default:
+		return false
+	}
+}
+
 // Defines values for ClusterImageResponseMatchState.
 const (
 	ClusterImageResponseMatchStateExact        ClusterImageResponseMatchState = "exact"
@@ -1847,6 +1871,21 @@ type ClusterCredentialResponse struct {
 	Prefix string `json:"prefix"`
 }
 
+// ClusterHealthResponse defines model for ClusterHealthResponse.
+type ClusterHealthResponse struct {
+	// Reason Why, for every state but healthy
+	Reason *string `json:"reason,omitempty"`
+
+	// StaleAfterSeconds Seconds after the last accepted push at which the cluster turns stale; absent for a one-shot agent
+	StaleAfterSeconds *int64 `json:"staleAfterSeconds,omitempty"`
+
+	// State never_reported: nothing pushed yet. healthy: last push accepted and recent. stale: no accepted push within three report intervals. erroring: the agent is pushing and being refused.
+	State ClusterHealthResponseState `json:"state"`
+}
+
+// ClusterHealthResponseState never_reported: nothing pushed yet. healthy: last push accepted and recent. stale: no accepted push within three report intervals. erroring: the agent is pushing and being refused.
+type ClusterHealthResponseState string
+
 // ClusterImageResponse defines model for ClusterImageResponse.
 type ClusterImageResponse struct {
 	ArtifactId   *string `json:"artifactId,omitempty"`
@@ -1877,6 +1916,22 @@ type ClusterImageResponse struct {
 // ClusterImageResponseMatchState exact = digest matched an SBOM; index = matched a multi-arch image index, so the exact platform is unknown; unknown = real digest with no ingested SBOM (coverage gap); unresolvable = no digest could be read from the container (agent/runtime gap)
 type ClusterImageResponseMatchState string
 
+// ClusterPushResponse defines model for ClusterPushResponse.
+type ClusterPushResponse struct {
+	Accepted     bool    `json:"accepted"`
+	AgentVersion *string `json:"agentVersion,omitempty"`
+	At           string  `json:"at"`
+
+	// Reason Why it was refused
+	Reason *string `json:"reason,omitempty"`
+
+	// Status HTTP status the push received
+	Status int64 `json:"status"`
+
+	// Workloads Workload rows in an accepted snapshot
+	Workloads *int32 `json:"workloads,omitempty"`
+}
+
 // ClusterResponse defines model for ClusterResponse.
 type ClusterResponse struct {
 	// Schema A URL to the JSON Schema for this object.
@@ -1884,10 +1939,11 @@ type ClusterResponse struct {
 	Agent  *ClusterAgentResponse `json:"agent,omitempty"`
 
 	// AutoIngest Submit a scan job for every running image with no SBOM whose host resolves to a registry in this cluster's namespace, on every accepted snapshot.
-	AutoIngest  bool    `json:"autoIngest"`
-	CreatedAt   string  `json:"createdAt"`
-	Description *string `json:"description,omitempty"`
-	Id          string  `json:"id"`
+	AutoIngest  bool                  `json:"autoIngest"`
+	CreatedAt   string                `json:"createdAt"`
+	Description *string               `json:"description,omitempty"`
+	Health      ClusterHealthResponse `json:"health"`
+	Id          string                `json:"id"`
 
 	// LastSeenAt When an agent last pushed a snapshot. Empty means no agent has ever reported: a cluster showing no workloads for this reason is not a cluster running nothing.
 	LastSeenAt  *string `json:"lastSeenAt,omitempty"`
@@ -2884,6 +2940,13 @@ type ListClusterNamespacesOutputBody struct {
 	// Schema A URL to the JSON Schema for this object.
 	Schema *string                   `json:"$schema,omitempty"`
 	Data   *[]NamespaceFacetResponse `json:"data"`
+}
+
+// ListClusterPushesOutputBody defines model for ListClusterPushesOutputBody.
+type ListClusterPushesOutputBody struct {
+	// Schema A URL to the JSON Schema for this object.
+	Schema *string                `json:"$schema,omitempty"`
+	Data   *[]ClusterPushResponse `json:"data"`
 }
 
 // ListClusterUnknownImagesOutputBody defines model for ListClusterUnknownImagesOutputBody.
@@ -4375,6 +4438,11 @@ type ListClusterImagesParamsSort string
 
 // ListClusterImagesParamsDir defines parameters for ListClusterImages.
 type ListClusterImagesParamsDir string
+
+// ListClusterPushesParams defines parameters for ListClusterPushes.
+type ListClusterPushesParams struct {
+	Limit *int32 `form:"limit,omitempty" json:"limit,omitempty"`
+}
 
 // ListClusterUnknownImagesParams defines parameters for ListClusterUnknownImages.
 type ListClusterUnknownImagesParams struct {

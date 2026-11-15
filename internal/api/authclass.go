@@ -258,6 +258,7 @@ var authRules = map[string]AuthRule{
 	"create-cluster-credential":     {Class: ClassCapability, Cap: authz.CapManageCluster, Write: true, Notes: "manage_cluster and push_inventory on cluster's namespace, in the handler. The minted key is bound to the cluster: refused by OptionalAuthenticate on every route but this cluster's inventory push (ocidex-70eo.5)."},
 	"rotate-cluster-credential":     {Class: ClassCapability, Cap: authz.CapManageCluster, Write: true, Notes: "Same gate as create-cluster-credential; the replacement is owned by the caller."},
 	"revoke-cluster-credential":     {Class: ClassCapability, Cap: authz.CapManageCluster, Write: true, Notes: "manage_cluster capability on cluster's namespace, in the handler; revokes any minter's credential for this cluster."},
+	"list-cluster-pushes":           {Class: ClassAuthenticated, Notes: "Cluster gated on namespace visibility, like get-cluster."},
 	"list-cluster-workloads":        {Class: ClassAuthenticated, Notes: "Cluster gated on namespace visibility; rows additionally filtered via visible_namespace_ids."},
 	"list-cluster-images":           {Class: ClassAuthenticated, Notes: "Same gate and same rows as list-cluster-workloads, grouped by image rather than by workload-container."},
 	"list-cluster-vulns":            {Class: ClassAuthenticated, Notes: "Same gate as list-cluster-workloads; findings and coverage are returned together so neither can be read without the other."},

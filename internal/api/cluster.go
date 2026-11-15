@@ -155,6 +155,17 @@ func (h *Handler) PutInventory(ctx context.Context, in *PutInventoryInput) (*Put
 		return nil, mapServiceError(err)
 	}
 
+	accepted := int32(len(workloads)) //nolint:gosec // bounded by the request body limit
+	attempt := service.PushAttempt{Accepted: true, Status: 200, Workloads: &accepted}
+	if agent != nil {
+		attempt.AgentVersion = agent.Version
+	}
+	// The snapshot is already committed; a failure to log it is not a
+	// failure of the push.
+	if err := h.clusterService.RecordPush(ctx, in.ID, attempt); err != nil {
+		slog.WarnContext(ctx, "recording accepted push", "cluster_id", in.ID, "err", err)
+	}
+
 	h.autoIngestAfterSnapshot(ctx, in.ID)
 
 	out := &PutInventoryOutput{}
@@ -167,6 +178,39 @@ func (h *Handler) PutInventory(ctx context.Context, in *PutInventoryInput) (*Put
 		out.Body.VersionSkew = service.AgentVersionSkew(agent.Version, serverVersion)
 	}
 	return out, nil
+}
+
+// ListClusterPushes returns the cluster's recent push attempts.
+func (h *Handler) ListClusterPushes(ctx context.Context, in *ListClusterPushesInput) (*ListClusterPushesOutput, error) {
+	if _, err := h.visibleCluster(ctx, in.ID); err != nil {
+		return nil, err
+	}
+	pushes, err := h.clusterService.ListPushes(ctx, in.ID, in.Limit)
+	if err != nil {
+		return nil, mapServiceError(err)
+	}
+	out := &ListClusterPushesOutput{}
+	out.Body.Data = make([]ClusterPushResponse, len(pushes))
+	for i, p := range pushes {
+		out.Body.Data[i] = ClusterPushResponse{
+			At:           p.At.UTC().Format(time.RFC3339),
+			Accepted:     p.Accepted,
+			Status:       p.Status,
+			Reason:       p.Reason,
+			Workloads:    p.Workloads,
+			AgentVersion: p.AgentVersion,
+		}
+	}
+	return out, nil
+}
+
+// pushRecorder is nil-safe: a Handler built without a cluster service records
+// nothing.
+func (h *Handler) pushRecorder() pushRecorder {
+	if h.clusterService == nil {
+		return nil
+	}
+	return h.clusterService
 }
 
 func toAgentInfo(a *InventoryAgent) *service.AgentInfo {
@@ -558,6 +602,12 @@ func toClusterResponse(c service.Cluster) ClusterResponse {
 	}
 	if c.LastSeenAt != nil {
 		out.LastSeenAt = c.LastSeenAt.UTC().Format(time.RFC3339)
+	}
+	health := c.Health(time.Now())
+	out.Health = ClusterHealthResponse{
+		State:             health.State,
+		Reason:            health.Reason,
+		StaleAfterSeconds: int64(health.StaleAfter / time.Second),
 	}
 	if a := c.Agent; a != nil {
 		serverVersion, _, _ := version.Info()

@@ -13,6 +13,7 @@ package main
 
 import (
 	"context"
+	"errors"
 	"flag"
 	"fmt"
 	"log/slog"
@@ -22,6 +23,8 @@ import (
 	"syscall"
 	"time"
 
+	"go.opentelemetry.io/otel/attribute"
+	"go.opentelemetry.io/otel/metric"
 	corev1 "k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/client-go/discovery"
@@ -98,8 +101,14 @@ func run() error {
 
 	_, stopTracing := tracing.Start(ctx, "ocidex-k8s-agent")
 	defer stopTracing()
-	_, metricsHandler, stopMetrics := metrics.Start(ctx, "ocidex-k8s-agent")
+	mp, metricsHandler, stopMetrics := metrics.Start(ctx, "ocidex-k8s-agent")
 	defer stopMetrics()
+	if c, err := metrics.Meter(mp).Int64Counter("ocidex.agent.pushes",
+		metric.WithDescription("Inventory pushes by outcome (accepted, rejected, failed) and HTTP status.")); err != nil {
+		slog.Error("push metric disabled", "err", err)
+	} else {
+		a.pushes = c
+	}
 	healthSrv := health.New(cfg.HealthAddr, nil, nil, slog.Default()).WithMetrics(metricsHandler)
 	healthSrv.Start()
 	defer healthSrv.Stop()
@@ -148,6 +157,8 @@ type agent struct {
 	// oneShot reports a zero interval: a --once Job has no next report, and
 	// the server must not judge it stale against the default interval.
 	oneShot bool
+	// pushes counts pushes by outcome; nil in --once mode and in tests.
+	pushes metric.Int64Counter
 }
 
 // report collects one snapshot and pushes it.
@@ -162,8 +173,19 @@ func (a *agent) report(ctx context.Context) error {
 
 	out, err := a.api.PutInventory(ctx, a.cfg.ClusterID, workloads, a.describe(ctx, pods))
 	if err != nil {
+		a.countPush(ctx, err)
+		var apiErr *client.APIError
+		if errors.As(err, &apiErr) {
+			// The server's reason is the actionable part — a revoked key, a
+			// missing capability, a schema failure — so it is logged as its
+			// own field rather than buried in the error string. The server
+			// also records it against the cluster (ocidex-70eo.4).
+			slog.ErrorContext(ctx, "inventory push rejected",
+				"status", apiErr.Status, "reason", apiErr.Detail, "cluster_id", a.cfg.ClusterID)
+		}
 		return fmt.Errorf("pushing inventory: %w", err)
 	}
+	a.countPush(ctx, nil)
 	if out.VersionSkew != nil && *out.VersionSkew != "" {
 		slog.Warn("agent and server versions differ", "detail", *out.VersionSkew)
 	}
@@ -177,6 +199,25 @@ func (a *agent) report(ctx context.Context) error {
 		"duration", time.Since(start).String(),
 	)
 	return nil
+}
+
+// countPush records one push outcome: accepted, rejected (the server answered
+// with an error status) or failed (no answer).
+func (a *agent) countPush(ctx context.Context, err error) {
+	if a.pushes == nil {
+		return
+	}
+	outcome, status := "accepted", 200
+	var apiErr *client.APIError
+	switch {
+	case err == nil:
+	case errors.As(err, &apiErr):
+		outcome, status = "rejected", apiErr.Status
+	default:
+		outcome, status = "failed", 0
+	}
+	a.pushes.Add(ctx, 1, metric.WithAttributes(
+		attribute.String("outcome", outcome), attribute.Int("status", status)))
 }
 
 // describe is the agent's self-report sent with each snapshot (ocidex-70eo.3).

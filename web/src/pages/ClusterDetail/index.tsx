@@ -96,7 +96,7 @@ export default function ClusterDetail() {
                                     {cluster().namespaceName}
                                 </DetailField>
                                 <DetailField label="Last reported">
-                                    <StalenessPill lastSeenAt={cluster().lastSeenAt} />
+                                    <StalenessPill lastSeenAt={cluster().lastSeenAt} health={cluster().health} />
                                 </DetailField>
                                 <DetailField label="Cluster ID" valueClass="font-mono text-sm">
                                     {cluster().id}

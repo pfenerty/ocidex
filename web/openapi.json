@@ -726,6 +726,34 @@
         ],
         "type": "object"
       },
+      "ClusterHealthResponse": {
+        "additionalProperties": false,
+        "properties": {
+          "reason": {
+            "description": "Why, for every state but healthy",
+            "type": "string"
+          },
+          "staleAfterSeconds": {
+            "description": "Seconds after the last accepted push at which the cluster turns stale; absent for a one-shot agent",
+            "format": "int64",
+            "type": "integer"
+          },
+          "state": {
+            "description": "never_reported: nothing pushed yet. healthy: last push accepted and recent. stale: no accepted push within three report intervals. erroring: the agent is pushing and being refused.",
+            "enum": [
+              "never_reported",
+              "healthy",
+              "stale",
+              "erroring"
+            ],
+            "type": "string"
+          }
+        },
+        "required": [
+          "state"
+        ],
+        "type": "object"
+      },
       "ClusterImageResponse": {
         "additionalProperties": false,
         "properties": {
@@ -799,6 +827,40 @@
         ],
         "type": "object"
       },
+      "ClusterPushResponse": {
+        "additionalProperties": false,
+        "properties": {
+          "accepted": {
+            "type": "boolean"
+          },
+          "agentVersion": {
+            "type": "string"
+          },
+          "at": {
+            "type": "string"
+          },
+          "reason": {
+            "description": "Why it was refused",
+            "type": "string"
+          },
+          "status": {
+            "description": "HTTP status the push received",
+            "format": "int64",
+            "type": "integer"
+          },
+          "workloads": {
+            "description": "Workload rows in an accepted snapshot",
+            "format": "int32",
+            "type": "integer"
+          }
+        },
+        "required": [
+          "at",
+          "accepted",
+          "status"
+        ],
+        "type": "object"
+      },
       "ClusterResponse": {
         "additionalProperties": false,
         "properties": {
@@ -824,6 +886,10 @@
           },
           "description": {
             "type": "string"
+          },
+          "health": {
+            "$ref": "#/components/schemas/ClusterHealthResponse",
+            "description": "The agent's health, derived from its pushes"
           },
           "id": {
             "type": "string"
@@ -851,6 +917,7 @@
           "namespaceId",
           "name",
           "autoIngest",
+          "health",
           "createdAt",
           "updatedAt"
         ],
@@ -3673,6 +3740,33 @@
           "data": {
             "items": {
               "$ref": "#/components/schemas/NamespaceFacetResponse"
+            },
+            "type": [
+              "array",
+              "null"
+            ]
+          }
+        },
+        "required": [
+          "data"
+        ],
+        "type": "object"
+      },
+      "ListClusterPushesOutputBody": {
+        "additionalProperties": false,
+        "properties": {
+          "$schema": {
+            "description": "A URL to the JSON Schema for this object.",
+            "examples": [
+              "https://example.com/api/schemas/ListClusterPushesOutputBody.json"
+            ],
+            "format": "uri",
+            "readOnly": true,
+            "type": "string"
+          },
+          "data": {
+            "items": {
+              "$ref": "#/components/schemas/ClusterPushResponse"
             },
             "type": [
               "array",
@@ -9507,6 +9601,63 @@
           }
         },
         "summary": "List reported Kubernetes namespaces",
+        "tags": [
+          "Clusters"
+        ]
+      }
+    },
+    "/api/v1/clusters/{id}/pushes": {
+      "get": {
+        "description": "The cluster's most recent push attempts, accepted and rejected, newest first. A rejected push carries the reason it was refused.",
+        "operationId": "list-cluster-pushes",
+        "parameters": [
+          {
+            "description": "Cluster UUID",
+            "in": "path",
+            "name": "id",
+            "required": true,
+            "schema": {
+              "description": "Cluster UUID",
+              "format": "uuid",
+              "type": "string"
+            }
+          },
+          {
+            "explode": false,
+            "in": "query",
+            "name": "limit",
+            "schema": {
+              "default": 20,
+              "format": "int32",
+              "maximum": 50,
+              "minimum": 1,
+              "type": "integer"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ListClusterPushesOutputBody"
+                }
+              }
+            },
+            "description": "OK"
+          },
+          "default": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorModel"
+                }
+              }
+            },
+            "description": "Error"
+          }
+        },
+        "summary": "List recent inventory pushes",
         "tags": [
           "Clusters"
         ]

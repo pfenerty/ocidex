@@ -255,6 +255,14 @@ func (f *fakeClusterService) RotateCredential(_ context.Context, _, _ string, _ 
 	return service.ClusterCredential{}, nil
 }
 
+func (f *fakeClusterService) RecordPush(_ context.Context, _ string, _ service.PushAttempt) error {
+	return nil
+}
+
+func (f *fakeClusterService) ListPushes(_ context.Context, _ string, _ int32) ([]service.ClusterPush, error) {
+	return nil, nil
+}
+
 func (f *fakeClusterService) ListWorkloads(_ context.Context, _ string, _ service.WorkloadParams, _ service.VisibilityFilter) (service.PagedResult[service.ClusterWorkload], error) {
 	return service.PagedResult[service.ClusterWorkload]{}, nil
 }

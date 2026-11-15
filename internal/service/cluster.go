@@ -52,9 +52,13 @@ type Cluster struct {
 	// Agent is what the agent said about itself with its last accepted
 	// snapshot. Nil until one has reported, and for an agent that predates
 	// self-reporting (ocidex-70eo.3).
-	Agent     *AgentInfo
-	CreatedAt time.Time
-	UpdatedAt time.Time
+	Agent *AgentInfo
+	// LastPushErrorAt and LastPushError are the most recent rejected push.
+	// They mean "erroring" only while newer than LastSeenAt (see Health).
+	LastPushErrorAt *time.Time
+	LastPushError   string
+	CreatedAt       time.Time
+	UpdatedAt       time.Time
 }
 
 // AgentInfo is the agent's own description of itself and the cluster it runs
@@ -376,6 +380,10 @@ type ClusterService interface {
 	ListCredentials(ctx context.Context, clusterID string) ([]ClusterCredential, error)
 	RevokeCredential(ctx context.Context, clusterID, credentialID string) error
 	RotateCredential(ctx context.Context, clusterID, credentialID string, userID pgtype.UUID) (ClusterCredential, error)
+
+	// Push history (ocidex-70eo.4). RecordPush ignores an unknown cluster id.
+	RecordPush(ctx context.Context, clusterID string, p PushAttempt) error
+	ListPushes(ctx context.Context, clusterID string, limit int32) ([]ClusterPush, error)
 }
 
 type clusterService struct {
@@ -916,6 +924,11 @@ func clusterFromRepo(c repository.Cluster) Cluster {
 		out.UpdatedAt = c.UpdatedAt.Time
 	}
 	out.Agent = agentInfoFromRepo(c)
+	if c.LastPushErrorAt.Valid {
+		t := c.LastPushErrorAt.Time
+		out.LastPushErrorAt = &t
+		out.LastPushError = c.LastPushError.String
+	}
 	return out
 }
 

@@ -176,7 +176,7 @@ const createCluster = `-- name: CreateCluster :one
 
 INSERT INTO cluster (namespace_id, name, description)
 VALUES ($1, $2, $3)
-RETURNING id, namespace_id, name, description, last_seen_at, created_at, updated_at, auto_ingest, agent_version, agent_kubernetes_version, agent_node_count, agent_namespaces, agent_report_interval_seconds, agent_pod_name, agent_pod_namespace
+RETURNING id, namespace_id, name, description, last_seen_at, created_at, updated_at, auto_ingest, agent_version, agent_kubernetes_version, agent_node_count, agent_namespaces, agent_report_interval_seconds, agent_pod_name, agent_pod_namespace, last_push_error_at, last_push_error
 `
 
 type CreateClusterParams struct {
@@ -210,6 +210,8 @@ func (q *Queries) CreateCluster(ctx context.Context, arg CreateClusterParams) (C
 		&i.AgentReportIntervalSeconds,
 		&i.AgentPodName,
 		&i.AgentPodNamespace,
+		&i.LastPushErrorAt,
+		&i.LastPushError,
 	)
 	return i, err
 }
@@ -289,7 +291,7 @@ func (q *Queries) DeleteClusterCredential(ctx context.Context, arg DeleteCluster
 }
 
 const getCluster = `-- name: GetCluster :one
-SELECT id, namespace_id, name, description, last_seen_at, created_at, updated_at, auto_ingest, agent_version, agent_kubernetes_version, agent_node_count, agent_namespaces, agent_report_interval_seconds, agent_pod_name, agent_pod_namespace FROM cluster WHERE id = $1
+SELECT id, namespace_id, name, description, last_seen_at, created_at, updated_at, auto_ingest, agent_version, agent_kubernetes_version, agent_node_count, agent_namespaces, agent_report_interval_seconds, agent_pod_name, agent_pod_namespace, last_push_error_at, last_push_error FROM cluster WHERE id = $1
 `
 
 func (q *Queries) GetCluster(ctx context.Context, id pgtype.UUID) (Cluster, error) {
@@ -311,12 +313,14 @@ func (q *Queries) GetCluster(ctx context.Context, id pgtype.UUID) (Cluster, erro
 		&i.AgentReportIntervalSeconds,
 		&i.AgentPodName,
 		&i.AgentPodNamespace,
+		&i.LastPushErrorAt,
+		&i.LastPushError,
 	)
 	return i, err
 }
 
 const getClusterByName = `-- name: GetClusterByName :one
-SELECT id, namespace_id, name, description, last_seen_at, created_at, updated_at, auto_ingest, agent_version, agent_kubernetes_version, agent_node_count, agent_namespaces, agent_report_interval_seconds, agent_pod_name, agent_pod_namespace FROM cluster WHERE namespace_id = $1 AND name = $2
+SELECT id, namespace_id, name, description, last_seen_at, created_at, updated_at, auto_ingest, agent_version, agent_kubernetes_version, agent_node_count, agent_namespaces, agent_report_interval_seconds, agent_pod_name, agent_pod_namespace, last_push_error_at, last_push_error FROM cluster WHERE namespace_id = $1 AND name = $2
 `
 
 type GetClusterByNameParams struct {
@@ -343,6 +347,8 @@ func (q *Queries) GetClusterByName(ctx context.Context, arg GetClusterByNamePara
 		&i.AgentReportIntervalSeconds,
 		&i.AgentPodName,
 		&i.AgentPodNamespace,
+		&i.LastPushErrorAt,
+		&i.LastPushError,
 	)
 	return i, err
 }
@@ -694,6 +700,47 @@ func (q *Queries) ListClusterK8sNamespaces(ctx context.Context, arg ListClusterK
 	for rows.Next() {
 		var i ListClusterK8sNamespacesRow
 		if err := rows.Scan(&i.K8sNamespace, &i.WorkloadCount); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
+const listClusterPushes = `-- name: ListClusterPushes :many
+SELECT id, cluster_id, at, accepted, status, reason, workloads, agent_version FROM cluster_push
+WHERE cluster_id = $1
+ORDER BY id DESC
+LIMIT $2::int
+`
+
+type ListClusterPushesParams struct {
+	ClusterID pgtype.UUID `json:"cluster_id"`
+	Max       int32       `json:"max"`
+}
+
+func (q *Queries) ListClusterPushes(ctx context.Context, arg ListClusterPushesParams) ([]ClusterPush, error) {
+	rows, err := q.db.Query(ctx, listClusterPushes, arg.ClusterID, arg.Max)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	items := []ClusterPush{}
+	for rows.Next() {
+		var i ClusterPush
+		if err := rows.Scan(
+			&i.ID,
+			&i.ClusterID,
+			&i.At,
+			&i.Accepted,
+			&i.Status,
+			&i.Reason,
+			&i.Workloads,
+			&i.AgentVersion,
+		); err != nil {
 			return nil, err
 		}
 		items = append(items, i)
@@ -1165,7 +1212,7 @@ func (q *Queries) ListClusterWorkloads(ctx context.Context, arg ListClusterWorkl
 }
 
 const listClusters = `-- name: ListClusters :many
-SELECT c.id, c.namespace_id, c.name, c.description, c.last_seen_at, c.created_at, c.updated_at, c.auto_ingest, c.agent_version, c.agent_kubernetes_version, c.agent_node_count, c.agent_namespaces, c.agent_report_interval_seconds, c.agent_pod_name, c.agent_pod_namespace, n.name AS namespace_name, n.visibility
+SELECT c.id, c.namespace_id, c.name, c.description, c.last_seen_at, c.created_at, c.updated_at, c.auto_ingest, c.agent_version, c.agent_kubernetes_version, c.agent_node_count, c.agent_namespaces, c.agent_report_interval_seconds, c.agent_pod_name, c.agent_pod_namespace, c.last_push_error_at, c.last_push_error, n.name AS namespace_name, n.visibility
 FROM cluster c
 JOIN namespace n ON n.id = c.namespace_id
 WHERE (
@@ -1217,6 +1264,8 @@ func (q *Queries) ListClusters(ctx context.Context, arg ListClustersParams) ([]L
 			&i.Cluster.AgentReportIntervalSeconds,
 			&i.Cluster.AgentPodName,
 			&i.Cluster.AgentPodNamespace,
+			&i.Cluster.LastPushErrorAt,
+			&i.Cluster.LastPushError,
 			&i.NamespaceName,
 			&i.Visibility,
 		); err != nil {
@@ -1231,7 +1280,7 @@ func (q *Queries) ListClusters(ctx context.Context, arg ListClustersParams) ([]L
 }
 
 const listClustersByNamespace = `-- name: ListClustersByNamespace :many
-SELECT id, namespace_id, name, description, last_seen_at, created_at, updated_at, auto_ingest, agent_version, agent_kubernetes_version, agent_node_count, agent_namespaces, agent_report_interval_seconds, agent_pod_name, agent_pod_namespace FROM cluster WHERE namespace_id = $1 ORDER BY created_at ASC
+SELECT id, namespace_id, name, description, last_seen_at, created_at, updated_at, auto_ingest, agent_version, agent_kubernetes_version, agent_node_count, agent_namespaces, agent_report_interval_seconds, agent_pod_name, agent_pod_namespace, last_push_error_at, last_push_error FROM cluster WHERE namespace_id = $1 ORDER BY created_at ASC
 `
 
 func (q *Queries) ListClustersByNamespace(ctx context.Context, namespaceID pgtype.UUID) ([]Cluster, error) {
@@ -1259,6 +1308,8 @@ func (q *Queries) ListClustersByNamespace(ctx context.Context, namespaceID pgtyp
 			&i.AgentReportIntervalSeconds,
 			&i.AgentPodName,
 			&i.AgentPodNamespace,
+			&i.LastPushErrorAt,
+			&i.LastPushError,
 		); err != nil {
 			return nil, err
 		}
@@ -1384,6 +1435,45 @@ func (q *Queries) ListWorkloadsForVulnerability(ctx context.Context, arg ListWor
 	return items, nil
 }
 
+const markClusterPushError = `-- name: MarkClusterPushError :exec
+UPDATE cluster SET last_push_error_at = now(), last_push_error = $2 WHERE id = $1
+`
+
+type MarkClusterPushErrorParams struct {
+	ID            pgtype.UUID `json:"id"`
+	LastPushError pgtype.Text `json:"last_push_error"`
+}
+
+// Deliberately leaves updated_at alone: a rejected push is not an edit.
+func (q *Queries) MarkClusterPushError(ctx context.Context, arg MarkClusterPushErrorParams) error {
+	_, err := q.db.Exec(ctx, markClusterPushError, arg.ID, arg.LastPushError)
+	return err
+}
+
+const pruneClusterPushes = `-- name: PruneClusterPushes :exec
+DELETE FROM cluster_push
+WHERE cluster_push.cluster_id = $1
+  AND cluster_push.id < (
+      SELECT COALESCE(MIN(k.id), 0) FROM (
+          SELECT p.id FROM cluster_push p
+          WHERE p.cluster_id = $1
+          ORDER BY p.id DESC LIMIT $2::int
+      ) k
+  )
+`
+
+type PruneClusterPushesParams struct {
+	ClusterID pgtype.UUID `json:"cluster_id"`
+	Keep      int32       `json:"keep"`
+}
+
+// Keeps the newest @keep rows for the cluster. Rejections are unauthenticated
+// by nature, so the cap is what bounds what an anonymous caller can write.
+func (q *Queries) PruneClusterPushes(ctx context.Context, arg PruneClusterPushesParams) error {
+	_, err := q.db.Exec(ctx, pruneClusterPushes, arg.ClusterID, arg.Keep)
+	return err
+}
+
 const pruneClusterWorkloads = `-- name: PruneClusterWorkloads :execrows
 DELETE FROM cluster_workload
 WHERE cluster_id = $1 AND last_seen_at < $2
@@ -1402,6 +1492,41 @@ type PruneClusterWorkloadsParams struct {
 // deleted by an older one still committing.
 func (q *Queries) PruneClusterWorkloads(ctx context.Context, arg PruneClusterWorkloadsParams) (int64, error) {
 	result, err := q.db.Exec(ctx, pruneClusterWorkloads, arg.ClusterID, arg.ObservedAt)
+	if err != nil {
+		return 0, err
+	}
+	return result.RowsAffected(), nil
+}
+
+const recordClusterPush = `-- name: RecordClusterPush :execrows
+
+INSERT INTO cluster_push (cluster_id, accepted, status, reason, workloads, agent_version)
+SELECT c.id, $1, $2, $3,
+       $4, $5
+FROM cluster c WHERE c.id = $6
+`
+
+type RecordClusterPushParams struct {
+	Accepted     bool        `json:"accepted"`
+	Status       int32       `json:"status"`
+	Reason       string      `json:"reason"`
+	Workloads    pgtype.Int4 `json:"workloads"`
+	AgentVersion pgtype.Text `json:"agent_version"`
+	ClusterID    pgtype.UUID `json:"cluster_id"`
+}
+
+// Push history and health (ocidex-70eo.4).
+// A no-op for a cluster id that does not exist: a push to a mistyped id has
+// no cluster to explain itself to.
+func (q *Queries) RecordClusterPush(ctx context.Context, arg RecordClusterPushParams) (int64, error) {
+	result, err := q.db.Exec(ctx, recordClusterPush,
+		arg.Accepted,
+		arg.Status,
+		arg.Reason,
+		arg.Workloads,
+		arg.AgentVersion,
+		arg.ClusterID,
+	)
 	if err != nil {
 		return 0, err
 	}
@@ -1510,7 +1635,7 @@ SET name        = $2,
     auto_ingest = COALESCE($4::boolean, auto_ingest),
     updated_at  = now()
 WHERE id = $1
-RETURNING id, namespace_id, name, description, last_seen_at, created_at, updated_at, auto_ingest, agent_version, agent_kubernetes_version, agent_node_count, agent_namespaces, agent_report_interval_seconds, agent_pod_name, agent_pod_namespace
+RETURNING id, namespace_id, name, description, last_seen_at, created_at, updated_at, auto_ingest, agent_version, agent_kubernetes_version, agent_node_count, agent_namespaces, agent_report_interval_seconds, agent_pod_name, agent_pod_namespace, last_push_error_at, last_push_error
 `
 
 type UpdateClusterParams struct {
@@ -1546,6 +1671,8 @@ func (q *Queries) UpdateCluster(ctx context.Context, arg UpdateClusterParams) (C
 		&i.AgentReportIntervalSeconds,
 		&i.AgentPodName,
 		&i.AgentPodNamespace,
+		&i.LastPushErrorAt,
+		&i.LastPushError,
 	)
 	return i, err
 }

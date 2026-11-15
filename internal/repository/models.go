@@ -66,9 +66,23 @@ type Cluster struct {
 	// The agent's namespace allowlist. Empty array means every namespace; NULL means not reported.
 	AgentNamespaces []string `json:"agent_namespaces"`
 	// Seconds between snapshots. 0 for a one-shot (--once) agent.
-	AgentReportIntervalSeconds pgtype.Int4 `json:"agent_report_interval_seconds"`
-	AgentPodName               pgtype.Text `json:"agent_pod_name"`
-	AgentPodNamespace          pgtype.Text `json:"agent_pod_namespace"`
+	AgentReportIntervalSeconds pgtype.Int4        `json:"agent_report_interval_seconds"`
+	AgentPodName               pgtype.Text        `json:"agent_pod_name"`
+	AgentPodNamespace          pgtype.Text        `json:"agent_pod_namespace"`
+	LastPushErrorAt            pgtype.Timestamptz `json:"last_push_error_at"`
+	LastPushError              pgtype.Text        `json:"last_push_error"`
+}
+
+// Recent inventory push attempts per cluster, accepted and rejected (ocidex-70eo.4). Capped per cluster on insert.
+type ClusterPush struct {
+	ID           int64              `json:"id"`
+	ClusterID    pgtype.UUID        `json:"cluster_id"`
+	At           pgtype.Timestamptz `json:"at"`
+	Accepted     bool               `json:"accepted"`
+	Status       int32              `json:"status"`
+	Reason       string             `json:"reason"`
+	Workloads    pgtype.Int4        `json:"workloads"`
+	AgentVersion pgtype.Text        `json:"agent_version"`
 }
 
 // Current running-image inventory reported by a cluster agent. Full-snapshot semantics: rows absent from a snapshot are deleted (ADR-044 K7). Not a history table.

@@ -142,7 +142,7 @@ func run() error {
 	clusterSvc := service.NewClusterService(pool, cfg.SecretBox)
 	tracerProvider, stopTracing := tracing.Start(ctx, "ocidex-api")
 	defer stopTracing()
-	meterProvider, stopMetrics := setupMetrics(ctx, cfg, pool, bgPool, natsClient, registrySvc)
+	meterProvider, stopMetrics := setupMetrics(ctx, cfg, pool, bgPool, natsClient, registrySvc, clusterSvc)
 	defer stopMetrics()
 
 	handler := api.NewHandler(sbomSvc, searchSvc, authSvc, registrySvc, namespaceSvc, sourceSvc, jobSvc, enrichJobSvc, watchSvc, clusterSvc, pool, scanSubmitter, cfg).
@@ -441,7 +441,7 @@ func setupScannerExt(cfg *config.Config, _ *pgxpool.Pool, _ *event.Bus, _ *exten
 // (ADR-0054). An empty METRICS_ADDR turns off only the listener, so
 // OTEL_METRICS_EXPORTER=otlp can still push. When setup fails it returns a
 // no-op provider. The returned func stops the listener and flushes the provider.
-func setupMetrics(ctx context.Context, cfg *config.Config, pool, bgPool *pgxpool.Pool, natsClient *natspkg.Client, walks scanner.LastWalkLister) (metric.MeterProvider, func()) {
+func setupMetrics(ctx context.Context, cfg *config.Config, pool, bgPool *pgxpool.Pool, natsClient *natspkg.Client, walks scanner.LastWalkLister, clusters service.ClusterService) (metric.MeterProvider, func()) {
 	mp, handler, stop := metrics.Start(ctx, "ocidex-api")
 	metrics.WatchPool(mp, metrics.PoolMain, pool)
 	metrics.WatchPool(mp, metrics.PoolBackground, bgPool)
@@ -450,6 +450,9 @@ func setupMetrics(ctx context.Context, cfg *config.Config, pool, bgPool *pgxpool
 	}
 	if _, err := scanner.ObserveWalkStats(mp, walks, slog.Default()); err != nil {
 		slog.Error("registry walk metrics disabled", "err", err)
+	}
+	if _, err := service.ObserveClusterHealth(mp, clusters, slog.Default()); err != nil {
+		slog.Error("cluster health metric disabled", "err", err)
 	}
 	if handler == nil || cfg.MetricsAddr == "" {
 		slog.Info("metrics listener off", "metrics_addr", cfg.MetricsAddr, "prometheus_export", handler != nil)

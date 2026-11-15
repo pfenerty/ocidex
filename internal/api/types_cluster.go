@@ -16,8 +16,39 @@ type ClusterResponse struct {
 	LastSeenAt    string                `json:"lastSeenAt,omitempty" doc:"When an agent last pushed a snapshot. Empty means no agent has ever reported: a cluster showing no workloads for this reason is not a cluster running nothing."`
 	AutoIngest    bool                  `json:"autoIngest" doc:"Submit a scan job for every running image with no SBOM whose host resolves to a registry in this cluster's namespace, on every accepted snapshot."`
 	Agent         *ClusterAgentResponse `json:"agent,omitempty" doc:"What the agent reported about itself with its last accepted snapshot. Absent until an agent that self-reports has pushed."`
+	Health        ClusterHealthResponse `json:"health" doc:"The agent's health, derived from its pushes"`
 	CreatedAt     string                `json:"createdAt"`
 	UpdatedAt     string                `json:"updatedAt"`
+}
+
+// ClusterHealthResponse is a cluster's derived agent health (ocidex-70eo.4).
+type ClusterHealthResponse struct {
+	State             string `json:"state" enum:"never_reported,healthy,stale,erroring" doc:"never_reported: nothing pushed yet. healthy: last push accepted and recent. stale: no accepted push within three report intervals. erroring: the agent is pushing and being refused."`
+	Reason            string `json:"reason,omitempty" doc:"Why, for every state but healthy"`
+	StaleAfterSeconds int64  `json:"staleAfterSeconds,omitempty" doc:"Seconds after the last accepted push at which the cluster turns stale; absent for a one-shot agent"`
+}
+
+// ClusterPushResponse is one recorded push attempt.
+type ClusterPushResponse struct {
+	At           string `json:"at"`
+	Accepted     bool   `json:"accepted"`
+	Status       int    `json:"status" doc:"HTTP status the push received"`
+	Reason       string `json:"reason,omitempty" doc:"Why it was refused"`
+	Workloads    *int32 `json:"workloads,omitempty" doc:"Workload rows in an accepted snapshot"`
+	AgentVersion string `json:"agentVersion,omitempty"`
+}
+
+// ListClusterPushesInput is the request for GET /api/v1/clusters/{id}/pushes.
+type ListClusterPushesInput struct {
+	ID    string `path:"id" doc:"Cluster UUID" format:"uuid"`
+	Limit int32  `query:"limit" minimum:"1" maximum:"50" default:"20"`
+}
+
+// ListClusterPushesOutput is the response for GET /api/v1/clusters/{id}/pushes.
+type ListClusterPushesOutput struct {
+	Body struct {
+		Data []ClusterPushResponse `json:"data"`
+	}
 }
 
 // ClusterAgentResponse is the agent's self-description as stored on the
