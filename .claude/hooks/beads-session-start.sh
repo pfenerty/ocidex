@@ -57,49 +57,81 @@ if [ -n "${CLAUDE_ENV_FILE:-}" ] && [ -x "$GOBIN_DIR/bd" ]; then
 fi
 
 # ── Beads database ───────────────────────────────────────────────────────────
-# Fresh clone: rebuild the DB from the committed JSONL. Existing DB (a local
-# checkout, or a reused container snapshot): bd-sync.
+# Fresh clone (no local DB):
+#   - Dolt-over-git repo (sync.remote in config.yaml, plan-5qe): bd bootstrap
+#     clones refs/dolt/data from origin. If that fails (a cloud proxy that won't
+#     serve it), create an empty DB; bd-sync below then fills it from the
+#     beads/snapshot branch.
+#   - Otherwise: rebuild the DB from the committed .beads/issues.jsonl.
+# Then always run bd-sync: Dolt sync on a local machine, snapshot or JSONL
+# import in a cloud session (which also records when the session started, so
+# the SessionEnd hook publishes only this session's changes).
 chmod 700 .beads 2>/dev/null || true
+remote_set=""
+grep -Eq '^(sync\.remote:|[[:space:]]+remote:)' .beads/config.yaml 2>/dev/null && remote_set=1
+
+# bd init commits and rewrites tracked files even with --skip flags. Run "$@"
+# and undo that: drop its commit, restore only files it (not the developer)
+# dirtied.
+contained() {
+  local head_before dirty_before rc line path
+  head_before="$(git rev-parse HEAD 2>/dev/null || true)"
+  dirty_before="$(git status --porcelain 2>/dev/null)"
+  "$@" >/dev/null 2>&1; rc=$?
+  if [ -n "$head_before" ] && [ "$head_before" != "$(git rev-parse HEAD 2>/dev/null)" ] \
+     && git log -1 --pretty=%s 2>/dev/null | grep -q '^bd init'; then
+    git reset --mixed "$head_before" >/dev/null 2>&1 || true
+    note "reverted the commit bd init made"
+  fi
+  git status --porcelain 2>/dev/null | while IFS= read -r line; do
+    printf '%s\n' "$dirty_before" | grep -qxF "$line" && continue
+    path="${line:3}"
+    if git ls-files --error-unmatch -- "$path" >/dev/null 2>&1; then
+      git checkout -- "$path" >/dev/null 2>&1 || true
+    fi
+  done
+  return $rc
+}
+
 if [ ! -d .beads/embeddeddolt ] && [ ! -d .beads/dolt ]; then
   prefix="$(sed -n 's/^issue-prefix:[[:space:]]*"\{0,1\}\([^"]*\)"\{0,1\}[[:space:]]*$/\1/p' .beads/config.yaml 2>/dev/null | head -1)"
   if [ -z "$prefix" ] && [ -s .beads/issues.jsonl ]; then
     # IDs look like <prefix>-<hash>[.<n>]; the prefix itself may contain dashes.
     prefix="$(grep -m1 -o '"id":"[^"]*"' .beads/issues.jsonl | sed 's/"id":"\(.*\)-[^-]*"/\1/')"
   fi
-  if [ -z "$prefix" ]; then
+  if [ -n "$remote_set" ]; then
+    if contained bd bootstrap --non-interactive; then
+      note "beads database cloned from origin refs/dolt/data"
+    elif [ -z "$prefix" ]; then
+      note "bd bootstrap failed and no issue-prefix in .beads/config.yaml; skipping"
+    else
+      # bd init would try (and fail) to clone the same remote, so hide
+      # sync.remote from it; bd-sync below imports beads/snapshot instead.
+      cp .beads/config.yaml .beads/config.yaml.session-start
+      printf 'issue-prefix: "%s"\nexport.auto: false\n' "$prefix" > .beads/config.yaml
+      if contained bd init --prefix "$prefix" --skip-agents --skip-hooks \
+                            --non-interactive --quiet; then
+        note "no Dolt data reachable; created an empty beads database (prefix $prefix)"
+      else
+        note "bd init failed; issue tracking unavailable this session"
+      fi
+      mv .beads/config.yaml.session-start .beads/config.yaml
+    fi
+  elif [ -z "$prefix" ]; then
     note "cannot determine the issue prefix; skipping database rebuild"
   else
     note "no local beads database; rebuilding from .beads/issues.jsonl (prefix $prefix)"
-    head_before="$(git rev-parse HEAD 2>/dev/null || true)"
-    dirty_before="$(git status --porcelain 2>/dev/null)"
     # --skip-agents/--skip-hooks stop bd init rewriting CLAUDE.md, AGENTS.md,
     # .claude/settings.json and the git hooks; --from-jsonl hydrates in one step.
-    # (No --init-if-missing: bd 1.0.3 lacks it, and the DB-absent guard covers it.)
-    if bd init --prefix "$prefix" --skip-agents --skip-hooks --from-jsonl \
-               --non-interactive --quiet >/dev/null 2>&1; then
+    if contained bd init --prefix "$prefix" --skip-agents --skip-hooks --from-jsonl \
+                          --non-interactive --quiet; then
       note "beads database rebuilt from $(wc -l < .beads/issues.jsonl | tr -d ' ') rows"
     else
       note "bd init failed; issue tracking unavailable this session"
     fi
-    # bd init commits and rewrites tracked files even with the --skip flags.
-    # Undo its commit, and restore only the files that it (not the developer)
-    # dirtied.
-    if [ -n "$head_before" ] && [ "$head_before" != "$(git rev-parse HEAD 2>/dev/null)" ] \
-       && git log -1 --pretty=%s 2>/dev/null | grep -q '^bd init'; then
-      git reset --mixed "$head_before" >/dev/null 2>&1 || true
-      note "reverted the commit bd init made"
-    fi
-    git status --porcelain 2>/dev/null | while IFS= read -r line; do
-      printf '%s\n' "$dirty_before" | grep -qxF "$line" && continue
-      path="${line:3}"
-      if git ls-files --error-unmatch -- "$path" >/dev/null 2>&1; then
-        git checkout -- "$path" >/dev/null 2>&1 || true
-      fi
-    done
   fi
-elif [ -x "$HOOKS_DIR/bd-sync" ] && command -v python3 >/dev/null 2>&1; then
-  # Existing DB: Dolt-over-git sync for repos with sync.remote (local machines
-  # only), else import newer rows from issues.jsonl. See bd-sync's docstring.
+fi
+if [ -x "$HOOKS_DIR/bd-sync" ] && command -v python3 >/dev/null 2>&1; then
   "$HOOKS_DIR/bd-sync" "$PROJECT_DIR" || true
 fi
 
