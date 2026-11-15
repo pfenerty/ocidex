@@ -2472,6 +2472,21 @@ type DiscoverArtifact struct {
 	VersionCount int64      `json:"versionCount"`
 }
 
+// DiscoverFeatured defines model for DiscoverFeatured.
+type DiscoverFeatured struct {
+	ArtifactId string             `json:"artifactId"`
+	CreatedAt  time.Time          `json:"createdAt"`
+	Licenses   LicenseCategoryMix `json:"licenses"`
+	Name       string             `json:"name"`
+
+	// PackageCount Components in the newest SBOM
+	PackageCount   int64              `json:"packageCount"`
+	SbomId         string             `json:"sbomId"`
+	SubjectVersion *string            `json:"subjectVersion,omitempty"`
+	Type           string             `json:"type"`
+	Vulns          VulnSeverityCounts `json:"vulns"`
+}
+
 // DiscoverLicense defines model for DiscoverLicense.
 type DiscoverLicense struct {
 	Category       string  `json:"category"`
@@ -2510,6 +2525,9 @@ type DiscoverVuln struct {
 type DiscoveryOutputBody struct {
 	// Schema A URL to the JSON Schema for this object.
 	Schema *string `json:"$schema,omitempty"`
+
+	// FeaturedArtifacts Featured public artifacts (DISCOVER_FEATURED, in order), each summarised from its newest SBOM
+	FeaturedArtifacts *[]DiscoverFeatured `json:"featuredArtifacts"`
 
 	// GeneratedAt When this snapshot was computed; absent while warming
 	GeneratedAt *string `json:"generatedAt,omitempty"`
@@ -2886,6 +2904,14 @@ type KeyMetaResponse struct {
 
 	// Prefix First 8 characters of the key
 	Prefix string `json:"prefix"`
+}
+
+// LicenseCategoryMix defines model for LicenseCategoryMix.
+type LicenseCategoryMix struct {
+	Copyleft      int64 `json:"copyleft"`
+	Permissive    int64 `json:"permissive"`
+	Uncategorized int64 `json:"uncategorized"`
+	WeakCopyleft  int64 `json:"weakCopyleft"`
 }
 
 // LicenseCount defines model for LicenseCount.
@@ -4213,6 +4239,15 @@ type VulnDetail struct {
 type VulnReference struct {
 	Type string `json:"type"`
 	Url  string `json:"url"`
+}
+
+// VulnSeverityCounts defines model for VulnSeverityCounts.
+type VulnSeverityCounts struct {
+	Critical int64 `json:"critical"`
+	High     int64 `json:"high"`
+	Low      int64 `json:"low"`
+	Medium   int64 `json:"medium"`
+	Unknown  int64 `json:"unknown"`
 }
 
 // VulnSeverityEntry defines model for VulnSeverityEntry.
