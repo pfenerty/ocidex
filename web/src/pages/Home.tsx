@@ -1,6 +1,7 @@
 import { A } from "@solidjs/router";
-import { ExternalLink, Boxes, FileStack, Package, Scale, ShieldAlert } from "lucide-solid";
+import { ExternalLink, Boxes, FileStack, Package, Scale, Search, ShieldAlert } from "lucide-solid";
 import { For, Show } from "solid-js";
+import { openCommandPalette, isAppleShortcut } from "~/components/CommandPalette";
 import { Skeleton } from "~/components/Skeleton";
 import { Button, StatBand, TypeBadge } from "~/components/ui";
 import type { StatTile } from "~/components/ui";
@@ -72,10 +73,18 @@ export default function Home() {
                 </h1>
                 <p class="landing-tagline">The supply-chain catalog for the software you ship.</p>
                 <p class="landing-pitch">
-                    Ingest SBOMs, track packages across versions, and understand your license
-                    exposure — all from a single searchable index. Know what's inside every
-                    image, binary and library you ship before your next incident does.
+                    OCIDex reads a software bill of materials for every image, binary and
+                    library you ship: the packages inside, their licenses and the
+                    vulnerabilities they carry, tracked from version to version.
                 </p>
+                {/* The palette is the fastest way into the catalog, and the
+                    sidebar's button is easy to miss on a first visit. This is
+                    the same palette, not a second search. */}
+                <button type="button" class="landing-search" onClick={openCommandPalette}>
+                    <Search size={16} />
+                    <span>Search images, packages and CVEs</span>
+                    <kbd>{isAppleShortcut() ? "\u2318K" : "Ctrl K"}</kbd>
+                </button>
                 {/* Stats have three states and all three are visible: an
                     unadorned <Show> rendered a failure as silence, which is
                     indistinguishable from a catalog that is simply empty.

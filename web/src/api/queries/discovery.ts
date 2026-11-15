@@ -11,6 +11,7 @@ const WARMING_POLL_MS = 15_000;
 type DiscoveryResponse =
     paths["/api/v1/discover"]["get"]["responses"][200]["content"]["application/json"];
 
+export type DiscoverFeatured = NonNullable<DiscoveryResponse["featuredArtifacts"]>[number];
 export type DiscoverArtifact = NonNullable<DiscoveryResponse["topArtifacts"]>[number];
 export type DiscoverRecent = NonNullable<DiscoveryResponse["recentArtifacts"]>[number];
 export type DiscoverVuln = NonNullable<DiscoveryResponse["topVulnerabilities"]>[number];
