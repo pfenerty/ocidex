@@ -71,6 +71,32 @@ func TestAPIError_Error(t *testing.T) {
 	is.Equal(e.Error(), "HTTP 503: service unavailable")
 }
 
+// A 403 or 404 keeps the server's detail, but the message still names the
+// sentinel: CLI users and scripts read "forbidden" and "not found" in the
+// output, and the detail alone may say neither (ocidex-nnh2).
+func TestAPIError_ErrorNamesSentinel(t *testing.T) {
+	tests := []struct {
+		name   string
+		status int
+		body   string
+		want   string
+	}{
+		{"403 with detail", 403, `{"status":403,"detail":"missing capability push_inventory"}`,
+			"HTTP 403: forbidden: missing capability push_inventory"},
+		{"404 with detail", 404, `{"status":404,"detail":"no such source"}`,
+			"HTTP 404: not found: no such source"},
+		{"detail that is just the sentinel", 403, `{"status":403,"detail":"forbidden"}`,
+			"HTTP 403: forbidden"},
+		{"empty detail", 404, ``, "HTTP 404: not found"},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			is := is.New(t)
+			is.Equal(mapError(tt.status, []byte(tt.body)).Error(), tt.want)
+		})
+	}
+}
+
 func TestMapErrorKeepsDetailOnSentinels(t *testing.T) {
 	is := is.New(t)
 	err := mapError(403, []byte(`{"status":403,"detail":"missing capability push_inventory"}`))
