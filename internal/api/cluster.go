@@ -10,6 +10,7 @@ import (
 	"github.com/pfenerty/ocidex/internal/authz"
 	"github.com/pfenerty/ocidex/internal/scanner"
 	"github.com/pfenerty/ocidex/internal/service"
+	"github.com/pfenerty/ocidex/internal/version"
 )
 
 // ListClusters returns the clusters visible to the caller, optionally scoped to
@@ -148,7 +149,8 @@ func (h *Handler) PutInventory(ctx context.Context, in *PutInventoryInput) (*Put
 		}
 	}
 
-	pruned, err := h.clusterService.ReplaceInventory(ctx, in.ID, workloads)
+	agent := toAgentInfo(in.Body.Agent)
+	pruned, err := h.clusterService.ReplaceInventory(ctx, in.ID, workloads, agent)
 	if err != nil {
 		return nil, mapServiceError(err)
 	}
@@ -159,7 +161,33 @@ func (h *Handler) PutInventory(ctx context.Context, in *PutInventoryInput) (*Put
 	out.Body.Accepted = len(workloads)
 	out.Body.Pruned = pruned
 	out.Body.SeenAt = time.Now().UTC().Format(time.RFC3339)
+	serverVersion, _, _ := version.Info()
+	out.Body.ServerVersion = serverVersion
+	if agent != nil {
+		out.Body.VersionSkew = service.AgentVersionSkew(agent.Version, serverVersion)
+	}
 	return out, nil
+}
+
+func toAgentInfo(a *InventoryAgent) *service.AgentInfo {
+	if a == nil {
+		return nil
+	}
+	// A non-nil, empty allowlist is what "every namespace" looks like once
+	// stored; an agent that sent the block at all did report its allowlist.
+	ns := a.Namespaces
+	if ns == nil {
+		ns = []string{}
+	}
+	return &service.AgentInfo{
+		Version:               a.Version,
+		KubernetesVersion:     a.KubernetesVersion,
+		NodeCount:             a.NodeCount,
+		Namespaces:            ns,
+		ReportIntervalSeconds: a.ReportIntervalSeconds,
+		PodName:               a.PodName,
+		PodNamespace:          a.PodNamespace,
+	}
 }
 
 // autoIngestAfterSnapshot queues scans for the images the snapshot just
@@ -530,6 +558,19 @@ func toClusterResponse(c service.Cluster) ClusterResponse {
 	}
 	if c.LastSeenAt != nil {
 		out.LastSeenAt = c.LastSeenAt.UTC().Format(time.RFC3339)
+	}
+	if a := c.Agent; a != nil {
+		serverVersion, _, _ := version.Info()
+		out.Agent = &ClusterAgentResponse{
+			Version:               a.Version,
+			KubernetesVersion:     a.KubernetesVersion,
+			NodeCount:             a.NodeCount,
+			Namespaces:            a.Namespaces,
+			ReportIntervalSeconds: a.ReportIntervalSeconds,
+			PodName:               a.PodName,
+			PodNamespace:          a.PodNamespace,
+			VersionSkew:           service.AgentVersionSkew(a.Version, serverVersion),
+		}
 	}
 	return out
 }

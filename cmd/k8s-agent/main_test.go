@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"testing"
+	"time"
 
 	"github.com/matryer/is"
 	corev1 "k8s.io/api/core/v1"
@@ -21,7 +22,7 @@ func newAgent(t *testing.T, cfg *config.K8sAgentConfig, pods []corev1.Pod, fc *c
 		objs = append(objs, &pods[i])
 	}
 	cs := fake.NewClientset(objs...)
-	return &agent{cfg: cfg, pods: cs.CoreV1(), api: fc}
+	return &agent{cfg: cfg, pods: cs.CoreV1(), discovery: cs.Discovery(), api: fc}
 }
 
 func TestReportPushesEveryNamespaceByDefault(t *testing.T) {
@@ -30,7 +31,7 @@ func TestReportPushesEveryNamespaceByDefault(t *testing.T) {
 	var pushed []client.InventoryWorkload
 	var pushedCluster string
 	fc := &client.FakeClient{
-		PutInventoryFn: func(_ context.Context, clusterID string, w []client.InventoryWorkload) (client.PutInventoryOutputBody, error) {
+		PutInventoryFn: func(_ context.Context, clusterID string, w []client.InventoryWorkload, _ *client.InventoryAgent) (client.PutInventoryOutputBody, error) {
 			pushedCluster = clusterID
 			pushed = w
 			return client.PutInventoryOutputBody{Accepted: int64(len(w))}, nil
@@ -52,7 +53,7 @@ func TestReportHonoursNamespaceAllowlist(t *testing.T) {
 
 	var pushed []client.InventoryWorkload
 	fc := &client.FakeClient{
-		PutInventoryFn: func(_ context.Context, _ string, w []client.InventoryWorkload) (client.PutInventoryOutputBody, error) {
+		PutInventoryFn: func(_ context.Context, _ string, w []client.InventoryWorkload, _ *client.InventoryAgent) (client.PutInventoryOutputBody, error) {
 			pushed = w
 			return client.PutInventoryOutputBody{}, nil
 		},
@@ -76,7 +77,7 @@ func TestReportPushesEmptySnapshot(t *testing.T) {
 
 	called := false
 	fc := &client.FakeClient{
-		PutInventoryFn: func(_ context.Context, _ string, w []client.InventoryWorkload) (client.PutInventoryOutputBody, error) {
+		PutInventoryFn: func(_ context.Context, _ string, w []client.InventoryWorkload, _ *client.InventoryAgent) (client.PutInventoryOutputBody, error) {
 			called = true
 			is.Equal(len(w), 0)
 			return client.PutInventoryOutputBody{}, nil
@@ -93,7 +94,7 @@ func TestReportPropagatesPushFailure(t *testing.T) {
 
 	want := errors.New("boom")
 	fc := &client.FakeClient{
-		PutInventoryFn: func(_ context.Context, _ string, _ []client.InventoryWorkload) (client.PutInventoryOutputBody, error) {
+		PutInventoryFn: func(_ context.Context, _ string, _ []client.InventoryWorkload, _ *client.InventoryAgent) (client.PutInventoryOutputBody, error) {
 			return client.PutInventoryOutputBody{}, want
 		},
 	}
@@ -103,4 +104,43 @@ func TestReportPropagatesPushFailure(t *testing.T) {
 	// Surfaced, not swallowed: --once mode turns this into a non-zero exit, which
 	// is how a Job reports failure under ADR-027.
 	is.True(errors.Is(err, want))
+}
+
+// TestReportDescribesTheAgent pins the self-report sent with each snapshot
+// (ocidex-70eo.3).
+func TestReportDescribesTheAgent(t *testing.T) {
+	is := is.New(t)
+
+	var got *client.InventoryAgent
+	fc := &client.FakeClient{
+		PutInventoryFn: func(_ context.Context, _ string, _ []client.InventoryWorkload, a *client.InventoryAgent) (client.PutInventoryOutputBody, error) {
+			got = a
+			return client.PutInventoryOutputBody{}, nil
+		},
+	}
+
+	api := pod("default", "api", withContainer("api", "ghcr.io/x/api:1", "ghcr.io/x/api@"+digestA))
+	api.Spec.NodeName = "node-a"
+	dns := pod("kube-system", "dns", withContainer("dns", "registry.k8s.io/coredns:1", "registry.k8s.io/coredns@"+digestB))
+	dns.Spec.NodeName = "node-b"
+	again := pod("default", "web", withContainer("web", "ghcr.io/x/web:1", "ghcr.io/x/web@"+digestA))
+	again.Spec.NodeName = "node-a"
+
+	cfg := &config.K8sAgentConfig{ClusterID: "c", ReportInterval: 5 * time.Minute, PodName: "agent-0", PodNamespace: "ocidex-agent"}
+	a := newAgent(t, cfg, []corev1.Pod{api, dns, again}, fc)
+
+	is.NoErr(a.report(t.Context()))
+	is.True(got != nil)
+	is.Equal(*got.NodeCount, int32(2))
+	is.Equal(*got.ReportIntervalSeconds, int32(300))
+	is.Equal(*got.Namespaces, []string{})
+	is.Equal(*got.PodName, "agent-0")
+	is.Equal(*got.PodNamespace, "ocidex-agent")
+	is.True(got.Version != nil && *got.Version != "")
+	is.True(got.KubernetesVersion != nil)
+
+	// A one-shot Job has no next report.
+	a.oneShot = true
+	is.NoErr(a.report(t.Context()))
+	is.Equal(*got.ReportIntervalSeconds, int32(0))
 }

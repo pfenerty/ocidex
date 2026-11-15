@@ -55,6 +55,18 @@ type Cluster struct {
 	UpdatedAt  pgtype.Timestamptz `json:"updated_at"`
 	// When true, an accepted inventory snapshot submits scan jobs for every running image with no SBOM whose host resolves to a registry in this cluster's namespace (ADR-044). Defaults to true: a cluster that reports what it runs and then leaves it unscanned is the gap the inventory exists to close. Resolution never leaves the namespace — using another namespace's registry would pull with credentials this cluster was never granted.
 	AutoIngest bool `json:"auto_ingest"`
+	// Version the agent reported with its last accepted snapshot; NULL for an agent that predates self-reporting.
+	AgentVersion pgtype.Text `json:"agent_version"`
+	// Kubernetes server gitVersion the agent read from the discovery API.
+	AgentKubernetesVersion pgtype.Text `json:"agent_kubernetes_version"`
+	// Distinct nodes running the reported pods. Derived from the pods, not a node list: the agent has no RBAC on nodes.
+	AgentNodeCount pgtype.Int4 `json:"agent_node_count"`
+	// The agent's namespace allowlist. Empty array means every namespace; NULL means not reported.
+	AgentNamespaces []string `json:"agent_namespaces"`
+	// Seconds between snapshots. 0 for a one-shot (--once) agent.
+	AgentReportIntervalSeconds pgtype.Int4 `json:"agent_report_interval_seconds"`
+	AgentPodName               pgtype.Text `json:"agent_pod_name"`
+	AgentPodNamespace          pgtype.Text `json:"agent_pod_namespace"`
 }
 
 // Current running-image inventory reported by a cluster agent. Full-snapshot semantics: rows absent from a snapshot are deleted (ADR-044 K7). Not a history table.

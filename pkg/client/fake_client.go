@@ -46,7 +46,7 @@ type FakeClient struct {
 	CreateClusterFn        func(ctx context.Context, body CreateClusterInputBody) (ClusterResponse, error)
 	UpdateClusterFn        func(ctx context.Context, id string, body UpdateClusterInputBody) (ClusterResponse, error)
 	DeleteClusterFn        func(ctx context.Context, id string) error
-	PutInventoryFn         func(ctx context.Context, clusterID string, workloads []InventoryWorkload) (PutInventoryOutputBody, error)
+	PutInventoryFn         func(ctx context.Context, clusterID string, workloads []InventoryWorkload, agent *InventoryAgent) (PutInventoryOutputBody, error)
 	ListClusterWorkloadsFn func(ctx context.Context, clusterID string) ([]ClusterWorkloadResponse, WorkloadCoverageResponse, error)
 
 	// SBOM + artifact
@@ -510,9 +510,9 @@ func (f *FakeClient) DeleteCluster(ctx context.Context, id string) error {
 	return nil
 }
 
-func (f *FakeClient) PutInventory(ctx context.Context, clusterID string, workloads []InventoryWorkload) (PutInventoryOutputBody, error) {
+func (f *FakeClient) PutInventory(ctx context.Context, clusterID string, workloads []InventoryWorkload, agent *InventoryAgent) (PutInventoryOutputBody, error) {
 	if f.PutInventoryFn != nil {
-		return f.PutInventoryFn(ctx, clusterID, workloads)
+		return f.PutInventoryFn(ctx, clusterID, workloads, agent)
 	}
 	return PutInventoryOutputBody{}, nil
 }

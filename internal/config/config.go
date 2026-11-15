@@ -448,6 +448,12 @@ type K8sAgentConfig struct {
 	// HealthAddr is the liveness/readiness listen address, matching the other
 	// workers' :9090 convention.
 	HealthAddr string `env:"HEALTH_ADDR" envDefault:":9090"`
+
+	// PodName and PodNamespace are the agent's own pod, set from the downward
+	// API by the chart. Reported with each snapshot so the server can say which
+	// pod to look at; optional, as a hand-rolled deployment may not set them.
+	PodName      string `env:"POD_NAME"`
+	PodNamespace string `env:"POD_NAMESPACE"`
 }
 
 // LoadK8sAgent reads k8s-agent configuration from environment variables.

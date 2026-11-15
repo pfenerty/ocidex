@@ -213,6 +213,8 @@ A variable marked **required** stops the process at startup when it is missing.
 | <code>OCIDEX_<wbr>NAMESPACES</code> | — | Comma-separated Kubernetes namespace allowlist. Empty means every namespace. |
 | <code>OCIDEX_<wbr>REPORT_<wbr>INTERVAL</code> | `5m` | Time between snapshots. Ignored under `--once`. |
 | <code>HEALTH_<wbr>ADDR</code> | `:9090` | Liveness/readiness listen address (`/healthz`, `/readyz`). |
+| <code>POD_<wbr>NAME</code> | — | The agent's own pod name, reported with each snapshot so the cluster page names the pod to inspect. The chart sets it from the downward API. |
+| <code>POD_<wbr>NAMESPACE</code> | — | The namespace the agent runs in, reported alongside `POD_NAME`. The chart sets it from the downward API. |
 
 ## operator
 

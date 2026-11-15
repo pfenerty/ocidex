@@ -49,8 +49,31 @@ type Cluster struct {
 	// resolves to a registry in this cluster's namespace, on every accepted
 	// snapshot. On by default: the point of knowing what runs is to scan it.
 	AutoIngest bool
-	CreatedAt  time.Time
-	UpdatedAt  time.Time
+	// Agent is what the agent said about itself with its last accepted
+	// snapshot. Nil until one has reported, and for an agent that predates
+	// self-reporting (ocidex-70eo.3).
+	Agent     *AgentInfo
+	CreatedAt time.Time
+	UpdatedAt time.Time
+}
+
+// AgentInfo is the agent's own description of itself and the cluster it runs
+// in, sent with each snapshot. Every field is optional: the agent fills in
+// what it could read, and a failure to read one is not a reason to drop the
+// snapshot.
+type AgentInfo struct {
+	Version           string
+	KubernetesVersion string
+	// NodeCount is the distinct nodes running the reported pods. Nil when not
+	// reported.
+	NodeCount *int32
+	// Namespaces is the agent's allowlist. Nil means not reported; empty means
+	// every namespace.
+	Namespaces []string
+	// ReportIntervalSeconds is 0 for a one-shot agent. Nil when not reported.
+	ReportIntervalSeconds *int32
+	PodName               string
+	PodNamespace          string
 }
 
 // ClusterWorkload is one running container image in a cluster, as last reported.
@@ -311,7 +334,9 @@ type ClusterService interface {
 	// ReplaceInventory applies a full snapshot: upsert everything reported,
 	// prune everything not reported, stamp last_seen_at. All in one transaction
 	// (ADR-044 K7).
-	ReplaceInventory(ctx context.Context, clusterID string, workloads []ReportedWorkload) (int, error)
+	// agent may be nil (an agent that predates self-reporting); it then clears
+	// the stored agent facts rather than leaving a newer agent's behind.
+	ReplaceInventory(ctx context.Context, clusterID string, workloads []ReportedWorkload, agent *AgentInfo) (int, error)
 
 	ListWorkloads(ctx context.Context, clusterID string, params WorkloadParams, filter VisibilityFilter) (PagedResult[ClusterWorkload], error)
 
@@ -493,7 +518,7 @@ func (s *clusterService) Delete(ctx context.Context, id string) error {
 // The whole thing is one transaction, so a partially-applied snapshot is never
 // visible. A reader mid-push must not see a cluster that appears to be running
 // half of what it runs.
-func (s *clusterService) ReplaceInventory(ctx context.Context, clusterID string, workloads []ReportedWorkload) (int, error) {
+func (s *clusterService) ReplaceInventory(ctx context.Context, clusterID string, workloads []ReportedWorkload, agent *AgentInfo) (int, error) {
 	cid, err := parseUUID(clusterID)
 	if err != nil {
 		return 0, ErrNotFound
@@ -549,10 +574,10 @@ func (s *clusterService) ReplaceInventory(ctx context.Context, clusterID string,
 	// last_seen_at is stamped even for an empty snapshot. That is the point of
 	// K2: a cluster legitimately running nothing must be distinguishable from a
 	// cluster whose agent has died, and only this timestamp can tell them apart.
-	if err := q.TouchClusterLastSeen(ctx, repository.TouchClusterLastSeenParams{
-		ID:         cid,
-		LastSeenAt: observed,
-	}); err != nil {
+	touch := agentInfoParams(agent)
+	touch.ID = cid
+	touch.LastSeenAt = observed
+	if err := q.TouchClusterLastSeen(ctx, touch); err != nil {
 		return 0, fmt.Errorf("stamping last_seen_at: %w", err)
 	}
 
@@ -883,7 +908,58 @@ func clusterFromRepo(c repository.Cluster) Cluster {
 	if c.UpdatedAt.Valid {
 		out.UpdatedAt = c.UpdatedAt.Time
 	}
+	out.Agent = agentInfoFromRepo(c)
 	return out
+}
+
+// agentInfoParams maps what the agent sent onto the stamp query. A nil agent
+// yields all-NULL columns, which is the point: see TouchClusterLastSeen.
+func agentInfoParams(a *AgentInfo) repository.TouchClusterLastSeenParams {
+	var p repository.TouchClusterLastSeenParams
+	if a == nil {
+		return p
+	}
+	p.AgentVersion = optText(a.Version)
+	p.AgentKubernetesVersion = optText(a.KubernetesVersion)
+	p.AgentPodName = optText(a.PodName)
+	p.AgentPodNamespace = optText(a.PodNamespace)
+	if a.NodeCount != nil {
+		p.AgentNodeCount = pgtype.Int4{Int32: *a.NodeCount, Valid: true}
+	}
+	if a.ReportIntervalSeconds != nil {
+		p.AgentReportIntervalSeconds = pgtype.Int4{Int32: *a.ReportIntervalSeconds, Valid: true}
+	}
+	p.AgentNamespaces = a.Namespaces
+	return p
+}
+
+func optText(s string) pgtype.Text {
+	return pgtype.Text{String: s, Valid: s != ""}
+}
+
+// agentInfoFromRepo returns nil when no agent fact is stored at all, so a
+// never-reported cluster and an old agent both read as "nothing said".
+func agentInfoFromRepo(c repository.Cluster) *AgentInfo {
+	a := AgentInfo{
+		Version:           c.AgentVersion.String,
+		KubernetesVersion: c.AgentKubernetesVersion.String,
+		Namespaces:        c.AgentNamespaces,
+		PodName:           c.AgentPodName.String,
+		PodNamespace:      c.AgentPodNamespace.String,
+	}
+	if c.AgentNodeCount.Valid {
+		n := c.AgentNodeCount.Int32
+		a.NodeCount = &n
+	}
+	if c.AgentReportIntervalSeconds.Valid {
+		n := c.AgentReportIntervalSeconds.Int32
+		a.ReportIntervalSeconds = &n
+	}
+	if a.Version == "" && a.KubernetesVersion == "" && a.NodeCount == nil && a.Namespaces == nil &&
+		a.ReportIntervalSeconds == nil && a.PodName == "" && a.PodNamespace == "" {
+		return nil
+	}
+	return &a
 }
 
 func workloadFromRepo(r repository.ListClusterWorkloadsRow) ClusterWorkload {

@@ -2017,6 +2017,30 @@ export interface components {
             summary: components["schemas"]["ChangeSummary"];
             to: components["schemas"]["SBOMRef"];
         };
+        ClusterAgentResponse: {
+            /** @description Kubernetes server version (gitVersion) */
+            kubernetesVersion?: string;
+            /** @description Namespace allowlist; empty or absent with reportIntervalSeconds set means every namespace */
+            namespaces?: string[] | null;
+            /**
+             * Format: int32
+             * @description Distinct nodes running the reported pods
+             */
+            nodeCount?: number;
+            /** @description The agent's own pod */
+            podName?: string;
+            /** @description Namespace the agent runs in */
+            podNamespace?: string;
+            /**
+             * Format: int32
+             * @description Seconds between snapshots; 0 for a one-shot agent
+             */
+            reportIntervalSeconds?: number;
+            /** @description Agent build version */
+            version?: string;
+            /** @description Set when the agent's major.minor differs from the server's */
+            versionSkew?: string;
+        };
         ClusterImageResponse: {
             artifactId?: string;
             artifactName?: string;
@@ -2058,6 +2082,8 @@ export interface components {
              * @example https://example.com/api/schemas/ClusterResponse.json
              */
             readonly $schema?: string;
+            /** @description What the agent reported about itself with its last accepted snapshot. Absent until an agent that self-reports has pushed. */
+            agent?: components["schemas"]["ClusterAgentResponse"];
             /** @description Submit a scan job for every running image with no SBOM whose host resolves to a registry in this cluster's namespace, on every accepted snapshot. */
             autoIngest: boolean;
             createdAt: string;
@@ -2946,6 +2972,28 @@ export interface components {
              */
             unauthorized: number;
         };
+        InventoryAgent: {
+            /** @description Kubernetes server gitVersion from the discovery API */
+            kubernetesVersion?: string;
+            /** @description Namespace allowlist; empty means every namespace */
+            namespaces?: string[] | null;
+            /**
+             * Format: int32
+             * @description Distinct nodes running the reported pods
+             */
+            nodeCount?: number;
+            /** @description The agent's own pod name */
+            podName?: string;
+            /** @description Namespace the agent runs in */
+            podNamespace?: string;
+            /**
+             * Format: int32
+             * @description Seconds between snapshots; 0 for a one-shot agent
+             */
+            reportIntervalSeconds?: number;
+            /** @description Agent build version */
+            version?: string;
+        };
         InventoryWorkload: {
             containerName: string;
             /** @description Normalized digest from status.containerStatuses[].imageID. Omit when the agent could not extract one — that is reported as 'unresolvable', not silently dropped. */
@@ -3567,6 +3615,8 @@ export interface components {
              * @example https://example.com/api/schemas/PutInventoryInputBody.json
              */
             readonly $schema?: string;
+            /** @description The agent's description of itself. Optional, so an older agent's push is still accepted. */
+            agent?: components["schemas"]["InventoryAgent"];
             /** @description The complete set of running container images. Omitted entries are pruned. */
             workloads: components["schemas"]["InventoryWorkload"][] | null;
         };
@@ -3589,6 +3639,10 @@ export interface components {
             pruned: number;
             /** @description Timestamp recorded on the cluster */
             seenAt: string;
+            /** @description The server's version */
+            serverVersion?: string;
+            /** @description Set when the reported agent version's major.minor differs from the server's */
+            versionSkew?: string;
         };
         ReadinessCheckOutputBody: {
             /**

@@ -8,15 +8,29 @@ package api
 // workloads (ADR-044). Like a source, it carries no visibility of its own —
 // the owning namespace decides who may see it.
 type ClusterResponse struct {
-	ID            string `json:"id"`
-	NamespaceID   string `json:"namespaceId"`
-	NamespaceName string `json:"namespaceName,omitempty" doc:"Owning namespace name; populated on list responses"`
-	Name          string `json:"name"`
-	Description   string `json:"description,omitempty"`
-	LastSeenAt    string `json:"lastSeenAt,omitempty" doc:"When an agent last pushed a snapshot. Empty means no agent has ever reported: a cluster showing no workloads for this reason is not a cluster running nothing."`
-	AutoIngest    bool   `json:"autoIngest" doc:"Submit a scan job for every running image with no SBOM whose host resolves to a registry in this cluster's namespace, on every accepted snapshot."`
-	CreatedAt     string `json:"createdAt"`
-	UpdatedAt     string `json:"updatedAt"`
+	ID            string                `json:"id"`
+	NamespaceID   string                `json:"namespaceId"`
+	NamespaceName string                `json:"namespaceName,omitempty" doc:"Owning namespace name; populated on list responses"`
+	Name          string                `json:"name"`
+	Description   string                `json:"description,omitempty"`
+	LastSeenAt    string                `json:"lastSeenAt,omitempty" doc:"When an agent last pushed a snapshot. Empty means no agent has ever reported: a cluster showing no workloads for this reason is not a cluster running nothing."`
+	AutoIngest    bool                  `json:"autoIngest" doc:"Submit a scan job for every running image with no SBOM whose host resolves to a registry in this cluster's namespace, on every accepted snapshot."`
+	Agent         *ClusterAgentResponse `json:"agent,omitempty" doc:"What the agent reported about itself with its last accepted snapshot. Absent until an agent that self-reports has pushed."`
+	CreatedAt     string                `json:"createdAt"`
+	UpdatedAt     string                `json:"updatedAt"`
+}
+
+// ClusterAgentResponse is the agent's self-description as stored on the
+// cluster, plus the server's verdict on its version.
+type ClusterAgentResponse struct {
+	Version               string   `json:"version,omitempty" doc:"Agent build version"`
+	KubernetesVersion     string   `json:"kubernetesVersion,omitempty" doc:"Kubernetes server version (gitVersion)"`
+	NodeCount             *int32   `json:"nodeCount,omitempty" doc:"Distinct nodes running the reported pods"`
+	Namespaces            []string `json:"namespaces,omitempty" doc:"Namespace allowlist; empty or absent with reportIntervalSeconds set means every namespace"`
+	ReportIntervalSeconds *int32   `json:"reportIntervalSeconds,omitempty" doc:"Seconds between snapshots; 0 for a one-shot agent"`
+	PodName               string   `json:"podName,omitempty" doc:"The agent's own pod"`
+	PodNamespace          string   `json:"podNamespace,omitempty" doc:"Namespace the agent runs in"`
+	VersionSkew           string   `json:"versionSkew,omitempty" doc:"Set when the agent's major.minor differs from the server's"`
 }
 
 // ListClustersInput is the request for GET /api/v1/clusters.
@@ -107,7 +121,20 @@ type PutInventoryInput struct {
 	ID   string `path:"id" doc:"Cluster UUID" format:"uuid"`
 	Body struct {
 		Workloads []InventoryWorkload `json:"workloads" doc:"The complete set of running container images. Omitted entries are pruned."`
+		Agent     *InventoryAgent     `json:"agent,omitempty" doc:"The agent's description of itself. Optional, so an older agent's push is still accepted."`
 	}
+}
+
+// InventoryAgent is what an agent reports about itself and its cluster with a
+// snapshot (ocidex-70eo.3). Every field is optional.
+type InventoryAgent struct {
+	Version               string   `json:"version,omitempty" maxLength:"128" doc:"Agent build version"`
+	KubernetesVersion     string   `json:"kubernetesVersion,omitempty" maxLength:"128" doc:"Kubernetes server gitVersion from the discovery API"`
+	NodeCount             *int32   `json:"nodeCount,omitempty" minimum:"0" doc:"Distinct nodes running the reported pods"`
+	Namespaces            []string `json:"namespaces,omitempty" maxItems:"1000" doc:"Namespace allowlist; empty means every namespace"`
+	ReportIntervalSeconds *int32   `json:"reportIntervalSeconds,omitempty" minimum:"0" doc:"Seconds between snapshots; 0 for a one-shot agent"`
+	PodName               string   `json:"podName,omitempty" maxLength:"253" doc:"The agent's own pod name"`
+	PodNamespace          string   `json:"podNamespace,omitempty" maxLength:"253" doc:"Namespace the agent runs in"`
 }
 
 // PutInventoryOutput reports what the snapshot did, so an agent's logs can show
@@ -117,6 +144,10 @@ type PutInventoryOutput struct {
 		Accepted int    `json:"accepted" doc:"Workload rows in the snapshot"`
 		Pruned   int    `json:"pruned" doc:"Rows deleted because the snapshot no longer reports them"`
 		SeenAt   string `json:"seenAt" doc:"Timestamp recorded on the cluster"`
+		// The agent logs these: a skew warning on the server's side alone would
+		// reach nobody watching the agent.
+		ServerVersion string `json:"serverVersion,omitempty" doc:"The server's version"`
+		VersionSkew   string `json:"versionSkew,omitempty" doc:"Set when the reported agent version's major.minor differs from the server's"`
 	}
 }
 

@@ -176,7 +176,7 @@ const createCluster = `-- name: CreateCluster :one
 
 INSERT INTO cluster (namespace_id, name, description)
 VALUES ($1, $2, $3)
-RETURNING id, namespace_id, name, description, last_seen_at, created_at, updated_at, auto_ingest
+RETURNING id, namespace_id, name, description, last_seen_at, created_at, updated_at, auto_ingest, agent_version, agent_kubernetes_version, agent_node_count, agent_namespaces, agent_report_interval_seconds, agent_pod_name, agent_pod_namespace
 `
 
 type CreateClusterParams struct {
@@ -203,6 +203,13 @@ func (q *Queries) CreateCluster(ctx context.Context, arg CreateClusterParams) (C
 		&i.CreatedAt,
 		&i.UpdatedAt,
 		&i.AutoIngest,
+		&i.AgentVersion,
+		&i.AgentKubernetesVersion,
+		&i.AgentNodeCount,
+		&i.AgentNamespaces,
+		&i.AgentReportIntervalSeconds,
+		&i.AgentPodName,
+		&i.AgentPodNamespace,
 	)
 	return i, err
 }
@@ -222,7 +229,7 @@ func (q *Queries) DeleteCluster(ctx context.Context, id pgtype.UUID) (int64, err
 }
 
 const getCluster = `-- name: GetCluster :one
-SELECT id, namespace_id, name, description, last_seen_at, created_at, updated_at, auto_ingest FROM cluster WHERE id = $1
+SELECT id, namespace_id, name, description, last_seen_at, created_at, updated_at, auto_ingest, agent_version, agent_kubernetes_version, agent_node_count, agent_namespaces, agent_report_interval_seconds, agent_pod_name, agent_pod_namespace FROM cluster WHERE id = $1
 `
 
 func (q *Queries) GetCluster(ctx context.Context, id pgtype.UUID) (Cluster, error) {
@@ -237,12 +244,19 @@ func (q *Queries) GetCluster(ctx context.Context, id pgtype.UUID) (Cluster, erro
 		&i.CreatedAt,
 		&i.UpdatedAt,
 		&i.AutoIngest,
+		&i.AgentVersion,
+		&i.AgentKubernetesVersion,
+		&i.AgentNodeCount,
+		&i.AgentNamespaces,
+		&i.AgentReportIntervalSeconds,
+		&i.AgentPodName,
+		&i.AgentPodNamespace,
 	)
 	return i, err
 }
 
 const getClusterByName = `-- name: GetClusterByName :one
-SELECT id, namespace_id, name, description, last_seen_at, created_at, updated_at, auto_ingest FROM cluster WHERE namespace_id = $1 AND name = $2
+SELECT id, namespace_id, name, description, last_seen_at, created_at, updated_at, auto_ingest, agent_version, agent_kubernetes_version, agent_node_count, agent_namespaces, agent_report_interval_seconds, agent_pod_name, agent_pod_namespace FROM cluster WHERE namespace_id = $1 AND name = $2
 `
 
 type GetClusterByNameParams struct {
@@ -262,6 +276,13 @@ func (q *Queries) GetClusterByName(ctx context.Context, arg GetClusterByNamePara
 		&i.CreatedAt,
 		&i.UpdatedAt,
 		&i.AutoIngest,
+		&i.AgentVersion,
+		&i.AgentKubernetesVersion,
+		&i.AgentNodeCount,
+		&i.AgentNamespaces,
+		&i.AgentReportIntervalSeconds,
+		&i.AgentPodName,
+		&i.AgentPodNamespace,
 	)
 	return i, err
 }
@@ -1038,7 +1059,7 @@ func (q *Queries) ListClusterWorkloads(ctx context.Context, arg ListClusterWorkl
 }
 
 const listClusters = `-- name: ListClusters :many
-SELECT c.id, c.namespace_id, c.name, c.description, c.last_seen_at, c.created_at, c.updated_at, c.auto_ingest, n.name AS namespace_name, n.visibility
+SELECT c.id, c.namespace_id, c.name, c.description, c.last_seen_at, c.created_at, c.updated_at, c.auto_ingest, c.agent_version, c.agent_kubernetes_version, c.agent_node_count, c.agent_namespaces, c.agent_report_interval_seconds, c.agent_pod_name, c.agent_pod_namespace, n.name AS namespace_name, n.visibility
 FROM cluster c
 JOIN namespace n ON n.id = c.namespace_id
 WHERE (
@@ -1083,6 +1104,13 @@ func (q *Queries) ListClusters(ctx context.Context, arg ListClustersParams) ([]L
 			&i.Cluster.CreatedAt,
 			&i.Cluster.UpdatedAt,
 			&i.Cluster.AutoIngest,
+			&i.Cluster.AgentVersion,
+			&i.Cluster.AgentKubernetesVersion,
+			&i.Cluster.AgentNodeCount,
+			&i.Cluster.AgentNamespaces,
+			&i.Cluster.AgentReportIntervalSeconds,
+			&i.Cluster.AgentPodName,
+			&i.Cluster.AgentPodNamespace,
 			&i.NamespaceName,
 			&i.Visibility,
 		); err != nil {
@@ -1097,7 +1125,7 @@ func (q *Queries) ListClusters(ctx context.Context, arg ListClustersParams) ([]L
 }
 
 const listClustersByNamespace = `-- name: ListClustersByNamespace :many
-SELECT id, namespace_id, name, description, last_seen_at, created_at, updated_at, auto_ingest FROM cluster WHERE namespace_id = $1 ORDER BY created_at ASC
+SELECT id, namespace_id, name, description, last_seen_at, created_at, updated_at, auto_ingest, agent_version, agent_kubernetes_version, agent_node_count, agent_namespaces, agent_report_interval_seconds, agent_pod_name, agent_pod_namespace FROM cluster WHERE namespace_id = $1 ORDER BY created_at ASC
 `
 
 func (q *Queries) ListClustersByNamespace(ctx context.Context, namespaceID pgtype.UUID) ([]Cluster, error) {
@@ -1118,6 +1146,13 @@ func (q *Queries) ListClustersByNamespace(ctx context.Context, namespaceID pgtyp
 			&i.CreatedAt,
 			&i.UpdatedAt,
 			&i.AutoIngest,
+			&i.AgentVersion,
+			&i.AgentKubernetesVersion,
+			&i.AgentNodeCount,
+			&i.AgentNamespaces,
+			&i.AgentReportIntervalSeconds,
+			&i.AgentPodName,
+			&i.AgentPodNamespace,
 		); err != nil {
 			return nil, err
 		}
@@ -1268,18 +1303,47 @@ func (q *Queries) PruneClusterWorkloads(ctx context.Context, arg PruneClusterWor
 }
 
 const touchClusterLastSeen = `-- name: TouchClusterLastSeen :exec
-UPDATE cluster SET last_seen_at = $2, updated_at = now() WHERE id = $1
+UPDATE cluster
+SET last_seen_at                  = $2,
+    agent_version                 = $3,
+    agent_kubernetes_version      = $4,
+    agent_node_count              = $5,
+    agent_namespaces              = $6::text[],
+    agent_report_interval_seconds = $7,
+    agent_pod_name                = $8,
+    agent_pod_namespace           = $9,
+    updated_at                    = now()
+WHERE id = $1
 `
 
 type TouchClusterLastSeenParams struct {
-	ID         pgtype.UUID        `json:"id"`
-	LastSeenAt pgtype.Timestamptz `json:"last_seen_at"`
+	ID                         pgtype.UUID        `json:"id"`
+	LastSeenAt                 pgtype.Timestamptz `json:"last_seen_at"`
+	AgentVersion               pgtype.Text        `json:"agent_version"`
+	AgentKubernetesVersion     pgtype.Text        `json:"agent_kubernetes_version"`
+	AgentNodeCount             pgtype.Int4        `json:"agent_node_count"`
+	AgentNamespaces            []string           `json:"agent_namespaces"`
+	AgentReportIntervalSeconds pgtype.Int4        `json:"agent_report_interval_seconds"`
+	AgentPodName               pgtype.Text        `json:"agent_pod_name"`
+	AgentPodNamespace          pgtype.Text        `json:"agent_pod_namespace"`
 }
 
 // Stamped once per accepted snapshot, inside the ingest transaction. This is
 // what makes "dead agent" distinguishable from "empty cluster" (ADR-044 K2).
+// The agent_* columns are overwritten, not coalesced: an agent rolled back to
+// a version that sends nothing must not keep showing the newer one's facts.
 func (q *Queries) TouchClusterLastSeen(ctx context.Context, arg TouchClusterLastSeenParams) error {
-	_, err := q.db.Exec(ctx, touchClusterLastSeen, arg.ID, arg.LastSeenAt)
+	_, err := q.db.Exec(ctx, touchClusterLastSeen,
+		arg.ID,
+		arg.LastSeenAt,
+		arg.AgentVersion,
+		arg.AgentKubernetesVersion,
+		arg.AgentNodeCount,
+		arg.AgentNamespaces,
+		arg.AgentReportIntervalSeconds,
+		arg.AgentPodName,
+		arg.AgentPodNamespace,
+	)
 	return err
 }
 
@@ -1290,7 +1354,7 @@ SET name        = $2,
     auto_ingest = COALESCE($4::boolean, auto_ingest),
     updated_at  = now()
 WHERE id = $1
-RETURNING id, namespace_id, name, description, last_seen_at, created_at, updated_at, auto_ingest
+RETURNING id, namespace_id, name, description, last_seen_at, created_at, updated_at, auto_ingest, agent_version, agent_kubernetes_version, agent_node_count, agent_namespaces, agent_report_interval_seconds, agent_pod_name, agent_pod_namespace
 `
 
 type UpdateClusterParams struct {
@@ -1319,6 +1383,13 @@ func (q *Queries) UpdateCluster(ctx context.Context, arg UpdateClusterParams) (C
 		&i.CreatedAt,
 		&i.UpdatedAt,
 		&i.AutoIngest,
+		&i.AgentVersion,
+		&i.AgentKubernetesVersion,
+		&i.AgentNodeCount,
+		&i.AgentNamespaces,
+		&i.AgentReportIntervalSeconds,
+		&i.AgentPodName,
+		&i.AgentPodNamespace,
 	)
 	return i, err
 }

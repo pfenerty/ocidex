@@ -16,6 +16,7 @@ import (
 	"flag"
 	"fmt"
 	"log/slog"
+	"math"
 	"os"
 	"os/signal"
 	"syscall"
@@ -23,6 +24,7 @@ import (
 
 	corev1 "k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
+	"k8s.io/client-go/discovery"
 	"k8s.io/client-go/kubernetes"
 	typedcorev1 "k8s.io/client-go/kubernetes/typed/core/v1"
 	ctrlconfig "sigs.k8s.io/controller-runtime/pkg/client/config"
@@ -31,6 +33,7 @@ import (
 	"github.com/pfenerty/ocidex/internal/health"
 	"github.com/pfenerty/ocidex/internal/metrics"
 	"github.com/pfenerty/ocidex/internal/tracing"
+	"github.com/pfenerty/ocidex/internal/version"
 	"github.com/pfenerty/ocidex/pkg/client"
 )
 
@@ -62,6 +65,7 @@ func run() error {
 		"server", cfg.ServerURL,
 		"namespaces", cfg.Namespaces,
 		"interval", cfg.ReportInterval,
+		"version", version.String(),
 	)
 
 	restCfg, err := ctrlconfig.GetConfig()
@@ -74,9 +78,11 @@ func run() error {
 	}
 
 	a := &agent{
-		cfg:  cfg,
-		pods: clientset.CoreV1(),
-		api:  client.New(client.Config{BaseURL: cfg.ServerURL, APIKey: cfg.APIKey}),
+		cfg:       cfg,
+		pods:      clientset.CoreV1(),
+		discovery: clientset.Discovery(),
+		api:       client.New(client.Config{BaseURL: cfg.ServerURL, APIKey: cfg.APIKey}),
+		oneShot:   *once,
 	}
 
 	ctx, cancel := context.WithCancel(context.Background())
@@ -135,9 +141,13 @@ type podLister interface {
 }
 
 type agent struct {
-	cfg  *config.K8sAgentConfig
-	pods podLister
-	api  client.Client
+	cfg       *config.K8sAgentConfig
+	pods      podLister
+	discovery discovery.ServerVersionInterface
+	api       client.Client
+	// oneShot reports a zero interval: a --once Job has no next report, and
+	// the server must not judge it stale against the default interval.
+	oneShot bool
 }
 
 // report collects one snapshot and pushes it.
@@ -150,9 +160,12 @@ func (a *agent) report(ctx context.Context) error {
 	}
 	workloads := buildSnapshot(pods)
 
-	out, err := a.api.PutInventory(ctx, a.cfg.ClusterID, workloads)
+	out, err := a.api.PutInventory(ctx, a.cfg.ClusterID, workloads, a.describe(ctx, pods))
 	if err != nil {
 		return fmt.Errorf("pushing inventory: %w", err)
+	}
+	if out.VersionSkew != nil && *out.VersionSkew != "" {
+		slog.Warn("agent and server versions differ", "detail", *out.VersionSkew)
 	}
 
 	slog.Info("inventory reported",
@@ -164,6 +177,58 @@ func (a *agent) report(ctx context.Context) error {
 		"duration", time.Since(start).String(),
 	)
 	return nil
+}
+
+// describe is the agent's self-report sent with each snapshot (ocidex-70eo.3).
+// Every field is best effort: a discovery failure costs the Kubernetes version,
+// not the snapshot.
+func (a *agent) describe(ctx context.Context, pods []corev1.Pod) *client.InventoryAgent {
+	agentVersion, _, _ := version.Info()
+	interval := int32(min(a.cfg.ReportInterval/time.Second, math.MaxInt32)) //nolint:gosec // clamped above
+	if a.oneShot {
+		interval = 0
+	}
+	nodes := countNodes(pods)
+	namespaces := a.cfg.Namespaces
+	if namespaces == nil {
+		namespaces = []string{}
+	}
+	info := &client.InventoryAgent{
+		Version:               &agentVersion,
+		NodeCount:             &nodes,
+		Namespaces:            &namespaces,
+		ReportIntervalSeconds: &interval,
+		PodName:               optString(a.cfg.PodName),
+		PodNamespace:          optString(a.cfg.PodNamespace),
+	}
+	if a.discovery != nil {
+		if v, err := a.discovery.ServerVersion(); err != nil {
+			slog.WarnContext(ctx, "reading kubernetes server version", "err", err)
+		} else {
+			info.KubernetesVersion = &v.GitVersion
+		}
+	}
+	return info
+}
+
+// countNodes counts the distinct nodes the pods are scheduled on. It reads the
+// pods rather than listing nodes, so the agent needs no RBAC on nodes; with a
+// namespace allowlist it is the nodes running those namespaces' pods.
+func countNodes(pods []corev1.Pod) int32 {
+	seen := map[string]struct{}{}
+	for i := range pods {
+		if n := pods[i].Spec.NodeName; n != "" {
+			seen[n] = struct{}{}
+		}
+	}
+	return int32(len(seen)) //nolint:gosec // bounded by the cluster's node count
+}
+
+func optString(s string) *string {
+	if s == "" {
+		return nil
+	}
+	return &s
 }
 
 // listPods reads every pod the agent is scoped to. With no namespace allowlist it

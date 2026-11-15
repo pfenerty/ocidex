@@ -112,6 +112,8 @@ var EnvDocs = []EnvDoc{
 	{"OCIDEX_NAMESPACES", "k8s-agent", "Comma-separated Kubernetes namespace allowlist. Empty means every namespace."},
 	{"OCIDEX_REPORT_INTERVAL", "k8s-agent", "Time between snapshots. Ignored under `--once`."},
 	{"HEALTH_ADDR", "k8s-agent", "Liveness/readiness listen address (`/healthz`, `/readyz`)."},
+	{"POD_NAME", "k8s-agent", "The agent's own pod name, reported with each snapshot so the cluster page names the pod to inspect. The chart sets it from the downward API."},
+	{"POD_NAMESPACE", "k8s-agent", "The namespace the agent runs in, reported alongside `POD_NAME`. The chart sets it from the downward API."},
 	{"OPERATOR_NAMESPACE", "operator", "Where the leader-election Lease lives. The chart sets it from the pod's own namespace."},
 	{"WATCH_NAMESPACE", "operator", "Comma-separated namespaces whose `OCIRegistry`, `ScanRequest` and `APIKey` objects the operator reconciles. Empty watches every namespace. List the old and new namespaces together while retargeting, or the old namespace's finalizers are never removed (see [Changing what it watches](/guides/operate/clusters-and-operator/#changing-what-it-watches-or-removing-it))."},
 	{"LEADER_ELECTION_LEASE_DURATION", "operator", "Leader-election lease length."},

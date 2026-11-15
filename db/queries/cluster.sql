@@ -53,7 +53,19 @@ DELETE FROM cluster WHERE id = $1;
 -- name: TouchClusterLastSeen :exec
 -- Stamped once per accepted snapshot, inside the ingest transaction. This is
 -- what makes "dead agent" distinguishable from "empty cluster" (ADR-044 K2).
-UPDATE cluster SET last_seen_at = $2, updated_at = now() WHERE id = $1;
+-- The agent_* columns are overwritten, not coalesced: an agent rolled back to
+-- a version that sends nothing must not keep showing the newer one's facts.
+UPDATE cluster
+SET last_seen_at                  = $2,
+    agent_version                 = sqlc.narg('agent_version'),
+    agent_kubernetes_version      = sqlc.narg('agent_kubernetes_version'),
+    agent_node_count              = sqlc.narg('agent_node_count'),
+    agent_namespaces              = sqlc.narg('agent_namespaces')::text[],
+    agent_report_interval_seconds = sqlc.narg('agent_report_interval_seconds'),
+    agent_pod_name                = sqlc.narg('agent_pod_name'),
+    agent_pod_namespace           = sqlc.narg('agent_pod_namespace'),
+    updated_at                    = now()
+WHERE id = $1;
 
 -- name: UpsertClusterWorkload :exec
 -- One row of a snapshot. The conflict target is the full natural key including

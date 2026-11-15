@@ -1798,6 +1798,33 @@ type ChangelogEntry struct {
 	To      SBOMRef          `json:"to"`
 }
 
+// ClusterAgentResponse defines model for ClusterAgentResponse.
+type ClusterAgentResponse struct {
+	// KubernetesVersion Kubernetes server version (gitVersion)
+	KubernetesVersion *string `json:"kubernetesVersion,omitempty"`
+
+	// Namespaces Namespace allowlist; empty or absent with reportIntervalSeconds set means every namespace
+	Namespaces *[]string `json:"namespaces,omitempty"`
+
+	// NodeCount Distinct nodes running the reported pods
+	NodeCount *int32 `json:"nodeCount,omitempty"`
+
+	// PodName The agent's own pod
+	PodName *string `json:"podName,omitempty"`
+
+	// PodNamespace Namespace the agent runs in
+	PodNamespace *string `json:"podNamespace,omitempty"`
+
+	// ReportIntervalSeconds Seconds between snapshots; 0 for a one-shot agent
+	ReportIntervalSeconds *int32 `json:"reportIntervalSeconds,omitempty"`
+
+	// Version Agent build version
+	Version *string `json:"version,omitempty"`
+
+	// VersionSkew Set when the agent's major.minor differs from the server's
+	VersionSkew *string `json:"versionSkew,omitempty"`
+}
+
 // ClusterImageResponse defines model for ClusterImageResponse.
 type ClusterImageResponse struct {
 	ArtifactId   *string `json:"artifactId,omitempty"`
@@ -1831,7 +1858,8 @@ type ClusterImageResponseMatchState string
 // ClusterResponse defines model for ClusterResponse.
 type ClusterResponse struct {
 	// Schema A URL to the JSON Schema for this object.
-	Schema *string `json:"$schema,omitempty"`
+	Schema *string               `json:"$schema,omitempty"`
+	Agent  *ClusterAgentResponse `json:"agent,omitempty"`
 
 	// AutoIngest Submit a scan job for every running image with no SBOM whose host resolves to a registry in this cluster's namespace, on every accepted snapshot.
 	AutoIngest  bool    `json:"autoIngest"`
@@ -2668,6 +2696,30 @@ type IngestUnknownOutputBody struct {
 	Unauthorized int64 `json:"unauthorized"`
 }
 
+// InventoryAgent defines model for InventoryAgent.
+type InventoryAgent struct {
+	// KubernetesVersion Kubernetes server gitVersion from the discovery API
+	KubernetesVersion *string `json:"kubernetesVersion,omitempty"`
+
+	// Namespaces Namespace allowlist; empty means every namespace
+	Namespaces *[]string `json:"namespaces,omitempty"`
+
+	// NodeCount Distinct nodes running the reported pods
+	NodeCount *int32 `json:"nodeCount,omitempty"`
+
+	// PodName The agent's own pod name
+	PodName *string `json:"podName,omitempty"`
+
+	// PodNamespace Namespace the agent runs in
+	PodNamespace *string `json:"podNamespace,omitempty"`
+
+	// ReportIntervalSeconds Seconds between snapshots; 0 for a one-shot agent
+	ReportIntervalSeconds *int32 `json:"reportIntervalSeconds,omitempty"`
+
+	// Version Agent build version
+	Version *string `json:"version,omitempty"`
+}
+
 // InventoryWorkload defines model for InventoryWorkload.
 type InventoryWorkload struct {
 	ContainerName string `json:"containerName"`
@@ -3230,7 +3282,8 @@ type ProviderResponse struct {
 // PutInventoryInputBody defines model for PutInventoryInputBody.
 type PutInventoryInputBody struct {
 	// Schema A URL to the JSON Schema for this object.
-	Schema *string `json:"$schema,omitempty"`
+	Schema *string         `json:"$schema,omitempty"`
+	Agent  *InventoryAgent `json:"agent,omitempty"`
 
 	// Workloads The complete set of running container images. Omitted entries are pruned.
 	Workloads *[]InventoryWorkload `json:"workloads"`
@@ -3249,6 +3302,12 @@ type PutInventoryOutputBody struct {
 
 	// SeenAt Timestamp recorded on the cluster
 	SeenAt string `json:"seenAt"`
+
+	// ServerVersion The server's version
+	ServerVersion *string `json:"serverVersion,omitempty"`
+
+	// VersionSkew Set when the reported agent version's major.minor differs from the server's
+	VersionSkew *string `json:"versionSkew,omitempty"`
 }
 
 // ReadinessCheckOutputBody defines model for ReadinessCheckOutputBody.

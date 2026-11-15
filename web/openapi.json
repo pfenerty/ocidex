@@ -630,6 +630,52 @@
         ],
         "type": "object"
       },
+      "ClusterAgentResponse": {
+        "additionalProperties": false,
+        "properties": {
+          "kubernetesVersion": {
+            "description": "Kubernetes server version (gitVersion)",
+            "type": "string"
+          },
+          "namespaces": {
+            "description": "Namespace allowlist; empty or absent with reportIntervalSeconds set means every namespace",
+            "items": {
+              "type": "string"
+            },
+            "type": [
+              "array",
+              "null"
+            ]
+          },
+          "nodeCount": {
+            "description": "Distinct nodes running the reported pods",
+            "format": "int32",
+            "type": "integer"
+          },
+          "podName": {
+            "description": "The agent's own pod",
+            "type": "string"
+          },
+          "podNamespace": {
+            "description": "Namespace the agent runs in",
+            "type": "string"
+          },
+          "reportIntervalSeconds": {
+            "description": "Seconds between snapshots; 0 for a one-shot agent",
+            "format": "int32",
+            "type": "integer"
+          },
+          "version": {
+            "description": "Agent build version",
+            "type": "string"
+          },
+          "versionSkew": {
+            "description": "Set when the agent's major.minor differs from the server's",
+            "type": "string"
+          }
+        },
+        "type": "object"
+      },
       "ClusterImageResponse": {
         "additionalProperties": false,
         "properties": {
@@ -714,6 +760,10 @@
             "format": "uri",
             "readOnly": true,
             "type": "string"
+          },
+          "agent": {
+            "$ref": "#/components/schemas/ClusterAgentResponse",
+            "description": "What the agent reported about itself with its last accepted snapshot. Absent until an agent that self-reports has pushed."
           },
           "autoIngest": {
             "description": "Submit a scan job for every running image with no SBOM whose host resolves to a registry in this cluster's namespace, on every accepted snapshot.",
@@ -3086,6 +3136,55 @@
         ],
         "type": "object"
       },
+      "InventoryAgent": {
+        "additionalProperties": false,
+        "properties": {
+          "kubernetesVersion": {
+            "description": "Kubernetes server gitVersion from the discovery API",
+            "maxLength": 128,
+            "type": "string"
+          },
+          "namespaces": {
+            "description": "Namespace allowlist; empty means every namespace",
+            "items": {
+              "type": "string"
+            },
+            "maxItems": 1000,
+            "type": [
+              "array",
+              "null"
+            ]
+          },
+          "nodeCount": {
+            "description": "Distinct nodes running the reported pods",
+            "format": "int32",
+            "minimum": 0,
+            "type": "integer"
+          },
+          "podName": {
+            "description": "The agent's own pod name",
+            "maxLength": 253,
+            "type": "string"
+          },
+          "podNamespace": {
+            "description": "Namespace the agent runs in",
+            "maxLength": 253,
+            "type": "string"
+          },
+          "reportIntervalSeconds": {
+            "description": "Seconds between snapshots; 0 for a one-shot agent",
+            "format": "int32",
+            "minimum": 0,
+            "type": "integer"
+          },
+          "version": {
+            "description": "Agent build version",
+            "maxLength": 128,
+            "type": "string"
+          }
+        },
+        "type": "object"
+      },
       "InventoryWorkload": {
         "additionalProperties": false,
         "properties": {
@@ -4850,6 +4949,10 @@
             "readOnly": true,
             "type": "string"
           },
+          "agent": {
+            "$ref": "#/components/schemas/InventoryAgent",
+            "description": "The agent's description of itself. Optional, so an older agent's push is still accepted."
+          },
           "workloads": {
             "description": "The complete set of running container images. Omitted entries are pruned.",
             "items": {
@@ -4890,6 +4993,14 @@
           },
           "seenAt": {
             "description": "Timestamp recorded on the cluster",
+            "type": "string"
+          },
+          "serverVersion": {
+            "description": "The server's version",
+            "type": "string"
+          },
+          "versionSkew": {
+            "description": "Set when the reported agent version's major.minor differs from the server's",
             "type": "string"
           }
         },

@@ -237,7 +237,7 @@ func (f *fakeClusterService) Update(_ context.Context, _ service.UpdateClusterPa
 
 func (f *fakeClusterService) Delete(_ context.Context, _ string) error { return nil }
 
-func (f *fakeClusterService) ReplaceInventory(_ context.Context, _ string, _ []service.ReportedWorkload) (int, error) {
+func (f *fakeClusterService) ReplaceInventory(_ context.Context, _ string, _ []service.ReportedWorkload, _ *service.AgentInfo) (int, error) {
 	return 0, nil
 }
 
