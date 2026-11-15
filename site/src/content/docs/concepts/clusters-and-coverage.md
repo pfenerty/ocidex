@@ -7,9 +7,14 @@ sidebar:
 
 Registry scans tell you what was built. A **cluster** tells you what is running.
 
-Register a Kubernetes cluster in a namespace, install the `ocidex-k8s-agent` in it, and the agent
-sends OCIDex a snapshot of every running container and its image digest. Each snapshot replaces
-the last.
+Connect a Kubernetes cluster to a namespace and run the one `helm install` command OCIDex gives
+you. The `ocidex-k8s-agent` then sends a snapshot of every running container and its image digest.
+Each snapshot replaces the last.
+
+The agent pushes with a credential bound to its cluster, which can do nothing else. OCIDex records
+every push, refused ones too, so a cluster is always in one **health** state: *healthy*, *stale*
+(no recent snapshot), *erroring* (pushing and being refused, with the reason), *never reported* or
+*paused*. A stale cluster's inventory is still shown, and the page says it may be out of date.
 
 ## Coverage
 
@@ -35,3 +40,9 @@ With **auto-ingest** on, which is the default, every snapshot queues a scan of e
 that has no SBOM. OCIDex pulls it with the credentials of a registry in the same namespace that
 serves it, or anonymously when none does. Running images are also protected from retention, so
 what's running stays answerable.
+
+## Where it shows up
+
+Running is context everywhere OCIDex shows an image: an artifact's page says which clusters run
+which of its versions, an advisory's page lists the workloads running it, and the workspace sums
+the critical vulnerabilities running across your clusters.
