@@ -14,7 +14,9 @@
        narrow for a five-tile band — auto-fit gave it four ~150px columns and
        wrapped the fifth alone. The prose keeps its own max-width below; the
        hero column is now sized for the widest thing in it (ocidex-ag4q.42). */
-    max-width: 62rem;
+    /* Matches .landing-features-grid, so the hero's rule and the sections
+       below share one right edge (ocidex-gu40). */
+    max-width: calc(75rem + 4rem);
 }
 
 .landing-title {
@@ -107,129 +109,367 @@
     flex-wrap: wrap;
 }
 
+/* The palette's door, sized as the hero's primary input. It opens the same
+   CommandPalette as the sidebar's Search button. */
+.landing-search {
+    display: flex;
+    align-items: center;
+    gap: 0.625rem;
+    width: 100%;
+    max-width: 36rem;
+    padding: 0.75rem 1rem;
+    background: var(--color-surface);
+    border: 1px solid var(--color-border);
+    border-radius: var(--radius-md);
+    color: var(--color-text-muted);
+    font-size: var(--text-base);
+    text-align: left;
+    cursor: text;
+}
+
+.landing-search:hover { border-color: var(--color-border-hover); }
+
+.landing-search span { flex: 1; }
+
+.landing-search kbd {
+    font-family: var(--font-mono);
+    font-size: var(--text-xs);
+    padding: 0.125rem 0.375rem;
+    border: 1px solid var(--color-border);
+    border-radius: 4px;
+}
+
+/* ------------------------------------------------------------------------
+   Discovery (ocidex-gu40). One column of full-width sections: featured
+   cards, an exposure / license pair, and the recent feed. No section ever
+   sits alone in a half-empty grid row, which is what the old four-panel
+   auto-fill grid did at common widths.
+   ------------------------------------------------------------------------ */
 .landing-features {
     padding: 2rem;
     flex: 1;
 }
 
-/* Wider tracks than the old feature cards: these panels hold ranked rows, and
-   a name, a badge and a count do not fit in a 210px column without wrapping
-   every row onto three lines. */
 .landing-features-grid {
-    display: grid;
-    grid-template-columns: repeat(auto-fill, minmax(320px, 1fr));
-    gap: 1rem;
-    max-width: 1100px;
+    display: flex;
+    flex-direction: column;
+    gap: 1.5rem;
+    max-width: 75rem;
 }
 
-.landing-panel {
+.landing-discover-loading { max-width: 75rem; }
+.landing-discover-error { margin: 0; }
+
+.landing-section-head {
+    display: flex;
+    align-items: baseline;
+    justify-content: space-between;
+    gap: 1rem;
+    margin-bottom: 0.75rem;
+}
+
+.landing-section-title {
+    display: flex;
+    align-items: center;
+    gap: 0.5rem;
+    margin: 0;
+    font-size: var(--text-lg);
+    font-weight: 600;
+    color: var(--color-text);
+}
+
+.landing-section-title svg { color: var(--color-text-muted); }
+
+.landing-section-all {
+    font-size: var(--text-sm);
+    color: var(--color-text-muted);
+    text-decoration: none;
+    white-space: nowrap;
+}
+
+.landing-section-all:hover { color: var(--color-secondary); }
+
+/* --- image names: the short name a reader scans for, then its path ------ */
+.image-name {
+    display: flex;
+    flex-direction: column;
+    min-width: 0;
+}
+
+.image-name-short {
+    color: var(--color-text);
+    font-weight: 600;
+    overflow-wrap: anywhere;
+}
+
+.image-name-prefix {
+    font-family: var(--font-mono);
+    font-size: var(--text-xs);
+    color: var(--color-text-muted);
+    overflow-wrap: anywhere;
+}
+
+/* --- featured cards ------------------------------------------------------ */
+.featured-grid {
+    list-style: none;
+    margin: 0;
+    padding: 0;
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(16rem, 1fr));
+    gap: 0.75rem;
+}
+
+.featured-card {
     position: relative;
     display: flex;
     flex-direction: column;
-    gap: 0.625rem;
-    color: var(--color-text);
-    padding: 1.25rem;
-    overflow: hidden;
+    gap: 0.75rem;
+    padding: 1rem;
+    transition: border-color 0.15s;
 }
 
-/* 2px red-to-transparent top edge per ADR-0023 entry-card spec */
-.landing-panel::before {
-    content: "";
-    position: absolute;
-    top: 0;
-    left: 0;
-    right: 0;
-    height: 2px;
-    background: linear-gradient(to right, var(--color-entry-edge) 70%, transparent 100%);
-}
+.featured-card:hover { border-color: var(--color-border-hover); }
 
-.landing-card-header {
+.featured-top {
     display: flex;
+    align-items: flex-start;
     justify-content: space-between;
-    align-items: center;
+    gap: 0.5rem;
 }
 
-.landing-panel-all {
-    font-size: 0.75rem;
-    font-family: var(--font-mono);
-    color: var(--color-text-muted);
+.featured-link {
+    min-width: 0;
     text-decoration: none;
 }
 
-.landing-panel-all:hover { color: var(--color-secondary); }
-
-.landing-panel-icon {
-    color: var(--color-text-muted);
-    vertical-align: -0.15em;
-    margin-right: 0.375rem;
+/* The name link covers the whole card, so the card is one target without
+   nesting the version badge or the chips inside an anchor. */
+.featured-link::after {
+    content: "";
+    position: absolute;
+    inset: 0;
+    border-radius: inherit;
 }
 
-.landing-card-title {
-    font-size: 1rem;
-    font-weight: 600;
+.featured-name .image-name-short { font-size: var(--text-xl); }
+
+.featured-facts {
+    display: grid;
+    grid-template-columns: auto 1fr;
+    gap: 1.25rem;
     margin: 0;
+}
+
+.featured-facts dt {
+    font-size: var(--text-xs);
+    text-transform: uppercase;
+    letter-spacing: 0.04em;
+    color: var(--color-text-muted);
+}
+
+.featured-facts dd {
+    margin: 0.25rem 0 0;
+    font-family: var(--font-mono);
+    font-size: var(--text-base);
     color: var(--color-text);
 }
 
-.landing-card-desc {
-    font-size: 0.8125rem;
-    line-height: 1.55;
-    color: var(--color-text-muted);
+.featured-updated {
     margin: 0;
+    margin-top: auto;
+    font-size: var(--text-xs);
+    color: var(--color-text-muted);
+}
+
+/* --- proportional bars ----------------------------------------------------- */
+.mix-bar {
+    display: flex;
+    height: 0.625rem;
+    border-radius: 999px;
+    overflow: hidden;
+    gap: 2px;
+    background: var(--color-surface-hover);
+}
+
+.mix-bar-thin { height: 0.375rem; }
+
+.mix-seg {
+    flex-basis: 0;
+    min-width: 3px;
+}
+
+.mix-legend {
+    list-style: none;
+    margin: 0.5rem 0 0;
+    padding: 0;
+    display: flex;
+    flex-wrap: wrap;
+    gap: 0.25rem 1rem;
+    font-size: var(--text-sm);
+    color: var(--color-text-muted);
+}
+
+.mix-legend li {
+    display: inline-flex;
+    align-items: center;
+    gap: 0.375rem;
+}
+
+.mix-legend-n {
+    font-family: var(--font-mono);
+    color: var(--color-text);
+}
+
+.mix-dot {
+    display: inline-block;
+    flex: none;
+    width: 0.625rem;
+    height: 0.625rem;
+    border-radius: 2px;
+}
+
+/* License categories, the same tokens CATEGORY_COLORS (utils/licenseUtils)
+   gives the Licenses page. */
+.lic-permissive { background: var(--color-success); }
+.lic-weak-copyleft { background: var(--color-warning); }
+.lic-copyleft { background: var(--color-danger); }
+.lic-uncategorized,
+.lic-unknown { background: var(--color-text-dim); }
+
+/* --- exposure / license pair --------------------------------------------- */
+.landing-pair {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(22rem, 1fr));
+    gap: 1rem;
+}
+
+.landing-panel {
+    display: flex;
+    flex-direction: column;
+    padding: 1.25rem;
+    color: var(--color-text);
+    min-width: 0;
+}
+
+.landing-subhead {
+    margin: 1.25rem 0 0.25rem;
+    font-size: var(--text-xs);
+    font-weight: 600;
+    text-transform: uppercase;
+    letter-spacing: 0.04em;
+    color: var(--color-text-muted);
 }
 
 .landing-list {
     list-style: none;
     margin: 0;
     padding: 0;
-    display: flex;
-    flex-direction: column;
-    flex: 1;
 }
 
-.landing-list-row {
+.landing-row {
+    padding: 0.5rem 0;
+    border-top: 1px solid var(--color-border);
+}
+
+.landing-row:first-child { border-top: none; }
+
+.landing-row-main {
     display: flex;
     align-items: center;
     gap: 0.5rem;
-    padding: 0.375rem 0;
-    border-top: 1px solid var(--color-border);
-    font-size: 0.8125rem;
     min-width: 0;
 }
 
-.landing-list-row:first-child { border-top: none; }
-
-/* The name is the only element allowed to consume slack, so the badge and the
-   count keep a stable right-hand rhythm down the column however long the
-   names are. */
-.landing-list-name {
+/* Names wrap rather than truncate: a clipped CVE or license id is a
+   different id. */
+.landing-row-name {
     flex: 1;
     min-width: 0;
-    overflow: hidden;
-    text-overflow: ellipsis;
-    white-space: nowrap;
+    overflow-wrap: anywhere;
     color: var(--color-text);
     text-decoration: none;
-    font-family: var(--font-mono);
 }
 
-.landing-list-name:hover { color: var(--color-secondary); }
+.landing-row-name:hover { color: var(--color-secondary); }
 
-.landing-list-meta {
+.landing-mono { font-family: var(--font-mono); }
+
+.landing-row-meta {
     font-family: var(--font-mono);
-    font-size: 0.75rem;
+    font-size: var(--text-xs);
     color: var(--color-text-muted);
     white-space: nowrap;
 }
 
-.landing-list-time { text-decoration: none; }
-.landing-list-time:hover { color: var(--color-secondary); }
+/* The advisory summary, two lines at most: enough to say what it is. */
+.landing-row-sub {
+    margin: 0.25rem 0 0;
+    font-size: var(--text-sm);
+    line-height: 1.45;
+    color: var(--color-text-muted);
+    display: -webkit-box;
+    -webkit-line-clamp: 2;
+    -webkit-box-orient: vertical;
+    overflow: hidden;
+}
 
 .landing-list-empty {
     padding: 0.375rem 0;
-    font-size: 0.8125rem;
+    font-size: var(--text-sm);
 }
 
-.landing-discover-loading { max-width: 1100px; }
+/* --- recent feed ----------------------------------------------------------- */
+.recent-grid {
+    list-style: none;
+    margin: 0;
+    padding: 0;
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(20rem, 1fr));
+    column-gap: 2rem;
+}
 
-.landing-discover-error { margin: 0; }
+.recent-row {
+    display: flex;
+    align-items: center;
+    gap: 0.75rem;
+    padding: 0.5rem 0;
+    border-top: 1px solid var(--color-border);
+    min-width: 0;
+}
+
+.recent-name {
+    flex: 1;
+    min-width: 0;
+    text-decoration: none;
+}
+
+.recent-name:hover .image-name-short { color: var(--color-secondary); }
+
+.recent-version {
+    font-size: var(--text-xs);
+    color: var(--color-text-muted);
+    overflow-wrap: anywhere;
+    max-width: 9rem;
+    text-align: right;
+}
+
+.recent-time {
+    font-size: var(--text-xs);
+    color: var(--color-text-muted);
+    text-decoration: none;
+    white-space: nowrap;
+}
+
+.recent-time:hover { color: var(--color-secondary); }
+
+@media (max-width: 640px) {
+    .landing-features { padding: 1.25rem 1rem; }
+    .landing-pair { grid-template-columns: 1fr; }
+    .recent-grid { grid-template-columns: 1fr; }
+}
+
+/* Unknown is outside the severity scale, and its chip background
+   (.sev-default, surface-hover) is the bar's own track colour, which made a
+   quarter of the bar disappear. In a bar it reads as a neutral grey. */
+.mix-seg.sev-default,
+.mix-dot.sev-default { background: var(--color-text-dim); }

@@ -776,6 +776,7 @@ func (h *Handler) GetDiscovery(ctx context.Context, _ *struct{}) (*DiscoveryOutp
 	}
 
 	out := &DiscoveryOutput{}
+	out.Body.FeaturedArtifacts = discovery.FeaturedArtifacts
 	out.Body.TopArtifacts = discovery.TopArtifacts
 	out.Body.RecentArtifacts = discovery.RecentArtifacts
 	out.Body.TopVulnerabilities = discovery.TopVulnerabilities

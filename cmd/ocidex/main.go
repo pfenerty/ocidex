@@ -124,7 +124,7 @@ func run() error {
 		ocivalidate.WithEgress(cfg.EgressPolicy),
 	)
 	sbomSvc := service.NewSBOMService(pool, bus, ociValidator)
-	searchSvc := service.NewSearchService(pool, service.WithWarmDB(bgPool))
+	searchSvc := service.NewSearchService(pool, service.WithWarmDB(bgPool), service.WithFeatured(cfg.DiscoverFeatured))
 	authSvc := service.NewAuthService(pool, cfg, bus, providers)
 
 	jobSvc := service.NewJobService(pool, cfg.SecretBox)

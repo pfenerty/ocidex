@@ -3,6 +3,7 @@ package service
 import (
 	"context"
 	"encoding/json"
+	"strings"
 	"time"
 
 	"github.com/google/uuid"
@@ -887,6 +888,9 @@ type searchService struct {
 	warmDB        repository.DBTX
 	statsCache    *ttlCache[DashboardStats]
 	discoverCache *ttlCache[Discovery]
+	// featured is DISCOVER_FEATURED: the artifact names the landing page's
+	// cards show, in order. Empty lets the query pick.
+	featured []string
 }
 
 // warmHandle is the database handle for out-of-band aggregates, falling back to
@@ -912,6 +916,20 @@ func WithWarmDB(db repository.DBTX) SearchOption {
 	return func(s *searchService) {
 		if db != nil {
 			s.warmDB = db
+		}
+	}
+}
+
+// WithFeatured sets the artifact names the discovery payload features, in
+// order. Blank entries are dropped, so an unset variable (which env parsing
+// yields as one empty string) means "let the query pick".
+func WithFeatured(names []string) SearchOption {
+	return func(s *searchService) {
+		s.featured = s.featured[:0]
+		for _, n := range names {
+			if n = strings.TrimSpace(n); n != "" {
+				s.featured = append(s.featured, n)
+			}
 		}
 	}
 }

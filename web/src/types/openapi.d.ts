@@ -2825,6 +2825,22 @@ export interface components {
             /** Format: int64 */
             versionCount: number;
         };
+        DiscoverFeatured: {
+            artifactId: string;
+            /** Format: date-time */
+            createdAt: string;
+            licenses: components["schemas"]["LicenseCategoryMix"];
+            name: string;
+            /**
+             * Format: int64
+             * @description Components in the newest SBOM
+             */
+            packageCount: number;
+            sbomId: string;
+            subjectVersion?: string;
+            type: string;
+            vulns: components["schemas"]["VulnSeverityCounts"];
+        };
         DiscoverLicense: {
             category: string;
             /** Format: int64 */
@@ -2866,6 +2882,8 @@ export interface components {
              * @example https://example.com/api/schemas/DiscoveryOutputBody.json
              */
             readonly $schema?: string;
+            /** @description Featured public artifacts (DISCOVER_FEATURED, in order), each summarised from its newest SBOM */
+            featuredArtifacts: components["schemas"]["DiscoverFeatured"][] | null;
             /** @description When this snapshot was computed; absent while warming */
             generatedAt?: string;
             /** @description License distribution across public content, by distinct package identity */
@@ -3272,6 +3290,16 @@ export interface components {
             name: string;
             /** @description First 8 characters of the key */
             prefix: string;
+        };
+        LicenseCategoryMix: {
+            /** Format: int64 */
+            copyleft: number;
+            /** Format: int64 */
+            permissive: number;
+            /** Format: int64 */
+            uncategorized: number;
+            /** Format: int64 */
+            weakCopyleft: number;
         };
         LicenseCount: {
             /**
@@ -4726,6 +4754,18 @@ export interface components {
         VulnReference: {
             type: string;
             url: string;
+        };
+        VulnSeverityCounts: {
+            /** Format: int64 */
+            critical: number;
+            /** Format: int64 */
+            high: number;
+            /** Format: int64 */
+            low: number;
+            /** Format: int64 */
+            medium: number;
+            /** Format: int64 */
+            unknown: number;
         };
         VulnSeverityEntry: {
             /** Format: int64 */

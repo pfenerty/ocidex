@@ -75,6 +75,7 @@ A variable marked **required** stops the process at startup when it is missing.
 | Variable | Default | Description |
 | --- | --- | --- |
 | <code>FRONTEND_<wbr>URL</code> | `http://localhost:3000` | Post-login redirect target and CORS default. With `ENVIRONMENT=production` the redirect is this URL exactly. Outside production the redirect follows the login request's hostname with this URL's port — so several dev hostnames work — but only when that origin is in `CORS_ALLOWED_ORIGINS`; any other host falls back to this URL. |
+| <code>DISCOVER_<wbr>FEATURED</code> | — | Comma-separated artifact names the landing page features as cards, in this order. An entry matches an artifact named exactly that or ending in `/<entry>`, so `library/nginx` finds `registry-1.docker.io/library/nginx`; only artifacts with a public SBOM qualify. Empty: the public container images with the most packages. |
 | <code>CORS_<wbr>ALLOWED_<wbr>ORIGINS</code> | — | Comma-separated CORS origins, each a bare `scheme://host[:port]` (no path, not even `/`). Empty falls back to `FRONTEND_URL`. With `ENVIRONMENT=production` a `*` or a malformed entry fails startup; in development `*` is only warned about. The same set decides which origins may send cookie-authenticated writes. |
 | <code>API_<wbr>BASE_<wbr>URL</code> | — | Public base URL of the API, used to populate the OpenAPI `servers` block for tooling/docs. Optional. |
 

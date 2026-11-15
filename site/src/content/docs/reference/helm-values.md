@@ -48,6 +48,7 @@ The application: API, web, NATS, scanner, enrichers, vuln-worker and the migrate
 | <code>api.<wbr>env.<wbr>apiRateLimitHeavy</code> | `120` |  |
 | <code>api.<wbr>env.<wbr>frontendUrl</code> | "" |  |
 | <code>api.<wbr>env.<wbr>corsAllowedOrigins</code> | "" |  |
+| <code>api.<wbr>env.<wbr>discoverFeatured</code> | "" | DISCOVER_FEATURED: comma-separated artifact names for the landing page's featured cards, in order (e.g. "library/nginx,library/postgres"). Empty features the public images with the most packages. |
 | <code>api.<wbr>env.<wbr>apiBaseUrl</code> | "" |  |
 | <code>api.<wbr>env.<wbr>githubRedirectUrl</code> | "" |  |
 | <code>api.<wbr>env.<wbr>scannerEnabled</code> | `true` |  |

@@ -31,7 +31,20 @@ vi.mock("@solidjs/router", () => ({
 const mockUseStats = vi.mocked(useDashboardStats);
 const mockUseDiscovery = vi.mocked(useDiscovery);
 
+interface FeaturedRow {
+    artifactId: string;
+    type: string;
+    name: string;
+    sbomId: string;
+    createdAt: string;
+    subjectVersion?: string;
+    packageCount: number;
+    vulns: { critical: number; high: number; medium: number; low: number; unknown: number };
+    licenses: { permissive: number; weakCopyleft: number; copyleft: number; uncategorized: number };
+}
+
 interface DiscoveryData {
+    featuredArtifacts?: FeaturedRow[];
     topArtifacts: {
         id: string;
         type: string;
@@ -76,6 +89,19 @@ interface DiscoveryQuery {
 /** A snapshot with one row in each section — enough to assert every link. */
 function populatedDiscovery(): DiscoveryData {
     return {
+        featuredArtifacts: [
+            {
+                artifactId: "art-f",
+                type: "container",
+                name: "registry-1.docker.io/library/postgres",
+                sbomId: "sbom-f",
+                createdAt: new Date().toISOString(),
+                subjectVersion: "18.1",
+                packageCount: 1234,
+                vulns: { critical: 2, high: 5, medium: 0, low: 1, unknown: 0 },
+                licenses: { permissive: 90, weakCopyleft: 5, copyleft: 5, uncategorized: 0 },
+            },
+        ],
         topArtifacts: [
             {
                 id: "art-1",
@@ -331,30 +357,98 @@ const warmStats: StatsQuery = {
     data: { artifactCount: 1, sbomCount: 1, versionCount: 1, packageCount: 1, licenseCount: 1, vulnCount: 1 },
 };
 
+function renderHomeWithSeverity(vulnSeverity: {
+    critical: number;
+    high: number;
+    medium: number;
+    low: number;
+    unknown: number;
+}) {
+    const query = { ...warmStats, data: { ...warmStats.data, vulnSeverity } };
+    return renderHome(query as StatsQuery, { isError: false, data: populatedDiscovery() });
+}
+
 describe("Home discovery panels", () => {
-    it("links every ranked row into its detail page", () => {
-        const { container, getByText } = renderHome(warmStats, {
+    it("links every row into its detail page", () => {
+        const { container } = renderHome(warmStats, {
             isError: false,
             data: populatedDiscovery(),
         });
 
-        const hrefs = [...container.querySelectorAll(".landing-list-row a")].map((a) =>
+        const hrefs = [...container.querySelectorAll(".landing-features-grid a")].map((a) =>
             a.getAttribute("href"),
         );
-        expect(hrefs).toContain("/artifacts/art-1");
+        expect(hrefs).toContain("/artifacts/art-f");
         expect(hrefs).toContain("/artifacts/art-2");
-        // The recent row points at the SBOM that produced the timestamp, which
-        // is the thing that actually changed.
+        // The recent row's time points at the SBOM that produced it.
         expect(hrefs).toContain("/sboms/sbom-9");
         expect(hrefs).toContain("/vulnerabilities/CVE-2024-1234");
         expect(hrefs).toContain("/licenses/lic-1/components");
-
-        expect(getByText("alpine")).toBeDefined();
-        expect(getByText("14 uses · 3 versions")).toBeDefined();
         // Blast radius is reported in artifacts, not SBOMs: the SBOM count
         // (21 here) double-counts every rescan of the same image.
-        expect(getByText("7 artifacts")).toBeDefined();
+        expect(container.textContent).toContain("7 artifacts");
         expect(container.textContent).not.toContain("21 sboms");
+    });
+
+    // ocidex-gu40: on a demo corpus the ranking was nothing but OCIDex's own
+    // workers, so the landing page no longer carries it.
+    it("does not rank artifacts by use any more", () => {
+        const { container } = renderHome(warmStats, { isError: false, data: populatedDiscovery() });
+        expect(container.textContent).not.toContain("Most depended on");
+        expect(container.textContent).not.toContain("alpine");
+    });
+
+    it("renders a featured card per artifact with its short name first", () => {
+        const { container } = renderHome(warmStats, { isError: false, data: populatedDiscovery() });
+
+        const cards = container.querySelectorAll(".featured-card");
+        expect(cards).toHaveLength(1);
+        const card = cards[0];
+        expect(card.querySelector(".image-name-short")?.textContent).toBe("postgres");
+        expect(card.querySelector(".image-name-prefix")?.textContent).toBe("registry-1.docker.io/library");
+        expect(card.textContent).toContain("18.1");
+        expect(card.textContent).toContain("1,234");
+        // Severity counts render as the shared chip, zeros included but muted.
+        expect(card.querySelector(".vuln-chip")?.textContent).toBe("25010");
+        // Licenses as a proportional bar with one segment per non-zero category.
+        expect(card.querySelectorAll(".mix-bar .mix-seg")).toHaveLength(3);
+    });
+
+    it("says an image has no known vulnerabilities instead of a dash", () => {
+        const data = populatedDiscovery();
+        const f = data.featuredArtifacts?.[0];
+        if (f) f.vulns = { critical: 0, high: 0, medium: 0, low: 0, unknown: 0 };
+        const { container } = renderHome(warmStats, { isError: false, data });
+        expect(container.querySelector(".featured-card")?.textContent).toContain("none known");
+    });
+
+    it("omits the featured section when nothing is featured", () => {
+        const { container } = renderHome(warmStats, {
+            isError: false,
+            data: { ...populatedDiscovery(), featuredArtifacts: [] },
+        });
+        expect(container.querySelector(".featured-grid")).toBeNull();
+        expect(container.textContent).not.toContain("Featured images");
+    });
+
+    // Names wrap: the old rows ellipsised "ghcr.io/pfenerty/ocidex-…".
+    it("shows recent artifacts by short name with the registry path beside it", () => {
+        const data = populatedDiscovery();
+        data.recentArtifacts[0].name = "ghcr.io/pfenerty/ocidex-scanner-worker";
+        const { container } = renderHome(warmStats, { isError: false, data });
+        const row = container.querySelector(".recent-row");
+        expect(row?.querySelector(".image-name-short")?.textContent).toBe("ocidex-scanner-worker");
+        expect(row?.querySelector(".image-name-prefix")?.textContent).toBe("ghcr.io/pfenerty");
+    });
+
+    it("draws the catalog severity mix from the stats", () => {
+        renderHomeWithSeverity({ critical: 3, high: 0, medium: 4, low: 0, unknown: 1 });
+        const bars = document.querySelectorAll(".landing-panel .mix-bar");
+        // Severity bar first, license bar second (no categories here, so absent).
+        expect(bars).toHaveLength(1);
+        expect(bars[0].getAttribute("aria-label")).toBe(
+            "Known vulnerabilities by severity: 3 critical, 4 medium, 1 unknown",
+        );
     });
 
     // A warming response is a successful 200 with four empty sections because
@@ -382,28 +476,6 @@ describe("Home discovery panels", () => {
     // The three states must stay distinguishable at the far end too: a warm
     // snapshot of a genuinely empty catalog says so, and does not look like a
     // page that is still loading.
-    // Ranking artifacts nothing ships as "Most depended on" listed "0 uses"
-    // on every row (ocidex-nps9.5).
-    it("leaves artifacts nothing ships out of Most depended on", () => {
-        const data = populatedDiscovery();
-        data.topArtifacts.push({
-            id: "art-0", type: "application", name: "lonely", usageCount: 0,
-            versionCount: 150, sbomCount: 150, score: 20,
-        });
-        const { container } = renderHome(warmStats, { isError: false, data });
-        expect(container.textContent).toContain("alpine");
-        expect(container.textContent).not.toContain("lonely");
-        expect(container.textContent).not.toContain("0 uses");
-    });
-
-    it("says nothing ships another artifact when every use count is zero", () => {
-        const data = populatedDiscovery();
-        data.topArtifacts[0].usageCount = 0;
-        const { container } = renderHome(warmStats, { isError: false, data });
-        expect(container.textContent).toContain("No tracked artifact ships another one yet.");
-        expect(container.textContent).not.toContain("0 uses");
-    });
-
     it("says a section is empty when a warm snapshot has no rows", () => {
         const { container } = renderHome(warmStats, { isError: false, data: emptyDiscovery });
 

@@ -2412,6 +2412,52 @@
         ],
         "type": "object"
       },
+      "DiscoverFeatured": {
+        "additionalProperties": false,
+        "properties": {
+          "artifactId": {
+            "type": "string"
+          },
+          "createdAt": {
+            "format": "date-time",
+            "type": "string"
+          },
+          "licenses": {
+            "$ref": "#/components/schemas/LicenseCategoryMix"
+          },
+          "name": {
+            "type": "string"
+          },
+          "packageCount": {
+            "description": "Components in the newest SBOM",
+            "format": "int64",
+            "type": "integer"
+          },
+          "sbomId": {
+            "type": "string"
+          },
+          "subjectVersion": {
+            "type": "string"
+          },
+          "type": {
+            "type": "string"
+          },
+          "vulns": {
+            "$ref": "#/components/schemas/VulnSeverityCounts"
+          }
+        },
+        "required": [
+          "artifactId",
+          "type",
+          "name",
+          "sbomId",
+          "createdAt",
+          "packageCount",
+          "vulns",
+          "licenses"
+        ],
+        "type": "object"
+      },
       "DiscoverLicense": {
         "additionalProperties": false,
         "properties": {
@@ -2534,6 +2580,16 @@
             "readOnly": true,
             "type": "string"
           },
+          "featuredArtifacts": {
+            "description": "Featured public artifacts (DISCOVER_FEATURED, in order), each summarised from its newest SBOM",
+            "items": {
+              "$ref": "#/components/schemas/DiscoverFeatured"
+            },
+            "type": [
+              "array",
+              "null"
+            ]
+          },
           "generatedAt": {
             "description": "When this snapshot was computed; absent while warming",
             "type": "string"
@@ -2584,6 +2640,7 @@
           }
         },
         "required": [
+          "featuredArtifacts",
           "topArtifacts",
           "recentArtifacts",
           "topVulnerabilities",
@@ -3513,6 +3570,34 @@
           "prefix",
           "capabilities",
           "createdAt"
+        ],
+        "type": "object"
+      },
+      "LicenseCategoryMix": {
+        "additionalProperties": false,
+        "properties": {
+          "copyleft": {
+            "format": "int64",
+            "type": "integer"
+          },
+          "permissive": {
+            "format": "int64",
+            "type": "integer"
+          },
+          "uncategorized": {
+            "format": "int64",
+            "type": "integer"
+          },
+          "weakCopyleft": {
+            "format": "int64",
+            "type": "integer"
+          }
+        },
+        "required": [
+          "permissive",
+          "weakCopyleft",
+          "copyleft",
+          "uncategorized"
         ],
         "type": "object"
       },
@@ -7322,6 +7407,39 @@
         "required": [
           "type",
           "url"
+        ],
+        "type": "object"
+      },
+      "VulnSeverityCounts": {
+        "additionalProperties": false,
+        "properties": {
+          "critical": {
+            "format": "int64",
+            "type": "integer"
+          },
+          "high": {
+            "format": "int64",
+            "type": "integer"
+          },
+          "low": {
+            "format": "int64",
+            "type": "integer"
+          },
+          "medium": {
+            "format": "int64",
+            "type": "integer"
+          },
+          "unknown": {
+            "format": "int64",
+            "type": "integer"
+          }
+        },
+        "required": [
+          "critical",
+          "high",
+          "medium",
+          "low",
+          "unknown"
         ],
         "type": "object"
       },
