@@ -276,6 +276,11 @@ binary yourself.</p>
 <td>Post-login redirect target and CORS default. With <code dir="auto">ENVIRONMENT=production</code> the redirect is this URL exactly. Outside production the redirect follows the login request’s hostname with this URL’s port — so several dev hostnames work — but only when that origin is in <code dir="auto">CORS_ALLOWED_ORIGINS</code>; any other host falls back to this URL.</td>
 </tr>
 <tr>
+<td><code>DISCOVER_<wbr>FEATURED</code></td>
+<td>—</td>
+<td>Comma-separated artifact names the landing page features as cards, in this order. An entry matches an artifact named exactly that or ending in <code dir="auto">/&lt;entry&gt;</code>, so <code dir="auto">library/nginx</code> finds <code dir="auto">registry-1.docker.io/library/nginx</code>; only artifacts with a public SBOM qualify. Empty: the public container images with the most packages.</td>
+</tr>
+<tr>
 <td><code>CORS_<wbr>ALLOWED_<wbr>ORIGINS</code></td>
 <td>—</td>
 <td>Comma-separated CORS origins, each a bare <code dir="auto">scheme://host[:port]</code> (no path, not even <code dir="auto">/</code>). Empty falls back to <code dir="auto">FRONTEND_URL</code>. With <code dir="auto">ENVIRONMENT=production</code> a <code dir="auto">*</code> or a malformed entry fails startup; in development <code dir="auto">*</code> is only warned about. The same set decides which origins may send cookie-authenticated writes.</td>
