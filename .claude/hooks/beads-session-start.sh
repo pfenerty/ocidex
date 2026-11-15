@@ -37,7 +37,9 @@ fi
 if ! command -v bd >/dev/null 2>&1; then
   if command -v go >/dev/null 2>&1; then
     note "installing bd $BD_VERSION (go install, a few minutes on a cold container)..."
-    if CGO_ENABLED=1 GOFLAGS="${GOFLAGS:+$GOFLAGS }-tags=gms_pure_go" \
+    # bd 1.3.x needs a newer Go than some containers ship (1.24 seen); let go
+    # fetch the toolchain go.mod asks for even if the image sets GOTOOLCHAIN=local.
+    if GOTOOLCHAIN=auto CGO_ENABLED=1 GOFLAGS="${GOFLAGS:+$GOFLAGS }-tags=gms_pure_go" \
          go install "github.com/steveyegge/beads/cmd/bd@$BD_VERSION" 2>&1 | tail -3 >&2; then
       export PATH="$PATH:$GOBIN_DIR"
       note "bd installed to $GOBIN_DIR/bd"
