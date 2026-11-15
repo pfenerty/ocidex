@@ -1,6 +1,10 @@
 import { For, Show, type Accessor } from "solid-js";
 import type { Column } from "~/components/DataTable";
 import type { Registry } from "~/api/client";
+import type { components } from "~/types/openapi";
+import { A } from "@solidjs/router";
+
+type RegistryClusterGap = components["schemas"]["RegistryClusterGapResponse"];
 import { trustBadgeClass, signingStatusLabel, trustStatus } from "~/utils/trust";
 import { copyText } from "~/utils/clipboard";
 import { useToast } from "~/context/toast";
@@ -26,6 +30,8 @@ export function registryColumns(opts: {
     onSecretRevealed: (secret: string) => void;
     /** The caller's capabilities in the registry's namespace (ADR-046). */
     capsFor: (registryID: string) => Set<string>;
+    /** The cluster gaps each registry serves (ocidex-70eo.14); absent hides the column. */
+    gapsFor?: (registryID: string) => RegistryClusterGap[];
 }): Column<Registry>[] {
     const toast = useToast();
     const deleteReg = useDeleteRegistry();
@@ -66,6 +72,43 @@ export function registryColumns(opts: {
                 </span>
             ),
         },
+        ...(opts.gapsFor !== undefined
+            ? [
+                  {
+                      // Which running images this registry would close the gap for,
+                      // so fixing a registry reads as fixing something specific
+                      // (ocidex-70eo.14).
+                      header: "Cluster gaps",
+                      render: (reg: Registry) => {
+                          const gaps = opts.gapsFor?.(reg.id) ?? [];
+                          return (
+                              <Show when={gaps.length > 0} fallback={<span class="text-muted">—</span>}>
+                                  <div class="grid gap-0.5 text-sm" data-testid="registry-gaps">
+                                      <For each={gaps}>
+                                          {(g) => (
+                                              <A href={`/clusters/${g.clusterId}?tab=gaps`}>
+                                                  {g.images.toLocaleString()} running in {g.clusterName}
+                                                  <span class="text-muted">
+                                                      {" "}
+                                                      ·{" "}
+                                                      {!reg.enabled
+                                                          ? "closes when enabled"
+                                                          : g.ready === g.images
+                                                            ? "ready to ingest"
+                                                            : g.ready === 0
+                                                              ? "blocked: see gaps"
+                                                              : `${g.ready.toLocaleString()} of ${g.images.toLocaleString()} ready`}
+                                                  </span>
+                                              </A>
+                                          )}
+                                      </For>
+                                  </div>
+                              </Show>
+                          );
+                      },
+                  },
+              ]
+            : []),
         {
             // What the scan window selected on the latest walk (ADR-0053).
             header: "Last walk",

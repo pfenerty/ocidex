@@ -4449,6 +4449,33 @@
         ],
         "type": "object"
       },
+      "ListRegistryGapsOutputBody": {
+        "additionalProperties": false,
+        "properties": {
+          "$schema": {
+            "description": "A URL to the JSON Schema for this object.",
+            "examples": [
+              "https://example.com/api/schemas/ListRegistryGapsOutputBody.json"
+            ],
+            "format": "uri",
+            "readOnly": true,
+            "type": "string"
+          },
+          "data": {
+            "items": {
+              "$ref": "#/components/schemas/RegistryClusterGapResponse"
+            },
+            "type": [
+              "array",
+              "null"
+            ]
+          }
+        },
+        "required": [
+          "data"
+        ],
+        "type": "object"
+      },
       "ListSBOMComponentsOutputBody": {
         "additionalProperties": false,
         "properties": {
@@ -5401,6 +5428,38 @@
         },
         "required": [
           "webhookSecret"
+        ],
+        "type": "object"
+      },
+      "RegistryClusterGapResponse": {
+        "additionalProperties": false,
+        "properties": {
+          "clusterId": {
+            "type": "string"
+          },
+          "clusterName": {
+            "type": "string"
+          },
+          "images": {
+            "description": "Running images with no SBOM whose host resolves to this registry",
+            "format": "int64",
+            "type": "integer"
+          },
+          "ready": {
+            "description": "How many of those can be ingested now; the rest wait on this registry",
+            "format": "int64",
+            "type": "integer"
+          },
+          "registryId": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "registryId",
+          "clusterId",
+          "clusterName",
+          "images",
+          "ready"
         ],
         "type": "object"
       },
@@ -9175,6 +9234,38 @@
           }
         },
         "summary": "Connect a cluster",
+        "tags": [
+          "Clusters"
+        ]
+      }
+    },
+    "/api/v1/clusters/registry-gaps": {
+      "get": {
+        "description": "For every visible cluster, its running images with no SBOM grouped by the registry each resolves to, with how many can be ingested now.",
+        "operationId": "list-registry-cluster-gaps",
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ListRegistryGapsOutputBody"
+                }
+              }
+            },
+            "description": "OK"
+          },
+          "default": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorModel"
+                }
+              }
+            },
+            "description": "Error"
+          }
+        },
+        "summary": "List the cluster gaps each registry would close",
         "tags": [
           "Clusters"
         ]

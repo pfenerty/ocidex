@@ -221,6 +221,7 @@ var authRules = map[string]AuthRule{
 	// Deliberately not ClassPublic like its two neighbours: the advisory is
 	// public data, but "which of these clusters is running it" is inventory,
 	// and inventory is gated the same way list-cluster-workloads is.
+	"list-registry-cluster-gaps":   {Class: ClassAuthenticated, Notes: "Clusters filtered by namespace visibility; each cluster's gap resolves only against its own namespace's registries."},
 	"list-artifact-workloads":      {Class: ClassAuthenticated, Notes: "Workload rows filtered via visible_namespace_ids, as list-vulnerability-workloads."},
 	"list-vulnerability-workloads": {Class: ClassAuthenticated, Notes: "Workload rows filtered via visible_namespace_ids on the owning namespace, so an invisible cluster contributes nothing rather than 403ing."},
 

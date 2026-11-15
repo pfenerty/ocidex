@@ -115,6 +115,7 @@ cookies carry no ceiling and are unaffected.
 | GET | `/api/v1/clusters` | `list-clusters` | `authenticated` | — |  | Visibility resolved through the owning namespace. |
 | POST | `/api/v1/clusters` | `create-cluster` | `capability` | `manage_cluster` | ✓ | manage_cluster capability on the body's namespace_id. |
 | POST | `/api/v1/clusters/connect` | `connect-cluster` | `capability` | `manage_cluster` | ✓ | manage_cluster and push_inventory on the body's namespace_id, in the handler. Creates the cluster and a cluster-bound credential in one transaction. |
+| GET | `/api/v1/clusters/registry-gaps` | `list-registry-cluster-gaps` | `authenticated` | — |  | Clusters filtered by namespace visibility; each cluster's gap resolves only against its own namespace's registries. |
 | DELETE | `/api/v1/clusters/{id}` | `delete-cluster` | `capability` | `manage_cluster` | ✓ | manage_cluster capability on the cluster's namespace; drops reported inventory only. |
 | GET | `/api/v1/clusters/{id}` | `get-cluster` | `authenticated` | — |  | 404s when the owning namespace is private and unowned. |
 | PATCH | `/api/v1/clusters/{id}` | `update-cluster` | `capability` | `manage_cluster` | ✓ | manage_cluster capability on the cluster's namespace. |

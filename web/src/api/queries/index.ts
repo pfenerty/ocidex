@@ -35,6 +35,7 @@ export {
     useClusterPushes,
     useArtifactWorkloads,
     useClusterSearch,
+    useRegistryGaps,
     useRefreshClusterInventory,
     useCreateClusterCredential,
     useRotateClusterCredential,

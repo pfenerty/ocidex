@@ -602,3 +602,20 @@ type ClusterCredentialInput struct {
 	ID           string `path:"id" doc:"Cluster UUID" format:"uuid"`
 	CredentialID string `path:"credentialId" doc:"Credential UUID" format:"uuid"`
 }
+
+// RegistryClusterGapResponse is one registry's share of one cluster's No-SBOM
+// gap (ocidex-70eo.14).
+type RegistryClusterGapResponse struct {
+	RegistryID  string `json:"registryId"`
+	ClusterID   string `json:"clusterId"`
+	ClusterName string `json:"clusterName"`
+	Images      int64  `json:"images" doc:"Running images with no SBOM whose host resolves to this registry"`
+	Ready       int64  `json:"ready" doc:"How many of those can be ingested now; the rest wait on this registry"`
+}
+
+// ListRegistryGapsOutput is the response for GET /api/v1/clusters/registry-gaps.
+type ListRegistryGapsOutput struct {
+	Body struct {
+		Data []RegistryClusterGapResponse `json:"data"`
+	}
+}

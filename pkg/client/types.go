@@ -3144,6 +3144,13 @@ type ListRegistriesOutputBody struct {
 	Pagination PaginationMeta      `json:"pagination"`
 }
 
+// ListRegistryGapsOutputBody defines model for ListRegistryGapsOutputBody.
+type ListRegistryGapsOutputBody struct {
+	// Schema A URL to the JSON Schema for this object.
+	Schema *string                       `json:"$schema,omitempty"`
+	Data   *[]RegistryClusterGapResponse `json:"data"`
+}
+
 // ListSBOMComponentsOutputBody defines model for ListSBOMComponentsOutputBody.
 type ListSBOMComponentsOutputBody struct {
 	// Schema A URL to the JSON Schema for this object.
@@ -3493,6 +3500,19 @@ type RegenerateWebhookSecretOutputBody struct {
 
 	// WebhookSecret New webhook secret — shown once only. The previous secret is immediately invalidated.
 	WebhookSecret string `json:"webhookSecret"`
+}
+
+// RegistryClusterGapResponse defines model for RegistryClusterGapResponse.
+type RegistryClusterGapResponse struct {
+	ClusterId   string `json:"clusterId"`
+	ClusterName string `json:"clusterName"`
+
+	// Images Running images with no SBOM whose host resolves to this registry
+	Images int64 `json:"images"`
+
+	// Ready How many of those can be ingested now; the rest wait on this registry
+	Ready      int64  `json:"ready"`
+	RegistryId string `json:"registryId"`
 }
 
 // RegistryPreview defines model for RegistryPreview.

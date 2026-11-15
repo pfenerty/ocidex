@@ -1110,6 +1110,16 @@ func registerClusterOps(api huma.API, h *Handler) {
 	}, h.RevokeClusterCredential)
 
 	huma.Register(api, huma.Operation{
+		OperationID: "list-registry-cluster-gaps",
+		Method:      http.MethodGet,
+		Path:        "/api/v1/clusters/registry-gaps",
+		Summary:     "List the cluster gaps each registry would close",
+		Description: "For every visible cluster, its running images with no SBOM grouped by the registry each resolves to, with how many can be ingested now.",
+		Tags:        []string{tagClusters},
+		Middlewares: huma.Middlewares{authMW},
+	}, h.ListRegistryGaps)
+
+	huma.Register(api, huma.Operation{
 		OperationID: "list-artifact-workloads",
 		Method:      http.MethodGet,
 		Path:        "/api/v1/artifacts/{id}/workloads",

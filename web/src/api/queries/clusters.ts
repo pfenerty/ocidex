@@ -123,6 +123,19 @@ export function useClusterSearch(term: Accessor<string>, enabled: Accessor<boole
     }));
 }
 
+/**
+ * useRegistryGaps — for each registry, the clusters' No-SBOM gaps it would
+ * close (ocidex-70eo.14). One request for the whole Sources table.
+ */
+export function useRegistryGaps(enabled: Accessor<boolean>) {
+    return createQuery(() => ({
+        queryKey: ["clusters", "registry-gaps"] as const,
+        queryFn: () => unwrap(client.GET("/api/v1/clusters/registry-gaps")),
+        enabled: enabled(),
+        select: (resp) => resp.data ?? [],
+    }));
+}
+
 /** useConnectCluster — register a cluster with its first agent credential. */
 export function useConnectCluster() {
     const queryClient = useQueryClient();

@@ -368,6 +368,10 @@ type ClusterService interface {
 	// caller can see".
 	WorkloadsForVulnerability(ctx context.Context, canonicalID, clusterID string, limit int32, filter VisibilityFilter) ([]RunningWorkload, error)
 
+	// RegistryGaps groups every visible cluster's No-SBOM gap by the registry
+	// each image resolves to (ocidex-70eo.14).
+	RegistryGaps(ctx context.Context, filter VisibilityFilter) ([]RegistryClusterGap, error)
+
 	// WorkloadsForArtifact answers "where is this artifact running"
 	// (ocidex-70eo.8), across every cluster the caller can see.
 	WorkloadsForArtifact(ctx context.Context, artifactID string, limit int32, filter VisibilityFilter) ([]RunningWorkload, error)

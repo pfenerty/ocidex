@@ -507,6 +507,26 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/v1/clusters/registry-gaps": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * List the cluster gaps each registry would close
+         * @description For every visible cluster, its running images with no SBOM grouped by the registry each resolves to, with how many can be ingested now.
+         */
+        get: operations["list-registry-cluster-gaps"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/v1/clusters/{id}": {
         parameters: {
             query?: never;
@@ -3569,6 +3589,15 @@ export interface components {
             data: components["schemas"]["RegistryResponse"][] | null;
             pagination: components["schemas"]["PaginationMeta"];
         };
+        ListRegistryGapsOutputBody: {
+            /**
+             * Format: uri
+             * @description A URL to the JSON Schema for this object.
+             * @example https://example.com/api/schemas/ListRegistryGapsOutputBody.json
+             */
+            readonly $schema?: string;
+            data: components["schemas"]["RegistryClusterGapResponse"][] | null;
+        };
         ListSBOMComponentsOutputBody: {
             /**
              * Format: uri
@@ -3931,6 +3960,21 @@ export interface components {
             readonly $schema?: string;
             /** @description New webhook secret — shown once only. The previous secret is immediately invalidated. */
             webhookSecret: string;
+        };
+        RegistryClusterGapResponse: {
+            clusterId: string;
+            clusterName: string;
+            /**
+             * Format: int64
+             * @description Running images with no SBOM whose host resolves to this registry
+             */
+            images: number;
+            /**
+             * Format: int64
+             * @description How many of those can be ingested now; the rest wait on this registry
+             */
+            ready: number;
+            registryId: string;
         };
         RegistryPreview: {
             /**
@@ -5808,6 +5852,35 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["ConnectClusterOutputBody"];
+                };
+            };
+            /** @description Error */
+            default: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["ErrorModel"];
+                };
+            };
+        };
+    };
+    "list-registry-cluster-gaps": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description OK */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ListRegistryGapsOutputBody"];
                 };
             };
             /** @description Error */

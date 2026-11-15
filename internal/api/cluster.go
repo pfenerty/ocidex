@@ -570,6 +570,28 @@ func (h *Handler) ListVulnWorkloads(ctx context.Context, in *ListVulnWorkloadsIn
 	return out, nil
 }
 
+// ListRegistryGaps handles GET /api/v1/clusters/registry-gaps: for each
+// registry, which clusters' gaps it would close (ocidex-70eo.14). Visibility is
+// the cluster list's: a cluster the caller cannot see contributes nothing.
+func (h *Handler) ListRegistryGaps(ctx context.Context, _ *struct{}) (*ListRegistryGapsOutput, error) {
+	if _, ok := UserFromContext(ctx); !ok {
+		return nil, huma.Error401Unauthorized("not authenticated")
+	}
+	gaps, err := h.clusterService.RegistryGaps(ctx, visibilityFilterFromContext(ctx))
+	if err != nil {
+		return nil, mapServiceError(err)
+	}
+	out := &ListRegistryGapsOutput{}
+	out.Body.Data = make([]RegistryClusterGapResponse, len(gaps))
+	for i, g := range gaps {
+		out.Body.Data[i] = RegistryClusterGapResponse{
+			RegistryID: g.RegistryID, ClusterID: g.ClusterID, ClusterName: g.ClusterName,
+			Images: g.Images, Ready: g.Ready,
+		}
+	}
+	return out, nil
+}
+
 // ListArtifactWorkloads handles GET /api/v1/artifacts/{id}/workloads: where any
 // version of an artifact is running (ocidex-70eo.8). Visibility is the query's,
 // as for ListVulnWorkloads: invisible clusters contribute nothing.

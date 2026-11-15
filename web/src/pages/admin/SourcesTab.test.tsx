@@ -8,10 +8,13 @@ import type { JSX } from "solid-js";
 const idleMutation = () => ({ mutate: vi.fn(), isPending: false, data: undefined });
 const idleQuery = () => ({ data: undefined, isLoading: false, isError: false, error: null });
 
+let registryGaps: { registryId: string; clusterId: string; clusterName: string; images: number; ready: number }[] = [];
+
 vi.mock("~/api/queries", () => ({
     useListRegistries: vi.fn(),
     useListSources: vi.fn(),
     useListNamespaces: vi.fn(),
+    useRegistryGaps: () => ({ data: registryGaps }),
     useCreateRegistry: () => idleMutation(),
     useUpdateRegistry: () => idleMutation(),
     useDeleteRegistry: () => idleMutation(),
@@ -164,6 +167,20 @@ describe("SourcesTab managed-registry guard", () => {
     beforeEach(() => {
         vi.clearAllMocks();
         searchParams = {};
+    });
+
+    // ocidex-70eo.14: a registry says which running images it would close,
+    // and links to the cluster's gaps.
+    it("names the cluster gaps a registry serves", () => {
+        registryGaps = [{ registryId: baseRegistry.id, clusterId: "c1", clusterName: "prod", images: 3, ready: 1 }];
+        try {
+            const { container } = renderTab([baseRegistry]);
+            const cell = must(container.querySelector('[data-testid="registry-gaps"]'), "gaps cell");
+            expect(cell.textContent).toContain("3 running in prod");
+            expect(cell.querySelector("a")?.getAttribute("href")).toBe("/clusters/c1?tab=gaps");
+        } finally {
+            registryGaps = [];
+        }
     });
 
     it("badges a registry owned by an external controller", () => {
