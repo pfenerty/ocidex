@@ -1,0 +1,362 @@
+#!/usr/bin/env python3
+"""Keep a repo's local beads DB in sync. Replaces bd-import-newer.
+
+Two modes, chosen by whether .beads/config.yaml sets sync.remote:
+
+  Dolt-over-git (sync.remote set, plan-5qe). Nothing here touches the working
+  tree or the checked-out branch:
+    1. `bd sync`: pull refs/dolt/data from origin, merge per field, push.
+       A conflict bd can't settle halts it (exit 2) and is reported loudly,
+       never forced. Then confirm refs/dolt/data is on origin: `bd dolt push`
+       exits 0 when it pushed nothing, so a success code proves little.
+    2. Cloud inbox. Cloud sessions can't push refs/dolt/* (proxy 403), so they
+       push the rows they changed to a branch beads/inbox/<session> holding
+       one file, inbox.jsonl. Fetch each, `bd import` it (skips stale rows),
+       sync again to publish, then delete the branch, only if it still points
+       where it did when read. Importing after the pull matters: two machines
+       inserting the same row independently make Dolt halt the next sync on a
+       conflict; after a pull, a row another machine already published is
+       here, and the import is a no-op.
+    3. Snapshot. Publish `bd export` as issues.jsonl on branch beads/snapshot
+       (one orphan commit, force-pushed when the content changes), which cloud
+       sessions start from. Built with git plumbing, so no checkout is involved.
+
+  Legacy (no sync.remote): import rows from .beads/issues.jsonl that are
+    missing locally or newer than the local copy. bd 1.3.2's `bd import`
+    skips stale rows itself, so this is a plain import behind a
+    content-hash stamp.
+
+Cloud sessions (CLAUDE_CODE_REMOTE=true):
+  bd-sync [repo]              Dolt repo: import the beads/snapshot branch.
+                              Legacy repo: import issues.jsonl.
+  bd-sync --cloud-end [repo]  Dolt repo: push rows changed since the session
+                              started to beads/inbox/<session>.
+
+Usage: bd-sync [--offline] [--quiet] [repo-dir]
+       bd-sync --pre-commit [repo-dir]
+  --offline     skip everything that needs the network (branch checkout
+                shouldn't wait on it)
+  --quiet       print only problems
+  --pre-commit  refuse a commit that stages .beads/issues.jsonl in a
+                Dolt-over-git repo (the snapshot lives on beads/snapshot)
+
+Never fails the caller: problems are printed and it exits 0, except
+--pre-commit, which exits 1 to block the commit.
+"""
+import datetime
+import hashlib
+import json
+import os
+import re
+import shutil
+import subprocess
+import sys
+import tempfile
+
+SYNC_TIMEOUT = int(os.environ.get("BD_SYNC_TIMEOUT", "180"))
+NET_TIMEOUT = 60
+GUARD = "BD_SYNC_ACTIVE"  # our own git pushes must not re-enter this script
+SNAPSHOT = "refs/heads/beads/snapshot"
+INBOX = "refs/heads/beads/inbox/"
+INBOX_FILE = "inbox.jsonl"
+SNAPSHOT_FILE = "issues.jsonl"
+
+
+def note(msg):
+    print(f"beads: {msg}", file=sys.stderr)
+
+
+def git(root, *args, input=None, timeout=None, env=None):
+    return subprocess.run(["git", "-C", root, *args], input=input, capture_output=True,
+                          text=True, timeout=timeout,
+                          env={**os.environ, **env} if env else None)
+
+
+def bd(root, *args, timeout=None):
+    return subprocess.run(["bd", *args], cwd=root, capture_output=True, text=True,
+                          timeout=timeout)
+
+
+def sync_remote(root):
+    """sync.remote from .beads/config.yaml, nested (sync:\\n  remote: x) or flat."""
+    path = os.path.join(root, ".beads", "config.yaml")
+    if not os.path.isfile(path):
+        return None
+    text = open(path).read()
+    m = re.search(r'^sync\.remote:\s*"?([^"\s#]+)', text, re.M) or \
+        re.search(r'^sync:\s*\n(?:[ \t]+.*\n)*?[ \t]+remote:\s*"?([^"\s#]+)', text, re.M)
+    return m.group(1) if m else None
+
+
+def git_dir(root):
+    return git(root, "rev-parse", "--absolute-git-dir").stdout.strip()
+
+
+def stamped(root, name, key):
+    path = os.path.join(git_dir(root), name)
+    return os.path.isfile(path) and key in open(path).read().split()
+
+
+def stamp(root, name, key):
+    with open(os.path.join(git_dir(root), name), "a") as f:
+        f.write(key + "\n")
+
+
+def import_jsonl(root, text, label, quiet):
+    """bd import JSONL text. True on success."""
+    with tempfile.NamedTemporaryFile("w", suffix=".jsonl", delete=False) as f:
+        f.write(text)
+    try:
+        r = bd(root, "import", f.name)
+    finally:
+        os.unlink(f.name)
+    if r.returncode != 0:
+        note(f"import of {label} failed: {r.stderr.strip()}")
+        return False
+    if not quiet and r.stdout.strip():
+        note(f"{label}: {r.stdout.strip().splitlines()[-1]}")
+    return True
+
+
+def remote_refs(root):
+    """{ref: sha} for refs/dolt/data and refs/heads/beads/* on origin, or None offline."""
+    try:
+        r = git(root, "ls-remote", "origin", "refs/dolt/data", "refs/heads/beads/*",
+                timeout=NET_TIMEOUT)
+    except subprocess.TimeoutExpired:
+        return None
+    if r.returncode != 0:
+        return None
+    return {ref: sha for sha, ref in (l.split("\t") for l in r.stdout.splitlines() if l)}
+
+
+def fetch_blob(root, ref, sha, path):
+    """Content of `path` in commit `sha` (branch `ref` on origin), fetching if needed."""
+    if git(root, "cat-file", "-e", sha).returncode != 0:
+        try:
+            r = git(root, "fetch", "--no-tags", "--quiet", "origin", ref, timeout=NET_TIMEOUT)
+        except subprocess.TimeoutExpired:
+            return None
+        if r.returncode != 0:
+            note(f"fetch of {ref} failed: {r.stderr.strip()}")
+            return None
+    r = git(root, "show", f"{sha}:{path}")
+    return r.stdout if r.returncode == 0 else None
+
+
+def dolt_sync(root, quiet):
+    """bd sync, then confirm refs/dolt/data is on origin. Remote refs when in sync."""
+    try:
+        r = bd(root, "sync", timeout=SYNC_TIMEOUT)
+    except subprocess.TimeoutExpired:
+        note(f"bd sync timed out after {SYNC_TIMEOUT}s in {root}; will retry next time")
+        return None
+    if r.returncode == 2:
+        note(f"SYNC CONFLICT in {root}: bd sync halted on a conflict it can't settle.")
+        note("nothing was pushed or lost. Resolve it by hand (bd sync --help), then run "
+             "bd sync again:")
+        print(r.stderr.strip() or r.stdout.strip(), file=sys.stderr)
+        return None
+    if r.returncode != 0:
+        err = (r.stderr.strip() or r.stdout.strip()).splitlines()
+        note(f"bd sync failed in {root} (offline?): {err[-1] if err else r.returncode}")
+        return None
+    refs = remote_refs(root)
+    if not refs or "refs/dolt/data" not in refs:
+        note(f"bd sync reported success but origin has no refs/dolt/data ({root}). "
+             "Check the Dolt remote: bd dolt remote list")
+        return None
+    return refs
+
+
+def consume_inbox(root, refs, quiet):
+    """Import every beads/inbox/* branch. Returns [(ref, sha)] imported."""
+    done = []
+    for ref, sha in sorted(refs.items()):
+        if not ref.startswith(INBOX):
+            continue
+        if not stamped(root, "beads-inbox-stamp", sha):
+            text = fetch_blob(root, ref, sha, INBOX_FILE)
+            if text is None or not import_jsonl(root, text, ref[len("refs/heads/"):], quiet):
+                continue
+            stamp(root, "beads-inbox-stamp", sha)
+        done.append((ref, sha))
+    return done
+
+
+def delete_branches(root, done, quiet):
+    for ref, sha in done:
+        try:
+            r = git(root, "push", "--quiet", "--no-verify", f"--force-with-lease={ref}:{sha}",
+                    "origin", f":{ref}", timeout=NET_TIMEOUT)
+        except subprocess.TimeoutExpired:
+            continue
+        if r.returncode != 0:
+            note(f"couldn't delete {ref} (pushed to since import? retried next sync): "
+                 f"{r.stderr.strip().splitlines()[-1] if r.stderr.strip() else r.returncode}")
+        elif not quiet:
+            note(f"consumed cloud inbox {ref[len('refs/heads/'):]}")
+
+
+def publish_snapshot(root, refs, quiet):
+    """Force-push `bd export` as issues.jsonl on beads/snapshot when it changed."""
+    r = bd(root, "export")
+    if r.returncode != 0:
+        note(f"snapshot export failed: {r.stderr.strip()}")
+        return
+    blob = git(root, "hash-object", "-w", "--stdin", input=r.stdout).stdout.strip()
+    tree = git(root, "mktree", input=f"100644 blob {blob}\t{SNAPSHOT_FILE}\n").stdout.strip()
+    current = refs.get(SNAPSHOT)
+    if current:
+        have = git(root, "rev-parse", "--quiet", "--verify", f"{current}^{{tree}}")
+        if have.returncode != 0:  # not fetched yet: compare against the remote's tree
+            fetch_blob(root, SNAPSHOT, current, SNAPSHOT_FILE)
+            have = git(root, "rev-parse", "--quiet", "--verify", f"{current}^{{tree}}")
+        if have.stdout.strip() == tree:
+            return
+    ident = {"GIT_AUTHOR_NAME": "beads", "GIT_AUTHOR_EMAIL": "beads@localhost",
+             "GIT_COMMITTER_NAME": "beads", "GIT_COMMITTER_EMAIL": "beads@localhost"}
+    commit = git(root, "commit-tree", tree, "-m", "beads snapshot (bd-sync)",
+                 env=ident).stdout.strip()
+    lease = f"--force-with-lease={SNAPSHOT}:{current}" if current else \
+        f"--force-with-lease={SNAPSHOT}:"
+    try:
+        p = git(root, "push", "--quiet", "--no-verify", lease, "origin",
+                f"{commit}:{SNAPSHOT}", timeout=NET_TIMEOUT)
+    except subprocess.TimeoutExpired:
+        return
+    if p.returncode != 0:
+        note(f"snapshot push skipped (another machine published first?): "
+             f"{p.stderr.strip().splitlines()[-1] if p.stderr.strip() else p.returncode}")
+    elif not quiet:
+        note("published beads/snapshot")
+
+
+def session_mark(root):
+    return os.path.join(git_dir(root), "beads-cloud-session-start")
+
+
+def cloud_start(root, remote, quiet):
+    with open(session_mark(root), "w") as f:
+        f.write(datetime.datetime.now(datetime.timezone.utc).strftime("%Y-%m-%dT%H:%M:%SZ"))
+    if remote:
+        refs = remote_refs(root) or {}
+        sha = refs.get(SNAPSHOT)
+        text = fetch_blob(root, SNAPSHOT, sha, SNAPSHOT_FILE) if sha else None
+        if text is None:
+            note("no beads/snapshot branch reachable; starting from the local DB as is")
+        elif not stamped(root, "beads-import-stamp", sha):
+            if import_jsonl(root, text, "beads/snapshot", quiet):
+                stamp(root, "beads-import-stamp", sha)
+        return
+    jsonl = os.path.join(root, ".beads", "issues.jsonl")
+    if os.path.isfile(jsonl):
+        text = open(jsonl).read()
+        key = hashlib.sha256(text.encode()).hexdigest()
+        if not stamped(root, "beads-import-stamp", key) and \
+                import_jsonl(root, text, ".beads/issues.jsonl", quiet):
+            stamp(root, "beads-import-stamp", key)
+
+
+def cloud_end(root, quiet):
+    """Push rows changed this session to beads/inbox/<session>."""
+    mark = session_mark(root)
+    since = open(mark).read().strip() if os.path.isfile(mark) else ""
+    r = bd(root, "export", "--all")
+    if r.returncode != 0:
+        note(f"export failed, cloud changes not published: {r.stderr.strip()}")
+        return
+    rows = [l for l in r.stdout.splitlines() if l.strip()
+            and (json.loads(l).get("updated_at") or "") >= since]
+    if not rows:
+        return
+    session = re.sub(r"[^A-Za-z0-9._-]", "-",
+                     os.environ.get("CLAUDE_CODE_SESSION_ID")
+                     or os.environ.get("CLAUDE_SESSION_ID")
+                     or datetime.datetime.now().strftime("%Y%m%d%H%M%S"))
+    ref = f"{INBOX}{session}"
+    blob = git(root, "hash-object", "-w", "--stdin", input="\n".join(rows) + "\n").stdout.strip()
+    tree = git(root, "mktree", input=f"100644 blob {blob}\t{INBOX_FILE}\n").stdout.strip()
+    commit = git(root, "commit-tree", tree, "-m", f"beads inbox from cloud session {session}",
+                 env={"GIT_AUTHOR_NAME": "beads", "GIT_AUTHOR_EMAIL": "beads@localhost",
+                      "GIT_COMMITTER_NAME": "beads",
+                      "GIT_COMMITTER_EMAIL": "beads@localhost"}).stdout.strip()
+    try:
+        p = git(root, "push", "--quiet", "--no-verify", "--force", "origin",
+                f"{commit}:{ref}", timeout=NET_TIMEOUT)
+    except subprocess.TimeoutExpired:
+        p = None
+    if p is None or p.returncode != 0:
+        note(f"couldn't push {ref}; this session's {len(rows)} beads change(s) are only "
+             "in this container")
+    elif not quiet:
+        note(f"pushed {len(rows)} changed row(s) to {ref[len('refs/heads/'):]}")
+
+
+def pre_commit(root):
+    if not sync_remote(root):
+        return 0
+    staged = git(root, "diff", "--cached", "--name-only").stdout.split()
+    if ".beads/issues.jsonl" not in staged:
+        return 0
+    note("refusing to commit .beads/issues.jsonl: this repo syncs beads through "
+         "refs/dolt/data, and the JSONL snapshot lives on branch beads/snapshot. "
+         "Unstage it: git restore --staged .beads/issues.jsonl")
+    return 1
+
+
+def main(argv):
+    flags = {a for a in argv if a.startswith("--")}
+    args = [a for a in argv if not a.startswith("--")]
+    r = subprocess.run(["git", "-C", args[0] if args else os.getcwd(), "rev-parse",
+                        "--show-toplevel"], capture_output=True, text=True)
+    if r.returncode != 0:
+        return 0
+    root = r.stdout.strip()
+    if not os.path.isdir(os.path.join(root, ".beads")):
+        return 0
+    if "--pre-commit" in flags:
+        return pre_commit(root)
+    if os.environ.get(GUARD) or not shutil.which("bd"):
+        return 0
+    os.environ[GUARD] = "1"
+    quiet = "--quiet" in flags
+    remote = sync_remote(root)
+
+    if os.environ.get("CLAUDE_CODE_REMOTE") == "true":
+        if "--cloud-end" in flags:
+            if remote:
+                cloud_end(root, quiet)
+        else:
+            cloud_start(root, remote, quiet)
+        return 0
+    if "--cloud-end" in flags:
+        return 0
+
+    if not remote:
+        jsonl = os.path.join(root, ".beads", "issues.jsonl")
+        if os.path.isfile(jsonl):
+            text = open(jsonl).read()
+            key = hashlib.sha256(text.encode()).hexdigest()
+            if not stamped(root, "beads-import-stamp", key) and \
+                    import_jsonl(root, text, ".beads/issues.jsonl", quiet):
+                stamp(root, "beads-import-stamp", key)
+        return 0
+
+    if "--offline" in flags:
+        return 0
+    refs = dolt_sync(root, quiet)
+    if refs is None:
+        return 0
+    done = consume_inbox(root, refs, quiet)
+    if done:
+        refs = dolt_sync(root, quiet)
+        if refs is None:
+            return 0  # keep the inbox branches; next sync retries
+        delete_branches(root, done, quiet)
+    publish_snapshot(root, refs, quiet)
+    return 0
+
+
+if __name__ == "__main__":
+    sys.exit(main(sys.argv[1:]))

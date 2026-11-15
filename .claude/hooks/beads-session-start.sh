@@ -58,8 +58,7 @@ fi
 
 # ── Beads database ───────────────────────────────────────────────────────────
 # Fresh clone: rebuild the DB from the committed JSONL. Existing DB (a local
-# checkout, or a reused container snapshot): import only rows that are newer in
-# the file. Plain `bd import` would overwrite newer local rows.
+# checkout, or a reused container snapshot): bd-sync.
 chmod 700 .beads 2>/dev/null || true
 if [ ! -d .beads/embeddeddolt ] && [ ! -d .beads/dolt ]; then
   prefix="$(sed -n 's/^issue-prefix:[[:space:]]*"\{0,1\}\([^"]*\)"\{0,1\}[[:space:]]*$/\1/p' .beads/config.yaml 2>/dev/null | head -1)"
@@ -98,8 +97,10 @@ if [ ! -d .beads/embeddeddolt ] && [ ! -d .beads/dolt ]; then
       fi
     done
   fi
-elif [ -x "$HOOKS_DIR/bd-import-newer" ] && command -v python3 >/dev/null 2>&1; then
-  "$HOOKS_DIR/bd-import-newer" "$PROJECT_DIR" || true
+elif [ -x "$HOOKS_DIR/bd-sync" ] && command -v python3 >/dev/null 2>&1; then
+  # Existing DB: Dolt-over-git sync for repos with sync.remote (local machines
+  # only), else import newer rows from issues.jsonl. See bd-sync's docstring.
+  "$HOOKS_DIR/bd-sync" "$PROJECT_DIR" || true
 fi
 
 # ── Merge driver ─────────────────────────────────────────────────────────────

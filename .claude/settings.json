@@ -22,6 +22,17 @@
         ],
         "matcher": ""
       }
+    ],
+    "SessionEnd": [
+      {
+        "matcher": "",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "\"$CLAUDE_PROJECT_DIR\"/.claude/hooks/beads-session-end.sh"
+          }
+        ]
+      }
     ]
   }
 }
