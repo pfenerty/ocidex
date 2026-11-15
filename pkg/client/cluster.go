@@ -44,15 +44,16 @@ func (c *httpClient) DeleteCluster(ctx context.Context, id string) error {
 
 // PutInventory pushes a complete inventory snapshot. Workloads absent from the
 // body are deleted server-side, so callers must send everything they observed —
-// including an empty slice, which legitimately means "running nothing".
-func (c *httpClient) PutInventory(ctx context.Context, clusterID string, workloads []InventoryWorkload) (PutInventoryOutputBody, error) {
+// including an empty slice, which legitimately means "running nothing". agent
+// is the reporter's self-description and may be nil.
+func (c *httpClient) PutInventory(ctx context.Context, clusterID string, workloads []InventoryWorkload, agent *InventoryAgent) (PutInventoryOutputBody, error) {
 	// Non-nil even when empty: the field is `json:"workloads"` without omitempty,
 	// so a nil slice would serialize as null, and null is not the same message as
 	// an empty snapshot.
 	if workloads == nil {
 		workloads = []InventoryWorkload{}
 	}
-	body := PutInventoryInputBody{Workloads: &workloads}
+	body := PutInventoryInputBody{Workloads: &workloads, Agent: agent}
 	var out PutInventoryOutputBody
 	err := c.request(ctx, http.MethodPost, "/api/v1/clusters/"+clusterID+"/inventory", nil, body, &out)
 	return out, err

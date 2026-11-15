@@ -70,3 +70,12 @@ func TestAPIError_Error(t *testing.T) {
 	e := &APIError{Status: 503, Detail: "service unavailable"}
 	is.Equal(e.Error(), "HTTP 503: service unavailable")
 }
+
+func TestMapErrorKeepsDetailOnSentinels(t *testing.T) {
+	is := is.New(t)
+	err := mapError(403, []byte(`{"status":403,"detail":"missing capability push_inventory"}`))
+	is.True(errors.Is(err, ErrForbidden))
+	var apiErr *APIError
+	is.True(errors.As(err, &apiErr))
+	is.Equal(apiErr.Detail, "missing capability push_inventory")
+}

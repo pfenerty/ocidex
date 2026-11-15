@@ -237,8 +237,42 @@ func (f *fakeClusterService) Update(_ context.Context, _ service.UpdateClusterPa
 
 func (f *fakeClusterService) Delete(_ context.Context, _ string) error { return nil }
 
-func (f *fakeClusterService) ReplaceInventory(_ context.Context, _ string, _ []service.ReportedWorkload) (int, error) {
+func (f *fakeClusterService) ReplaceInventory(_ context.Context, _ string, _ []service.ReportedWorkload, _ *service.AgentInfo) (int, error) {
 	return 0, nil
+}
+
+func (f *fakeClusterService) Connect(_ context.Context, _ service.ConnectClusterParams) (service.Cluster, service.ClusterCredential, error) {
+	return f.cluster(), service.ClusterCredential{}, nil
+}
+
+func (f *fakeClusterService) CreateCredential(_ context.Context, _ string, _ pgtype.UUID, _ string) (service.ClusterCredential, error) {
+	return service.ClusterCredential{}, nil
+}
+
+func (f *fakeClusterService) ListCredentials(_ context.Context, _ string) ([]service.ClusterCredential, error) {
+	return nil, nil
+}
+
+func (f *fakeClusterService) RevokeCredential(_ context.Context, _, _ string) error { return nil }
+
+func (f *fakeClusterService) RotateCredential(_ context.Context, _, _ string, _ pgtype.UUID) (service.ClusterCredential, error) {
+	return service.ClusterCredential{}, nil
+}
+
+func (f *fakeClusterService) RegistryGaps(_ context.Context, _ service.VisibilityFilter) ([]service.RegistryClusterGap, error) {
+	return nil, nil
+}
+
+func (f *fakeClusterService) WorkloadsForArtifact(_ context.Context, _ string, _ int32, _ service.VisibilityFilter) ([]service.RunningWorkload, error) {
+	return nil, nil
+}
+
+func (f *fakeClusterService) RecordPush(_ context.Context, _ string, _ service.PushAttempt) error {
+	return nil
+}
+
+func (f *fakeClusterService) ListPushes(_ context.Context, _ string, _ int32) ([]service.ClusterPush, error) {
+	return nil, nil
 }
 
 func (f *fakeClusterService) ListWorkloads(_ context.Context, _ string, _ service.WorkloadParams, _ service.VisibilityFilter) (service.PagedResult[service.ClusterWorkload], error) {

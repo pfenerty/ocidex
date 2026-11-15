@@ -463,6 +463,11 @@
         border-color: var(--color-warning);
     }
 
+    .card-danger {
+        border-color: var(--color-danger);
+        background: var(--color-danger-bg);
+    }
+
     .card-header {
         display: flex;
         align-items: center;
@@ -713,6 +718,21 @@
         white-space: nowrap;
     }
 
+    /* Before the colour variants: a StatusPill is `badge badge-sm badge-<v>`,
+       and declared after them this rule's background and colour won, so every
+       pill variant rendered grey (found in ocidex-70eo.4). */
+    .badge-sm {
+        display: inline-block;
+        padding: 0.1rem 0.35rem;
+        font-size: 0.65rem;
+        font-weight: 600;
+        border-radius: 3px;
+        background: var(--color-surface-hover);
+        color: var(--color-text-muted);
+        text-transform: uppercase;
+        letter-spacing: 0.03em;
+    }
+
     .badge-primary {
         background: var(--color-info-bg);
         color: var(--color-secondary);
@@ -731,18 +751,6 @@
     .badge-warning {
         background: var(--color-warning-bg);
         color: var(--color-warning);
-    }
-
-    .badge-sm {
-        display: inline-block;
-        padding: 0.1rem 0.35rem;
-        font-size: 0.65rem;
-        font-weight: 600;
-        border-radius: 3px;
-        background: var(--color-surface-hover);
-        color: var(--color-text-muted);
-        text-transform: uppercase;
-        letter-spacing: 0.03em;
     }
 
     /* Buttons — class variants */

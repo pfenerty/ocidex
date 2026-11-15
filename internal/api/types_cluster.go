@@ -8,15 +8,71 @@ package api
 // workloads (ADR-044). Like a source, it carries no visibility of its own —
 // the owning namespace decides who may see it.
 type ClusterResponse struct {
-	ID            string `json:"id"`
-	NamespaceID   string `json:"namespaceId"`
-	NamespaceName string `json:"namespaceName,omitempty" doc:"Owning namespace name; populated on list responses"`
-	Name          string `json:"name"`
-	Description   string `json:"description,omitempty"`
-	LastSeenAt    string `json:"lastSeenAt,omitempty" doc:"When an agent last pushed a snapshot. Empty means no agent has ever reported: a cluster showing no workloads for this reason is not a cluster running nothing."`
-	AutoIngest    bool   `json:"autoIngest" doc:"Submit a scan job for every running image with no SBOM whose host resolves to a registry in this cluster's namespace, on every accepted snapshot."`
-	CreatedAt     string `json:"createdAt"`
-	UpdatedAt     string `json:"updatedAt"`
+	ID            string                  `json:"id"`
+	NamespaceID   string                  `json:"namespaceId"`
+	NamespaceName string                  `json:"namespaceName,omitempty" doc:"Owning namespace name; populated on list responses"`
+	Name          string                  `json:"name"`
+	Description   string                  `json:"description,omitempty"`
+	LastSeenAt    string                  `json:"lastSeenAt,omitempty" doc:"When an agent last pushed a snapshot. Empty means no agent has ever reported: a cluster showing no workloads for this reason is not a cluster running nothing."`
+	AutoIngest    bool                    `json:"autoIngest" doc:"Submit a scan job for every running image with no SBOM whose host resolves to a registry in this cluster's namespace, on every accepted snapshot."`
+	Agent         *ClusterAgentResponse   `json:"agent,omitempty" doc:"What the agent reported about itself with its last accepted snapshot. Absent until an agent that self-reports has pushed."`
+	Health        ClusterHealthResponse   `json:"health" doc:"The agent's health, derived from its pushes"`
+	PausedAt      string                  `json:"pausedAt,omitempty" doc:"When the cluster was paused; empty while active"`
+	Summary       *ClusterSummaryResponse `json:"summary,omitempty" doc:"Coverage and running criticals, on list responses for a cluster that has reported"`
+	CreatedAt     string                  `json:"createdAt"`
+	UpdatedAt     string                  `json:"updatedAt"`
+}
+
+// ClusterSummaryResponse is what the cluster list shows per row
+// (ocidex-70eo.7): how much of what runs OCIDex can assess, and the worst of
+// what it found. Criticals count only the matched containers, which is why
+// coverage travels with them.
+type ClusterSummaryResponse struct {
+	Coverage         WorkloadCoverageResponse `json:"coverage"`
+	RunningCriticals int64                    `json:"runningCriticals" doc:"Distinct critical vulnerabilities in matched running images"`
+}
+
+// ClusterHealthResponse is a cluster's derived agent health (ocidex-70eo.4).
+type ClusterHealthResponse struct {
+	State             string `json:"state" enum:"never_reported,healthy,stale,erroring,paused" doc:"never_reported: nothing pushed yet. healthy: last push accepted and recent. stale: no accepted push within three report intervals. erroring: the agent is pushing and being refused. paused: paused on purpose; snapshots are refused."`
+	Reason            string `json:"reason,omitempty" doc:"Why, for every state but healthy"`
+	StaleAfterSeconds int64  `json:"staleAfterSeconds,omitempty" doc:"Seconds after the last accepted push at which the cluster turns stale; absent for a one-shot agent"`
+}
+
+// ClusterPushResponse is one recorded push attempt.
+type ClusterPushResponse struct {
+	At           string `json:"at"`
+	Accepted     bool   `json:"accepted"`
+	Status       int    `json:"status" doc:"HTTP status the push received"`
+	Reason       string `json:"reason,omitempty" doc:"Why it was refused"`
+	Workloads    *int32 `json:"workloads,omitempty" doc:"Workload rows in an accepted snapshot"`
+	AgentVersion string `json:"agentVersion,omitempty"`
+}
+
+// ListClusterPushesInput is the request for GET /api/v1/clusters/{id}/pushes.
+type ListClusterPushesInput struct {
+	ID    string `path:"id" doc:"Cluster UUID" format:"uuid"`
+	Limit int32  `query:"limit" minimum:"1" maximum:"50" default:"20"`
+}
+
+// ListClusterPushesOutput is the response for GET /api/v1/clusters/{id}/pushes.
+type ListClusterPushesOutput struct {
+	Body struct {
+		Data []ClusterPushResponse `json:"data"`
+	}
+}
+
+// ClusterAgentResponse is the agent's self-description as stored on the
+// cluster, plus the server's verdict on its version.
+type ClusterAgentResponse struct {
+	Version               string   `json:"version,omitempty" doc:"Agent build version"`
+	KubernetesVersion     string   `json:"kubernetesVersion,omitempty" doc:"Kubernetes server version (gitVersion)"`
+	NodeCount             *int32   `json:"nodeCount,omitempty" doc:"Distinct nodes running the reported pods"`
+	Namespaces            []string `json:"namespaces,omitempty" doc:"Namespace allowlist; empty or absent with reportIntervalSeconds set means every namespace"`
+	ReportIntervalSeconds *int32   `json:"reportIntervalSeconds,omitempty" doc:"Seconds between snapshots; 0 for a one-shot agent"`
+	PodName               string   `json:"podName,omitempty" doc:"The agent's own pod"`
+	PodNamespace          string   `json:"podNamespace,omitempty" doc:"Namespace the agent runs in"`
+	VersionSkew           string   `json:"versionSkew,omitempty" doc:"Set when the agent's major.minor differs from the server's"`
 }
 
 // ListClustersInput is the request for GET /api/v1/clusters.
@@ -69,6 +125,8 @@ type UpdateClusterInput struct {
 		// A pointer so omitting the field leaves the setting alone: a rename
 		// must not be able to switch ingest off as a side effect.
 		AutoIngest *bool `json:"autoIngest,omitempty" doc:"Auto-ingest unknown running images on every accepted snapshot. Omit to leave unchanged."`
+		// Same pointer reasoning as AutoIngest.
+		Paused *bool `json:"paused,omitempty" doc:"Pause (true) or resume (false) the cluster. A paused cluster refuses snapshots and keeps its last inventory. Omit to leave unchanged."`
 	}
 }
 
@@ -107,7 +165,20 @@ type PutInventoryInput struct {
 	ID   string `path:"id" doc:"Cluster UUID" format:"uuid"`
 	Body struct {
 		Workloads []InventoryWorkload `json:"workloads" doc:"The complete set of running container images. Omitted entries are pruned."`
+		Agent     *InventoryAgent     `json:"agent,omitempty" doc:"The agent's description of itself. Optional, so an older agent's push is still accepted."`
 	}
+}
+
+// InventoryAgent is what an agent reports about itself and its cluster with a
+// snapshot (ocidex-70eo.3). Every field is optional.
+type InventoryAgent struct {
+	Version               string   `json:"version,omitempty" maxLength:"128" doc:"Agent build version"`
+	KubernetesVersion     string   `json:"kubernetesVersion,omitempty" maxLength:"128" doc:"Kubernetes server gitVersion from the discovery API"`
+	NodeCount             *int32   `json:"nodeCount,omitempty" minimum:"0" doc:"Distinct nodes running the reported pods"`
+	Namespaces            []string `json:"namespaces,omitempty" maxItems:"1000" doc:"Namespace allowlist; empty means every namespace"`
+	ReportIntervalSeconds *int32   `json:"reportIntervalSeconds,omitempty" minimum:"0" doc:"Seconds between snapshots; 0 for a one-shot agent"`
+	PodName               string   `json:"podName,omitempty" maxLength:"253" doc:"The agent's own pod name"`
+	PodNamespace          string   `json:"podNamespace,omitempty" maxLength:"253" doc:"Namespace the agent runs in"`
 }
 
 // PutInventoryOutput reports what the snapshot did, so an agent's logs can show
@@ -117,6 +188,10 @@ type PutInventoryOutput struct {
 		Accepted int    `json:"accepted" doc:"Workload rows in the snapshot"`
 		Pruned   int    `json:"pruned" doc:"Rows deleted because the snapshot no longer reports them"`
 		SeenAt   string `json:"seenAt" doc:"Timestamp recorded on the cluster"`
+		// The agent logs these: a skew warning on the server's side alone would
+		// reach nobody watching the agent.
+		ServerVersion string `json:"serverVersion,omitempty" doc:"The server's version"`
+		VersionSkew   string `json:"versionSkew,omitempty" doc:"Set when the reported agent version's major.minor differs from the server's"`
 	}
 }
 
@@ -342,6 +417,12 @@ type ListVulnWorkloadsOutput struct {
 	}
 }
 
+// ListArtifactWorkloadsInput is the request for GET /api/v1/artifacts/{id}/workloads.
+type ListArtifactWorkloadsInput struct {
+	ID    string `path:"id" doc:"Artifact UUID" format:"uuid"`
+	Limit int32  `query:"limit" default:"100" minimum:"1" maximum:"200"`
+}
+
 // ListClusterUnknownImagesInput is the request for
 // GET /api/v1/clusters/{id}/unknown-images.
 type ListClusterUnknownImagesInput struct {
@@ -418,6 +499,10 @@ type ListClusterUnknownImagesOutput struct {
 		Reasons    UnknownImageReasonCounts `json:"reasons" doc:"Breakdown of the entire gap by remedy, independent of the page returned"`
 		Hosts      []UnknownHostResponse    `json:"hosts" doc:"The entire gap grouped by registry scope, biggest first; independent of the page returned"`
 		Pagination PaginationMeta           `json:"pagination"`
+		// ocidex-70eo.12: without a scanner, "ready" means "would be ready",
+		// and the ingest endpoint answers 503. Clients branch on this rather
+		// than offering an action that cannot run.
+		ScanningEnabled bool `json:"scanningEnabled" doc:"Whether this deployment can scan images at all. When false, nothing can be ingested from here (manually or by auto-ingest) and the ingest endpoint returns 503."`
 	}
 }
 
@@ -448,5 +533,89 @@ type IngestUnknownOutput struct {
 		SkippedRegistryDisabled int `json:"skippedRegistryDisabled" doc:"The host matches a registry that is switched off"`
 		SkippedUnparseableRef   int `json:"skippedUnparseableRef" doc:"The reported reference carries no host to resolve against"`
 		Failed                  int `json:"failed" doc:"Submission errored: a manifest that is not there, or a transient registry or queue problem"`
+	}
+}
+
+// ---------------------------------------------------------------------------
+// Agent credentials (ocidex-70eo.5)
+// ---------------------------------------------------------------------------
+
+// ClusterCredentialResponse is an agent credential bound to one cluster. Key
+// is present only on the response that minted it.
+type ClusterCredentialResponse struct {
+	ID         string `json:"id"`
+	Name       string `json:"name"`
+	Prefix     string `json:"prefix" doc:"First 8 characters of the key"`
+	CreatedAt  string `json:"createdAt"`
+	LastUsedAt string `json:"lastUsedAt,omitempty" doc:"When the agent last authenticated with it; empty if never"`
+	OwnerID    string `json:"ownerId" doc:"User who minted it. The credential narrows with that user's live namespace roles."`
+	OwnerName  string `json:"ownerName,omitempty"`
+	Key        string `json:"key,omitempty" doc:"The full key, shown once on create or rotate. Store it in the agent's secret."`
+	ServerURL  string `json:"serverUrl,omitempty" doc:"The API's configured public URL (API_BASE_URL), for the agent's server.url; absent when not configured. Set only alongside key."`
+}
+
+// ConnectClusterInput is the request for POST /api/v1/clusters/connect.
+type ConnectClusterInput struct {
+	Body struct {
+		NamespaceID string `json:"namespaceId" format:"uuid" doc:"Owning namespace UUID"`
+		Name        string `json:"name" minLength:"1" maxLength:"100" doc:"Cluster name, unique within the namespace"`
+		Description string `json:"description,omitempty" maxLength:"500"`
+		AutoIngest  *bool  `json:"autoIngest,omitempty" doc:"Scan running images with no SBOM on each snapshot. Defaults to true."`
+	}
+}
+
+// ConnectClusterOutput is the response for POST /api/v1/clusters/connect.
+type ConnectClusterOutput struct {
+	Body struct {
+		Cluster    ClusterResponse           `json:"cluster"`
+		Credential ClusterCredentialResponse `json:"credential" doc:"The cluster's first agent credential; its key is shown only here"`
+	}
+}
+
+// ListClusterCredentialsInput is the request for GET /api/v1/clusters/{id}/credentials.
+type ListClusterCredentialsInput struct {
+	ID string `path:"id" doc:"Cluster UUID" format:"uuid"`
+}
+
+// ListClusterCredentialsOutput is the response for GET /api/v1/clusters/{id}/credentials.
+type ListClusterCredentialsOutput struct {
+	Body struct {
+		Data []ClusterCredentialResponse `json:"data"`
+	}
+}
+
+// CreateClusterCredentialInput is the request for POST /api/v1/clusters/{id}/credentials.
+type CreateClusterCredentialInput struct {
+	ID   string `path:"id" doc:"Cluster UUID" format:"uuid"`
+	Body struct {
+		Name string `json:"name,omitempty" maxLength:"100" doc:"Label for the credential; defaults to '<cluster>-agent'"`
+	}
+}
+
+// ClusterCredentialOutput is the response for creating or rotating a credential.
+type ClusterCredentialOutput struct {
+	Body ClusterCredentialResponse
+}
+
+// ClusterCredentialInput addresses one credential of one cluster.
+type ClusterCredentialInput struct {
+	ID           string `path:"id" doc:"Cluster UUID" format:"uuid"`
+	CredentialID string `path:"credentialId" doc:"Credential UUID" format:"uuid"`
+}
+
+// RegistryClusterGapResponse is one registry's share of one cluster's No-SBOM
+// gap (ocidex-70eo.14).
+type RegistryClusterGapResponse struct {
+	RegistryID  string `json:"registryId"`
+	ClusterID   string `json:"clusterId"`
+	ClusterName string `json:"clusterName"`
+	Images      int64  `json:"images" doc:"Running images with no SBOM whose host resolves to this registry"`
+	Ready       int64  `json:"ready" doc:"How many of those can be ingested now; the rest wait on this registry"`
+}
+
+// ListRegistryGapsOutput is the response for GET /api/v1/clusters/registry-gaps.
+type ListRegistryGapsOutput struct {
+	Body struct {
+		Data []RegistryClusterGapResponse `json:"data"`
 	}
 }

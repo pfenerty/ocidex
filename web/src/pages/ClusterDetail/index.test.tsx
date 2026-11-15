@@ -12,6 +12,7 @@ import {
     useClusterUnknownImages,
     useIngestUnknown,
 } from "~/api/queries";
+import { rememberInstallKey } from "./installKey";
 import ClusterDetail from "./index";
 
 // The mutation hooks are never called here, but StalenessPill lives in
@@ -31,6 +32,14 @@ vi.mock("~/api/queries", () => ({
     useCreateCluster: vi.fn(),
     useUpdateCluster: vi.fn(),
     useDeleteCluster: vi.fn(),
+    // The credentials card hides itself for a caller without manage_cluster,
+    // which an empty namespace list is.
+    useListNamespaces: () => ({ data: { data: [] } }),
+    useClusterCredentials: () => ({ data: [], isFetching: false, isError: false, error: null }),
+    useCreateClusterCredential: () => ({ mutate: vi.fn(), isPending: false }),
+    useRotateClusterCredential: () => ({ mutate: vi.fn(), isPending: false }),
+    useRevokeClusterCredential: () => ({ mutate: vi.fn(), isPending: false }),
+    useRefreshClusterInventory: () => vi.fn(),
 }));
 
 vi.mock("~/context/toast", () => ({ useToast: () => vi.fn() }));
@@ -130,6 +139,7 @@ const cluster = {
     namespaceId: "ns-acme",
     namespaceName: "acme",
     lastSeenAt: new Date().toISOString(),
+    health: { state: "healthy" },
     createdAt: "2026-01-01T00:00:00Z",
     updatedAt: "2026-01-01T00:00:00Z",
 };
@@ -202,6 +212,8 @@ let unknownImages: unknown[] = [];
  * directly to describe a gap larger than the page they are handed.
  */
 let unknownGap: { total: number; reasons: Record<string, number> } | undefined;
+/** What the server says about the deployment's scanner (ocidex-70eo.12). */
+let scanningEnabled = true;
 
 /** The server's per-host rollup of the whole gap; the rollup-card tests set it. */
 let unknownHosts: unknown[] = [];
@@ -369,6 +381,7 @@ function renderPage(
             data: unknownImages,
             reasons: unknownGap?.reasons ?? reasonsOf(unknownImages),
             hosts: unknownHosts,
+            scanningEnabled,
             pagination: {
                 total: unknownGap?.total ?? unknownImages.length,
                 limit: 50,
@@ -410,15 +423,17 @@ describe("ClusterDetail", () => {
         ingestCalls = [];
         ingestResult = undefined;
         autoIngest = true;
+        scanningEnabled = true;
     });
 
     it("states coverage before any vulnerability figure", () => {
         const { container } = renderPage([workload()], GAPPY);
 
-        const tiles = [...container.querySelectorAll(".coverage-tile")];
-        expect(tiles).toHaveLength(4);
-        expect(must(tiles[1], "matched tile").textContent).toContain("4");
-        expect(must(tiles[1], "matched tile").textContent).toContain("40%");
+        const band = must(container.querySelector(".coverage-band"), "coverage band");
+        const segments = [...band.querySelectorAll(".coverage-segment")];
+        expect(segments).toHaveLength(3);
+        expect(must(segments[0], "matched").textContent).toContain("4");
+        expect(must(band.querySelector(".coverage-bar"), "bar").getAttribute("aria-label")).toBe("40% matched");
     });
 
     // The tile counts workload-containers, which is the denominator every
@@ -428,14 +443,10 @@ describe("ClusterDetail", () => {
     it("labels the containers tile with what it actually counts", () => {
         const { container } = renderPage([workload()], GAPPY);
 
-        const containers = must(
-            container.querySelectorAll(".coverage-tile")[0],
-            "containers tile",
-        );
-        expect(containers.textContent).toContain("10");
-        expect(containers.textContent).toContain("workload containers");
-        expect(containers.textContent).toContain("23 pods");
-        expect(containers.textContent).not.toContain("deduplicated");
+        const total = must(container.querySelector(".coverage-total"), "total");
+        expect(total.textContent).toContain("10 workload containers");
+        expect(total.textContent).toContain("23 pods");
+        expect(total.textContent).not.toContain("deduplicated");
     });
 
     // The complaint this epic started from: the No-SBOM tile was tinted red on
@@ -445,9 +456,9 @@ describe("ClusterDetail", () => {
     it("does not raise a permanent alarm on the gap tiles", () => {
         const { container } = renderPage([workload()], GAPPY);
 
-        for (const tile of container.querySelectorAll(".coverage-tile")) {
-            expect(tile.className).not.toContain("bad");
-            expect(tile.className).not.toContain("active");
+        for (const seg of container.querySelectorAll(".coverage-segment")) {
+            expect(seg.className).not.toContain("bad");
+            expect(seg.className).not.toContain("selected");
         }
     });
 
@@ -455,14 +466,14 @@ describe("ClusterDetail", () => {
     // one, so a non-zero gap is marked and states its remedy.
     it("keeps a non-zero gap visually distinct and actionable", () => {
         const { container } = renderPage([workload()], GAPPY);
+        const segments = [...container.querySelectorAll(".coverage-segment")];
 
-        const tiles = [...container.querySelectorAll(".coverage-tile")];
-        const noSbom = must(tiles[2], "no-SBOM tile");
+        const noSbom = must(segments[1], "no-SBOM entry");
         expect(noSbom.className).toContain("gap");
         expect(noSbom.textContent).toContain("ingest to fix");
         expect(noSbom.getAttribute("href")).toBe("/clusters/c-prod?tab=gaps");
 
-        const unresolvable = must(tiles[3], "unresolvable tile");
+        const unresolvable = must(segments[2], "unresolvable entry");
         expect(unresolvable.className).toContain("gap");
         expect(unresolvable.textContent).toContain("runtime gap");
     });
@@ -476,8 +487,8 @@ describe("ClusterDetail", () => {
             pods: 9,
         });
 
-        for (const tile of container.querySelectorAll(".coverage-tile")) {
-            expect(tile.className).not.toContain("gap");
+        for (const seg of container.querySelectorAll(".coverage-segment")) {
+            expect(seg.className).not.toContain("gap");
         }
         expect(container.querySelector(".coverage-caveat")).toBeNull();
     });
@@ -528,19 +539,45 @@ describe("ClusterDetail", () => {
     it("leads with agent setup when nothing has ever reported", () => {
         const clusterLastSeen = cluster.lastSeenAt;
         cluster.lastSeenAt = "";
+        rememberInstallKey("c-prod", { key: "ocidex_onetime" });
         try {
             const { container } = renderPage([], EMPTY, []);
 
-            expect(container.textContent).toContain("No agent has reported yet");
-            expect(container.textContent).toContain("not the same as a cluster running nothing");
-            // The command carries the cluster's own id, so there is nothing to
-            // transcribe out of the URL.
+            expect(container.textContent).toContain("no agent has reported");
+            expect(container.textContent).toContain("not the same as knowing that nothing runs");
+            // The command carries the cluster's own id and the one-time key the
+            // connect page left behind (ocidex-70eo.6): one command, nothing
+            // to transcribe.
             const commands = must(container.querySelector(".agent-setup-commands"), "commands");
             expect(commands.textContent).toContain("--set cluster.id=c-prod");
+            expect(commands.textContent).toContain("--set apiKey.value=ocidex_onetime");
+            expect(container.textContent).toContain("Waiting for the first snapshot");
             // And none of the cards that would summarise an inventory it does
             // not have.
             expect(container.querySelector(".overview-vuln-list")).toBeNull();
             expect(container.textContent).not.toContain("There is nothing to ingest");
+        } finally {
+            cluster.lastSeenAt = clusterLastSeen;
+        }
+    });
+
+    // ocidex-70eo.13: no zero tiles, and no tabs that can only be empty, until
+    // something has reported. A tab in the URL cannot reach them either.
+    it("shows no coverage band and no inventory tabs before the first report", () => {
+        const clusterLastSeen = cluster.lastSeenAt;
+        cluster.lastSeenAt = "";
+        searchParams = { tab: "workloads" };
+        try {
+            const { container } = renderPage([], EMPTY, []);
+
+            expect(container.querySelector(".coverage-band")).toBeNull();
+            const tabLabels = [...container.querySelectorAll(".tab-bar button, .tab-bar a")].map(
+                (t) => t.textContent,
+            );
+            // The Agent tab stays: credentials and push history are how a
+            // cluster that never reported gets diagnosed (design Q2).
+            expect(tabLabels).toEqual(["Overview", "Agent"]);
+            expect(container.querySelector('[data-testid="install-agent"]')).not.toBeNull();
         } finally {
             cluster.lastSeenAt = clusterLastSeen;
         }
@@ -577,9 +614,9 @@ describe("ClusterDetail", () => {
         searchParams = { tab: "workloads", matchState: "exact" };
         const { container } = renderPage([workload()], GAPPY);
 
-        const tiles = [...container.querySelectorAll(".coverage-tile")];
-        expect(must(tiles[1], "matched tile").className).toContain("active");
-        expect(must(tiles[0], "containers tile").className).not.toContain("active");
+        const segments = [...container.querySelectorAll(".coverage-segment")];
+        expect(must(segments[0], "matched entry").className).toContain("selected");
+        expect(must(container.querySelector(".coverage-total"), "total").className).not.toContain("selected");
     });
 
     it("labels every match state in words, not colour alone", () => {
@@ -1016,6 +1053,36 @@ describe("ClusterDetail", () => {
 
         // No digests: the whole gap, which is what the button says.
         expect(ingestCalls).toEqual([{ id: "c-prod", imageDigests: undefined }]);
+    });
+
+    // ocidex-70eo.12: with no scanner, the ingest endpoint 503s. The tab must
+    // say so and offer nothing, rather than a "ready" row and a button that
+    // fails with the raw error.
+    it("offers no ingest action on a deployment without a scanner", () => {
+        searchParams = { tab: "gaps" };
+        scanningEnabled = false;
+        unknownImages = [
+            unknownImage({ imageRef: "ghcr.io/a:v1", reason: "ready" }),
+            unknownImage({ imageRef: "gcr.io/c:v1", reason: "unauthorized" }),
+        ];
+        const { container } = renderPage([workload({ matchState: "unknown" })], GAPPY);
+
+        expect(container.querySelector('[data-testid="no-scanner"]')).not.toBeNull();
+        expect(container.textContent).not.toContain("ready to ingest");
+        expect(container.textContent).toContain("scanning not enabled");
+        const actions = [...container.querySelectorAll("button")].filter((b) =>
+            /^(Ingest|Retry)/.test(b.textContent),
+        );
+        expect(actions).toHaveLength(0);
+    });
+
+    it("tells the overview reader the deployment cannot scan", () => {
+        scanningEnabled = false;
+        unknownImages = [unknownImage({ reason: "ready" })];
+        const { container } = renderPage([workload({ matchState: "unknown" })], GAPPY);
+
+        expect(container.textContent).toContain("This deployment has no scanner");
+        expect(container.textContent).not.toContain("can be ingested now");
     });
 
     // A per-row button that queued the whole cluster would be lying about what

@@ -13,16 +13,21 @@ package main
 
 import (
 	"context"
+	"errors"
 	"flag"
 	"fmt"
 	"log/slog"
+	"math"
 	"os"
 	"os/signal"
 	"syscall"
 	"time"
 
+	"go.opentelemetry.io/otel/attribute"
+	"go.opentelemetry.io/otel/metric"
 	corev1 "k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
+	"k8s.io/client-go/discovery"
 	"k8s.io/client-go/kubernetes"
 	typedcorev1 "k8s.io/client-go/kubernetes/typed/core/v1"
 	ctrlconfig "sigs.k8s.io/controller-runtime/pkg/client/config"
@@ -31,6 +36,7 @@ import (
 	"github.com/pfenerty/ocidex/internal/health"
 	"github.com/pfenerty/ocidex/internal/metrics"
 	"github.com/pfenerty/ocidex/internal/tracing"
+	"github.com/pfenerty/ocidex/internal/version"
 	"github.com/pfenerty/ocidex/pkg/client"
 )
 
@@ -62,6 +68,7 @@ func run() error {
 		"server", cfg.ServerURL,
 		"namespaces", cfg.Namespaces,
 		"interval", cfg.ReportInterval,
+		"version", version.String(),
 	)
 
 	restCfg, err := ctrlconfig.GetConfig()
@@ -74,9 +81,11 @@ func run() error {
 	}
 
 	a := &agent{
-		cfg:  cfg,
-		pods: clientset.CoreV1(),
-		api:  client.New(client.Config{BaseURL: cfg.ServerURL, APIKey: cfg.APIKey}),
+		cfg:       cfg,
+		pods:      clientset.CoreV1(),
+		discovery: clientset.Discovery(),
+		api:       client.New(client.Config{BaseURL: cfg.ServerURL, APIKey: cfg.APIKey}),
+		oneShot:   *once,
 	}
 
 	ctx, cancel := context.WithCancel(context.Background())
@@ -92,8 +101,14 @@ func run() error {
 
 	_, stopTracing := tracing.Start(ctx, "ocidex-k8s-agent")
 	defer stopTracing()
-	_, metricsHandler, stopMetrics := metrics.Start(ctx, "ocidex-k8s-agent")
+	mp, metricsHandler, stopMetrics := metrics.Start(ctx, "ocidex-k8s-agent")
 	defer stopMetrics()
+	if c, err := metrics.Meter(mp).Int64Counter("ocidex.agent.pushes",
+		metric.WithDescription("Inventory pushes by outcome (accepted, rejected, failed) and HTTP status.")); err != nil {
+		slog.Error("push metric disabled", "err", err)
+	} else {
+		a.pushes = c
+	}
 	healthSrv := health.New(cfg.HealthAddr, nil, nil, slog.Default()).WithMetrics(metricsHandler)
 	healthSrv.Start()
 	defer healthSrv.Stop()
@@ -135,9 +150,15 @@ type podLister interface {
 }
 
 type agent struct {
-	cfg  *config.K8sAgentConfig
-	pods podLister
-	api  client.Client
+	cfg       *config.K8sAgentConfig
+	pods      podLister
+	discovery discovery.ServerVersionInterface
+	api       client.Client
+	// oneShot reports a zero interval: a --once Job has no next report, and
+	// the server must not judge it stale against the default interval.
+	oneShot bool
+	// pushes counts pushes by outcome; nil in --once mode and in tests.
+	pushes metric.Int64Counter
 }
 
 // report collects one snapshot and pushes it.
@@ -150,9 +171,23 @@ func (a *agent) report(ctx context.Context) error {
 	}
 	workloads := buildSnapshot(pods)
 
-	out, err := a.api.PutInventory(ctx, a.cfg.ClusterID, workloads)
+	out, err := a.api.PutInventory(ctx, a.cfg.ClusterID, workloads, a.describe(ctx, pods))
 	if err != nil {
+		a.countPush(ctx, err)
+		var apiErr *client.APIError
+		if errors.As(err, &apiErr) {
+			// The server's reason is the actionable part — a revoked key, a
+			// missing capability, a schema failure — so it is logged as its
+			// own field rather than buried in the error string. The server
+			// also records it against the cluster (ocidex-70eo.4).
+			slog.ErrorContext(ctx, "inventory push rejected",
+				"status", apiErr.Status, "reason", apiErr.Detail, "cluster_id", a.cfg.ClusterID)
+		}
 		return fmt.Errorf("pushing inventory: %w", err)
+	}
+	a.countPush(ctx, nil)
+	if out.VersionSkew != nil && *out.VersionSkew != "" {
+		slog.Warn("agent and server versions differ", "detail", *out.VersionSkew)
 	}
 
 	slog.Info("inventory reported",
@@ -164,6 +199,77 @@ func (a *agent) report(ctx context.Context) error {
 		"duration", time.Since(start).String(),
 	)
 	return nil
+}
+
+// countPush records one push outcome: accepted, rejected (the server answered
+// with an error status) or failed (no answer).
+func (a *agent) countPush(ctx context.Context, err error) {
+	if a.pushes == nil {
+		return
+	}
+	outcome, status := "accepted", 200
+	var apiErr *client.APIError
+	switch {
+	case err == nil:
+	case errors.As(err, &apiErr):
+		outcome, status = "rejected", apiErr.Status
+	default:
+		outcome, status = "failed", 0
+	}
+	a.pushes.Add(ctx, 1, metric.WithAttributes(
+		attribute.String("outcome", outcome), attribute.Int("status", status)))
+}
+
+// describe is the agent's self-report sent with each snapshot (ocidex-70eo.3).
+// Every field is best effort: a discovery failure costs the Kubernetes version,
+// not the snapshot.
+func (a *agent) describe(ctx context.Context, pods []corev1.Pod) *client.InventoryAgent {
+	agentVersion, _, _ := version.Info()
+	interval := int32(min(a.cfg.ReportInterval/time.Second, math.MaxInt32)) //nolint:gosec // clamped above
+	if a.oneShot {
+		interval = 0
+	}
+	nodes := countNodes(pods)
+	namespaces := a.cfg.Namespaces
+	if namespaces == nil {
+		namespaces = []string{}
+	}
+	info := &client.InventoryAgent{
+		Version:               &agentVersion,
+		NodeCount:             &nodes,
+		Namespaces:            &namespaces,
+		ReportIntervalSeconds: &interval,
+		PodName:               optString(a.cfg.PodName),
+		PodNamespace:          optString(a.cfg.PodNamespace),
+	}
+	if a.discovery != nil {
+		if v, err := a.discovery.ServerVersion(); err != nil {
+			slog.WarnContext(ctx, "reading kubernetes server version", "err", err)
+		} else {
+			info.KubernetesVersion = &v.GitVersion
+		}
+	}
+	return info
+}
+
+// countNodes counts the distinct nodes the pods are scheduled on. It reads the
+// pods rather than listing nodes, so the agent needs no RBAC on nodes; with a
+// namespace allowlist it is the nodes running those namespaces' pods.
+func countNodes(pods []corev1.Pod) int32 {
+	seen := map[string]struct{}{}
+	for i := range pods {
+		if n := pods[i].Spec.NodeName; n != "" {
+			seen[n] = struct{}{}
+		}
+	}
+	return int32(len(seen)) //nolint:gosec // bounded by the cluster's node count
+}
+
+func optString(s string) *string {
+	if s == "" {
+		return nil
+	}
+	return &s
 }
 
 // listPods reads every pod the agent is scoped to. With no namespace allowlist it

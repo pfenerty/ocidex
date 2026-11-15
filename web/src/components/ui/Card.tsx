@@ -20,7 +20,7 @@ export type CardProps = {
      * that edits here will be overwritten. Emits `.card-success` /
      * `.card-warning`, which set only the border colour.
      */
-    tone?: "success" | "warning";
+    tone?: "success" | "warning" | "danger";
     children: JSX.Element;
 } & JSX.HTMLAttributes<HTMLElement>;
 

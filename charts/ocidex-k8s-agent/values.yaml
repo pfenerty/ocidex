@@ -30,7 +30,14 @@ server:
 # apiKey configures where the agent reads its OCIDex API key (OCIDEX_API_KEY). The key
 # needs the push_inventory capability, and must belong to a member of the namespace the
 # cluster is registered under whose role grants it (ADR-044 K8, ADR-046).
+#
+# Two ways to supply it (ocidex-70eo.6):
+#   - value: the chart creates the Secret. This is what the "Connect a cluster" page's
+#     helm command sets. The key is stored in the Helm release (itself a Secret in this
+#     namespace), so prefer the second form where values are kept in Git.
+#   - leave value empty and create secretName yourself (GitOps, external secret stores).
 apiKey:
+  value: ""
   secretName: ocidex-k8s-agent-secrets
   secretKey: OCIDEX_API_KEY
 

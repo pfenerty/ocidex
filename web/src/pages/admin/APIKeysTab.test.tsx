@@ -2,7 +2,7 @@
 import { describe, it, expect, vi, beforeEach, afterEach } from "vitest";
 import { render, fireEvent } from "@solidjs/testing-library";
 import { useListAPIKeys, useCreateAPIKey, useDeleteAPIKey } from "~/api/queries";
-import { APIKeysTab } from "~/pages/admin/APIKeysTab";
+import { APIKeysTab, parseCapabilities } from "~/pages/admin/APIKeysTab";
 
 const createMutate = vi.fn();
 
@@ -172,5 +172,27 @@ describe("APIKeysTab", () => {
         const { container } = render(() => <APIKeysTab />);
 
         expect(container.textContent).toContain("none");
+    });
+
+    // The cluster setup card links here with the agent's one capability chosen
+    // (ocidex-70eo.11).
+    it("submits a prefilled name and capability list unchanged", () => {
+        const { container } = render(() => (
+            <APIKeysTab initialName="prod-agent" initialCapabilities={["push_inventory"]} />
+        ));
+        expect(container.querySelector('[data-testid="capability-picker"]')).not.toBeNull();
+        fireEvent.submit(must(container.querySelector("form"), "form"));
+
+        expect(createMutate).toHaveBeenCalledWith(
+            { name: "prod-agent", capabilities: ["push_inventory"] },
+            expect.anything(),
+        );
+    });
+});
+
+describe("parseCapabilities", () => {
+    it("keeps known capabilities and drops the rest", () => {
+        expect(parseCapabilities("push_inventory, bogus,read_private")).toEqual(["read_private", "push_inventory"]);
+        expect(parseCapabilities(undefined)).toEqual([]);
     });
 });

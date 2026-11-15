@@ -6,6 +6,7 @@ import {
     useRegistryTrustSummary,
     useListSources,
     useListNamespaces,
+    useRegistryGaps,
 } from "~/api/queries";
 import { RegistryFormDialog, type RegistryDialogHandle } from "./sources/RegistryFormDialog";
 import { registryColumns } from "./sources/registryColumns";
@@ -129,7 +130,16 @@ export function SourcesTab() {
         mayCreateNamespace() ||
         (namespacesQuery.data?.data ?? []).some((ns) => (ns.capabilities ?? []).includes("manage_source"));
 
+    // Signed-in only, like everything about clusters.
+    const registryGaps = useRegistryGaps(() => user() !== undefined);
+    const gapsByRegistry = createMemo(() => {
+        const m = new Map<string, NonNullable<typeof registryGaps.data>>();
+        for (const g of registryGaps.data ?? []) m.set(g.registryId, [...(m.get(g.registryId) ?? []), g]);
+        return m;
+    });
+
     const columns = registryColumns({
+        gapsFor: (id) => gapsByRegistry().get(id) ?? [],
         activeByRegistry,
         trustByRegistry,
         capsFor: (id) => capsByRegistry().get(id) ?? new Set(),

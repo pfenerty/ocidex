@@ -221,6 +221,8 @@ var authRules = map[string]AuthRule{
 	// Deliberately not ClassPublic like its two neighbours: the advisory is
 	// public data, but "which of these clusters is running it" is inventory,
 	// and inventory is gated the same way list-cluster-workloads is.
+	"list-registry-cluster-gaps":   {Class: ClassAuthenticated, Notes: "Clusters filtered by namespace visibility; each cluster's gap resolves only against its own namespace's registries."},
+	"list-artifact-workloads":      {Class: ClassAuthenticated, Notes: "Workload rows filtered via visible_namespace_ids, as list-vulnerability-workloads."},
 	"list-vulnerability-workloads": {Class: ClassAuthenticated, Notes: "Workload rows filtered via visible_namespace_ids on the owning namespace, so an invisible cluster contributes nothing rather than 403ing."},
 
 	// --- Namespaces ---------------------------------------------------------
@@ -254,6 +256,12 @@ var authRules = map[string]AuthRule{
 	"update-cluster":                {Class: ClassCapability, Cap: authz.CapManageCluster, Write: true, Notes: "manage_cluster capability on the cluster's namespace."},
 	"delete-cluster":                {Class: ClassCapability, Cap: authz.CapManageCluster, Write: true, Notes: "manage_cluster capability on the cluster's namespace; drops reported inventory only."},
 	"put-cluster-inventory":         {Class: ClassCapability, Cap: authz.CapPushInventory, Write: true, Notes: "push_inventory capability on the cluster's namespace — membership, not visibility, because a public namespace must not make inventory writable by anyone."},
+	"connect-cluster":               {Class: ClassCapability, Cap: authz.CapManageCluster, Write: true, Notes: "manage_cluster and push_inventory on the body's namespace_id, in the handler. Creates the cluster and a cluster-bound credential in one transaction."},
+	"list-cluster-credentials":      {Class: ClassCapability, Cap: authz.CapManageCluster, Notes: "manage_cluster capability on cluster's namespace, in the handler. Key metadata only; keys are never listed."},
+	"create-cluster-credential":     {Class: ClassCapability, Cap: authz.CapManageCluster, Write: true, Notes: "manage_cluster and push_inventory on cluster's namespace, in the handler. The minted key is bound to the cluster: refused by OptionalAuthenticate on every route but this cluster's inventory push (ocidex-70eo.5)."},
+	"rotate-cluster-credential":     {Class: ClassCapability, Cap: authz.CapManageCluster, Write: true, Notes: "Same gate as create-cluster-credential; the replacement is owned by the caller."},
+	"revoke-cluster-credential":     {Class: ClassCapability, Cap: authz.CapManageCluster, Write: true, Notes: "manage_cluster capability on cluster's namespace, in the handler; revokes any minter's credential for this cluster."},
+	"list-cluster-pushes":           {Class: ClassAuthenticated, Notes: "Cluster gated on namespace visibility, like get-cluster."},
 	"list-cluster-workloads":        {Class: ClassAuthenticated, Notes: "Cluster gated on namespace visibility; rows additionally filtered via visible_namespace_ids."},
 	"list-cluster-images":           {Class: ClassAuthenticated, Notes: "Same gate and same rows as list-cluster-workloads, grouped by image rather than by workload-container."},
 	"list-cluster-vulns":            {Class: ClassAuthenticated, Notes: "Same gate as list-cluster-workloads; findings and coverage are returned together so neither can be read without the other."},

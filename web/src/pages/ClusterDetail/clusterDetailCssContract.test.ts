@@ -22,13 +22,15 @@ function rule(selector: string, within = css): string {
 }
 
 describe("ClusterDetail.css overrides", () => {
-    // TileBand truncates a tile's sub-line with an ellipsis, which is right for
-    // a purl and wrong for a sentence. The coverage band's subs are remedies
-    // ("not assessed — ingest to fix"); a truncated remedy is not a remedy.
-    it("lets the coverage band's sub-lines wrap instead of truncating", () => {
-        const body = rule(".coverage-tile .tile-sub");
-        expect(body).toMatch(/white-space:\s*normal/);
-        expect(body).toMatch(/overflow:\s*visible/);
+    // The coverage legend's labels are remedies ("no SBOM · ingest to fix");
+    // they must wrap onto the next line rather than run off a narrow screen.
+    it("lets the coverage legend wrap", () => {
+        expect(rule(".coverage-legend {")).toMatch(/flex-wrap:\s*wrap/);
+    });
+
+    // ADR-044 K5: a non-zero gap must not read like a clean count.
+    it("colours a non-zero gap's count", () => {
+        expect(rule(".coverage-segment.gap strong")).toMatch(/color:\s*var\(--color-warning\)/);
     });
 
     // DataTable's card stack undoes `.text-right` with `text-align: left`,

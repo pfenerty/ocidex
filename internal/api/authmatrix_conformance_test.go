@@ -157,8 +157,13 @@ var capProbes = map[string]capProbe{
 	"remove-namespace-member":       capEnforced,
 	"delete-artifact":               capEnforced,
 	"delete-sbom":                   capEnforced,
+	"list-cluster-credentials":      capEnforced,
+	"create-cluster-credential":     capEnforced,
+	"rotate-cluster-credential":     capEnforced,
+	"revoke-cluster-credential":     capEnforced,
 
 	"create-cluster":        capRequestGated,
+	"connect-cluster":       capRequestGated,
 	"update-cluster":        capRequestGated,
 	"put-cluster-inventory": capRequestGated,
 	"create-source":         capRequestGated,

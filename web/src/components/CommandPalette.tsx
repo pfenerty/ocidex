@@ -17,6 +17,7 @@ import {
     useComponentSearch,
     useVulnerabilitySearch,
     useLicenseSearch,
+    useClusterSearch,
     MIN_SEARCH_TERM,
 } from "~/api/queries";
 import type { SearchHit } from "~/api/queries";
@@ -67,11 +68,12 @@ const ENTRIES: readonly Entry[] = [
 
     { path: "/dashboard", label: "Workspace", group: "Workspace", keywords: "dashboard mine watched", visible: signedIn },
     { path: "/clusters", label: "Clusters", group: "Workspace", keywords: "kubernetes k8s workloads inventory coverage", visible: signedIn },
+    { path: "/clusters/new", label: "Connect a cluster", group: "Workspace", keywords: "kubernetes k8s agent install register helm", visible: signedIn },
 
     // Sources sits under /admin for historical reasons only — any signed-in
     // user may manage the registries they own. See the note in Layout.tsx.
     { path: "/admin/sources", label: "Sources", group: "Manage", keywords: "registries ingest scan", visible: signedIn },
-    { path: "/admin/keys", label: "API keys", group: "Manage", keywords: "tokens credentials scopes", visible: isAdmin },
+    { path: "/admin/keys", label: "API keys", group: "Manage", keywords: "tokens credentials scopes capabilities agent", visible: signedIn },
     { path: "/admin/namespaces", label: "Namespaces", group: "Manage", keywords: "owners visibility tenants", visible: isAdmin },
     { path: "/admin/status", label: "Status", group: "Manage", keywords: "health workers queue", visible: isAdmin },
     { path: "/admin/jobs", label: "Jobs", group: "Manage", keywords: "scan enrichment queue failures", visible: isAdmin },
@@ -220,8 +222,11 @@ export default function CommandPalette() {
     const components = useComponentSearch(debounced);
     const vulns = useVulnerabilitySearch(debounced);
     const licenses = useLicenseSearch(debounced);
+    // Signed-in only: clusters are never public (ocidex-70eo.8).
+    const clusters = useClusterSearch(debounced, () => user() !== undefined);
 
     const searches = [
+        { group: "Clusters", query: clusters },
         { group: "Artifacts", query: artifacts },
         { group: "Components", query: components },
         { group: "Vulnerabilities", query: vulns },

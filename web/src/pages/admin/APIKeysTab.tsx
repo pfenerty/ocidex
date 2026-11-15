@@ -42,18 +42,36 @@ const PRESETS: { value: Preset; label: string }[] = [
     { value: "custom", label: "Choose capabilities…" },
 ];
 
+/**
+ * Reads a comma-separated capability list from a link (`?capabilities=...`),
+ * keeping only names this build knows. Another page uses it to send the user
+ * here with the key it needs already chosen, as the cluster setup card does
+ * with `push_inventory`.
+ */
+export function parseCapabilities(raw: string | undefined): Capability[] {
+    if (raw === undefined || raw === "") return [];
+    const wanted = new Set(raw.split(",").map((s) => s.trim()));
+    return CAPABILITIES.filter((c) => wanted.has(c));
+}
+
 function capabilityLabel(c: string): string {
     return c.replace(/_/g, " ");
 }
 
-export function APIKeysTab() {
+/**
+ * `initialName` and `initialCapabilities` prefill the create form, for links
+ * from pages that know what the key is for. An empty capability list leaves
+ * the "everything my roles allow" preset in place.
+ */
+export function APIKeysTab(props: { initialName?: string; initialCapabilities?: Capability[] } = {}) {
     const query = useListAPIKeys();
     const createKey = useCreateAPIKey();
     const deleteKey = useDeleteAPIKey();
     const toast = useToast();
-    const [newKeyName, setNewKeyName] = createSignal("");
-    const [preset, setPreset] = createSignal<Preset>("full");
-    const [custom, setCustom] = createSignal<Capability[]>([]);
+    const prefilled = props.initialCapabilities ?? [];
+    const [newKeyName, setNewKeyName] = createSignal(props.initialName ?? "");
+    const [preset, setPreset] = createSignal<Preset>(prefilled.length > 0 ? "custom" : "full");
+    const [custom, setCustom] = createSignal<Capability[]>(prefilled);
     const [revealedKey, setRevealedKey] = createSignal<string | null>(null);
 
     // An empty list is how the API spells "everything I may do", so the full

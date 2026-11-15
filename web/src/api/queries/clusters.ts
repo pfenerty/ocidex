@@ -26,13 +26,126 @@ export function useListClusters(namespaceId?: Accessor<string | undefined>) {
     }));
 }
 
-/** useCluster — one cluster by id. */
+/** How often a cluster page re-reads the cluster, by its agent health. */
+export const POLL_WAITING_MS = 5_000;
+export const POLL_SETTLED_MS = 30_000;
+
+/**
+ * useCluster — one cluster by id.
+ *
+ * It polls, faster while the cluster is waiting for its first snapshot or
+ * being refused (ocidex-70eo.6): the page is where someone just ran the
+ * install command or a fix, and a reload should not be how they find out
+ * whether it worked.
+ */
 export function useCluster(id: Accessor<string | undefined>) {
     return createQuery(() => ({
         queryKey: ["clusters", id()] as const,
         queryFn: () =>
             unwrap(client.GET("/api/v1/clusters/{id}", { params: { path: { id: id() ?? "" } } })),
         enabled: id() !== undefined,
+        refetchInterval: (query: { state: { data?: { health: { state: string } } } }) => {
+            const state = query.state.data?.health.state;
+            return state === "never_reported" || state === "erroring" ? POLL_WAITING_MS : POLL_SETTLED_MS;
+        },
+    }));
+}
+
+/**
+ * useRefreshClusterInventory returns a function that re-reads every query
+ * under one cluster except the cluster itself: workloads, images, vulns, gaps.
+ * The cluster page calls it when a new snapshot lands (ocidex-70eo.6).
+ */
+export function useRefreshClusterInventory() {
+    const queryClient = useQueryClient();
+    return (id: string) =>
+        queryClient.invalidateQueries({
+            predicate: (q) => q.queryKey[0] === "clusters" && q.queryKey[1] === id && q.queryKey.length > 2,
+        });
+}
+
+/** useClusterPushes — the cluster's recent push attempts, refused ones included. */
+export function useClusterPushes(id: Accessor<string | undefined>) {
+    return createQuery(() => ({
+        queryKey: ["clusters", id(), "pushes"] as const,
+        queryFn: () =>
+            unwrap(
+                client.GET("/api/v1/clusters/{id}/pushes", {
+                    params: { path: { id: id() ?? "" }, query: { limit: 20 } },
+                }),
+            ),
+        enabled: id() !== undefined,
+        select: (resp) => resp.data ?? [],
+    }));
+}
+
+/**
+ * useArtifactWorkloads — where any version of an artifact is running
+ * (ocidex-70eo.8). Signed-in only: inventory is never public, and the artifact
+ * page it serves is.
+ */
+export function useArtifactWorkloads(id: Accessor<string | undefined>, enabled: Accessor<boolean>) {
+    return createQuery(() => ({
+        queryKey: ["artifacts", id(), "workloads"] as const,
+        queryFn: () =>
+            unwrap(
+                client.GET("/api/v1/artifacts/{id}/workloads", {
+                    params: { path: { id: id() ?? "" }, query: { limit: 200 } },
+                }),
+            ),
+        enabled: id() !== undefined && enabled(),
+        select: (resp) => resp.data ?? [],
+    }));
+}
+
+/**
+ * useClusterSearch — clusters whose name matches a term, for the command
+ * palette (ocidex-70eo.8). Filtered in the browser: a caller sees a handful of
+ * clusters, and the list is the same request the Clusters page makes.
+ */
+export function useClusterSearch(term: Accessor<string>, enabled: Accessor<boolean>) {
+    return createQuery(() => ({
+        queryKey: ["clusters", undefined] as const,
+        queryFn: () => unwrap(client.GET("/api/v1/clusters", { params: { query: {} } })),
+        enabled: enabled() && term().length >= 2,
+        select: (resp) => {
+            const t = term().toLowerCase();
+            return (resp.data ?? [])
+                .filter((c) => c.name.toLowerCase().includes(t))
+                .slice(0, 5)
+                .map((c) => ({
+                    key: c.id,
+                    label: c.name,
+                    sub: `${c.namespaceName ?? ""} · ${c.health.state.replace("_", " ")}`,
+                    path: `/clusters/${c.id}`,
+                }));
+        },
+    }));
+}
+
+/**
+ * useRegistryGaps — for each registry, the clusters' No-SBOM gaps it would
+ * close (ocidex-70eo.14). One request for the whole Sources table.
+ */
+export function useRegistryGaps(enabled: Accessor<boolean>) {
+    return createQuery(() => ({
+        queryKey: ["clusters", "registry-gaps"] as const,
+        queryFn: () => unwrap(client.GET("/api/v1/clusters/registry-gaps")),
+        enabled: enabled(),
+        select: (resp) => resp.data ?? [],
+    }));
+}
+
+/** useConnectCluster — register a cluster with its first agent credential. */
+export function useConnectCluster() {
+    const queryClient = useQueryClient();
+    return createMutation(() => ({
+        mutationFn: (body: { namespaceId: string; name: string; description?: string; autoIngest: boolean }) =>
+            unwrap(client.POST("/api/v1/clusters/connect", { body })),
+        onSuccess: () => {
+            void queryClient.invalidateQueries({ queryKey: ["clusters"] });
+            void queryClient.invalidateQueries({ queryKey: ["me", "clusters"] });
+        },
     }));
 }
 
@@ -319,6 +432,8 @@ export function useUpdateCluster() {
             // it: the API reads an absent autoIngest as "leave it alone", so a
             // rename cannot switch ingest off as a side effect.
             autoIngest?: boolean;
+            // Same omission rule: absent leaves the pause alone (ocidex-70eo.9).
+            paused?: boolean;
         }) => unwrap(client.PATCH("/api/v1/clusters/{id}", { params: { path: { id } }, body })),
         onSuccess: () => {
             void queryClient.invalidateQueries({ queryKey: ["clusters"] });
@@ -366,6 +481,68 @@ export function useDeleteCluster() {
         onSuccess: () => {
             void queryClient.invalidateQueries({ queryKey: ["clusters"] });
             void queryClient.invalidateQueries({ queryKey: ["me", "clusters"] });
+        },
+    }));
+}
+
+// ---------------------------------------------------------------------------
+// Agent credentials (ocidex-70eo.5): API keys bound to one cluster that can do
+// nothing but push its inventory.
+// ---------------------------------------------------------------------------
+
+/** useClusterCredentials — the cluster's agent credentials. Keys are never listed. */
+export function useClusterCredentials(id: Accessor<string | undefined>, enabled: Accessor<boolean>) {
+    return createQuery(() => ({
+        queryKey: ["clusters", id(), "credentials"] as const,
+        queryFn: () =>
+            unwrap(client.GET("/api/v1/clusters/{id}/credentials", { params: { path: { id: id() ?? "" } } })),
+        enabled: id() !== undefined && enabled(),
+        select: (resp) => resp.data ?? [],
+    }));
+}
+
+export function useCreateClusterCredential() {
+    const queryClient = useQueryClient();
+    return createMutation(() => ({
+        mutationFn: ({ id, name }: { id: string; name?: string }) =>
+            unwrap(
+                client.POST("/api/v1/clusters/{id}/credentials", {
+                    params: { path: { id } },
+                    body: hasText(name) ? { name } : {},
+                }),
+            ),
+        onSuccess: (_d, vars) => {
+            void queryClient.invalidateQueries({ queryKey: ["clusters", vars.id, "credentials"] });
+        },
+    }));
+}
+
+export function useRotateClusterCredential() {
+    const queryClient = useQueryClient();
+    return createMutation(() => ({
+        mutationFn: ({ id, credentialId }: { id: string; credentialId: string }) =>
+            unwrap(
+                client.POST("/api/v1/clusters/{id}/credentials/{credentialId}/rotate", {
+                    params: { path: { id, credentialId } },
+                }),
+            ),
+        onSuccess: (_d, vars) => {
+            void queryClient.invalidateQueries({ queryKey: ["clusters", vars.id, "credentials"] });
+        },
+    }));
+}
+
+export function useRevokeClusterCredential() {
+    const queryClient = useQueryClient();
+    return createMutation(() => ({
+        mutationFn: ({ id, credentialId }: { id: string; credentialId: string }) =>
+            unwrap(
+                client.DELETE("/api/v1/clusters/{id}/credentials/{credentialId}", {
+                    params: { path: { id, credentialId } },
+                }),
+            ),
+        onSuccess: (_d, vars) => {
+            void queryClient.invalidateQueries({ queryKey: ["clusters", vars.id, "credentials"] });
         },
     }));
 }

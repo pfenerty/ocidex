@@ -176,7 +176,7 @@ const createCluster = `-- name: CreateCluster :one
 
 INSERT INTO cluster (namespace_id, name, description)
 VALUES ($1, $2, $3)
-RETURNING id, namespace_id, name, description, last_seen_at, created_at, updated_at, auto_ingest
+RETURNING id, namespace_id, name, description, last_seen_at, created_at, updated_at, auto_ingest, agent_version, agent_kubernetes_version, agent_node_count, agent_namespaces, agent_report_interval_seconds, agent_pod_name, agent_pod_namespace, last_push_error_at, last_push_error, paused_at
 `
 
 type CreateClusterParams struct {
@@ -203,6 +203,59 @@ func (q *Queries) CreateCluster(ctx context.Context, arg CreateClusterParams) (C
 		&i.CreatedAt,
 		&i.UpdatedAt,
 		&i.AutoIngest,
+		&i.AgentVersion,
+		&i.AgentKubernetesVersion,
+		&i.AgentNodeCount,
+		&i.AgentNamespaces,
+		&i.AgentReportIntervalSeconds,
+		&i.AgentPodName,
+		&i.AgentPodNamespace,
+		&i.LastPushErrorAt,
+		&i.LastPushError,
+		&i.PausedAt,
+	)
+	return i, err
+}
+
+const createClusterCredential = `-- name: CreateClusterCredential :one
+
+INSERT INTO api_key (user_id, name, key_hash, prefix, capabilities, cluster_id)
+VALUES ($1, $2, $3, $4, ARRAY['push_inventory']::text[], $5)
+RETURNING id, name, prefix, created_at
+`
+
+type CreateClusterCredentialParams struct {
+	UserID    pgtype.UUID `json:"user_id"`
+	Name      string      `json:"name"`
+	KeyHash   string      `json:"key_hash"`
+	Prefix    string      `json:"prefix"`
+	ClusterID pgtype.UUID `json:"cluster_id"`
+}
+
+type CreateClusterCredentialRow struct {
+	ID        pgtype.UUID        `json:"id"`
+	Name      string             `json:"name"`
+	Prefix    string             `json:"prefix"`
+	CreatedAt pgtype.Timestamptz `json:"created_at"`
+}
+
+// Cluster agent credentials (ocidex-70eo.5). These are api_key rows bound to a
+// cluster; the CHECK on api_key pins their ceiling to push_inventory. Every
+// caller here has already passed manage_cluster on the cluster's namespace.
+func (q *Queries) CreateClusterCredential(ctx context.Context, arg CreateClusterCredentialParams) (CreateClusterCredentialRow, error) {
+	row := q.db.QueryRow(ctx, createClusterCredential,
+		arg.UserID,
+		arg.Name,
+		arg.KeyHash,
+		arg.Prefix,
+		arg.ClusterID,
+	)
+	var i CreateClusterCredentialRow
+	err := row.Scan(
+		&i.ID,
+		&i.Name,
+		&i.Prefix,
+		&i.CreatedAt,
 	)
 	return i, err
 }
@@ -221,8 +274,25 @@ func (q *Queries) DeleteCluster(ctx context.Context, id pgtype.UUID) (int64, err
 	return result.RowsAffected(), nil
 }
 
+const deleteClusterCredential = `-- name: DeleteClusterCredential :execrows
+DELETE FROM api_key WHERE id = $1 AND cluster_id = $2
+`
+
+type DeleteClusterCredentialParams struct {
+	ID        pgtype.UUID `json:"id"`
+	ClusterID pgtype.UUID `json:"cluster_id"`
+}
+
+func (q *Queries) DeleteClusterCredential(ctx context.Context, arg DeleteClusterCredentialParams) (int64, error) {
+	result, err := q.db.Exec(ctx, deleteClusterCredential, arg.ID, arg.ClusterID)
+	if err != nil {
+		return 0, err
+	}
+	return result.RowsAffected(), nil
+}
+
 const getCluster = `-- name: GetCluster :one
-SELECT id, namespace_id, name, description, last_seen_at, created_at, updated_at, auto_ingest FROM cluster WHERE id = $1
+SELECT id, namespace_id, name, description, last_seen_at, created_at, updated_at, auto_ingest, agent_version, agent_kubernetes_version, agent_node_count, agent_namespaces, agent_report_interval_seconds, agent_pod_name, agent_pod_namespace, last_push_error_at, last_push_error, paused_at FROM cluster WHERE id = $1
 `
 
 func (q *Queries) GetCluster(ctx context.Context, id pgtype.UUID) (Cluster, error) {
@@ -237,12 +307,22 @@ func (q *Queries) GetCluster(ctx context.Context, id pgtype.UUID) (Cluster, erro
 		&i.CreatedAt,
 		&i.UpdatedAt,
 		&i.AutoIngest,
+		&i.AgentVersion,
+		&i.AgentKubernetesVersion,
+		&i.AgentNodeCount,
+		&i.AgentNamespaces,
+		&i.AgentReportIntervalSeconds,
+		&i.AgentPodName,
+		&i.AgentPodNamespace,
+		&i.LastPushErrorAt,
+		&i.LastPushError,
+		&i.PausedAt,
 	)
 	return i, err
 }
 
 const getClusterByName = `-- name: GetClusterByName :one
-SELECT id, namespace_id, name, description, last_seen_at, created_at, updated_at, auto_ingest FROM cluster WHERE namespace_id = $1 AND name = $2
+SELECT id, namespace_id, name, description, last_seen_at, created_at, updated_at, auto_ingest, agent_version, agent_kubernetes_version, agent_node_count, agent_namespaces, agent_report_interval_seconds, agent_pod_name, agent_pod_namespace, last_push_error_at, last_push_error, paused_at FROM cluster WHERE namespace_id = $1 AND name = $2
 `
 
 type GetClusterByNameParams struct {
@@ -262,6 +342,16 @@ func (q *Queries) GetClusterByName(ctx context.Context, arg GetClusterByNamePara
 		&i.CreatedAt,
 		&i.UpdatedAt,
 		&i.AutoIngest,
+		&i.AgentVersion,
+		&i.AgentKubernetesVersion,
+		&i.AgentNodeCount,
+		&i.AgentNamespaces,
+		&i.AgentReportIntervalSeconds,
+		&i.AgentPodName,
+		&i.AgentPodNamespace,
+		&i.LastPushErrorAt,
+		&i.LastPushError,
+		&i.PausedAt,
 	)
 	return i, err
 }
@@ -319,6 +409,52 @@ func (q *Queries) GetClusterWorkloadCoverage(ctx context.Context, arg GetCluster
 		&i.Pods,
 	)
 	return i, err
+}
+
+const listClusterCredentials = `-- name: ListClusterCredentials :many
+SELECT k.id, k.name, k.prefix, k.created_at, k.last_used_at, k.user_id, u.display_name
+FROM api_key k
+JOIN ocidex_user u ON u.id = k.user_id
+WHERE k.cluster_id = $1
+ORDER BY k.created_at ASC
+`
+
+type ListClusterCredentialsRow struct {
+	ID          pgtype.UUID        `json:"id"`
+	Name        string             `json:"name"`
+	Prefix      string             `json:"prefix"`
+	CreatedAt   pgtype.Timestamptz `json:"created_at"`
+	LastUsedAt  pgtype.Timestamptz `json:"last_used_at"`
+	UserID      pgtype.UUID        `json:"user_id"`
+	DisplayName pgtype.Text        `json:"display_name"`
+}
+
+func (q *Queries) ListClusterCredentials(ctx context.Context, clusterID pgtype.UUID) ([]ListClusterCredentialsRow, error) {
+	rows, err := q.db.Query(ctx, listClusterCredentials, clusterID)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	items := []ListClusterCredentialsRow{}
+	for rows.Next() {
+		var i ListClusterCredentialsRow
+		if err := rows.Scan(
+			&i.ID,
+			&i.Name,
+			&i.Prefix,
+			&i.CreatedAt,
+			&i.LastUsedAt,
+			&i.UserID,
+			&i.DisplayName,
+		); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
 }
 
 const listClusterImages = `-- name: ListClusterImages :many
@@ -567,6 +703,47 @@ func (q *Queries) ListClusterK8sNamespaces(ctx context.Context, arg ListClusterK
 	for rows.Next() {
 		var i ListClusterK8sNamespacesRow
 		if err := rows.Scan(&i.K8sNamespace, &i.WorkloadCount); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
+const listClusterPushes = `-- name: ListClusterPushes :many
+SELECT id, cluster_id, at, accepted, status, reason, workloads, agent_version FROM cluster_push
+WHERE cluster_id = $1
+ORDER BY id DESC
+LIMIT $2::int
+`
+
+type ListClusterPushesParams struct {
+	ClusterID pgtype.UUID `json:"cluster_id"`
+	Max       int32       `json:"max"`
+}
+
+func (q *Queries) ListClusterPushes(ctx context.Context, arg ListClusterPushesParams) ([]ClusterPush, error) {
+	rows, err := q.db.Query(ctx, listClusterPushes, arg.ClusterID, arg.Max)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	items := []ClusterPush{}
+	for rows.Next() {
+		var i ClusterPush
+		if err := rows.Scan(
+			&i.ID,
+			&i.ClusterID,
+			&i.At,
+			&i.Accepted,
+			&i.Status,
+			&i.Reason,
+			&i.Workloads,
+			&i.AgentVersion,
+		); err != nil {
 			return nil, err
 		}
 		items = append(items, i)
@@ -1038,7 +1215,7 @@ func (q *Queries) ListClusterWorkloads(ctx context.Context, arg ListClusterWorkl
 }
 
 const listClusters = `-- name: ListClusters :many
-SELECT c.id, c.namespace_id, c.name, c.description, c.last_seen_at, c.created_at, c.updated_at, c.auto_ingest, n.name AS namespace_name, n.visibility
+SELECT c.id, c.namespace_id, c.name, c.description, c.last_seen_at, c.created_at, c.updated_at, c.auto_ingest, c.agent_version, c.agent_kubernetes_version, c.agent_node_count, c.agent_namespaces, c.agent_report_interval_seconds, c.agent_pod_name, c.agent_pod_namespace, c.last_push_error_at, c.last_push_error, c.paused_at, n.name AS namespace_name, n.visibility
 FROM cluster c
 JOIN namespace n ON n.id = c.namespace_id
 WHERE (
@@ -1083,6 +1260,16 @@ func (q *Queries) ListClusters(ctx context.Context, arg ListClustersParams) ([]L
 			&i.Cluster.CreatedAt,
 			&i.Cluster.UpdatedAt,
 			&i.Cluster.AutoIngest,
+			&i.Cluster.AgentVersion,
+			&i.Cluster.AgentKubernetesVersion,
+			&i.Cluster.AgentNodeCount,
+			&i.Cluster.AgentNamespaces,
+			&i.Cluster.AgentReportIntervalSeconds,
+			&i.Cluster.AgentPodName,
+			&i.Cluster.AgentPodNamespace,
+			&i.Cluster.LastPushErrorAt,
+			&i.Cluster.LastPushError,
+			&i.Cluster.PausedAt,
 			&i.NamespaceName,
 			&i.Visibility,
 		); err != nil {
@@ -1097,7 +1284,7 @@ func (q *Queries) ListClusters(ctx context.Context, arg ListClustersParams) ([]L
 }
 
 const listClustersByNamespace = `-- name: ListClustersByNamespace :many
-SELECT id, namespace_id, name, description, last_seen_at, created_at, updated_at, auto_ingest FROM cluster WHERE namespace_id = $1 ORDER BY created_at ASC
+SELECT id, namespace_id, name, description, last_seen_at, created_at, updated_at, auto_ingest, agent_version, agent_kubernetes_version, agent_node_count, agent_namespaces, agent_report_interval_seconds, agent_pod_name, agent_pod_namespace, last_push_error_at, last_push_error, paused_at FROM cluster WHERE namespace_id = $1 ORDER BY created_at ASC
 `
 
 func (q *Queries) ListClustersByNamespace(ctx context.Context, namespaceID pgtype.UUID) ([]Cluster, error) {
@@ -1118,6 +1305,109 @@ func (q *Queries) ListClustersByNamespace(ctx context.Context, namespaceID pgtyp
 			&i.CreatedAt,
 			&i.UpdatedAt,
 			&i.AutoIngest,
+			&i.AgentVersion,
+			&i.AgentKubernetesVersion,
+			&i.AgentNodeCount,
+			&i.AgentNamespaces,
+			&i.AgentReportIntervalSeconds,
+			&i.AgentPodName,
+			&i.AgentPodNamespace,
+			&i.LastPushErrorAt,
+			&i.LastPushError,
+			&i.PausedAt,
+		); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
+const listWorkloadsForArtifact = `-- name: ListWorkloadsForArtifact :many
+SELECT
+    w.id, w.cluster_id, w.k8s_namespace, w.workload_kind, w.workload_name, w.container_name, w.image_ref, w.image_digest, w.pod_count, w.first_seen_at, w.last_seen_at,
+    c.id            AS cluster_id_out,
+    c.name          AS cluster_name,
+    s.id            AS sbom_id,
+    s.artifact_id   AS artifact_id,
+    s.subject_version AS subject_version,
+    a.name          AS artifact_name,
+    (CASE WHEN s.digest = w.image_digest THEN 'exact' ELSE 'index' END)::text AS match_state
+FROM cluster_workload w
+JOIN cluster c ON c.id = w.cluster_id
+JOIN LATERAL (
+    SELECT s2.id, s2.artifact_id, s2.subject_version, s2.digest
+    FROM sbom s2
+    WHERE w.image_digest IS NOT NULL
+      AND (s2.digest = w.image_digest OR s2.index_digest = w.image_digest)
+    ORDER BY (s2.digest = w.image_digest) DESC, s2.created_at DESC
+    LIMIT 1
+) s ON true
+LEFT JOIN artifact a ON a.id = s.artifact_id
+WHERE s.artifact_id = $1::uuid
+  AND c.namespace_id IN (SELECT visible_namespace_ids($2::uuid, $3::boolean))
+ORDER BY c.name ASC, w.k8s_namespace ASC, w.workload_name ASC
+LIMIT $4::int
+`
+
+type ListWorkloadsForArtifactParams struct {
+	ArtifactID pgtype.UUID `json:"artifact_id"`
+	UserID     pgtype.UUID `json:"user_id"`
+	IsAdmin    pgtype.Bool `json:"is_admin"`
+	Limit      pgtype.Int4 `json:"limit"`
+}
+
+type ListWorkloadsForArtifactRow struct {
+	ClusterWorkload ClusterWorkload `json:"cluster_workload"`
+	ClusterIDOut    pgtype.UUID     `json:"cluster_id_out"`
+	ClusterName     string          `json:"cluster_name"`
+	SbomID          pgtype.UUID     `json:"sbom_id"`
+	ArtifactID      pgtype.UUID     `json:"artifact_id"`
+	SubjectVersion  pgtype.Text     `json:"subject_version"`
+	ArtifactName    pgtype.Text     `json:"artifact_name"`
+	MatchState      string          `json:"match_state"`
+}
+
+// Where an artifact is running (ocidex-70eo.8): every visible workload whose
+// digest resolves to one of the artifact's SBOMs, by the same two-tier match
+// as everything else here (ADR-044 K4). Same row shape as
+// ListWorkloadsForVulnerability, so the UI renders both with one component.
+func (q *Queries) ListWorkloadsForArtifact(ctx context.Context, arg ListWorkloadsForArtifactParams) ([]ListWorkloadsForArtifactRow, error) {
+	rows, err := q.db.Query(ctx, listWorkloadsForArtifact,
+		arg.ArtifactID,
+		arg.UserID,
+		arg.IsAdmin,
+		arg.Limit,
+	)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	items := []ListWorkloadsForArtifactRow{}
+	for rows.Next() {
+		var i ListWorkloadsForArtifactRow
+		if err := rows.Scan(
+			&i.ClusterWorkload.ID,
+			&i.ClusterWorkload.ClusterID,
+			&i.ClusterWorkload.K8sNamespace,
+			&i.ClusterWorkload.WorkloadKind,
+			&i.ClusterWorkload.WorkloadName,
+			&i.ClusterWorkload.ContainerName,
+			&i.ClusterWorkload.ImageRef,
+			&i.ClusterWorkload.ImageDigest,
+			&i.ClusterWorkload.PodCount,
+			&i.ClusterWorkload.FirstSeenAt,
+			&i.ClusterWorkload.LastSeenAt,
+			&i.ClusterIDOut,
+			&i.ClusterName,
+			&i.SbomID,
+			&i.ArtifactID,
+			&i.SubjectVersion,
+			&i.ArtifactName,
+			&i.MatchState,
 		); err != nil {
 			return nil, err
 		}
@@ -1243,6 +1533,45 @@ func (q *Queries) ListWorkloadsForVulnerability(ctx context.Context, arg ListWor
 	return items, nil
 }
 
+const markClusterPushError = `-- name: MarkClusterPushError :exec
+UPDATE cluster SET last_push_error_at = now(), last_push_error = $2 WHERE id = $1
+`
+
+type MarkClusterPushErrorParams struct {
+	ID            pgtype.UUID `json:"id"`
+	LastPushError pgtype.Text `json:"last_push_error"`
+}
+
+// Deliberately leaves updated_at alone: a rejected push is not an edit.
+func (q *Queries) MarkClusterPushError(ctx context.Context, arg MarkClusterPushErrorParams) error {
+	_, err := q.db.Exec(ctx, markClusterPushError, arg.ID, arg.LastPushError)
+	return err
+}
+
+const pruneClusterPushes = `-- name: PruneClusterPushes :exec
+DELETE FROM cluster_push
+WHERE cluster_push.cluster_id = $1
+  AND cluster_push.id < (
+      SELECT COALESCE(MIN(k.id), 0) FROM (
+          SELECT p.id FROM cluster_push p
+          WHERE p.cluster_id = $1
+          ORDER BY p.id DESC LIMIT $2::int
+      ) k
+  )
+`
+
+type PruneClusterPushesParams struct {
+	ClusterID pgtype.UUID `json:"cluster_id"`
+	Keep      int32       `json:"keep"`
+}
+
+// Keeps the newest @keep rows for the cluster. Rejections are unauthenticated
+// by nature, so the cap is what bounds what an anonymous caller can write.
+func (q *Queries) PruneClusterPushes(ctx context.Context, arg PruneClusterPushesParams) error {
+	_, err := q.db.Exec(ctx, pruneClusterPushes, arg.ClusterID, arg.Keep)
+	return err
+}
+
 const pruneClusterWorkloads = `-- name: PruneClusterWorkloads :execrows
 DELETE FROM cluster_workload
 WHERE cluster_id = $1 AND last_seen_at < $2
@@ -1267,19 +1596,133 @@ func (q *Queries) PruneClusterWorkloads(ctx context.Context, arg PruneClusterWor
 	return result.RowsAffected(), nil
 }
 
+const recordClusterPush = `-- name: RecordClusterPush :execrows
+
+INSERT INTO cluster_push (cluster_id, accepted, status, reason, workloads, agent_version)
+SELECT c.id, $1, $2, $3,
+       $4, $5
+FROM cluster c WHERE c.id = $6
+`
+
+type RecordClusterPushParams struct {
+	Accepted     bool        `json:"accepted"`
+	Status       int32       `json:"status"`
+	Reason       string      `json:"reason"`
+	Workloads    pgtype.Int4 `json:"workloads"`
+	AgentVersion pgtype.Text `json:"agent_version"`
+	ClusterID    pgtype.UUID `json:"cluster_id"`
+}
+
+// Push history and health (ocidex-70eo.4).
+// A no-op for a cluster id that does not exist: a push to a mistyped id has
+// no cluster to explain itself to.
+func (q *Queries) RecordClusterPush(ctx context.Context, arg RecordClusterPushParams) (int64, error) {
+	result, err := q.db.Exec(ctx, recordClusterPush,
+		arg.Accepted,
+		arg.Status,
+		arg.Reason,
+		arg.Workloads,
+		arg.AgentVersion,
+		arg.ClusterID,
+	)
+	if err != nil {
+		return 0, err
+	}
+	return result.RowsAffected(), nil
+}
+
+const rotateClusterCredential = `-- name: RotateClusterCredential :one
+WITH old AS (
+    DELETE FROM api_key
+    WHERE api_key.id = $5 AND api_key.cluster_id = $4
+    RETURNING api_key.name
+)
+INSERT INTO api_key (user_id, name, key_hash, prefix, capabilities, cluster_id)
+SELECT $1, old.name, $2, $3,
+       ARRAY['push_inventory']::text[], $4
+FROM old
+RETURNING id, name, prefix, created_at
+`
+
+type RotateClusterCredentialParams struct {
+	UserID    pgtype.UUID `json:"user_id"`
+	KeyHash   string      `json:"key_hash"`
+	Prefix    string      `json:"prefix"`
+	ClusterID pgtype.UUID `json:"cluster_id"`
+	OldID     pgtype.UUID `json:"old_id"`
+}
+
+type RotateClusterCredentialRow struct {
+	ID        pgtype.UUID        `json:"id"`
+	Name      string             `json:"name"`
+	Prefix    string             `json:"prefix"`
+	CreatedAt pgtype.Timestamptz `json:"created_at"`
+}
+
+// Revokes the old credential and mints its replacement under the same name, in
+// one statement so a failure leaves the old one working. The replacement
+// belongs to the caller: a key narrows with its owner's roles, so it must be
+// owned by someone who holds them now.
+func (q *Queries) RotateClusterCredential(ctx context.Context, arg RotateClusterCredentialParams) (RotateClusterCredentialRow, error) {
+	row := q.db.QueryRow(ctx, rotateClusterCredential,
+		arg.UserID,
+		arg.KeyHash,
+		arg.Prefix,
+		arg.ClusterID,
+		arg.OldID,
+	)
+	var i RotateClusterCredentialRow
+	err := row.Scan(
+		&i.ID,
+		&i.Name,
+		&i.Prefix,
+		&i.CreatedAt,
+	)
+	return i, err
+}
+
 const touchClusterLastSeen = `-- name: TouchClusterLastSeen :exec
-UPDATE cluster SET last_seen_at = $2, updated_at = now() WHERE id = $1
+UPDATE cluster
+SET last_seen_at                  = $2,
+    agent_version                 = $3,
+    agent_kubernetes_version      = $4,
+    agent_node_count              = $5,
+    agent_namespaces              = $6::text[],
+    agent_report_interval_seconds = $7,
+    agent_pod_name                = $8,
+    agent_pod_namespace           = $9,
+    updated_at                    = now()
+WHERE id = $1
 `
 
 type TouchClusterLastSeenParams struct {
-	ID         pgtype.UUID        `json:"id"`
-	LastSeenAt pgtype.Timestamptz `json:"last_seen_at"`
+	ID                         pgtype.UUID        `json:"id"`
+	LastSeenAt                 pgtype.Timestamptz `json:"last_seen_at"`
+	AgentVersion               pgtype.Text        `json:"agent_version"`
+	AgentKubernetesVersion     pgtype.Text        `json:"agent_kubernetes_version"`
+	AgentNodeCount             pgtype.Int4        `json:"agent_node_count"`
+	AgentNamespaces            []string           `json:"agent_namespaces"`
+	AgentReportIntervalSeconds pgtype.Int4        `json:"agent_report_interval_seconds"`
+	AgentPodName               pgtype.Text        `json:"agent_pod_name"`
+	AgentPodNamespace          pgtype.Text        `json:"agent_pod_namespace"`
 }
 
 // Stamped once per accepted snapshot, inside the ingest transaction. This is
 // what makes "dead agent" distinguishable from "empty cluster" (ADR-044 K2).
+// The agent_* columns are overwritten, not coalesced: an agent rolled back to
+// a version that sends nothing must not keep showing the newer one's facts.
 func (q *Queries) TouchClusterLastSeen(ctx context.Context, arg TouchClusterLastSeenParams) error {
-	_, err := q.db.Exec(ctx, touchClusterLastSeen, arg.ID, arg.LastSeenAt)
+	_, err := q.db.Exec(ctx, touchClusterLastSeen,
+		arg.ID,
+		arg.LastSeenAt,
+		arg.AgentVersion,
+		arg.AgentKubernetesVersion,
+		arg.AgentNodeCount,
+		arg.AgentNamespaces,
+		arg.AgentReportIntervalSeconds,
+		arg.AgentPodName,
+		arg.AgentPodNamespace,
+	)
 	return err
 }
 
@@ -1288,9 +1731,16 @@ UPDATE cluster
 SET name        = $2,
     description = $3,
     auto_ingest = COALESCE($4::boolean, auto_ingest),
+    paused_at   = CASE
+                      WHEN $5::boolean IS NULL THEN paused_at
+                      WHEN $5::boolean THEN COALESCE(paused_at, now())
+                      ELSE NULL
+                  END,
+    last_push_error_at = CASE WHEN $5::boolean = false THEN NULL ELSE last_push_error_at END,
+    last_push_error    = CASE WHEN $5::boolean = false THEN NULL ELSE last_push_error END,
     updated_at  = now()
 WHERE id = $1
-RETURNING id, namespace_id, name, description, last_seen_at, created_at, updated_at, auto_ingest
+RETURNING id, namespace_id, name, description, last_seen_at, created_at, updated_at, auto_ingest, agent_version, agent_kubernetes_version, agent_node_count, agent_namespaces, agent_report_interval_seconds, agent_pod_name, agent_pod_namespace, last_push_error_at, last_push_error, paused_at
 `
 
 type UpdateClusterParams struct {
@@ -1298,16 +1748,20 @@ type UpdateClusterParams struct {
 	Name        string      `json:"name"`
 	Description string      `json:"description"`
 	AutoIngest  pgtype.Bool `json:"auto_ingest"`
+	Paused      pgtype.Bool `json:"paused"`
 }
 
 // auto_ingest is a narg rather than a plain column: a PATCH that only renames
 // the cluster must not silently switch ingest off by omitting the field.
+// paused is a narg for the same reason. Resuming clears the last push error:
+// refusals while paused were the pause working, not the agent failing.
 func (q *Queries) UpdateCluster(ctx context.Context, arg UpdateClusterParams) (Cluster, error) {
 	row := q.db.QueryRow(ctx, updateCluster,
 		arg.ID,
 		arg.Name,
 		arg.Description,
 		arg.AutoIngest,
+		arg.Paused,
 	)
 	var i Cluster
 	err := row.Scan(
@@ -1319,6 +1773,16 @@ func (q *Queries) UpdateCluster(ctx context.Context, arg UpdateClusterParams) (C
 		&i.CreatedAt,
 		&i.UpdatedAt,
 		&i.AutoIngest,
+		&i.AgentVersion,
+		&i.AgentKubernetesVersion,
+		&i.AgentNodeCount,
+		&i.AgentNamespaces,
+		&i.AgentReportIntervalSeconds,
+		&i.AgentPodName,
+		&i.AgentPodNamespace,
+		&i.LastPushErrorAt,
+		&i.LastPushError,
+		&i.PausedAt,
 	)
 	return i, err
 }

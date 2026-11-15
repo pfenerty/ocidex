@@ -107,7 +107,7 @@ RETURNING *;
 
 -- name: GetAPIKeyByHash :one
 SELECT k.id, k.user_id, k.name, k.key_hash, k.prefix, k.capabilities, k.created_at, k.last_used_at,
-       u.display_name, u.role
+       k.cluster_id, u.display_name, u.role
 FROM api_key k
 JOIN ocidex_user u ON u.id = k.user_id
 WHERE k.key_hash = $1;
@@ -116,7 +116,7 @@ WHERE k.key_hash = $1;
 UPDATE api_key SET last_used_at = now() WHERE id = $1;
 
 -- name: ListAPIKeysByUser :many
-SELECT id, name, prefix, capabilities, created_at, last_used_at
+SELECT id, name, prefix, capabilities, created_at, last_used_at, cluster_id
 FROM api_key
 WHERE user_id = $1
 ORDER BY created_at ASC;

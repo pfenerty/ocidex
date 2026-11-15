@@ -630,6 +630,135 @@
         ],
         "type": "object"
       },
+      "ClusterAgentResponse": {
+        "additionalProperties": false,
+        "properties": {
+          "kubernetesVersion": {
+            "description": "Kubernetes server version (gitVersion)",
+            "type": "string"
+          },
+          "namespaces": {
+            "description": "Namespace allowlist; empty or absent with reportIntervalSeconds set means every namespace",
+            "items": {
+              "type": "string"
+            },
+            "type": [
+              "array",
+              "null"
+            ]
+          },
+          "nodeCount": {
+            "description": "Distinct nodes running the reported pods",
+            "format": "int32",
+            "type": "integer"
+          },
+          "podName": {
+            "description": "The agent's own pod",
+            "type": "string"
+          },
+          "podNamespace": {
+            "description": "Namespace the agent runs in",
+            "type": "string"
+          },
+          "reportIntervalSeconds": {
+            "description": "Seconds between snapshots; 0 for a one-shot agent",
+            "format": "int32",
+            "type": "integer"
+          },
+          "version": {
+            "description": "Agent build version",
+            "type": "string"
+          },
+          "versionSkew": {
+            "description": "Set when the agent's major.minor differs from the server's",
+            "type": "string"
+          }
+        },
+        "type": "object"
+      },
+      "ClusterCredentialResponse": {
+        "additionalProperties": false,
+        "properties": {
+          "$schema": {
+            "description": "A URL to the JSON Schema for this object.",
+            "examples": [
+              "https://example.com/api/schemas/ClusterCredentialResponse.json"
+            ],
+            "format": "uri",
+            "readOnly": true,
+            "type": "string"
+          },
+          "createdAt": {
+            "type": "string"
+          },
+          "id": {
+            "type": "string"
+          },
+          "key": {
+            "description": "The full key, shown once on create or rotate. Store it in the agent's secret.",
+            "type": "string"
+          },
+          "lastUsedAt": {
+            "description": "When the agent last authenticated with it; empty if never",
+            "type": "string"
+          },
+          "name": {
+            "type": "string"
+          },
+          "ownerId": {
+            "description": "User who minted it. The credential narrows with that user's live namespace roles.",
+            "type": "string"
+          },
+          "ownerName": {
+            "type": "string"
+          },
+          "prefix": {
+            "description": "First 8 characters of the key",
+            "type": "string"
+          },
+          "serverUrl": {
+            "description": "The API's configured public URL (API_BASE_URL), for the agent's server.url; absent when not configured. Set only alongside key.",
+            "type": "string"
+          }
+        },
+        "required": [
+          "id",
+          "name",
+          "prefix",
+          "createdAt",
+          "ownerId"
+        ],
+        "type": "object"
+      },
+      "ClusterHealthResponse": {
+        "additionalProperties": false,
+        "properties": {
+          "reason": {
+            "description": "Why, for every state but healthy",
+            "type": "string"
+          },
+          "staleAfterSeconds": {
+            "description": "Seconds after the last accepted push at which the cluster turns stale; absent for a one-shot agent",
+            "format": "int64",
+            "type": "integer"
+          },
+          "state": {
+            "description": "never_reported: nothing pushed yet. healthy: last push accepted and recent. stale: no accepted push within three report intervals. erroring: the agent is pushing and being refused. paused: paused on purpose; snapshots are refused.",
+            "enum": [
+              "never_reported",
+              "healthy",
+              "stale",
+              "erroring",
+              "paused"
+            ],
+            "type": "string"
+          }
+        },
+        "required": [
+          "state"
+        ],
+        "type": "object"
+      },
       "ClusterImageResponse": {
         "additionalProperties": false,
         "properties": {
@@ -703,6 +832,40 @@
         ],
         "type": "object"
       },
+      "ClusterPushResponse": {
+        "additionalProperties": false,
+        "properties": {
+          "accepted": {
+            "type": "boolean"
+          },
+          "agentVersion": {
+            "type": "string"
+          },
+          "at": {
+            "type": "string"
+          },
+          "reason": {
+            "description": "Why it was refused",
+            "type": "string"
+          },
+          "status": {
+            "description": "HTTP status the push received",
+            "format": "int64",
+            "type": "integer"
+          },
+          "workloads": {
+            "description": "Workload rows in an accepted snapshot",
+            "format": "int32",
+            "type": "integer"
+          }
+        },
+        "required": [
+          "at",
+          "accepted",
+          "status"
+        ],
+        "type": "object"
+      },
       "ClusterResponse": {
         "additionalProperties": false,
         "properties": {
@@ -715,6 +878,10 @@
             "readOnly": true,
             "type": "string"
           },
+          "agent": {
+            "$ref": "#/components/schemas/ClusterAgentResponse",
+            "description": "What the agent reported about itself with its last accepted snapshot. Absent until an agent that self-reports has pushed."
+          },
           "autoIngest": {
             "description": "Submit a scan job for every running image with no SBOM whose host resolves to a registry in this cluster's namespace, on every accepted snapshot.",
             "type": "boolean"
@@ -724,6 +891,10 @@
           },
           "description": {
             "type": "string"
+          },
+          "health": {
+            "$ref": "#/components/schemas/ClusterHealthResponse",
+            "description": "The agent's health, derived from its pushes"
           },
           "id": {
             "type": "string"
@@ -742,6 +913,14 @@
             "description": "Owning namespace name; populated on list responses",
             "type": "string"
           },
+          "pausedAt": {
+            "description": "When the cluster was paused; empty while active",
+            "type": "string"
+          },
+          "summary": {
+            "$ref": "#/components/schemas/ClusterSummaryResponse",
+            "description": "Coverage and running criticals, on list responses for a cluster that has reported"
+          },
           "updatedAt": {
             "type": "string"
           }
@@ -751,8 +930,27 @@
           "namespaceId",
           "name",
           "autoIngest",
+          "health",
           "createdAt",
           "updatedAt"
+        ],
+        "type": "object"
+      },
+      "ClusterSummaryResponse": {
+        "additionalProperties": false,
+        "properties": {
+          "coverage": {
+            "$ref": "#/components/schemas/WorkloadCoverageResponse"
+          },
+          "runningCriticals": {
+            "description": "Distinct critical vulnerabilities in matched running images",
+            "format": "int64",
+            "type": "integer"
+          }
+        },
+        "required": [
+          "coverage",
+          "runningCriticals"
         ],
         "type": "object"
       },
@@ -1259,6 +1457,70 @@
         ],
         "type": "object"
       },
+      "ConnectClusterInputBody": {
+        "additionalProperties": false,
+        "properties": {
+          "$schema": {
+            "description": "A URL to the JSON Schema for this object.",
+            "examples": [
+              "https://example.com/api/schemas/ConnectClusterInputBody.json"
+            ],
+            "format": "uri",
+            "readOnly": true,
+            "type": "string"
+          },
+          "autoIngest": {
+            "description": "Scan running images with no SBOM on each snapshot. Defaults to true.",
+            "type": "boolean"
+          },
+          "description": {
+            "maxLength": 500,
+            "type": "string"
+          },
+          "name": {
+            "description": "Cluster name, unique within the namespace",
+            "maxLength": 100,
+            "minLength": 1,
+            "type": "string"
+          },
+          "namespaceId": {
+            "description": "Owning namespace UUID",
+            "format": "uuid",
+            "type": "string"
+          }
+        },
+        "required": [
+          "namespaceId",
+          "name"
+        ],
+        "type": "object"
+      },
+      "ConnectClusterOutputBody": {
+        "additionalProperties": false,
+        "properties": {
+          "$schema": {
+            "description": "A URL to the JSON Schema for this object.",
+            "examples": [
+              "https://example.com/api/schemas/ConnectClusterOutputBody.json"
+            ],
+            "format": "uri",
+            "readOnly": true,
+            "type": "string"
+          },
+          "cluster": {
+            "$ref": "#/components/schemas/ClusterResponse"
+          },
+          "credential": {
+            "$ref": "#/components/schemas/ClusterCredentialResponse",
+            "description": "The cluster's first agent credential; its key is shown only here"
+          }
+        },
+        "required": [
+          "cluster",
+          "credential"
+        ],
+        "type": "object"
+      },
       "CreateAPIKeyInputBody": {
         "additionalProperties": false,
         "properties": {
@@ -1325,6 +1587,26 @@
         "required": [
           "key"
         ],
+        "type": "object"
+      },
+      "CreateClusterCredentialInputBody": {
+        "additionalProperties": false,
+        "properties": {
+          "$schema": {
+            "description": "A URL to the JSON Schema for this object.",
+            "examples": [
+              "https://example.com/api/schemas/CreateClusterCredentialInputBody.json"
+            ],
+            "format": "uri",
+            "readOnly": true,
+            "type": "string"
+          },
+          "name": {
+            "description": "Label for the credential; defaults to '\u003ccluster\u003e-agent'",
+            "maxLength": 100,
+            "type": "string"
+          }
+        },
         "type": "object"
       },
       "CreateClusterInputBody": {
@@ -3086,6 +3368,55 @@
         ],
         "type": "object"
       },
+      "InventoryAgent": {
+        "additionalProperties": false,
+        "properties": {
+          "kubernetesVersion": {
+            "description": "Kubernetes server gitVersion from the discovery API",
+            "maxLength": 128,
+            "type": "string"
+          },
+          "namespaces": {
+            "description": "Namespace allowlist; empty means every namespace",
+            "items": {
+              "type": "string"
+            },
+            "maxItems": 1000,
+            "type": [
+              "array",
+              "null"
+            ]
+          },
+          "nodeCount": {
+            "description": "Distinct nodes running the reported pods",
+            "format": "int32",
+            "minimum": 0,
+            "type": "integer"
+          },
+          "podName": {
+            "description": "The agent's own pod name",
+            "maxLength": 253,
+            "type": "string"
+          },
+          "podNamespace": {
+            "description": "Namespace the agent runs in",
+            "maxLength": 253,
+            "type": "string"
+          },
+          "reportIntervalSeconds": {
+            "description": "Seconds between snapshots; 0 for a one-shot agent",
+            "format": "int32",
+            "minimum": 0,
+            "type": "integer"
+          },
+          "version": {
+            "description": "Agent build version",
+            "maxLength": 128,
+            "type": "string"
+          }
+        },
+        "type": "object"
+      },
       "InventoryWorkload": {
         "additionalProperties": false,
         "properties": {
@@ -3151,6 +3482,10 @@
               "array",
               "null"
             ]
+          },
+          "clusterId": {
+            "description": "Set for a cluster agent credential, which may only push this cluster's inventory",
+            "type": "string"
           },
           "createdAt": {
             "format": "date-time",
@@ -3423,6 +3758,33 @@
         ],
         "type": "object"
       },
+      "ListClusterCredentialsOutputBody": {
+        "additionalProperties": false,
+        "properties": {
+          "$schema": {
+            "description": "A URL to the JSON Schema for this object.",
+            "examples": [
+              "https://example.com/api/schemas/ListClusterCredentialsOutputBody.json"
+            ],
+            "format": "uri",
+            "readOnly": true,
+            "type": "string"
+          },
+          "data": {
+            "items": {
+              "$ref": "#/components/schemas/ClusterCredentialResponse"
+            },
+            "type": [
+              "array",
+              "null"
+            ]
+          }
+        },
+        "required": [
+          "data"
+        ],
+        "type": "object"
+      },
       "ListClusterImagesOutputBody": {
         "additionalProperties": false,
         "properties": {
@@ -3485,6 +3847,33 @@
         ],
         "type": "object"
       },
+      "ListClusterPushesOutputBody": {
+        "additionalProperties": false,
+        "properties": {
+          "$schema": {
+            "description": "A URL to the JSON Schema for this object.",
+            "examples": [
+              "https://example.com/api/schemas/ListClusterPushesOutputBody.json"
+            ],
+            "format": "uri",
+            "readOnly": true,
+            "type": "string"
+          },
+          "data": {
+            "items": {
+              "$ref": "#/components/schemas/ClusterPushResponse"
+            },
+            "type": [
+              "array",
+              "null"
+            ]
+          }
+        },
+        "required": [
+          "data"
+        ],
+        "type": "object"
+      },
       "ListClusterUnknownImagesOutputBody": {
         "additionalProperties": false,
         "properties": {
@@ -3522,13 +3911,18 @@
           "reasons": {
             "$ref": "#/components/schemas/UnknownImageReasonCounts",
             "description": "Breakdown of the entire gap by remedy, independent of the page returned"
+          },
+          "scanningEnabled": {
+            "description": "Whether this deployment can scan images at all. When false, nothing can be ingested from here (manually or by auto-ingest) and the ingest endpoint returns 503.",
+            "type": "boolean"
           }
         },
         "required": [
           "data",
           "reasons",
           "hosts",
-          "pagination"
+          "pagination",
+          "scanningEnabled"
         ],
         "type": "object"
       },
@@ -4052,6 +4446,33 @@
         "required": [
           "data",
           "pagination"
+        ],
+        "type": "object"
+      },
+      "ListRegistryGapsOutputBody": {
+        "additionalProperties": false,
+        "properties": {
+          "$schema": {
+            "description": "A URL to the JSON Schema for this object.",
+            "examples": [
+              "https://example.com/api/schemas/ListRegistryGapsOutputBody.json"
+            ],
+            "format": "uri",
+            "readOnly": true,
+            "type": "string"
+          },
+          "data": {
+            "items": {
+              "$ref": "#/components/schemas/RegistryClusterGapResponse"
+            },
+            "type": [
+              "array",
+              "null"
+            ]
+          }
+        },
+        "required": [
+          "data"
         ],
         "type": "object"
       },
@@ -4850,6 +5271,10 @@
             "readOnly": true,
             "type": "string"
           },
+          "agent": {
+            "$ref": "#/components/schemas/InventoryAgent",
+            "description": "The agent's description of itself. Optional, so an older agent's push is still accepted."
+          },
           "workloads": {
             "description": "The complete set of running container images. Omitted entries are pruned.",
             "items": {
@@ -4890,6 +5315,14 @@
           },
           "seenAt": {
             "description": "Timestamp recorded on the cluster",
+            "type": "string"
+          },
+          "serverVersion": {
+            "description": "The server's version",
+            "type": "string"
+          },
+          "versionSkew": {
+            "description": "Set when the reported agent version's major.minor differs from the server's",
             "type": "string"
           }
         },
@@ -4995,6 +5428,38 @@
         },
         "required": [
           "webhookSecret"
+        ],
+        "type": "object"
+      },
+      "RegistryClusterGapResponse": {
+        "additionalProperties": false,
+        "properties": {
+          "clusterId": {
+            "type": "string"
+          },
+          "clusterName": {
+            "type": "string"
+          },
+          "images": {
+            "description": "Running images with no SBOM whose host resolves to this registry",
+            "format": "int64",
+            "type": "integer"
+          },
+          "ready": {
+            "description": "How many of those can be ingested now; the rest wait on this registry",
+            "format": "int64",
+            "type": "integer"
+          },
+          "registryId": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "registryId",
+          "clusterId",
+          "clusterName",
+          "images",
+          "ready"
         ],
         "type": "object"
       },
@@ -6451,6 +6916,10 @@
             "maxLength": 100,
             "minLength": 1,
             "type": "string"
+          },
+          "paused": {
+            "description": "Pause (true) or resume (false) the cluster. A paused cluster refuses snapshots and keeps its last inventory. Omit to leave unchanged.",
+            "type": "boolean"
           }
         },
         "required": [
@@ -8331,6 +8800,63 @@
         ]
       }
     },
+    "/api/v1/artifacts/{id}/workloads": {
+      "get": {
+        "description": "Kubernetes workloads running any version of this artifact, across every cluster visible to the caller, each with the version it runs.",
+        "operationId": "list-artifact-workloads",
+        "parameters": [
+          {
+            "description": "Artifact UUID",
+            "in": "path",
+            "name": "id",
+            "required": true,
+            "schema": {
+              "description": "Artifact UUID",
+              "format": "uuid",
+              "type": "string"
+            }
+          },
+          {
+            "explode": false,
+            "in": "query",
+            "name": "limit",
+            "schema": {
+              "default": 100,
+              "format": "int32",
+              "maximum": 200,
+              "minimum": 1,
+              "type": "integer"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ListVulnWorkloadsOutputBody"
+                }
+              }
+            },
+            "description": "OK"
+          },
+          "default": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorModel"
+                }
+              }
+            },
+            "description": "Error"
+          }
+        },
+        "summary": "List where an artifact is running",
+        "tags": [
+          "Clusters"
+        ]
+      }
+    },
     "/api/v1/auth/identities": {
       "get": {
         "description": "The issuers the calling account can sign in with.",
@@ -8671,6 +9197,80 @@
         ]
       }
     },
+    "/api/v1/clusters/connect": {
+      "post": {
+        "description": "Registers a cluster and mints its first agent credential in one step. The credential's key is in the response and nowhere else.",
+        "operationId": "connect-cluster",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/ConnectClusterInputBody"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "201": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ConnectClusterOutputBody"
+                }
+              }
+            },
+            "description": "Created"
+          },
+          "default": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorModel"
+                }
+              }
+            },
+            "description": "Error"
+          }
+        },
+        "summary": "Connect a cluster",
+        "tags": [
+          "Clusters"
+        ]
+      }
+    },
+    "/api/v1/clusters/registry-gaps": {
+      "get": {
+        "description": "For every visible cluster, its running images with no SBOM grouped by the registry each resolves to, with how many can be ingested now.",
+        "operationId": "list-registry-cluster-gaps",
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ListRegistryGapsOutputBody"
+                }
+              }
+            },
+            "description": "OK"
+          },
+          "default": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorModel"
+                }
+              }
+            },
+            "description": "Error"
+          }
+        },
+        "summary": "List the cluster gaps each registry would close",
+        "tags": [
+          "Clusters"
+        ]
+      }
+    },
     "/api/v1/clusters/{id}": {
       "delete": {
         "description": "Removes the cluster and the inventory it has reported. Ingested SBOMs are untouched.",
@@ -8798,6 +9398,208 @@
           }
         },
         "summary": "Rename a cluster",
+        "tags": [
+          "Clusters"
+        ]
+      }
+    },
+    "/api/v1/clusters/{id}/credentials": {
+      "get": {
+        "description": "The agent credentials bound to this cluster, with who minted each and when it was last used. Keys are never returned here.",
+        "operationId": "list-cluster-credentials",
+        "parameters": [
+          {
+            "description": "Cluster UUID",
+            "in": "path",
+            "name": "id",
+            "required": true,
+            "schema": {
+              "description": "Cluster UUID",
+              "format": "uuid",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ListClusterCredentialsOutputBody"
+                }
+              }
+            },
+            "description": "OK"
+          },
+          "default": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorModel"
+                }
+              }
+            },
+            "description": "Error"
+          }
+        },
+        "summary": "List cluster agent credentials",
+        "tags": [
+          "Clusters"
+        ]
+      },
+      "post": {
+        "description": "Mints an API key bound to this cluster that can do nothing but push its inventory. The key is returned once.",
+        "operationId": "create-cluster-credential",
+        "parameters": [
+          {
+            "description": "Cluster UUID",
+            "in": "path",
+            "name": "id",
+            "required": true,
+            "schema": {
+              "description": "Cluster UUID",
+              "format": "uuid",
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/CreateClusterCredentialInputBody"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "201": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ClusterCredentialResponse"
+                }
+              }
+            },
+            "description": "Created"
+          },
+          "default": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorModel"
+                }
+              }
+            },
+            "description": "Error"
+          }
+        },
+        "summary": "Mint a cluster agent credential",
+        "tags": [
+          "Clusters"
+        ]
+      }
+    },
+    "/api/v1/clusters/{id}/credentials/{credentialId}": {
+      "delete": {
+        "operationId": "revoke-cluster-credential",
+        "parameters": [
+          {
+            "description": "Cluster UUID",
+            "in": "path",
+            "name": "id",
+            "required": true,
+            "schema": {
+              "description": "Cluster UUID",
+              "format": "uuid",
+              "type": "string"
+            }
+          },
+          {
+            "description": "Credential UUID",
+            "in": "path",
+            "name": "credentialId",
+            "required": true,
+            "schema": {
+              "description": "Credential UUID",
+              "format": "uuid",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "204": {
+            "description": "No Content"
+          },
+          "default": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorModel"
+                }
+              }
+            },
+            "description": "Error"
+          }
+        },
+        "summary": "Revoke a cluster agent credential",
+        "tags": [
+          "Clusters"
+        ]
+      }
+    },
+    "/api/v1/clusters/{id}/credentials/{credentialId}/rotate": {
+      "post": {
+        "description": "Revokes the credential and mints a replacement with the same name, owned by the caller. The agent fails to push until it is given the new key; for an overlap, mint a second credential and revoke the first once the agent has rolled.",
+        "operationId": "rotate-cluster-credential",
+        "parameters": [
+          {
+            "description": "Cluster UUID",
+            "in": "path",
+            "name": "id",
+            "required": true,
+            "schema": {
+              "description": "Cluster UUID",
+              "format": "uuid",
+              "type": "string"
+            }
+          },
+          {
+            "description": "Credential UUID",
+            "in": "path",
+            "name": "credentialId",
+            "required": true,
+            "schema": {
+              "description": "Credential UUID",
+              "format": "uuid",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ClusterCredentialResponse"
+                }
+              }
+            },
+            "description": "OK"
+          },
+          "default": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorModel"
+                }
+              }
+            },
+            "description": "Error"
+          }
+        },
+        "summary": "Rotate a cluster agent credential",
         "tags": [
           "Clusters"
         ]
@@ -9093,6 +9895,63 @@
           }
         },
         "summary": "List reported Kubernetes namespaces",
+        "tags": [
+          "Clusters"
+        ]
+      }
+    },
+    "/api/v1/clusters/{id}/pushes": {
+      "get": {
+        "description": "The cluster's most recent push attempts, accepted and rejected, newest first. A rejected push carries the reason it was refused.",
+        "operationId": "list-cluster-pushes",
+        "parameters": [
+          {
+            "description": "Cluster UUID",
+            "in": "path",
+            "name": "id",
+            "required": true,
+            "schema": {
+              "description": "Cluster UUID",
+              "format": "uuid",
+              "type": "string"
+            }
+          },
+          {
+            "explode": false,
+            "in": "query",
+            "name": "limit",
+            "schema": {
+              "default": 20,
+              "format": "int32",
+              "maximum": 50,
+              "minimum": 1,
+              "type": "integer"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ListClusterPushesOutputBody"
+                }
+              }
+            },
+            "description": "OK"
+          },
+          "default": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorModel"
+                }
+              }
+            },
+            "description": "Error"
+          }
+        },
+        "summary": "List recent inventory pushes",
         "tags": [
           "Clusters"
         ]

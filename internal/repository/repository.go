@@ -139,6 +139,15 @@ type ClusterRepository interface {
 	ListClustersByNamespace(ctx context.Context, namespaceID pgtype.UUID) ([]Cluster, error)
 	ListClusters(ctx context.Context, arg ListClustersParams) ([]ListClustersRow, error)
 	UpdateCluster(ctx context.Context, arg UpdateClusterParams) (Cluster, error)
+	CreateClusterCredential(ctx context.Context, arg CreateClusterCredentialParams) (CreateClusterCredentialRow, error)
+	ListClusterCredentials(ctx context.Context, clusterID pgtype.UUID) ([]ListClusterCredentialsRow, error)
+	DeleteClusterCredential(ctx context.Context, arg DeleteClusterCredentialParams) (int64, error)
+	RotateClusterCredential(ctx context.Context, arg RotateClusterCredentialParams) (RotateClusterCredentialRow, error)
+	ListWorkloadsForArtifact(ctx context.Context, arg ListWorkloadsForArtifactParams) ([]ListWorkloadsForArtifactRow, error)
+	RecordClusterPush(ctx context.Context, arg RecordClusterPushParams) (int64, error)
+	PruneClusterPushes(ctx context.Context, arg PruneClusterPushesParams) error
+	MarkClusterPushError(ctx context.Context, arg MarkClusterPushErrorParams) error
+	ListClusterPushes(ctx context.Context, arg ListClusterPushesParams) ([]ClusterPush, error)
 	DeleteCluster(ctx context.Context, id pgtype.UUID) (int64, error)
 
 	UpsertClusterWorkload(ctx context.Context, arg UpsertClusterWorkloadParams) error

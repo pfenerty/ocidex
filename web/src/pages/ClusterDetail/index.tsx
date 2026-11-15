@@ -1,7 +1,9 @@
 import "./ClusterDetail.css";
-import { Show, createSignal } from "solid-js";
-import { useParams, useSearchParams } from "@solidjs/router";
-import { Breadcrumb, DetailField, DetailGrid, PageHeader, QueryBoundary, TabBar, type TabDef } from "~/components/ui";
+import { Show, createEffect, createSignal, on } from "solid-js";
+import { A, useParams, useSearchParams } from "@solidjs/router";
+import { Breadcrumb, Button, Card, DetailField, DetailGrid, PageHeader, QueryBoundary, TabBar, type TabDef } from "~/components/ui";
+import { plural } from "~/utils/format";
+import { forgetInstallKey } from "./installKey";
 import { SkeletonHeader } from "~/components/Skeleton";
 import { StalenessPill } from "../Clusters";
 import {
@@ -9,6 +11,7 @@ import {
     useClusterImages,
     useClusterNamespaces,
     useClusterWorkloads,
+    useRefreshClusterInventory,
 } from "~/api/queries";
 import type {
     WorkloadSortKey,
@@ -24,8 +27,10 @@ import { WorkloadsTab, ImagesTab, WorkloadsFilterBar } from "./WorkloadsTab";
 import type { InventoryGrouping } from "./WorkloadsTab";
 import { VulnerabilitiesTab, SEVERITIES, SORT_KEYS as VULN_SORT_KEYS } from "./VulnerabilitiesTab";
 import { GapsTab } from "./GapsTab";
+import { AgentTab } from "./AgentTab";
+import type { Cluster } from "~/api/client";
 
-const TABS = ["overview", "workloads", "vulnerabilities", "gaps"] as const;
+const TABS = ["overview", "workloads", "vulnerabilities", "gaps", "agent"] as const;
 type Tab = (typeof TABS)[number];
 
 const tabs: TabDef<Tab>[] = [
@@ -33,7 +38,11 @@ const tabs: TabDef<Tab>[] = [
     { id: "workloads", label: "Workloads" },
     { id: "vulnerabilities", label: "Vulnerabilities", title: "Vulnerabilities in the images this cluster runs" },
     { id: "gaps", label: "Gaps", title: "Containers OCIDex cannot assess, and why" },
+    { id: "agent", label: "Agent", title: "Push history, credentials, settings and retiring the cluster" },
 ];
+
+/** Tabs that exist before the first snapshot: setup, and the agent itself. */
+const PRE_REPORT_TABS: readonly Tab[] = ["overview", "agent"];
 
 const MATCH_STATES: WorkloadMatchState[] = ["exact", "index", "unknown", "unresolvable"];
 
@@ -55,9 +64,42 @@ export default function ClusterDetail() {
     const [searchParams, setSearchParams] = useSearchParams();
     const clusterQuery = useCluster(() => params.id);
 
+    // Before the first snapshot there is nothing to count or list, and four
+    // zero tiles over three empty tabs read as a clean cluster (ADR-044 K5,
+    // ocidex-70eo.13). Until then the page is the Overview's setup card alone.
+    // Undefined while loading, which hides the band rather than flashing zeros.
+    const reported = () => (clusterQuery.data?.lastSeenAt ?? "") !== "";
+
+    // The first snapshot arriving while this page is open (ocidex-70eo.6):
+    // say so, drop the one-time key, and re-read the inventory queries, which
+    // were fetched empty and would otherwise wait out their own staleness.
+    const refreshInventory = useRefreshClusterInventory();
+    const [justConnected, setJustConnected] = createSignal(false);
+    let sawUnreported = false;
+    createEffect(
+        on(
+            () => clusterQuery.data?.lastSeenAt,
+            (seen) => {
+                if (clusterQuery.data === undefined) return;
+                if ((seen ?? "") === "") {
+                    sawUnreported = true;
+                    return;
+                }
+                if (sawUnreported) {
+                    sawUnreported = false;
+                    setJustConnected(true);
+                    forgetInstallKey(params.id);
+                }
+                void refreshInventory(params.id);
+            },
+            { defer: true },
+        ),
+    );
+    const visibleTabs = () => (reported() ? tabs : tabs.filter((t) => PRE_REPORT_TABS.includes(t.id)));
+
     const tab = (): Tab => {
-        const t = one(searchParams.tab);
-        return TABS.find((candidate) => candidate === t) ?? "overview";
+        const t = TABS.find((candidate) => candidate === one(searchParams.tab)) ?? "overview";
+        return reported() || PRE_REPORT_TABS.includes(t) ? t : "overview";
     };
     // A hand-edited URL can say anything; an unrecognised state is dropped
     // rather than forwarded, so the table shows everything instead of nothing.
@@ -94,8 +136,26 @@ export default function ClusterDetail() {
                                 <DetailField label="Namespace" when={cluster().namespaceName}>
                                     {cluster().namespaceName}
                                 </DetailField>
-                                <DetailField label="Last reported">
-                                    <StalenessPill lastSeenAt={cluster().lastSeenAt} />
+                                <DetailField label="Agent health">
+                                    <StalenessPill lastSeenAt={cluster().lastSeenAt} health={cluster().health} />
+                                </DetailField>
+                                <DetailField label="Agent" when={cluster().agent?.version}>
+                                    {cluster().agent?.version}
+                                </DetailField>
+                                <DetailField label="Kubernetes" when={cluster().agent?.kubernetesVersion}>
+                                    {cluster().agent?.kubernetesVersion}
+                                    <Show when={cluster().agent?.nodeCount}>
+                                        {(n) => <span class="text-muted"> · {plural(n(), "node")}</span>}
+                                    </Show>
+                                </DetailField>
+                                <DetailField
+                                    label="Reports every"
+                                    when={cluster().agent?.reportIntervalSeconds !== undefined}
+                                >
+                                    {intervalLabel(cluster().agent?.reportIntervalSeconds)}
+                                </DetailField>
+                                <DetailField label="Agent pod" when={cluster().agent?.podName} valueClass="font-mono text-sm">
+                                    {cluster().agent?.podNamespace}/{cluster().agent?.podName}
                                 </DetailField>
                                 <DetailField label="Cluster ID" valueClass="font-mono text-sm">
                                     {cluster().id}
@@ -106,7 +166,26 @@ export default function ClusterDetail() {
                 )}
             </QueryBoundary>
 
-            <Show when={coverageQuery.data}>
+            <Show when={clusterQuery.data}>{(c) => <HealthBanners cluster={c()} />}</Show>
+
+            <Show when={justConnected() && clusterQuery.data}>
+                {(c) => (
+                    <Card tone="success" class="mb-4" data-testid="just-connected">
+                        <strong>Connected.</strong>{" "}
+                        <Show when={coverageQuery.data}>
+                            {(d) => <>{plural(d().coverage.total, "container")} </>}
+                        </Show>
+                        <Show when={c().agent?.nodeCount}>{(n) => <>on {plural(n(), "node")} </>}</Show>
+                        <Show when={c().agent?.kubernetesVersion}>{(v) => <>· Kubernetes {v()} </>}</Show>
+                        <Show when={c().agent?.version}>{(v) => <>· agent {v()}</>}</Show>
+                        <Button size="sm" class="ml-2" onClick={() => setJustConnected(false)}>
+                            Dismiss
+                        </Button>
+                    </Card>
+                )}
+            </Show>
+
+            <Show when={reported() && coverageQuery.data}>
                 {(data) => (
                     <CoverageBand
                         coverage={data().coverage}
@@ -118,7 +197,7 @@ export default function ClusterDetail() {
             </Show>
 
             <TabBar
-                tabs={tabs}
+                tabs={visibleTabs()}
                 active={tab()}
                 onSelect={(id) => {
                     // Filters belong to the tab that owns them; carrying a
@@ -156,6 +235,8 @@ export default function ClusterDetail() {
                                 // the line never claims ingest is running
                                 // before it knows.
                                 autoIngest={clusterQuery.data?.autoIngest ?? false}
+                                namespaceId={clusterQuery.data?.namespaceId}
+                                health={clusterQuery.data?.health}
                             />
                         </Show>
                         <Show when={tab() === "workloads"}>
@@ -181,8 +262,53 @@ export default function ClusterDetail() {
                                 coverage={data().coverage}
                             />
                         </Show>
+                        <Show when={tab() === "agent" && clusterQuery.data}>
+                            {(c) => <AgentTab cluster={c()} />}
+                        </Show>
                     </>
                 )}
+            </Show>
+        </>
+    );
+}
+
+function intervalLabel(seconds: number | undefined): string {
+    if (seconds === undefined) return "";
+    if (seconds === 0) return "once (Job)";
+    return seconds % 60 === 0 ? `${seconds / 60}m` : `${seconds}s`;
+}
+
+/**
+ * HealthBanners states a problem before anything else on the page
+ * (ocidex-70eo.7): a stale cluster's inventory looks exactly like a current
+ * one, and a refused agent looks like a quiet one, unless something says so.
+ * Never-reported needs no banner: the whole Overview is its setup card.
+ */
+function HealthBanners(props: { cluster: Cluster }) {
+    const h = () => props.cluster.health;
+    return (
+        <>
+            <Show when={h().state === "erroring" && (props.cluster.lastSeenAt ?? "") !== ""}>
+                <Card tone="danger" class="mb-3" data-testid="banner-erroring">
+                    <strong>The agent is reporting, and OCIDex is refusing it.</strong> {h().reason} The inventory
+                    below is from the last accepted snapshot. <A href={`/clusters/${props.cluster.id}?tab=agent`}>See recent pushes</A>
+                </Card>
+            </Show>
+            <Show when={h().state === "stale"}>
+                <Card tone="warning" class="mb-3" data-testid="banner-stale">
+                    <strong>This inventory may not be what is running now.</strong> {h().reason} Check{" "}
+                    <code>kubectl -n {props.cluster.agent?.podNamespace ?? "ocidex-agent"} logs deploy/ocidex-k8s-agent</code>.
+                </Card>
+            </Show>
+            <Show when={h().state === "paused"}>
+                <Card class="mb-3" data-testid="banner-paused">
+                    <strong>Paused.</strong> {h().reason} Resume it from the Agent tab.
+                </Card>
+            </Show>
+            <Show when={(props.cluster.agent?.versionSkew ?? "") !== ""}>
+                <Card tone="warning" class="mb-3" data-testid="banner-skew">
+                    {props.cluster.agent?.versionSkew}
+                </Card>
             </Show>
         </>
     );

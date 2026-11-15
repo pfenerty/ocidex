@@ -1,0 +1,379 @@
+<title>Cluster Agent Rework</title>
+<meta name="claude:viewport-fit-sides" content="cover">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500&family=Space+Grotesk:wght@500;700&display=swap">
+<style>
+/* Layout: a design review document. Left-aligned reading column for decisions,
+   full-width "screens" that reproduce OCIDex's own UI with its own tokens.
+   Single dark theme on purpose: OCIDex ships dark-first and the mockups must
+   look like the app. */
+:root {
+  color-scheme: dark;
+  --bg: #0C0E14;
+  --surface: #161921;
+  --surface-hover: #1E2230;
+  --elevated: #252838;
+  --border: #2A2E3E;
+  --text: #E4E7F0;
+  --muted: #8B90A5;
+  --primary: #DC3545;
+  --secondary: #5B8DEF;
+  --success: #34D399;
+  --success-bg: rgba(52, 211, 153, 0.12);
+  --warning: #FBBF24;
+  --warning-bg: rgba(251, 191, 36, 0.12);
+  --danger: #F06565;
+  --danger-bg: rgba(240, 101, 101, 0.10);
+  --info-bg: rgba(91, 141, 239, 0.12);
+  --note: #C4B5FD;
+  --font-sans: "Inter", -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+  --font-mono: "JetBrains Mono", "Fira Code", monospace;
+  --font-display: "Space Grotesk", "Inter", sans-serif;
+}
+* { box-sizing: border-box; }
+body {
+  background: var(--bg); color: var(--text); font: 15px/1.6 var(--font-sans);
+  padding-left: max(16px, env(safe-area-inset-left, 0px));
+  padding-right: max(16px, env(safe-area-inset-right, 0px));
+  padding-block: 32px 64px;
+}
+main { max-width: 1120px; margin: 0 auto; display: grid; gap: 48px; }
+h1, h2, h3 { font-family: var(--font-display); text-wrap: balance; margin: 0; }
+h1 { font-size: 2.1rem; }
+h2 { font-size: 1.45rem; padding-top: 8px; border-top: 1px solid var(--border); }
+h3 { font-size: 1.05rem; }
+p, li { max-width: 72ch; }
+.prose { display: grid; gap: 12px; }
+.prose ul, .prose ol { margin: 0; padding-left: 1.3em; display: grid; gap: 4px; }
+.muted { color: var(--muted); }
+.mono, code { font-family: var(--font-mono); font-size: 0.86em; }
+code { background: var(--elevated); padding: 0.1em 0.35em; border-radius: 4px; }
+.refs { font-size: 0.8rem; color: var(--note); font-family: var(--font-mono); }
+section { display: grid; gap: 16px; }
+
+/* A "screen" is one mockup. */
+.screen { border: 1px solid var(--border); border-radius: 10px; overflow: hidden; background: var(--bg); min-width: 0; }
+.screen-cap { display: flex; justify-content: space-between; gap: 12px; flex-wrap: wrap; padding: 8px 14px; background: var(--surface-hover); font-size: 0.78rem; color: var(--muted); font-family: var(--font-mono); }
+.screen-body { padding: 20px; display: grid; gap: 16px; min-width: 0; }
+.row { display: flex; gap: 12px; flex-wrap: wrap; align-items: center; }
+.between { justify-content: space-between; }
+.grid2 { display: grid; grid-template-columns: repeat(auto-fit, minmax(300px, 1fr)); gap: 16px; }
+.card { background: var(--surface); border: 1px solid var(--border); border-radius: 8px; padding: 16px; display: grid; gap: 10px; min-width: 0; }
+.card h4 { margin: 0; font-size: 0.95rem; font-weight: 600; }
+.page-title { font-family: var(--font-display); font-size: 1.6rem; font-weight: 700; }
+.crumb { font-size: 0.8rem; color: var(--muted); }
+.btn { display: inline-flex; align-items: center; gap: 6px; border: 1px solid var(--border); background: var(--surface); color: var(--text); border-radius: 6px; padding: 6px 12px; font: 500 0.85rem var(--font-sans); }
+.btn.primary { background: var(--primary); border-color: var(--primary); color: #fff; }
+.btn.sm { padding: 3px 8px; font-size: 0.78rem; }
+.btn[aria-disabled="true"] { opacity: 0.45; }
+.pill { display: inline-block; padding: 0.1rem 0.4rem; border-radius: 3px; font: 600 0.66rem var(--font-sans); letter-spacing: 0.03em; text-transform: uppercase; white-space: nowrap; }
+.pill.ok { background: var(--success-bg); color: var(--success); }
+.pill.warn { background: var(--warning-bg); color: var(--warning); }
+.pill.bad { background: var(--danger-bg); color: var(--danger); }
+.pill.idle { background: var(--elevated); color: var(--muted); }
+.banner { border-radius: 8px; padding: 12px 14px; display: grid; gap: 4px; font-size: 0.88rem; }
+.banner.bad { background: var(--danger-bg); border: 1px solid rgba(240,101,101,.35); }
+.banner.warn { background: var(--warning-bg); border: 1px solid rgba(251,191,36,.35); }
+.banner.ok { background: var(--success-bg); border: 1px solid rgba(52,211,153,.35); }
+.banner strong { font-weight: 600; }
+pre.cmd { margin: 0; background: #08090D; border: 1px solid var(--border); border-radius: 6px; padding: 12px; overflow-x: auto; font: 0.8rem/1.55 var(--font-mono); color: #CFD4E4; }
+.tabs { display: flex; gap: 2px; border-bottom: 1px solid var(--border); overflow-x: auto; }
+.tabs span { padding: 8px 12px; font-size: 0.86rem; color: var(--muted); white-space: nowrap; }
+.tabs span.on { color: var(--text); box-shadow: inset 0 -2px var(--secondary); }
+.tabs span.off { opacity: 0.4; }
+.facts { display: flex; flex-wrap: wrap; gap: 6px 18px; font-size: 0.82rem; color: var(--muted); }
+.facts b { color: var(--text); font-weight: 500; }
+.field { display: grid; gap: 4px; font-size: 0.82rem; }
+.input { border: 1px solid var(--border); background: var(--bg); border-radius: 6px; padding: 7px 10px; font-size: 0.88rem; }
+.seg { display: flex; border: 1px solid var(--border); border-radius: 6px; overflow: hidden; width: max-content; font-size: 0.8rem; }
+.seg span { padding: 4px 10px; color: var(--muted); }
+.seg span.on { background: var(--elevated); color: var(--text); }
+.table-wrap { overflow-x: auto; border: 1px solid var(--border); border-radius: 8px; }
+table { border-collapse: collapse; width: 100%; font-size: 0.84rem; font-variant-numeric: tabular-nums; }
+th { text-align: left; font: 600 0.68rem var(--font-sans); letter-spacing: 0.05em; text-transform: uppercase; color: var(--muted); padding: 9px 12px; background: var(--surface); white-space: nowrap; }
+td { padding: 9px 12px; border-top: 1px solid var(--border); vertical-align: middle; white-space: nowrap; }
+td .sub { display: block; font-size: 0.74rem; color: var(--muted); white-space: normal; }
+.num { text-align: right; }
+.bar { display: flex; height: 8px; border-radius: 4px; overflow: hidden; background: var(--elevated); min-width: 90px; }
+.bar i { display: block; }
+.bar .m { background: var(--success); }
+.bar .u { background: var(--warning); }
+.bar .x { background: var(--muted); }
+.legend { display: flex; flex-wrap: wrap; gap: 4px 16px; font-size: 0.8rem; color: var(--muted); }
+.legend i { display: inline-block; width: 9px; height: 9px; border-radius: 2px; margin-right: 6px; vertical-align: baseline; }
+.sev { font-weight: 600; }
+.sev.c { color: var(--danger); }
+.sev.h { color: #F59E62; }
+.spinner { width: 14px; height: 14px; border-radius: 50%; border: 2px solid var(--elevated); border-top-color: var(--secondary); display: inline-block; vertical-align: -2px; }
+.steps { display: flex; gap: 8px; flex-wrap: wrap; font-size: 0.78rem; color: var(--muted); }
+.steps span { padding: 3px 9px; border-radius: 999px; border: 1px solid var(--border); }
+.steps span.done { color: var(--success); border-color: rgba(52,211,153,.4); }
+.steps span.now { color: var(--text); border-color: var(--secondary); }
+.callout { border-left: 3px solid var(--note); padding: 6px 12px; font-size: 0.84rem; color: var(--muted); background: rgba(196,181,253,.06); }
+.q { display: grid; gap: 6px; }
+.q b { font-family: var(--font-display); }
+@media (prefers-reduced-motion: no-preference) { .spinner { animation: spin 0.9s linear infinite; } }
+@keyframes spin { to { transform: rotate(360deg); } }
+</style>
+
+<main>
+
+<header class="prose">
+  <span class="muted mono">ocidex-70eo.2 · review draft · 2026-11-14</span>
+  <h1>Cluster agent rework: flows and mockups</h1>
+  <p>One design for the whole cluster feature, built from the 25 audit findings in <code>ocidex-70eo.1</code>. It covers connecting a cluster, the cluster list, cluster detail, where clusters appear across the app, and decommissioning. The backend this depends on has already landed on the epic branch: agent self-reporting (<code>.3</code>), cluster-bound credentials (<code>.5</code>) and the health model (<code>.4</code>).</p>
+  <p class="refs">Purple tags like this name the audit findings each choice answers.</p>
+</header>
+
+<section class="prose">
+  <h2>Principles</h2>
+  <ol>
+    <li><b>One state drives every surface.</b> Health (<code>never_reported</code>, <code>healthy</code>, <code>stale</code>, <code>erroring</code>) and its reason come from the server, and every page shows the same pill and reason. Nothing works out staleness for itself.</li>
+    <li><b>No data is not zero.</b> Before the first accepted snapshot, a cluster has no coverage band, no tabs with empty tables, and no zero tiles. It shows how to connect it. <span class="refs">D3 D4 R4</span></li>
+    <li><b>Pages wait live.</b> Any page showing a cluster that is waiting or erroring polls every 5s. A healthy cluster polls every 30s. Nobody reloads to find out whether a fix worked. <span class="refs">D5 P2</span></li>
+    <li><b>The credential belongs to the cluster.</b> Keys are minted, shown once, rotated and revoked from the cluster. Nobody has to visit API keys to connect a cluster. <span class="refs">D1 D2 D6</span></li>
+    <li><b>Clusters are context, not an island.</b> Wherever OCIDex shows an image, it says whether that image is running and where. <span class="refs">F1 F2 F3</span></li>
+  </ol>
+</section>
+
+<!-- ============================================================ CONNECT -->
+<section>
+  <div class="prose">
+    <h2>1 · Connect a cluster <span class="muted">(.6)</span></h2>
+    <p>This replaces both the Register modal and the separate setup card. It's a page at <code>/clusters/new</code> rather than a modal, because it shows a key once and then waits, and a modal can be dismissed by accident at either step. <span class="refs">R1 R2 R3 D1 D6</span></p>
+  </div>
+
+  <div class="screen">
+    <div class="screen-cap"><span>/clusters/new · step 1</span><span>namespace defaults to the only one you can manage</span></div>
+    <div class="screen-body">
+      <div class="crumb">Clusters / Connect</div>
+      <div class="page-title">Connect a cluster</div>
+      <div class="steps"><span class="now">1 Name it</span><span>2 Install the agent</span><span>3 First snapshot</span></div>
+      <div class="grid2">
+        <div class="card">
+          <div class="field">Name<span class="input">prod-eu-1</span></div>
+          <div class="field">Namespace<span class="input">platform ▾</span><span class="muted">Who can see what it runs. Can't be changed later.</span></div>
+          <div class="field">Description <span class="muted">(optional)</span><span class="input muted">EKS, eu-west-1</span></div>
+          <label class="row" style="gap:8px;font-size:.86rem"><span class="pill ok">on</span> Scan running images that have no SBOM</label>
+          <div class="row"><span class="btn primary">Create and get install command</span><span class="btn">Cancel</span></div>
+        </div>
+        <div class="card">
+          <h4>What happens next</h4>
+          <p class="muted" style="margin:0;font-size:.86rem">OCIDex creates the cluster and an agent credential that can push this cluster's inventory and do nothing else. You get one command to run against the cluster. This page then waits for the agent's first report.</p>
+          <p class="muted" style="margin:0;font-size:.86rem">The agent reads pods only. It needs no CRDs, and OCIDex stores no kubeconfig.</p>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <div class="screen">
+    <div class="screen-cap"><span>/clusters/:id · step 2 and 3 on the same page</span><span>key shown once · polling 5s</span></div>
+    <div class="screen-body">
+      <div class="crumb">Clusters / prod-eu-1</div>
+      <div class="row between"><div class="page-title">prod-eu-1</div><span class="pill idle">waiting for agent</span></div>
+      <div class="steps"><span class="done">1 Named</span><span class="now">2 Install the agent</span><span>3 First snapshot</span></div>
+      <div class="card">
+        <div class="row between"><h4>Install the agent</h4><div class="seg"><span class="on">helm</span><span>values.yaml</span></div></div>
+        <pre class="cmd">helm install ocidex-k8s-agent oci://ghcr.io/pfenerty/charts/ocidex-k8s-agent \
+  --namespace ocidex-agent --create-namespace \
+  --set server.url=https://ocidex.example.com \
+  --set cluster.id=5b0d6e0e-4c1a-4f0e-9a51-6f4b2d1e9c3a \
+  --set apiKey.value=ocidex_Kaf…R1U</pre>
+        <div class="row between">
+          <span class="muted" style="font-size:.82rem">This is the only time the key is shown. Lost it? Rotate it under <b>Agent</b>.</span>
+          <span class="btn primary">Copy command</span>
+        </div>
+        <div class="field">server.url <span class="muted">must be reachable from inside the target cluster</span><span class="input mono">https://ocidex.example.com</span></div>
+      </div>
+      <div class="banner"><span><span class="spinner"></span>&nbsp; <strong>Waiting for the first snapshot.</strong> This updates by itself once the agent reports.</span></div>
+    </div>
+  </div>
+
+  <div class="grid2">
+    <div class="screen">
+      <div class="screen-cap"><span>waiting → erroring</span><span>reason from the push recorder</span></div>
+      <div class="screen-body">
+        <div class="banner bad"><strong>The agent is reporting, and OCIDex is refusing it.</strong><span>The agent's API key was not accepted: it was revoked, rotated or mistyped.</span><span class="muted">Last attempt 40s ago · <u>see recent pushes</u></span></div>
+        <p class="muted" style="margin:0;font-size:.84rem">Each reason comes with a fix: rotate the key (401), check <code>cluster.id</code> (credential bound elsewhere), upgrade the agent (validation error).</p>
+      </div>
+    </div>
+    <div class="screen">
+      <div class="screen-cap"><span>waiting → connected</span><span>replaces itself with the Overview</span></div>
+      <div class="screen-body">
+        <div class="banner ok"><strong>Connected.</strong><span>214 containers on 3 nodes · Kubernetes v1.33.1 · agent v1.2.0</span><span><u>View workloads</u></span></div>
+      </div>
+    </div>
+  </div>
+
+  <div class="callout">The chart gains <code>apiKey.value</code>, which creates the Secret, so the old <code>kubectl create secret</code> step goes away. <code>apiKey.existingSecret</code> stays for GitOps, and the values.yaml tab writes that form. Open question Q3 is about this.</div>
+</section>
+
+<!-- ============================================================ LIST -->
+<section>
+  <div class="prose">
+    <h2>2 · Cluster list <span class="muted">(.7)</span></h2>
+    <p>Each row answers "is this cluster OK?" without opening it: health with its reason, coverage, running criticals and agent version. Rows sort with problems first. Edit and Delete move off the row and into the cluster's Agent tab. <span class="refs">L1 L2 L3 E1</span></p>
+  </div>
+  <div class="screen">
+    <div class="screen-cap"><span>/clusters</span><span>needs: coverage and critical counts on the list response</span></div>
+    <div class="screen-body">
+      <div class="row between"><div><div class="page-title">Clusters</div><div class="muted" style="font-size:.86rem">What your Kubernetes clusters are running, and how much of it OCIDex can assess.</div></div><span class="btn primary">Connect a cluster</span></div>
+      <div class="table-wrap"><table>
+        <thead><tr><th>Cluster</th><th>Agent health</th><th class="num">Containers</th><th>Coverage</th><th class="num">Running criticals</th><th>Agent</th></tr></thead>
+        <tbody>
+          <tr><td>staging<span class="sub">platform</span></td><td><span class="pill bad">erroring</span><span class="sub">API key not accepted · 2m ago</span></td><td class="num">88</td><td><div class="bar"><i class="m" style="width:70%"></i><i class="u" style="width:25%"></i><i class="x" style="width:5%"></i></div><span class="sub">70% matched · last snapshot 3h ago</span></td><td class="num"><span class="sev c">2</span></td><td>v1.2.0<span class="sub">k8s v1.32.4</span></td></tr>
+          <tr><td>homelab<span class="sub">local</span></td><td><span class="pill warn">stale</span><span class="sub">no snapshot for 8h40m (every 5m)</span></td><td class="num">41</td><td><div class="bar"><i class="m" style="width:90%"></i><i class="u" style="width:10%"></i></div><span class="sub">90% matched · 8h old</span></td><td class="num">0</td><td>v1.1.0 <span class="pill warn">skew</span><span class="sub">k8s v1.33.1</span></td></tr>
+          <tr><td>prod-eu-1<span class="sub">platform</span></td><td><span class="pill ok">healthy</span><span class="sub">2m ago</span></td><td class="num">214</td><td><div class="bar"><i class="m" style="width:82%"></i><i class="u" style="width:15%"></i><i class="x" style="width:3%"></i></div><span class="sub">82% matched</span></td><td class="num"><span class="sev c">5</span></td><td>v1.2.0<span class="sub">k8s v1.33.1</span></td></tr>
+          <tr><td>edge-lab<span class="sub">local</span></td><td><span class="pill idle">never reported</span><span class="sub"><u>finish connecting</u></span></td><td class="num muted">—</td><td class="muted">—</td><td class="num muted">—</td><td class="muted">—</td></tr>
+        </tbody>
+      </table></div>
+      <div class="legend"><span><i style="background:var(--success)"></i>matched to an SBOM</span><span><i style="background:var(--warning)"></i>no SBOM yet</span><span><i style="background:var(--muted)"></i>no digest readable</span></div>
+    </div>
+  </div>
+</section>
+
+<!-- ============================================================ DETAIL -->
+<section>
+  <div class="prose">
+    <h2>3 · Cluster detail <span class="muted">(.7)</span></h2>
+    <p>The header carries the agent facts from <code>.3</code>. A banner states any problem before anything else. The four coverage tiles, which all looked selected, become one segmented bar with a legend, and the tabs alone mark the current view. A new <b>Agent</b> tab takes credentials, push history, settings and delete, so the Overview is only about what's running. <span class="refs">O1 O2 E1 E2 G1 G2 W1</span></p>
+  </div>
+
+  <div class="screen">
+    <div class="screen-cap"><span>/clusters/:id · stale</span><span>polling 30s</span></div>
+    <div class="screen-body">
+      <div class="crumb">Clusters / homelab</div>
+      <div class="row between"><div class="page-title">homelab</div><span class="pill warn">stale · 8h ago</span></div>
+      <div class="facts"><span>namespace <b>local</b></span><span>agent <b>v1.1.0</b></span><span>Kubernetes <b>v1.33.1</b></span><span><b>3</b> nodes</span><span>reports every <b>5m</b></span><span>pod <b class="mono">ocidex-agent/ocidex-k8s-agent-7f9c</b></span></div>
+      <div class="banner warn"><strong>Showing the inventory from 8h ago.</strong><span>No snapshot for 8h40m; the agent reports every 5m. Check <code>kubectl -n ocidex-agent logs deploy/ocidex-k8s-agent</code>.</span></div>
+      <div class="banner warn" style="background:transparent"><span><span class="pill warn">skew</span>&nbsp; Agent v1.1.0 is older than server v1.2.0; upgrade the agent chart to match.</span></div>
+      <div class="card">
+        <div class="row between"><h4>41 containers · 63 pods</h4><span class="muted" style="font-size:.8rem">every vulnerability figure on this page covers the matched 37</span></div>
+        <div class="bar" style="height:12px"><i class="m" style="width:90%"></i><i class="u" style="width:7%"></i><i class="x" style="width:3%"></i></div>
+        <div class="legend"><span><i style="background:var(--success)"></i>37 matched</span><span><i style="background:var(--warning)"></i>3 no SBOM · <u>close the gap</u></span><span><i style="background:var(--muted)"></i>1 no digest · <u>why</u></span></div>
+      </div>
+      <div class="tabs"><span class="on">Overview</span><span>Workloads</span><span>Vulnerabilities</span><span>Gaps <span class="pill warn">4</span></span><span>Agent</span></div>
+      <div class="grid2">
+        <div class="card"><h4>Most severe running vulnerabilities</h4>
+          <div class="table-wrap"><table><tbody>
+            <tr><td><span class="sev c">CRITICAL</span></td><td class="mono">CVE-2026-1102</td><td>openssl · 4 workloads</td></tr>
+            <tr><td><span class="sev h">HIGH</span></td><td class="mono">CVE-2026-0871</td><td>glibc · 2 workloads</td></tr>
+          </tbody></table></div>
+          <span class="muted" style="font-size:.8rem"><u>All 23 in Vulnerabilities</u></span>
+        </div>
+        <div class="card"><h4>Coverage gaps</h4>
+          <span style="font-size:.86rem">3 images have no SBOM. 2 can be scanned now, and auto-ingest picks them up on the next snapshot.</span>
+          <span style="font-size:.86rem">1 can't be scanned: no registry in <b>local</b> serves <span class="mono">quay.io</span>. <u>Add a registry</u></span>
+          <div class="row"><span class="btn sm">Scan 2 now</span></div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <div class="grid2">
+    <div class="screen">
+      <div class="screen-cap"><span>never reported</span><span>no band, tabs locked</span></div>
+      <div class="screen-body">
+        <div class="row between"><div class="page-title">edge-lab</div><span class="pill idle">never reported</span></div>
+        <div class="tabs"><span class="on">Overview</span><span class="off">Workloads</span><span class="off">Vulnerabilities</span><span class="off">Gaps</span><span>Agent</span></div>
+        <div class="card"><h4>Finish connecting edge-lab</h4><span class="muted" style="font-size:.86rem">No agent has reported. Until one does, OCIDex knows nothing about what runs here, which is different from knowing that nothing runs.</span><div class="row"><span class="btn primary">Get install command</span></div><span class="muted" style="font-size:.78rem">This mints a new credential: the first one's key was shown only once.</span></div>
+      </div>
+    </div>
+    <div class="screen">
+      <div class="screen-cap"><span>Gaps · no scanner deployed</span><span>.12 fixes the raw 503</span></div>
+      <div class="screen-body">
+        <div class="banner warn"><strong>This deployment can't scan images.</strong><span>No scanner worker is configured, so these gaps can only be closed by uploading SBOMs. Auto-ingest is paused for the same reason.</span></div>
+        <div class="table-wrap"><table><thead><tr><th>Image</th><th>State</th><th>Registry</th></tr></thead><tbody>
+          <tr><td class="mono">ghcr.io/fluxcd/helm-controller</td><td><span class="pill idle">can't scan here</span></td><td>ghcr.io/othercorp<span class="sub">would pull with <b>othercorp</b>'s credentials</span></td></tr>
+        </tbody></table></div>
+      </div>
+    </div>
+  </div>
+
+  <div class="screen">
+    <div class="screen-cap"><span>/clusters/:id?tab=agent</span><span>credentials (.5) · push history (.4) · settings · danger zone (.9)</span></div>
+    <div class="screen-body">
+      <div class="tabs"><span>Overview</span><span>Workloads</span><span>Vulnerabilities</span><span>Gaps</span><span class="on">Agent</span></div>
+      <div class="grid2">
+        <div class="card"><h4>Recent pushes</h4>
+          <div class="table-wrap"><table><thead><tr><th>When</th><th>Result</th><th>Detail</th></tr></thead><tbody>
+            <tr><td>2m ago</td><td><span class="pill bad">401</span></td><td>API key not accepted</td></tr>
+            <tr><td>7m ago</td><td><span class="pill bad">401</span></td><td>API key not accepted</td></tr>
+            <tr><td>3h ago</td><td><span class="pill ok">accepted</span></td><td>88 containers · v1.2.0</td></tr>
+          </tbody></table></div>
+        </div>
+        <div class="card"><h4>Credentials</h4>
+          <div class="table-wrap"><table><thead><tr><th>Name</th><th>Minted by</th><th>Last used</th><th></th></tr></thead><tbody>
+            <tr><td>staging-agent<span class="sub mono">ocidex_K…</span></td><td>devowner</td><td>3h ago</td><td><span class="btn sm">Rotate</span> <span class="btn sm">Revoke</span></td></tr>
+          </tbody></table></div>
+          <div class="row"><span class="btn sm">New credential</span></div>
+        </div>
+        <div class="card"><h4>Settings</h4>
+          <div class="field">Name<span class="input">staging</span></div>
+          <div class="field">Description<span class="input muted">—</span></div>
+          <label class="row" style="gap:8px;font-size:.86rem"><span class="pill ok">on</span> Scan running images that have no SBOM</label>
+          <span class="muted" style="font-size:.8rem">Namespace <b>platform</b> is fixed: moving a cluster would change who can see everything it has reported.</span>
+        </div>
+        <div class="card" style="border-color:rgba(240,101,101,.35)"><h4>Disconnect</h4>
+          <span style="font-size:.86rem">Deleting <b>staging</b> removes its inventory and revokes its 1 credential. Ingested SBOMs stay, but lose their link to this cluster.</span>
+          <pre class="cmd">helm uninstall ocidex-k8s-agent -n ocidex-agent</pre>
+          <div class="row"><span class="btn sm" style="color:var(--danger)">Delete cluster…</span></div>
+        </div>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- ============================================================ INTEGRATION -->
+<section>
+  <div class="prose">
+    <h2>4 · Clusters across the app <span class="muted">(.8)</span></h2>
+    <p>Wherever OCIDex shows an image, it now says whether that image is running and where. These views need two new reads: running workloads by artifact (all of an artifact's digests), and a per-user rollup across clusters. Both apply the namespace visibility rules (K6). <span class="refs">F1 F2 F3</span></p>
+  </div>
+  <div class="grid2">
+    <div class="screen">
+      <div class="screen-cap"><span>artifact page · header + versions</span></div>
+      <div class="screen-body">
+        <div class="row between"><div class="page-title" style="font-size:1.25rem">ghcr.io/pfenerty/ocidex-api</div><span class="pill ok">running in 2 clusters</span></div>
+        <div class="table-wrap"><table><thead><tr><th>Version</th><th>Running</th><th class="num">Critical</th></tr></thead><tbody>
+          <tr><td>v1.5.0</td><td class="muted">—</td><td class="num">0</td></tr>
+          <tr><td>v1.4.0</td><td><span class="pill ok">prod-eu-1</span> <span class="pill ok">staging</span><span class="sub">apps/ocidex-api-old · 3 pods</span></td><td class="num"><span class="sev c">1</span></td></tr>
+        </tbody></table></div>
+        <span class="muted" style="font-size:.8rem">A <b>Running</b> tab lists every workload, with links to the cluster's Workloads view filtered to it.</span>
+      </div>
+    </div>
+    <div class="screen">
+      <div class="screen-cap"><span>workspace · clusters card</span></div>
+      <div class="screen-body">
+        <div class="card"><div class="row between"><h4>My clusters</h4><span class="muted" style="font-size:.8rem"><u>All clusters</u></span></div>
+          <div class="row"><span class="pill ok">2 healthy</span><span class="pill warn">1 stale</span><span class="pill bad">1 erroring</span></div>
+          <span style="font-size:.88rem"><span class="sev c">7 critical</span> vulnerabilities running, across the 82% of containers OCIDex can assess.</span>
+        </div>
+        <div class="card"><h4>Vulnerability exposure</h4><div class="seg"><span class="on">Running</span><span>All SBOMs</span></div><span class="muted" style="font-size:.8rem">Defaults to running once you have a cluster that has reported.</span></div>
+        <span class="muted" style="font-size:.8rem">The command palette searches clusters by name: <span class="mono">⌘K prod</span> → prod-eu-1.</span>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- ============================================================ REQUIREMENTS -->
+<section class="prose">
+  <h2>What implementation needs that does not exist yet</h2>
+  <ul>
+    <li><b>Chart</b>: <code>apiKey.value</code> creates the Secret, and <code>apiKey.existingSecret</code> keeps today's behaviour (.6).</li>
+    <li><b>API</b>: one endpoint that creates a cluster and its first credential together, so step 1 can't leave a cluster with no key (.6). Coverage counts and running criticals on <code>ListClusters</code> (.7). Running workloads by artifact, and a per-user cluster rollup (.8). Whether this deployment can scan, so Gaps can say so instead of showing a 503 (.12).</li>
+    <li><b>server.url</b>: the API's public URL, from config. <code>window.location.origin</code> is wrong whenever <code>API_BASE_URL</code> differs from the web origin (D7).</li>
+    <li><b>Polling</b>: TanStack <code>refetchInterval</code> set from health, 5s while waiting or erroring and 30s otherwise. No websockets.</li>
+  </ul>
+</section>
+
+<section class="prose">
+  <h2>Decisions to review</h2>
+  <div class="q"><b>Q1. Connect on a page, not in a modal.</b><span>Recommended: a page. It shows a one-time key and then waits, and a modal is too easy to dismiss at either step.</span></div>
+  <div class="q"><b>Q2. A new Agent tab.</b><span>Recommended: yes. Credentials, push history, settings and delete are all about operating the agent, and today they're split between the list row, the Overview and API keys.</span></div>
+  <div class="q"><b>Q3. The key in <code>--set apiKey.value</code>.</b><span>It ends up in the Helm release, which Helm stores as a Secret in that namespace. That's the same blast radius as the Secret it replaces, but it also appears in shell history. Recommended: helm <code>--set</code> as the default, plus a values.yaml / existingSecret option for GitOps.</span></div>
+  <div class="q"><b>Q4. A segmented bar instead of four tiles.</b><span>Recommended: yes. It shows proportion, which four separate numbers don't, and it stops looking like four selected tabs. Clicking a segment still filters Workloads.</span></div>
+  <div class="q"><b>Q5. Health thresholds.</b><span>Stale after 3× the reported interval, and erroring as soon as one push is refused after the last success. One bad push is enough because refusals don't fix themselves: a 401 stays a 401.</span></div>
+</section>
+
+</main>

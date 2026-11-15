@@ -344,6 +344,26 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/v1/artifacts/{id}/workloads": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * List where an artifact is running
+         * @description Kubernetes workloads running any version of this artifact, across every cluster visible to the caller, each with the version it runs.
+         */
+        get: operations["list-artifact-workloads"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/v1/auth/identities": {
         parameters: {
             query?: never;
@@ -467,6 +487,46 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/v1/clusters/connect": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Connect a cluster
+         * @description Registers a cluster and mints its first agent credential in one step. The credential's key is in the response and nowhere else.
+         */
+        post: operations["connect-cluster"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/clusters/registry-gaps": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * List the cluster gaps each registry would close
+         * @description For every visible cluster, its running images with no SBOM grouped by the registry each resolves to, with how many can be ingested now.
+         */
+        get: operations["list-registry-cluster-gaps"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/v1/clusters/{id}": {
         parameters: {
             query?: never;
@@ -487,6 +547,67 @@ export interface paths {
         head?: never;
         /** Rename a cluster */
         patch: operations["update-cluster"];
+        trace?: never;
+    };
+    "/api/v1/clusters/{id}/credentials": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * List cluster agent credentials
+         * @description The agent credentials bound to this cluster, with who minted each and when it was last used. Keys are never returned here.
+         */
+        get: operations["list-cluster-credentials"];
+        put?: never;
+        /**
+         * Mint a cluster agent credential
+         * @description Mints an API key bound to this cluster that can do nothing but push its inventory. The key is returned once.
+         */
+        post: operations["create-cluster-credential"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/clusters/{id}/credentials/{credentialId}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        post?: never;
+        /** Revoke a cluster agent credential */
+        delete: operations["revoke-cluster-credential"];
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/clusters/{id}/credentials/{credentialId}/rotate": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Rotate a cluster agent credential
+         * @description Revokes the credential and mints a replacement with the same name, owned by the caller. The agent fails to push until it is given the new key; for an overlap, mint a second credential and revoke the first once the agent has rolled.
+         */
+        post: operations["rotate-cluster-credential"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
         trace?: never;
     };
     "/api/v1/clusters/{id}/images": {
@@ -561,6 +682,26 @@ export interface paths {
          * @description The namespace facet for the workload filter, covering the whole cluster rather than the current page of workloads.
          */
         get: operations["list-cluster-k8s-namespaces"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/clusters/{id}/pushes": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * List recent inventory pushes
+         * @description The cluster's most recent push attempts, accepted and rejected, newest first. A rejected push carries the reason it was refused.
+         */
+        get: operations["list-cluster-pushes"];
         put?: never;
         post?: never;
         delete?: never;
@@ -2017,6 +2158,66 @@ export interface components {
             summary: components["schemas"]["ChangeSummary"];
             to: components["schemas"]["SBOMRef"];
         };
+        ClusterAgentResponse: {
+            /** @description Kubernetes server version (gitVersion) */
+            kubernetesVersion?: string;
+            /** @description Namespace allowlist; empty or absent with reportIntervalSeconds set means every namespace */
+            namespaces?: string[] | null;
+            /**
+             * Format: int32
+             * @description Distinct nodes running the reported pods
+             */
+            nodeCount?: number;
+            /** @description The agent's own pod */
+            podName?: string;
+            /** @description Namespace the agent runs in */
+            podNamespace?: string;
+            /**
+             * Format: int32
+             * @description Seconds between snapshots; 0 for a one-shot agent
+             */
+            reportIntervalSeconds?: number;
+            /** @description Agent build version */
+            version?: string;
+            /** @description Set when the agent's major.minor differs from the server's */
+            versionSkew?: string;
+        };
+        ClusterCredentialResponse: {
+            /**
+             * Format: uri
+             * @description A URL to the JSON Schema for this object.
+             * @example https://example.com/api/schemas/ClusterCredentialResponse.json
+             */
+            readonly $schema?: string;
+            createdAt: string;
+            id: string;
+            /** @description The full key, shown once on create or rotate. Store it in the agent's secret. */
+            key?: string;
+            /** @description When the agent last authenticated with it; empty if never */
+            lastUsedAt?: string;
+            name: string;
+            /** @description User who minted it. The credential narrows with that user's live namespace roles. */
+            ownerId: string;
+            ownerName?: string;
+            /** @description First 8 characters of the key */
+            prefix: string;
+            /** @description The API's configured public URL (API_BASE_URL), for the agent's server.url; absent when not configured. Set only alongside key. */
+            serverUrl?: string;
+        };
+        ClusterHealthResponse: {
+            /** @description Why, for every state but healthy */
+            reason?: string;
+            /**
+             * Format: int64
+             * @description Seconds after the last accepted push at which the cluster turns stale; absent for a one-shot agent
+             */
+            staleAfterSeconds?: number;
+            /**
+             * @description never_reported: nothing pushed yet. healthy: last push accepted and recent. stale: no accepted push within three report intervals. erroring: the agent is pushing and being refused. paused: paused on purpose; snapshots are refused.
+             * @enum {string}
+             */
+            state: "never_reported" | "healthy" | "stale" | "erroring" | "paused";
+        };
         ClusterImageResponse: {
             artifactId?: string;
             artifactName?: string;
@@ -2051,6 +2252,23 @@ export interface components {
              */
             workloadCount: number;
         };
+        ClusterPushResponse: {
+            accepted: boolean;
+            agentVersion?: string;
+            at: string;
+            /** @description Why it was refused */
+            reason?: string;
+            /**
+             * Format: int64
+             * @description HTTP status the push received
+             */
+            status: number;
+            /**
+             * Format: int32
+             * @description Workload rows in an accepted snapshot
+             */
+            workloads?: number;
+        };
         ClusterResponse: {
             /**
              * Format: uri
@@ -2058,10 +2276,14 @@ export interface components {
              * @example https://example.com/api/schemas/ClusterResponse.json
              */
             readonly $schema?: string;
+            /** @description What the agent reported about itself with its last accepted snapshot. Absent until an agent that self-reports has pushed. */
+            agent?: components["schemas"]["ClusterAgentResponse"];
             /** @description Submit a scan job for every running image with no SBOM whose host resolves to a registry in this cluster's namespace, on every accepted snapshot. */
             autoIngest: boolean;
             createdAt: string;
             description?: string;
+            /** @description The agent's health, derived from its pushes */
+            health: components["schemas"]["ClusterHealthResponse"];
             id: string;
             /** @description When an agent last pushed a snapshot. Empty means no agent has ever reported: a cluster showing no workloads for this reason is not a cluster running nothing. */
             lastSeenAt?: string;
@@ -2069,7 +2291,19 @@ export interface components {
             namespaceId: string;
             /** @description Owning namespace name; populated on list responses */
             namespaceName?: string;
+            /** @description When the cluster was paused; empty while active */
+            pausedAt?: string;
+            /** @description Coverage and running criticals, on list responses for a cluster that has reported */
+            summary?: components["schemas"]["ClusterSummaryResponse"];
             updatedAt: string;
+        };
+        ClusterSummaryResponse: {
+            coverage: components["schemas"]["WorkloadCoverageResponse"];
+            /**
+             * Format: int64
+             * @description Distinct critical vulnerabilities in matched running images
+             */
+            runningCriticals: number;
         };
         ClusterWorkloadResponse: {
             artifactId?: string;
@@ -2239,6 +2473,35 @@ export interface components {
             severity: string;
             summary?: string;
         };
+        ConnectClusterInputBody: {
+            /**
+             * Format: uri
+             * @description A URL to the JSON Schema for this object.
+             * @example https://example.com/api/schemas/ConnectClusterInputBody.json
+             */
+            readonly $schema?: string;
+            /** @description Scan running images with no SBOM on each snapshot. Defaults to true. */
+            autoIngest?: boolean;
+            description?: string;
+            /** @description Cluster name, unique within the namespace */
+            name: string;
+            /**
+             * Format: uuid
+             * @description Owning namespace UUID
+             */
+            namespaceId: string;
+        };
+        ConnectClusterOutputBody: {
+            /**
+             * Format: uri
+             * @description A URL to the JSON Schema for this object.
+             * @example https://example.com/api/schemas/ConnectClusterOutputBody.json
+             */
+            readonly $schema?: string;
+            cluster: components["schemas"]["ClusterResponse"];
+            /** @description The cluster's first agent credential; its key is shown only here */
+            credential: components["schemas"]["ClusterCredentialResponse"];
+        };
         CreateAPIKeyInputBody: {
             /**
              * Format: uri
@@ -2260,6 +2523,16 @@ export interface components {
             readonly $schema?: string;
             /** @description Full API key — shown once, store securely */
             key: string;
+        };
+        CreateClusterCredentialInputBody: {
+            /**
+             * Format: uri
+             * @description A URL to the JSON Schema for this object.
+             * @example https://example.com/api/schemas/CreateClusterCredentialInputBody.json
+             */
+            readonly $schema?: string;
+            /** @description Label for the credential; defaults to '<cluster>-agent' */
+            name?: string;
         };
         CreateClusterInputBody: {
             /**
@@ -2946,6 +3219,28 @@ export interface components {
              */
             unauthorized: number;
         };
+        InventoryAgent: {
+            /** @description Kubernetes server gitVersion from the discovery API */
+            kubernetesVersion?: string;
+            /** @description Namespace allowlist; empty means every namespace */
+            namespaces?: string[] | null;
+            /**
+             * Format: int32
+             * @description Distinct nodes running the reported pods
+             */
+            nodeCount?: number;
+            /** @description The agent's own pod name */
+            podName?: string;
+            /** @description Namespace the agent runs in */
+            podNamespace?: string;
+            /**
+             * Format: int32
+             * @description Seconds between snapshots; 0 for a one-shot agent
+             */
+            reportIntervalSeconds?: number;
+            /** @description Agent build version */
+            version?: string;
+        };
         InventoryWorkload: {
             containerName: string;
             /** @description Normalized digest from status.containerStatuses[].imageID. Omit when the agent could not extract one — that is reported as 'unresolvable', not silently dropped. */
@@ -2966,6 +3261,8 @@ export interface components {
         KeyMetaResponse: {
             /** @description Capabilities this key may exercise, before intersection with the owner's live namespace roles */
             capabilities: string[] | null;
+            /** @description Set for a cluster agent credential, which may only push this cluster's inventory */
+            clusterId?: string;
             /** Format: date-time */
             createdAt: string;
             /** @description Key UUID */
@@ -3062,6 +3359,15 @@ export interface components {
              */
             total?: number;
         };
+        ListClusterCredentialsOutputBody: {
+            /**
+             * Format: uri
+             * @description A URL to the JSON Schema for this object.
+             * @example https://example.com/api/schemas/ListClusterCredentialsOutputBody.json
+             */
+            readonly $schema?: string;
+            data: components["schemas"]["ClusterCredentialResponse"][] | null;
+        };
         ListClusterImagesOutputBody: {
             /**
              * Format: uri
@@ -3082,6 +3388,15 @@ export interface components {
             readonly $schema?: string;
             data: components["schemas"]["NamespaceFacetResponse"][] | null;
         };
+        ListClusterPushesOutputBody: {
+            /**
+             * Format: uri
+             * @description A URL to the JSON Schema for this object.
+             * @example https://example.com/api/schemas/ListClusterPushesOutputBody.json
+             */
+            readonly $schema?: string;
+            data: components["schemas"]["ClusterPushResponse"][] | null;
+        };
         ListClusterUnknownImagesOutputBody: {
             /**
              * Format: uri
@@ -3095,6 +3410,8 @@ export interface components {
             pagination: components["schemas"]["PaginationMeta"];
             /** @description Breakdown of the entire gap by remedy, independent of the page returned */
             reasons: components["schemas"]["UnknownImageReasonCounts"];
+            /** @description Whether this deployment can scan images at all. When false, nothing can be ingested from here (manually or by auto-ingest) and the ingest endpoint returns 503. */
+            scanningEnabled: boolean;
         };
         ListClusterVulnsOutputBody: {
             /**
@@ -3271,6 +3588,15 @@ export interface components {
             readonly $schema?: string;
             data: components["schemas"]["RegistryResponse"][] | null;
             pagination: components["schemas"]["PaginationMeta"];
+        };
+        ListRegistryGapsOutputBody: {
+            /**
+             * Format: uri
+             * @description A URL to the JSON Schema for this object.
+             * @example https://example.com/api/schemas/ListRegistryGapsOutputBody.json
+             */
+            readonly $schema?: string;
+            data: components["schemas"]["RegistryClusterGapResponse"][] | null;
         };
         ListSBOMComponentsOutputBody: {
             /**
@@ -3567,6 +3893,8 @@ export interface components {
              * @example https://example.com/api/schemas/PutInventoryInputBody.json
              */
             readonly $schema?: string;
+            /** @description The agent's description of itself. Optional, so an older agent's push is still accepted. */
+            agent?: components["schemas"]["InventoryAgent"];
             /** @description The complete set of running container images. Omitted entries are pruned. */
             workloads: components["schemas"]["InventoryWorkload"][] | null;
         };
@@ -3589,6 +3917,10 @@ export interface components {
             pruned: number;
             /** @description Timestamp recorded on the cluster */
             seenAt: string;
+            /** @description The server's version */
+            serverVersion?: string;
+            /** @description Set when the reported agent version's major.minor differs from the server's */
+            versionSkew?: string;
         };
         ReadinessCheckOutputBody: {
             /**
@@ -3628,6 +3960,21 @@ export interface components {
             readonly $schema?: string;
             /** @description New webhook secret — shown once only. The previous secret is immediately invalidated. */
             webhookSecret: string;
+        };
+        RegistryClusterGapResponse: {
+            clusterId: string;
+            clusterName: string;
+            /**
+             * Format: int64
+             * @description Running images with no SBOM whose host resolves to this registry
+             */
+            images: number;
+            /**
+             * Format: int64
+             * @description How many of those can be ingested now; the rest wait on this registry
+             */
+            ready: number;
+            registryId: string;
         };
         RegistryPreview: {
             /**
@@ -4212,6 +4559,8 @@ export interface components {
             autoIngest?: boolean;
             description?: string;
             name: string;
+            /** @description Pause (true) or resume (false) the cluster. A paused cluster refuses snapshots and keeps its last inventory. Omit to leave unchanged. */
+            paused?: boolean;
         };
         UpdateNamespaceInputBody: {
             /**
@@ -5170,6 +5519,40 @@ export interface operations {
             };
         };
     };
+    "list-artifact-workloads": {
+        parameters: {
+            query?: {
+                limit?: number;
+            };
+            header?: never;
+            path: {
+                /** @description Artifact UUID */
+                id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description OK */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ListVulnWorkloadsOutputBody"];
+                };
+            };
+            /** @description Error */
+            default: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["ErrorModel"];
+                };
+            };
+        };
+    };
     "list-my-identities": {
         parameters: {
             query?: never;
@@ -5449,6 +5832,68 @@ export interface operations {
             };
         };
     };
+    "connect-cluster": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["ConnectClusterInputBody"];
+            };
+        };
+        responses: {
+            /** @description Created */
+            201: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ConnectClusterOutputBody"];
+                };
+            };
+            /** @description Error */
+            default: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["ErrorModel"];
+                };
+            };
+        };
+    };
+    "list-registry-cluster-gaps": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description OK */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ListRegistryGapsOutputBody"];
+                };
+            };
+            /** @description Error */
+            default: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["ErrorModel"];
+                };
+            };
+        };
+    };
     "get-cluster": {
         parameters: {
             query?: never;
@@ -5534,6 +5979,140 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["ClusterResponse"];
+                };
+            };
+            /** @description Error */
+            default: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["ErrorModel"];
+                };
+            };
+        };
+    };
+    "list-cluster-credentials": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                /** @description Cluster UUID */
+                id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description OK */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ListClusterCredentialsOutputBody"];
+                };
+            };
+            /** @description Error */
+            default: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["ErrorModel"];
+                };
+            };
+        };
+    };
+    "create-cluster-credential": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                /** @description Cluster UUID */
+                id: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["CreateClusterCredentialInputBody"];
+            };
+        };
+        responses: {
+            /** @description Created */
+            201: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ClusterCredentialResponse"];
+                };
+            };
+            /** @description Error */
+            default: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["ErrorModel"];
+                };
+            };
+        };
+    };
+    "revoke-cluster-credential": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                /** @description Cluster UUID */
+                id: string;
+                /** @description Credential UUID */
+                credentialId: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description No Content */
+            204: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description Error */
+            default: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["ErrorModel"];
+                };
+            };
+        };
+    };
+    "rotate-cluster-credential": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                /** @description Cluster UUID */
+                id: string;
+                /** @description Credential UUID */
+                credentialId: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description OK */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ClusterCredentialResponse"];
                 };
             };
             /** @description Error */
@@ -5685,6 +6264,40 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["ListClusterNamespacesOutputBody"];
+                };
+            };
+            /** @description Error */
+            default: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["ErrorModel"];
+                };
+            };
+        };
+    };
+    "list-cluster-pushes": {
+        parameters: {
+            query?: {
+                limit?: number;
+            };
+            header?: never;
+            path: {
+                /** @description Cluster UUID */
+                id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description OK */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ListClusterPushesOutputBody"];
                 };
             };
             /** @description Error */

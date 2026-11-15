@@ -10,6 +10,7 @@ import (
 	"github.com/pfenerty/ocidex/internal/authz"
 	"github.com/pfenerty/ocidex/internal/scanner"
 	"github.com/pfenerty/ocidex/internal/service"
+	"github.com/pfenerty/ocidex/internal/version"
 )
 
 // ListClusters returns the clusters visible to the caller, optionally scoped to
@@ -62,8 +63,31 @@ func (h *Handler) listClusters(ctx context.Context, vis service.VisibilityFilter
 	out.Body.Data = make([]ClusterResponse, len(rows))
 	for i, c := range rows {
 		out.Body.Data[i] = toClusterResponse(c)
+		out.Body.Data[i].Summary = h.clusterSummary(ctx, c, vis)
 	}
 	return out, nil
+}
+
+// clusterSummary is one list row's coverage and running criticals
+// (ocidex-70eo.7). Nil for a cluster that has never reported, where both
+// would be zeros that read as clean, and on any error: a summary is an aid to
+// the list, not a reason to fail it. One cluster at a time, because a
+// namespace has a handful of clusters, not hundreds.
+func (h *Handler) clusterSummary(ctx context.Context, c service.Cluster, vis service.VisibilityFilter) *ClusterSummaryResponse {
+	if c.LastSeenAt == nil {
+		return nil
+	}
+	cov, err := h.clusterService.Coverage(ctx, c.ID, vis)
+	if err != nil {
+		slog.WarnContext(ctx, "cluster summary coverage", "cluster_id", c.ID, "err", err)
+		return nil
+	}
+	crit, err := h.clusterService.RunningVulns(ctx, c.ID, service.RunningVulnParams{Severity: "CRITICAL", Limit: 1}, vis)
+	if err != nil {
+		slog.WarnContext(ctx, "cluster summary criticals", "cluster_id", c.ID, "err", err)
+		return nil
+	}
+	return &ClusterSummaryResponse{Coverage: toCoverageResponse(cov), RunningCriticals: crit.Total}
 }
 
 // GetCluster returns one cluster, gated on its namespace's visibility.
@@ -105,6 +129,7 @@ func (h *Handler) UpdateCluster(ctx context.Context, in *UpdateClusterInput) (*U
 		Name:        in.Body.Name,
 		Description: in.Body.Description,
 		AutoIngest:  in.Body.AutoIngest,
+		Paused:      in.Body.Paused,
 	})
 	if err != nil {
 		return nil, mapServiceError(err)
@@ -134,6 +159,9 @@ func (h *Handler) PutInventory(ctx context.Context, in *PutInventoryInput) (*Put
 	if err := h.clusterCapabilityCheck(ctx, in.ID, authz.CapPushInventory); err != nil {
 		return nil, err
 	}
+	if c, err := h.clusterService.Get(ctx, in.ID); err == nil && c.PausedAt != nil {
+		return nil, huma.Error409Conflict("cluster is paused: snapshots are refused until it is resumed")
+	}
 
 	workloads := make([]service.ReportedWorkload, len(in.Body.Workloads))
 	for i, w := range in.Body.Workloads {
@@ -148,9 +176,21 @@ func (h *Handler) PutInventory(ctx context.Context, in *PutInventoryInput) (*Put
 		}
 	}
 
-	pruned, err := h.clusterService.ReplaceInventory(ctx, in.ID, workloads)
+	agent := toAgentInfo(in.Body.Agent)
+	pruned, err := h.clusterService.ReplaceInventory(ctx, in.ID, workloads, agent)
 	if err != nil {
 		return nil, mapServiceError(err)
+	}
+
+	accepted := int32(len(workloads)) //nolint:gosec // bounded by the request body limit
+	attempt := service.PushAttempt{Accepted: true, Status: 200, Workloads: &accepted}
+	if agent != nil {
+		attempt.AgentVersion = agent.Version
+	}
+	// The snapshot is already committed; a failure to log it is not a
+	// failure of the push.
+	if err := h.clusterService.RecordPush(ctx, in.ID, attempt); err != nil {
+		slog.WarnContext(ctx, "recording accepted push", "cluster_id", in.ID, "err", err)
 	}
 
 	h.autoIngestAfterSnapshot(ctx, in.ID)
@@ -159,7 +199,66 @@ func (h *Handler) PutInventory(ctx context.Context, in *PutInventoryInput) (*Put
 	out.Body.Accepted = len(workloads)
 	out.Body.Pruned = pruned
 	out.Body.SeenAt = time.Now().UTC().Format(time.RFC3339)
+	serverVersion, _, _ := version.Info()
+	out.Body.ServerVersion = serverVersion
+	if agent != nil {
+		out.Body.VersionSkew = service.AgentVersionSkew(agent.Version, serverVersion)
+	}
 	return out, nil
+}
+
+// ListClusterPushes returns the cluster's recent push attempts.
+func (h *Handler) ListClusterPushes(ctx context.Context, in *ListClusterPushesInput) (*ListClusterPushesOutput, error) {
+	if _, err := h.visibleCluster(ctx, in.ID); err != nil {
+		return nil, err
+	}
+	pushes, err := h.clusterService.ListPushes(ctx, in.ID, in.Limit)
+	if err != nil {
+		return nil, mapServiceError(err)
+	}
+	out := &ListClusterPushesOutput{}
+	out.Body.Data = make([]ClusterPushResponse, len(pushes))
+	for i, p := range pushes {
+		out.Body.Data[i] = ClusterPushResponse{
+			At:           p.At.UTC().Format(time.RFC3339),
+			Accepted:     p.Accepted,
+			Status:       p.Status,
+			Reason:       p.Reason,
+			Workloads:    p.Workloads,
+			AgentVersion: p.AgentVersion,
+		}
+	}
+	return out, nil
+}
+
+// pushRecorder is nil-safe: a Handler built without a cluster service records
+// nothing.
+func (h *Handler) pushRecorder() pushRecorder {
+	if h.clusterService == nil {
+		return nil
+	}
+	return h.clusterService
+}
+
+func toAgentInfo(a *InventoryAgent) *service.AgentInfo {
+	if a == nil {
+		return nil
+	}
+	// A non-nil, empty allowlist is what "every namespace" looks like once
+	// stored; an agent that sent the block at all did report its allowlist.
+	ns := a.Namespaces
+	if ns == nil {
+		ns = []string{}
+	}
+	return &service.AgentInfo{
+		Version:               a.Version,
+		KubernetesVersion:     a.KubernetesVersion,
+		NodeCount:             a.NodeCount,
+		Namespaces:            ns,
+		ReportIntervalSeconds: a.ReportIntervalSeconds,
+		PodName:               a.PodName,
+		PodNamespace:          a.PodNamespace,
+	}
 }
 
 // autoIngestAfterSnapshot queues scans for the images the snapshot just
@@ -412,6 +511,7 @@ func (h *Handler) ListClusterUnknownImages(ctx context.Context, in *ListClusterU
 			RegistryName:       img.RegistryName,
 		}
 	}
+	out.Body.ScanningEnabled = h.scanSubmitter != nil
 	out.Body.Reasons = UnknownImageReasonCounts{
 		Ready:            page.Reasons[service.IngestReasonReady],
 		Scanning:         page.Reasons[service.IngestReasonScanning],
@@ -456,6 +556,47 @@ func (h *Handler) ListClusterUnknownImages(ctx context.Context, in *ListClusterU
 // contributes no rows rather than an error that would confirm it exists.
 func (h *Handler) ListVulnWorkloads(ctx context.Context, in *ListVulnWorkloadsInput) (*ListVulnWorkloadsOutput, error) {
 	rows, err := h.clusterService.WorkloadsForVulnerability(ctx, in.ID, in.ClusterID, in.Limit, visibilityFilterFromContext(ctx))
+	if err != nil {
+		return nil, mapServiceError(err)
+	}
+	out := &ListVulnWorkloadsOutput{}
+	out.Body.Data = make([]RunningWorkloadResponse, len(rows))
+	for i, w := range rows {
+		out.Body.Data[i] = RunningWorkloadResponse{
+			ClusterWorkloadResponse: toWorkloadResponse(w.ClusterWorkload),
+			ClusterName:             w.ClusterName,
+		}
+	}
+	return out, nil
+}
+
+// ListRegistryGaps handles GET /api/v1/clusters/registry-gaps: for each
+// registry, which clusters' gaps it would close (ocidex-70eo.14). Visibility is
+// the cluster list's: a cluster the caller cannot see contributes nothing.
+func (h *Handler) ListRegistryGaps(ctx context.Context, _ *struct{}) (*ListRegistryGapsOutput, error) {
+	if _, ok := UserFromContext(ctx); !ok {
+		return nil, huma.Error401Unauthorized("not authenticated")
+	}
+	gaps, err := h.clusterService.RegistryGaps(ctx, visibilityFilterFromContext(ctx))
+	if err != nil {
+		return nil, mapServiceError(err)
+	}
+	out := &ListRegistryGapsOutput{}
+	out.Body.Data = make([]RegistryClusterGapResponse, len(gaps))
+	for i, g := range gaps {
+		out.Body.Data[i] = RegistryClusterGapResponse{
+			RegistryID: g.RegistryID, ClusterID: g.ClusterID, ClusterName: g.ClusterName,
+			Images: g.Images, Ready: g.Ready,
+		}
+	}
+	return out, nil
+}
+
+// ListArtifactWorkloads handles GET /api/v1/artifacts/{id}/workloads: where any
+// version of an artifact is running (ocidex-70eo.8). Visibility is the query's,
+// as for ListVulnWorkloads: invisible clusters contribute nothing.
+func (h *Handler) ListArtifactWorkloads(ctx context.Context, in *ListArtifactWorkloadsInput) (*ListVulnWorkloadsOutput, error) {
+	rows, err := h.clusterService.WorkloadsForArtifact(ctx, in.ID, in.Limit, visibilityFilterFromContext(ctx))
 	if err != nil {
 		return nil, mapServiceError(err)
 	}
@@ -530,6 +671,28 @@ func toClusterResponse(c service.Cluster) ClusterResponse {
 	}
 	if c.LastSeenAt != nil {
 		out.LastSeenAt = c.LastSeenAt.UTC().Format(time.RFC3339)
+	}
+	if c.PausedAt != nil {
+		out.PausedAt = c.PausedAt.UTC().Format(time.RFC3339)
+	}
+	health := c.Health(time.Now())
+	out.Health = ClusterHealthResponse{
+		State:             health.State,
+		Reason:            health.Reason,
+		StaleAfterSeconds: int64(health.StaleAfter / time.Second),
+	}
+	if a := c.Agent; a != nil {
+		serverVersion, _, _ := version.Info()
+		out.Agent = &ClusterAgentResponse{
+			Version:               a.Version,
+			KubernetesVersion:     a.KubernetesVersion,
+			NodeCount:             a.NodeCount,
+			Namespaces:            a.Namespaces,
+			ReportIntervalSeconds: a.ReportIntervalSeconds,
+			PodName:               a.PodName,
+			PodNamespace:          a.PodNamespace,
+			VersionSkew:           service.AgentVersionSkew(a.Version, serverVersion),
+		}
 	}
 	return out
 }

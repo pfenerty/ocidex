@@ -51,7 +51,7 @@ type Client interface {
 	CreateCluster(ctx context.Context, body CreateClusterInputBody) (ClusterResponse, error)
 	UpdateCluster(ctx context.Context, id string, body UpdateClusterInputBody) (ClusterResponse, error)
 	DeleteCluster(ctx context.Context, id string) error
-	PutInventory(ctx context.Context, clusterID string, workloads []InventoryWorkload) (PutInventoryOutputBody, error)
+	PutInventory(ctx context.Context, clusterID string, workloads []InventoryWorkload, agent *InventoryAgent) (PutInventoryOutputBody, error)
 	ListClusterWorkloads(ctx context.Context, clusterID string) ([]ClusterWorkloadResponse, WorkloadCoverageResponse, error)
 
 	// SBOM + artifact

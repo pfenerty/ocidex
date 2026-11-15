@@ -111,15 +111,23 @@ cookies carry no ceiling and are unaffected.
 
 | Method | Path | Operation | Class | Capability | Write | Notes |
 |---|---|---|---|---|---|---|
+| GET | `/api/v1/artifacts/{id}/workloads` | `list-artifact-workloads` | `authenticated` | — |  | Workload rows filtered via visible_namespace_ids, as list-vulnerability-workloads. |
 | GET | `/api/v1/clusters` | `list-clusters` | `authenticated` | — |  | Visibility resolved through the owning namespace. |
 | POST | `/api/v1/clusters` | `create-cluster` | `capability` | `manage_cluster` | ✓ | manage_cluster capability on the body's namespace_id. |
+| POST | `/api/v1/clusters/connect` | `connect-cluster` | `capability` | `manage_cluster` | ✓ | manage_cluster and push_inventory on the body's namespace_id, in the handler. Creates the cluster and a cluster-bound credential in one transaction. |
+| GET | `/api/v1/clusters/registry-gaps` | `list-registry-cluster-gaps` | `authenticated` | — |  | Clusters filtered by namespace visibility; each cluster's gap resolves only against its own namespace's registries. |
 | DELETE | `/api/v1/clusters/{id}` | `delete-cluster` | `capability` | `manage_cluster` | ✓ | manage_cluster capability on the cluster's namespace; drops reported inventory only. |
 | GET | `/api/v1/clusters/{id}` | `get-cluster` | `authenticated` | — |  | 404s when the owning namespace is private and unowned. |
 | PATCH | `/api/v1/clusters/{id}` | `update-cluster` | `capability` | `manage_cluster` | ✓ | manage_cluster capability on the cluster's namespace. |
+| GET | `/api/v1/clusters/{id}/credentials` | `list-cluster-credentials` | `capability` | `manage_cluster` |  | manage_cluster capability on cluster's namespace, in the handler. Key metadata only; keys are never listed. |
+| POST | `/api/v1/clusters/{id}/credentials` | `create-cluster-credential` | `capability` | `manage_cluster` | ✓ | manage_cluster and push_inventory on cluster's namespace, in the handler. The minted key is bound to the cluster: refused by OptionalAuthenticate on every route but this cluster's inventory push (ocidex-70eo.5). |
+| DELETE | `/api/v1/clusters/{id}/credentials/{credentialId}` | `revoke-cluster-credential` | `capability` | `manage_cluster` | ✓ | manage_cluster capability on cluster's namespace, in the handler; revokes any minter's credential for this cluster. |
+| POST | `/api/v1/clusters/{id}/credentials/{credentialId}/rotate` | `rotate-cluster-credential` | `capability` | `manage_cluster` | ✓ | Same gate as create-cluster-credential; the replacement is owned by the caller. |
 | GET | `/api/v1/clusters/{id}/images` | `list-cluster-images` | `authenticated` | — |  | Same gate and same rows as list-cluster-workloads, grouped by image rather than by workload-container. |
 | POST | `/api/v1/clusters/{id}/ingest-unknown` | `ingest-cluster-unknown-images` | `capability` | `trigger_scan` | ✓ | trigger_scan, not the visibility that guards the matching list: this spends the namespace's registry credentials and enqueues scan work. It deliberately diverges from put-cluster-inventory, the other trigger for the same action — pushing inventory is what a CI agent does (push_inventory), asking the installation to go scan what it found is not. |
 | POST | `/api/v1/clusters/{id}/inventory` | `put-cluster-inventory` | `capability` | `push_inventory` | ✓ | push_inventory capability on the cluster's namespace — membership, not visibility, because a public namespace must not make inventory writable by anyone. |
 | GET | `/api/v1/clusters/{id}/k8s-namespaces` | `list-cluster-k8s-namespaces` | `authenticated` | — |  | Same gate as list-cluster-workloads; the facet counts describe only the rows that gate admits. |
+| GET | `/api/v1/clusters/{id}/pushes` | `list-cluster-pushes` | `authenticated` | — |  | Cluster gated on namespace visibility, like get-cluster. |
 | GET | `/api/v1/clusters/{id}/unknown-images` | `list-cluster-unknown-images` | `authenticated` | — |  | Same gate as list-cluster-workloads. It names the namespace's registries, so cluster visibility is what authorizes learning them; resolution never leaves the cluster's own namespace. |
 | GET | `/api/v1/clusters/{id}/vulns` | `list-cluster-vulns` | `authenticated` | — |  | Same gate as list-cluster-workloads; findings and coverage are returned together so neither can be read without the other. |
 | GET | `/api/v1/clusters/{id}/workloads` | `list-cluster-workloads` | `authenticated` | — |  | Cluster gated on namespace visibility; rows additionally filtered via visible_namespace_ids. |

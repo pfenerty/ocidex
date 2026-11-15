@@ -49,8 +49,38 @@ type Cluster struct {
 	// resolves to a registry in this cluster's namespace, on every accepted
 	// snapshot. On by default: the point of knowing what runs is to scan it.
 	AutoIngest bool
-	CreatedAt  time.Time
-	UpdatedAt  time.Time
+	// Agent is what the agent said about itself with its last accepted
+	// snapshot. Nil until one has reported, and for an agent that predates
+	// self-reporting (ocidex-70eo.3).
+	Agent *AgentInfo
+	// LastPushErrorAt and LastPushError are the most recent rejected push.
+	// They mean "erroring" only while newer than LastSeenAt (see Health).
+	LastPushErrorAt *time.Time
+	LastPushError   string
+	// PausedAt is set while the cluster is paused (ocidex-70eo.9): pushes are
+	// refused and the last inventory is kept.
+	PausedAt  *time.Time
+	CreatedAt time.Time
+	UpdatedAt time.Time
+}
+
+// AgentInfo is the agent's own description of itself and the cluster it runs
+// in, sent with each snapshot. Every field is optional: the agent fills in
+// what it could read, and a failure to read one is not a reason to drop the
+// snapshot.
+type AgentInfo struct {
+	Version           string
+	KubernetesVersion string
+	// NodeCount is the distinct nodes running the reported pods. Nil when not
+	// reported.
+	NodeCount *int32
+	// Namespaces is the agent's allowlist. Nil means not reported; empty means
+	// every namespace.
+	Namespaces []string
+	// ReportIntervalSeconds is 0 for a one-shot agent. Nil when not reported.
+	ReportIntervalSeconds *int32
+	PodName               string
+	PodNamespace          string
 }
 
 // ClusterWorkload is one running container image in a cluster, as last reported.
@@ -296,6 +326,8 @@ type UpdateClusterParams struct {
 	// AutoIngest is a pointer so an omitted field leaves the setting alone. A
 	// rename must not be able to switch ingest off as a side effect.
 	AutoIngest *bool
+	// Paused pauses (true) or resumes (false) the cluster; nil leaves it.
+	Paused *bool
 }
 
 // ClusterService manages registered clusters and the inventory they report.
@@ -311,7 +343,9 @@ type ClusterService interface {
 	// ReplaceInventory applies a full snapshot: upsert everything reported,
 	// prune everything not reported, stamp last_seen_at. All in one transaction
 	// (ADR-044 K7).
-	ReplaceInventory(ctx context.Context, clusterID string, workloads []ReportedWorkload) (int, error)
+	// agent may be nil (an agent that predates self-reporting); it then clears
+	// the stored agent facts rather than leaving a newer agent's behind.
+	ReplaceInventory(ctx context.Context, clusterID string, workloads []ReportedWorkload, agent *AgentInfo) (int, error)
 
 	ListWorkloads(ctx context.Context, clusterID string, params WorkloadParams, filter VisibilityFilter) (PagedResult[ClusterWorkload], error)
 
@@ -334,6 +368,14 @@ type ClusterService interface {
 	// caller can see".
 	WorkloadsForVulnerability(ctx context.Context, canonicalID, clusterID string, limit int32, filter VisibilityFilter) ([]RunningWorkload, error)
 
+	// RegistryGaps groups every visible cluster's No-SBOM gap by the registry
+	// each image resolves to (ocidex-70eo.14).
+	RegistryGaps(ctx context.Context, filter VisibilityFilter) ([]RegistryClusterGap, error)
+
+	// WorkloadsForArtifact answers "where is this artifact running"
+	// (ocidex-70eo.8), across every cluster the caller can see.
+	WorkloadsForArtifact(ctx context.Context, artifactID string, limit int32, filter VisibilityFilter) ([]RunningWorkload, error)
+
 	// UnknownImages lists the cluster's No-SBOM gap grouped by image, each
 	// resolved against the registries of the cluster's own namespace.
 	UnknownImages(ctx context.Context, clusterID string, limit, offset int32, filter VisibilityFilter) (UnknownImagesPage, error)
@@ -344,6 +386,19 @@ type ClusterService interface {
 	// "nothing could be queued because no registry serves ghcr.io" look
 	// identical from a count alone.
 	IngestUnknown(ctx context.Context, clusterID string, sub RunningImageSubmitter, params IngestUnknownParams, filter VisibilityFilter) (IngestResult, error)
+
+	// Agent credentials (ocidex-70eo.5): API keys bound to this cluster that
+	// may only push its inventory. Callers authorize manage_cluster first.
+	// Connect registers a cluster with its first credential, atomically.
+	Connect(ctx context.Context, p ConnectClusterParams) (Cluster, ClusterCredential, error)
+	CreateCredential(ctx context.Context, clusterID string, userID pgtype.UUID, name string) (ClusterCredential, error)
+	ListCredentials(ctx context.Context, clusterID string) ([]ClusterCredential, error)
+	RevokeCredential(ctx context.Context, clusterID, credentialID string) error
+	RotateCredential(ctx context.Context, clusterID, credentialID string, userID pgtype.UUID) (ClusterCredential, error)
+
+	// Push history (ocidex-70eo.4). RecordPush ignores an unknown cluster id.
+	RecordPush(ctx context.Context, clusterID string, p PushAttempt) error
+	ListPushes(ctx context.Context, clusterID string, limit int32) ([]ClusterPush, error)
 }
 
 type clusterService struct {
@@ -450,11 +505,16 @@ func (s *clusterService) Update(ctx context.Context, params UpdateClusterParams)
 	if params.AutoIngest != nil {
 		auto = pgtype.Bool{Bool: *params.AutoIngest, Valid: true}
 	}
+	paused := pgtype.Bool{}
+	if params.Paused != nil {
+		paused = pgtype.Bool{Bool: *params.Paused, Valid: true}
+	}
 	row, err := s.repo.UpdateCluster(ctx, repository.UpdateClusterParams{
 		ID:          cid,
 		Name:        params.Name,
 		Description: params.Description,
 		AutoIngest:  auto,
+		Paused:      paused,
 	})
 	if err != nil {
 		if isUniqueViolation(err) {
@@ -493,7 +553,7 @@ func (s *clusterService) Delete(ctx context.Context, id string) error {
 // The whole thing is one transaction, so a partially-applied snapshot is never
 // visible. A reader mid-push must not see a cluster that appears to be running
 // half of what it runs.
-func (s *clusterService) ReplaceInventory(ctx context.Context, clusterID string, workloads []ReportedWorkload) (int, error) {
+func (s *clusterService) ReplaceInventory(ctx context.Context, clusterID string, workloads []ReportedWorkload, agent *AgentInfo) (int, error) {
 	cid, err := parseUUID(clusterID)
 	if err != nil {
 		return 0, ErrNotFound
@@ -549,10 +609,10 @@ func (s *clusterService) ReplaceInventory(ctx context.Context, clusterID string,
 	// last_seen_at is stamped even for an empty snapshot. That is the point of
 	// K2: a cluster legitimately running nothing must be distinguishable from a
 	// cluster whose agent has died, and only this timestamp can tell them apart.
-	if err := q.TouchClusterLastSeen(ctx, repository.TouchClusterLastSeenParams{
-		ID:         cid,
-		LastSeenAt: observed,
-	}); err != nil {
+	touch := agentInfoParams(agent)
+	touch.ID = cid
+	touch.LastSeenAt = observed
+	if err := q.TouchClusterLastSeen(ctx, touch); err != nil {
 		return 0, fmt.Errorf("stamping last_seen_at: %w", err)
 	}
 
@@ -883,7 +943,67 @@ func clusterFromRepo(c repository.Cluster) Cluster {
 	if c.UpdatedAt.Valid {
 		out.UpdatedAt = c.UpdatedAt.Time
 	}
+	out.Agent = agentInfoFromRepo(c)
+	if c.PausedAt.Valid {
+		t := c.PausedAt.Time
+		out.PausedAt = &t
+	}
+	if c.LastPushErrorAt.Valid {
+		t := c.LastPushErrorAt.Time
+		out.LastPushErrorAt = &t
+		out.LastPushError = c.LastPushError.String
+	}
 	return out
+}
+
+// agentInfoParams maps what the agent sent onto the stamp query. A nil agent
+// yields all-NULL columns, which is the point: see TouchClusterLastSeen.
+func agentInfoParams(a *AgentInfo) repository.TouchClusterLastSeenParams {
+	var p repository.TouchClusterLastSeenParams
+	if a == nil {
+		return p
+	}
+	p.AgentVersion = optText(a.Version)
+	p.AgentKubernetesVersion = optText(a.KubernetesVersion)
+	p.AgentPodName = optText(a.PodName)
+	p.AgentPodNamespace = optText(a.PodNamespace)
+	if a.NodeCount != nil {
+		p.AgentNodeCount = pgtype.Int4{Int32: *a.NodeCount, Valid: true}
+	}
+	if a.ReportIntervalSeconds != nil {
+		p.AgentReportIntervalSeconds = pgtype.Int4{Int32: *a.ReportIntervalSeconds, Valid: true}
+	}
+	p.AgentNamespaces = a.Namespaces
+	return p
+}
+
+func optText(s string) pgtype.Text {
+	return pgtype.Text{String: s, Valid: s != ""}
+}
+
+// agentInfoFromRepo returns nil when no agent fact is stored at all, so a
+// never-reported cluster and an old agent both read as "nothing said".
+func agentInfoFromRepo(c repository.Cluster) *AgentInfo {
+	a := AgentInfo{
+		Version:           c.AgentVersion.String,
+		KubernetesVersion: c.AgentKubernetesVersion.String,
+		Namespaces:        c.AgentNamespaces,
+		PodName:           c.AgentPodName.String,
+		PodNamespace:      c.AgentPodNamespace.String,
+	}
+	if c.AgentNodeCount.Valid {
+		n := c.AgentNodeCount.Int32
+		a.NodeCount = &n
+	}
+	if c.AgentReportIntervalSeconds.Valid {
+		n := c.AgentReportIntervalSeconds.Int32
+		a.ReportIntervalSeconds = &n
+	}
+	if a.Version == "" && a.KubernetesVersion == "" && a.NodeCount == nil && a.Namespaces == nil &&
+		a.ReportIntervalSeconds == nil && a.PodName == "" && a.PodNamespace == "" {
+		return nil
+	}
+	return &a
 }
 
 func workloadFromRepo(r repository.ListClusterWorkloadsRow) ClusterWorkload {
@@ -957,4 +1077,36 @@ func imageFromRepo(r repository.ListClusterImagesRow) ClusterImage {
 		}
 	}
 	return out
+}
+
+func (s *clusterService) WorkloadsForArtifact(ctx context.Context, artifactID string, limit int32, filter VisibilityFilter) ([]RunningWorkload, error) {
+	aid, err := parseUUID(artifactID)
+	if err != nil {
+		return nil, ErrNotFound
+	}
+	lim, _ := clampPage(limit, 0)
+	rows, err := s.repo.ListWorkloadsForArtifact(ctx, repository.ListWorkloadsForArtifactParams{
+		ArtifactID: aid,
+		UserID:     filter.UserID,
+		IsAdmin:    filter.adminFlag(),
+		Limit:      pgtype.Int4{Int32: lim, Valid: true},
+	})
+	if err != nil {
+		return nil, fmt.Errorf("listing workloads for artifact: %w", err)
+	}
+	out := make([]RunningWorkload, len(rows))
+	for i, r := range rows {
+		out[i] = RunningWorkload{
+			ClusterWorkload: workloadFromRepo(repository.ListClusterWorkloadsRow{
+				ClusterWorkload: r.ClusterWorkload,
+				SbomID:          r.SbomID,
+				ArtifactID:      r.ArtifactID,
+				SubjectVersion:  r.SubjectVersion,
+				ArtifactName:    r.ArtifactName,
+				MatchState:      r.MatchState,
+			}),
+			ClusterName: r.ClusterName,
+		}
+	}
+	return out, nil
 }

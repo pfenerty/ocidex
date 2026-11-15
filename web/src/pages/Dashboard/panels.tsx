@@ -1,4 +1,6 @@
-import { For, type JSX } from "solid-js";
+import { For, Show, type JSX } from "solid-js";
+import { StatusPill } from "~/components/ui";
+import "~/pages/ClusterDetail/ClusterDetail.css";
 import { Boxes, Activity, ShieldAlert, GitCompareArrows, Server, Star } from "lucide-solid";
 import { Panel, PanelBody, PanelRow } from "./Panel";
 import { SeverityPill } from "~/components/cells";
@@ -203,6 +205,64 @@ export function ExposurePanel(): JSX.Element {
     );
 }
 
+const FLEET_STATES: { state: string; label: string; variant: "success" | "warning" | "danger" | "default" }[] = [
+    { state: "healthy", label: "healthy", variant: "success" },
+    { state: "stale", label: "stale", variant: "warning" },
+    { state: "erroring", label: "erroring", variant: "danger" },
+    { state: "never_reported", label: "never reported", variant: "warning" },
+    { state: "paused", label: "paused", variant: "default" },
+];
+
+/**
+ * ClusterFleetSummary heads the clusters panel (ocidex-70eo.8): how many are
+ * in each health state, and the criticals running across them, stated with
+ * the coverage they were counted over so a low number never reads as safe on
+ * its own (ADR-044 K5).
+ */
+export function ClusterFleetSummary(props: { rows: Cluster[] }) {
+    const counts = () => {
+        const m = new Map<string, number>();
+        for (const c of props.rows) m.set(c.health.state, (m.get(c.health.state) ?? 0) + 1);
+        return FLEET_STATES.filter((s) => (m.get(s.state) ?? 0) > 0).map((s) => ({ ...s, n: m.get(s.state) ?? 0 }));
+    };
+    const totals = () => {
+        let total = 0;
+        let matched = 0;
+        let criticals = 0;
+        for (const c of props.rows) {
+            if (c.summary === undefined) continue;
+            total += c.summary.coverage.total;
+            matched += c.summary.coverage.matched;
+            criticals += c.summary.runningCriticals;
+        }
+        return { total, matched, criticals };
+    };
+    return (
+        <div class="cluster-fleet-summary" data-testid="cluster-fleet-summary">
+            <div class="flex flex-wrap gap-1">
+                <For each={counts()}>
+                    {(s) => (
+                        <StatusPill variant={s.variant}>
+                            {s.n} {s.label}
+                        </StatusPill>
+                    )}
+                </For>
+            </div>
+            <Show when={totals().total > 0}>
+                <span class="text-sm">
+                    {/* Summed per cluster: a CVE running in two clusters is two
+                        exposures to fix, and is counted as such. */}
+                    <strong class={totals().criticals > 0 ? "sev-critical-text" : ""}>
+                        {totals().criticals.toLocaleString()} critical
+                    </strong>{" "}
+                    {totals().criticals === 1 ? "finding" : "findings"} running, counted per cluster, across the{" "}
+                    {Math.round((totals().matched / totals().total) * 100)}% of containers OCIDex can assess.
+                </span>
+            </Show>
+        </div>
+    );
+}
+
 /** ClustersPanel — the caller's clusters and when each last reported (ADR-044).
  *  The meta slot carries the staleness pill rather than a bare timestamp: a
  *  cluster that stopped reporting still shows its last inventory everywhere
@@ -219,19 +279,22 @@ export function ClustersPanel(): JSX.Element {
         >
             <PanelBody
                 query={query}
-                empty="No clusters registered. Register one to see what your clusters actually run."
+                empty="No clusters connected. Connect one to see what your clusters actually run."
             >
                 {(rows: Cluster[]) => (
-                    <For each={rows}>
-                        {(c) => (
-                            <PanelRow
-                                href={`/clusters/${c.id}`}
-                                title={c.name}
-                                sub={c.namespaceName}
-                                meta={<StalenessPill lastSeenAt={c.lastSeenAt} />}
-                            />
-                        )}
-                    </For>
+                    <>
+                        <ClusterFleetSummary rows={rows} />
+                        <For each={rows}>
+                            {(c) => (
+                                <PanelRow
+                                    href={`/clusters/${c.id}`}
+                                    title={c.name}
+                                    sub={c.namespaceName}
+                                    meta={<StalenessPill lastSeenAt={c.lastSeenAt} health={c.health} />}
+                                />
+                            )}
+                        </For>
+                    </>
                 )}
             </PanelBody>
         </Panel>

@@ -866,3 +866,57 @@ func (r *IngestResult) countRefusal(reason string) {
 		r.Failed++
 	}
 }
+
+// RegistryClusterGap is how much of one cluster's No-SBOM gap one registry
+// serves (ocidex-70eo.14): the running images whose host resolves to it.
+type RegistryClusterGap struct {
+	RegistryID  string
+	ClusterID   string
+	ClusterName string
+	Images      int64
+	// Ready is how many of those can be ingested now; the rest are blocked
+	// on this registry (disabled, refused) and close once it is fixed.
+	Ready int64
+}
+
+// RegistryGaps resolves every visible cluster's gap once and groups it by the
+// registry each image resolved to, so the Sources tab can say what each
+// registry closes without a request per row. Images that resolved to no
+// registry are left out: they belong to no row there.
+func (s *clusterService) RegistryGaps(ctx context.Context, filter VisibilityFilter) ([]RegistryClusterGap, error) {
+	clusters, err := s.List(ctx, filter)
+	if err != nil {
+		return nil, err
+	}
+	var out []RegistryClusterGap
+	for _, c := range clusters {
+		if c.LastSeenAt == nil {
+			continue
+		}
+		imgs, _, err := s.resolveUnknownImages(ctx, c.ID, filter)
+		if err != nil {
+			return nil, err
+		}
+		byReg := map[string]*RegistryClusterGap{}
+		var order []string
+		for _, img := range imgs {
+			if img.RegistryID == nil {
+				continue
+			}
+			g, ok := byReg[*img.RegistryID]
+			if !ok {
+				g = &RegistryClusterGap{RegistryID: *img.RegistryID, ClusterID: c.ID, ClusterName: c.Name}
+				byReg[*img.RegistryID] = g
+				order = append(order, *img.RegistryID)
+			}
+			g.Images++
+			if img.Reason == IngestReasonReady {
+				g.Ready++
+			}
+		}
+		for _, id := range order {
+			out = append(out, *byReg[id])
+		}
+	}
+	return out, nil
+}

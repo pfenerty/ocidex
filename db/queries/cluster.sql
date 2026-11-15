@@ -37,10 +37,19 @@ ORDER BY c.created_at ASC;
 -- name: UpdateCluster :one
 -- auto_ingest is a narg rather than a plain column: a PATCH that only renames
 -- the cluster must not silently switch ingest off by omitting the field.
+-- paused is a narg for the same reason. Resuming clears the last push error:
+-- refusals while paused were the pause working, not the agent failing.
 UPDATE cluster
 SET name        = $2,
     description = $3,
     auto_ingest = COALESCE(sqlc.narg('auto_ingest')::boolean, auto_ingest),
+    paused_at   = CASE
+                      WHEN sqlc.narg('paused')::boolean IS NULL THEN paused_at
+                      WHEN sqlc.narg('paused')::boolean THEN COALESCE(paused_at, now())
+                      ELSE NULL
+                  END,
+    last_push_error_at = CASE WHEN sqlc.narg('paused')::boolean = false THEN NULL ELSE last_push_error_at END,
+    last_push_error    = CASE WHEN sqlc.narg('paused')::boolean = false THEN NULL ELSE last_push_error END,
     updated_at  = now()
 WHERE id = $1
 RETURNING *;
@@ -53,7 +62,19 @@ DELETE FROM cluster WHERE id = $1;
 -- name: TouchClusterLastSeen :exec
 -- Stamped once per accepted snapshot, inside the ingest transaction. This is
 -- what makes "dead agent" distinguishable from "empty cluster" (ADR-044 K2).
-UPDATE cluster SET last_seen_at = $2, updated_at = now() WHERE id = $1;
+-- The agent_* columns are overwritten, not coalesced: an agent rolled back to
+-- a version that sends nothing must not keep showing the newer one's facts.
+UPDATE cluster
+SET last_seen_at                  = $2,
+    agent_version                 = sqlc.narg('agent_version'),
+    agent_kubernetes_version      = sqlc.narg('agent_kubernetes_version'),
+    agent_node_count              = sqlc.narg('agent_node_count'),
+    agent_namespaces              = sqlc.narg('agent_namespaces')::text[],
+    agent_report_interval_seconds = sqlc.narg('agent_report_interval_seconds'),
+    agent_pod_name                = sqlc.narg('agent_pod_name'),
+    agent_pod_namespace           = sqlc.narg('agent_pod_namespace'),
+    updated_at                    = now()
+WHERE id = $1;
 
 -- name: UpsertClusterWorkload :exec
 -- One row of a snapshot. The conflict target is the full natural key including
@@ -667,3 +688,101 @@ WHERE EXISTS (
   AND c.namespace_id IN (SELECT visible_namespace_ids(sqlc.narg('user_id')::uuid, sqlc.narg('is_admin')::boolean))
 ORDER BY c.name ASC, w.k8s_namespace ASC, w.workload_name ASC
 LIMIT sqlc.narg('limit')::int;
+
+-- name: ListWorkloadsForArtifact :many
+-- Where an artifact is running (ocidex-70eo.8): every visible workload whose
+-- digest resolves to one of the artifact's SBOMs, by the same two-tier match
+-- as everything else here (ADR-044 K4). Same row shape as
+-- ListWorkloadsForVulnerability, so the UI renders both with one component.
+SELECT
+    sqlc.embed(w),
+    c.id            AS cluster_id_out,
+    c.name          AS cluster_name,
+    s.id            AS sbom_id,
+    s.artifact_id   AS artifact_id,
+    s.subject_version AS subject_version,
+    a.name          AS artifact_name,
+    (CASE WHEN s.digest = w.image_digest THEN 'exact' ELSE 'index' END)::text AS match_state
+FROM cluster_workload w
+JOIN cluster c ON c.id = w.cluster_id
+JOIN LATERAL (
+    SELECT s2.id, s2.artifact_id, s2.subject_version, s2.digest
+    FROM sbom s2
+    WHERE w.image_digest IS NOT NULL
+      AND (s2.digest = w.image_digest OR s2.index_digest = w.image_digest)
+    ORDER BY (s2.digest = w.image_digest) DESC, s2.created_at DESC
+    LIMIT 1
+) s ON true
+LEFT JOIN artifact a ON a.id = s.artifact_id
+WHERE s.artifact_id = @artifact_id::uuid
+  AND c.namespace_id IN (SELECT visible_namespace_ids(sqlc.narg('user_id')::uuid, sqlc.narg('is_admin')::boolean))
+ORDER BY c.name ASC, w.k8s_namespace ASC, w.workload_name ASC
+LIMIT sqlc.narg('limit')::int;
+
+-- Cluster agent credentials (ocidex-70eo.5). These are api_key rows bound to a
+-- cluster; the CHECK on api_key pins their ceiling to push_inventory. Every
+-- caller here has already passed manage_cluster on the cluster's namespace.
+
+-- name: CreateClusterCredential :one
+INSERT INTO api_key (user_id, name, key_hash, prefix, capabilities, cluster_id)
+VALUES ($1, $2, $3, $4, ARRAY['push_inventory']::text[], $5)
+RETURNING id, name, prefix, created_at;
+
+-- name: ListClusterCredentials :many
+SELECT k.id, k.name, k.prefix, k.created_at, k.last_used_at, k.user_id, u.display_name
+FROM api_key k
+JOIN ocidex_user u ON u.id = k.user_id
+WHERE k.cluster_id = $1
+ORDER BY k.created_at ASC;
+
+-- name: DeleteClusterCredential :execrows
+DELETE FROM api_key WHERE id = $1 AND cluster_id = $2;
+
+-- name: RotateClusterCredential :one
+-- Revokes the old credential and mints its replacement under the same name, in
+-- one statement so a failure leaves the old one working. The replacement
+-- belongs to the caller: a key narrows with its owner's roles, so it must be
+-- owned by someone who holds them now.
+WITH old AS (
+    DELETE FROM api_key
+    WHERE api_key.id = sqlc.arg('old_id') AND api_key.cluster_id = sqlc.arg('cluster_id')
+    RETURNING api_key.name
+)
+INSERT INTO api_key (user_id, name, key_hash, prefix, capabilities, cluster_id)
+SELECT sqlc.arg('user_id'), old.name, sqlc.arg('key_hash'), sqlc.arg('prefix'),
+       ARRAY['push_inventory']::text[], sqlc.arg('cluster_id')
+FROM old
+RETURNING id, name, prefix, created_at;
+
+-- Push history and health (ocidex-70eo.4).
+
+-- name: RecordClusterPush :execrows
+-- A no-op for a cluster id that does not exist: a push to a mistyped id has
+-- no cluster to explain itself to.
+INSERT INTO cluster_push (cluster_id, accepted, status, reason, workloads, agent_version)
+SELECT c.id, sqlc.arg('accepted'), sqlc.arg('status'), sqlc.arg('reason'),
+       sqlc.narg('workloads'), sqlc.narg('agent_version')
+FROM cluster c WHERE c.id = sqlc.arg('cluster_id');
+
+-- name: PruneClusterPushes :exec
+-- Keeps the newest @keep rows for the cluster. Rejections are unauthenticated
+-- by nature, so the cap is what bounds what an anonymous caller can write.
+DELETE FROM cluster_push
+WHERE cluster_push.cluster_id = sqlc.arg('cluster_id')
+  AND cluster_push.id < (
+      SELECT COALESCE(MIN(k.id), 0) FROM (
+          SELECT p.id FROM cluster_push p
+          WHERE p.cluster_id = sqlc.arg('cluster_id')
+          ORDER BY p.id DESC LIMIT sqlc.arg('keep')::int
+      ) k
+  );
+
+-- name: MarkClusterPushError :exec
+-- Deliberately leaves updated_at alone: a rejected push is not an edit.
+UPDATE cluster SET last_push_error_at = now(), last_push_error = $2 WHERE id = $1;
+
+-- name: ListClusterPushes :many
+SELECT * FROM cluster_push
+WHERE cluster_id = $1
+ORDER BY id DESC
+LIMIT sqlc.arg('max')::int;

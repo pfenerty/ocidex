@@ -362,6 +362,61 @@ func TestClusterWorkloadSnapshotReplaces(t *testing.T) {
 	is.Equal(staysRows, 2)
 }
 
+// TestClusterAgentSelfReport pins ocidex-70eo.3: what the agent says about
+// itself is stored with the snapshot, and an agent that says nothing clears it
+// rather than leaving a newer agent's facts behind.
+func TestClusterAgentSelfReport(t *testing.T) {
+	if testing.Short() {
+		t.Skip("skipping integration test in short mode")
+	}
+	requireTestInfra(t)
+
+	pool, cleanup := setupTestDB(t)
+	defer cleanup()
+
+	ctx := t.Context()
+	is := is.New(t)
+	svc := service.NewClusterService(pool, nil)
+
+	owner := seedUser(t, pool, 9010, "agent-owner", "member")
+	nsID := seedNamespace(t, pool, "agent-ns", owner, "private")
+	clusterID := seedCluster(t, pool, nsID, "prod")
+
+	before, err := svc.Get(ctx, clusterID)
+	is.NoErr(err)
+	is.True(before.Agent == nil) // never reported
+
+	nodes, interval := int32(3), int32(300)
+	_, err = svc.ReplaceInventory(ctx, clusterID, nil, &service.AgentInfo{
+		Version:               "v1.2.0",
+		KubernetesVersion:     "v1.33.1",
+		NodeCount:             &nodes,
+		Namespaces:            []string{},
+		ReportIntervalSeconds: &interval,
+		PodName:               "ocidex-k8s-agent-abc",
+		PodNamespace:          "ocidex-agent",
+	})
+	is.NoErr(err)
+
+	got, err := svc.Get(ctx, clusterID)
+	is.NoErr(err)
+	is.True(got.Agent != nil)
+	is.Equal(got.Agent.Version, "v1.2.0")
+	is.Equal(got.Agent.KubernetesVersion, "v1.33.1")
+	is.Equal(*got.Agent.NodeCount, int32(3))
+	is.Equal(*got.Agent.ReportIntervalSeconds, int32(300))
+	is.Equal(got.Agent.Namespaces, []string{})
+	is.Equal(got.Agent.PodName, "ocidex-k8s-agent-abc")
+
+	// An older agent sends no self-report.
+	_, err = svc.ReplaceInventory(ctx, clusterID, nil, nil)
+	is.NoErr(err)
+	got, err = svc.Get(ctx, clusterID)
+	is.NoErr(err)
+	is.True(got.Agent == nil)
+	is.True(got.LastSeenAt != nil)
+}
+
 // TestClusterVisibility proves a cluster in a namespace the caller cannot see is
 // absent from every read path, not merely from the listing.
 func TestClusterVisibility(t *testing.T) {

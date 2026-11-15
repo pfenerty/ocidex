@@ -172,6 +172,61 @@ The interim exposure is stated plainly so it is not discovered later: **an agent
 upload SBOMs and mutate other resources in namespaces its owner controls.** Mitigation available
 today is to give the agent a key belonging to a user who owns only the cluster's namespace.
 
+### Rule K8a — The agent's credential is bound to its cluster
+
+*Amendment, epic `ocidex-70eo` (story `ocidex-70eo.5`). This closes the interim exposure K8 stated.
+ADR-046 has since replaced scopes with capabilities, so K8's `read-write` / `ClassOwner` wording
+now reads as `push_inventory` / `ClassCapability`; the exposure was the same.*
+
+A **cluster agent credential** is an `api_key` row with `cluster_id` set. It is minted, listed,
+rotated and revoked from the cluster (`/api/v1/clusters/{id}/credentials`), and it can do exactly
+one thing: `POST /api/v1/clusters/{its cluster}/inventory`. Three layers say so:
+
+* **The schema.** A CHECK pins a bound key's capability ceiling to `{push_inventory}`.
+* **The authenticate middleware.** A bound key is refused with 403 on every other request, before
+  any route runs, so a route added later cannot forget to exclude it. That includes public reads:
+  it is refused rather than downgraded to anonymous.
+* **The owner's live roles (ADR-046).** The key still belongs to the user who minted it and is
+  intersected with that user's roles on every request, like any key. Minting needs both
+  `manage_cluster` (it is cluster configuration) and `push_inventory` (an owner who cannot push
+  would mint a key refused on first use). If the minter loses the role, the agent starts failing;
+  the cluster page names the minter for that reason, and rotation re-owns the key to the rotator.
+
+Deleting the cluster cascades to its credentials. Rotation revokes the old key and mints a
+same-named replacement in one statement, so the agent fails until its secret is updated; an overlap
+is *mint a second, roll the agent, revoke the first*.
+
+What this does not do: make the credential independent of a person. A credential owned by the
+cluster itself would survive its minter leaving, but it would be a new kind of principal with no
+roles to intersect against, and that is a change to ADR-046 rather than to this ADR. Ordinary
+`push_inventory` keys keep working, so existing agents need no change.
+
+### Rule K8b — Agent health is derived from pushes, refused ones included
+
+*Amendment, epic `ocidex-70eo` (story `ocidex-70eo.4`). K2 made `last_seen_at` the only
+signal, so a misconfigured agent and a dead one looked the same: both went stale.*
+
+Every push attempt to `POST /api/v1/clusters/{id}/inventory` is recorded in `cluster_push`,
+accepted or refused, with the HTTP status and a reason an operator can act on (revoked key,
+missing capability, a credential bound to another cluster, a schema failure, an oversized
+body). Refusals are recorded by a middleware that runs *before* authentication, because the
+failures that most need explaining happen there. The history is capped at 50 rows per cluster on
+insert; that cap is what bounds what an unauthenticated caller who knows a cluster id can write.
+A push to an id that is no cluster records nothing.
+
+Health is derived, never stored: `never_reported`, `healthy`, `stale` (no accepted push within
+three of the agent's own reported intervals, default 5m; a one-shot agent is never stale) or
+`erroring` (the latest refusal is newer than the latest accepted push). `ClusterResponse.health`
+carries the state and reason, and the API exports `ocidex_cluster_health{cluster,namespace,state}`
+for alerting. The agent logs the server's reason as its own field and counts pushes by outcome
+(`ocidex_agent_pushes_total`).
+
+A cluster can also be **paused** (`ocidex-70eo.9`, `PATCH … {"paused": true}`): pushes get 409, the
+last inventory is kept (and with it retention's protection of the images it lists), and health
+reads `paused`, ahead of every other state, so a deliberate pause never alerts. Resuming clears
+the refusals the pause caused. Deleting is the other way to retire a cluster; it revokes the
+cluster's credentials (K8a) and drops the inventory.
+
 ### Rule K9 — Unknown running images are ingested automatically, within the namespace
 
 *Amendment, epic `ocidex-6zoe`. This answers the last Consequence below: gaps that "appear forever

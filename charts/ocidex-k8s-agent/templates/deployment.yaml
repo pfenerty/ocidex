@@ -23,6 +23,12 @@ spec:
       app.kubernetes.io/instance: {{ .Release.Name }}
   template:
     metadata:
+      {{- if .Values.apiKey.value }}
+      annotations:
+        # A rotated key (helm upgrade --set apiKey.value=...) restarts the agent;
+        # env from a Secret is read only at container start.
+        checksum/api-key: {{ .Values.apiKey.value | sha256sum }}
+      {{- end }}
       labels:
         app.kubernetes.io/name: {{ include "ocidex-k8s-agent.name" . }}
         app.kubernetes.io/instance: {{ .Release.Name }}
@@ -67,6 +73,16 @@ spec:
               value: {{ .Values.reportInterval | quote }}
             - name: HEALTH_ADDR
               value: ":9090"
+            # Reported with each snapshot so the cluster page can name the pod
+            # to inspect (ocidex-70eo.3).
+            - name: POD_NAME
+              valueFrom:
+                fieldRef:
+                  fieldPath: metadata.name
+            - name: POD_NAMESPACE
+              valueFrom:
+                fieldRef:
+                  fieldPath: metadata.namespace
             {{- $otel := .Values.monitoring.otel }}
             {{- range $name, $value := dict "OTEL_TRACES_EXPORTER" $otel.tracesExporter "OTEL_METRICS_EXPORTER" $otel.metricsExporter "OTEL_EXPORTER_OTLP_ENDPOINT" $otel.endpoint "OTEL_EXPORTER_OTLP_PROTOCOL" $otel.protocol "OTEL_TRACES_SAMPLER" $otel.sampler "OTEL_TRACES_SAMPLER_ARG" $otel.samplerArg "OTEL_RESOURCE_ATTRIBUTES" $otel.resourceAttributes }}
             {{- if $value }}

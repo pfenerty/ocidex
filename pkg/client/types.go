@@ -36,6 +36,33 @@ func (e ArtifactVersionSummarySigningStatus) Valid() bool {
 	}
 }
 
+// Defines values for ClusterHealthResponseState.
+const (
+	Erroring      ClusterHealthResponseState = "erroring"
+	Healthy       ClusterHealthResponseState = "healthy"
+	NeverReported ClusterHealthResponseState = "never_reported"
+	Paused        ClusterHealthResponseState = "paused"
+	Stale         ClusterHealthResponseState = "stale"
+)
+
+// Valid indicates whether the value is a known member of the ClusterHealthResponseState enum.
+func (e ClusterHealthResponseState) Valid() bool {
+	switch e {
+	case Erroring:
+		return true
+	case Healthy:
+		return true
+	case NeverReported:
+		return true
+	case Paused:
+		return true
+	case Stale:
+		return true
+	default:
+		return false
+	}
+}
+
 // Defines values for ClusterImageResponseMatchState.
 const (
 	ClusterImageResponseMatchStateExact        ClusterImageResponseMatchState = "exact"
@@ -1798,6 +1825,73 @@ type ChangelogEntry struct {
 	To      SBOMRef          `json:"to"`
 }
 
+// ClusterAgentResponse defines model for ClusterAgentResponse.
+type ClusterAgentResponse struct {
+	// KubernetesVersion Kubernetes server version (gitVersion)
+	KubernetesVersion *string `json:"kubernetesVersion,omitempty"`
+
+	// Namespaces Namespace allowlist; empty or absent with reportIntervalSeconds set means every namespace
+	Namespaces *[]string `json:"namespaces,omitempty"`
+
+	// NodeCount Distinct nodes running the reported pods
+	NodeCount *int32 `json:"nodeCount,omitempty"`
+
+	// PodName The agent's own pod
+	PodName *string `json:"podName,omitempty"`
+
+	// PodNamespace Namespace the agent runs in
+	PodNamespace *string `json:"podNamespace,omitempty"`
+
+	// ReportIntervalSeconds Seconds between snapshots; 0 for a one-shot agent
+	ReportIntervalSeconds *int32 `json:"reportIntervalSeconds,omitempty"`
+
+	// Version Agent build version
+	Version *string `json:"version,omitempty"`
+
+	// VersionSkew Set when the agent's major.minor differs from the server's
+	VersionSkew *string `json:"versionSkew,omitempty"`
+}
+
+// ClusterCredentialResponse defines model for ClusterCredentialResponse.
+type ClusterCredentialResponse struct {
+	// Schema A URL to the JSON Schema for this object.
+	Schema    *string `json:"$schema,omitempty"`
+	CreatedAt string  `json:"createdAt"`
+	Id        string  `json:"id"`
+
+	// Key The full key, shown once on create or rotate. Store it in the agent's secret.
+	Key *string `json:"key,omitempty"`
+
+	// LastUsedAt When the agent last authenticated with it; empty if never
+	LastUsedAt *string `json:"lastUsedAt,omitempty"`
+	Name       string  `json:"name"`
+
+	// OwnerId User who minted it. The credential narrows with that user's live namespace roles.
+	OwnerId   string  `json:"ownerId"`
+	OwnerName *string `json:"ownerName,omitempty"`
+
+	// Prefix First 8 characters of the key
+	Prefix string `json:"prefix"`
+
+	// ServerUrl The API's configured public URL (API_BASE_URL), for the agent's server.url; absent when not configured. Set only alongside key.
+	ServerUrl *string `json:"serverUrl,omitempty"`
+}
+
+// ClusterHealthResponse defines model for ClusterHealthResponse.
+type ClusterHealthResponse struct {
+	// Reason Why, for every state but healthy
+	Reason *string `json:"reason,omitempty"`
+
+	// StaleAfterSeconds Seconds after the last accepted push at which the cluster turns stale; absent for a one-shot agent
+	StaleAfterSeconds *int64 `json:"staleAfterSeconds,omitempty"`
+
+	// State never_reported: nothing pushed yet. healthy: last push accepted and recent. stale: no accepted push within three report intervals. erroring: the agent is pushing and being refused. paused: paused on purpose; snapshots are refused.
+	State ClusterHealthResponseState `json:"state"`
+}
+
+// ClusterHealthResponseState never_reported: nothing pushed yet. healthy: last push accepted and recent. stale: no accepted push within three report intervals. erroring: the agent is pushing and being refused. paused: paused on purpose; snapshots are refused.
+type ClusterHealthResponseState string
+
 // ClusterImageResponse defines model for ClusterImageResponse.
 type ClusterImageResponse struct {
 	ArtifactId   *string `json:"artifactId,omitempty"`
@@ -1828,16 +1922,34 @@ type ClusterImageResponse struct {
 // ClusterImageResponseMatchState exact = digest matched an SBOM; index = matched a multi-arch image index, so the exact platform is unknown; unknown = real digest with no ingested SBOM (coverage gap); unresolvable = no digest could be read from the container (agent/runtime gap)
 type ClusterImageResponseMatchState string
 
+// ClusterPushResponse defines model for ClusterPushResponse.
+type ClusterPushResponse struct {
+	Accepted     bool    `json:"accepted"`
+	AgentVersion *string `json:"agentVersion,omitempty"`
+	At           string  `json:"at"`
+
+	// Reason Why it was refused
+	Reason *string `json:"reason,omitempty"`
+
+	// Status HTTP status the push received
+	Status int64 `json:"status"`
+
+	// Workloads Workload rows in an accepted snapshot
+	Workloads *int32 `json:"workloads,omitempty"`
+}
+
 // ClusterResponse defines model for ClusterResponse.
 type ClusterResponse struct {
 	// Schema A URL to the JSON Schema for this object.
-	Schema *string `json:"$schema,omitempty"`
+	Schema *string               `json:"$schema,omitempty"`
+	Agent  *ClusterAgentResponse `json:"agent,omitempty"`
 
 	// AutoIngest Submit a scan job for every running image with no SBOM whose host resolves to a registry in this cluster's namespace, on every accepted snapshot.
-	AutoIngest  bool    `json:"autoIngest"`
-	CreatedAt   string  `json:"createdAt"`
-	Description *string `json:"description,omitempty"`
-	Id          string  `json:"id"`
+	AutoIngest  bool                  `json:"autoIngest"`
+	CreatedAt   string                `json:"createdAt"`
+	Description *string               `json:"description,omitempty"`
+	Health      ClusterHealthResponse `json:"health"`
+	Id          string                `json:"id"`
 
 	// LastSeenAt When an agent last pushed a snapshot. Empty means no agent has ever reported: a cluster showing no workloads for this reason is not a cluster running nothing.
 	LastSeenAt  *string `json:"lastSeenAt,omitempty"`
@@ -1846,7 +1958,19 @@ type ClusterResponse struct {
 
 	// NamespaceName Owning namespace name; populated on list responses
 	NamespaceName *string `json:"namespaceName,omitempty"`
-	UpdatedAt     string  `json:"updatedAt"`
+
+	// PausedAt When the cluster was paused; empty while active
+	PausedAt  *string                 `json:"pausedAt,omitempty"`
+	Summary   *ClusterSummaryResponse `json:"summary,omitempty"`
+	UpdatedAt string                  `json:"updatedAt"`
+}
+
+// ClusterSummaryResponse defines model for ClusterSummaryResponse.
+type ClusterSummaryResponse struct {
+	Coverage WorkloadCoverageResponse `json:"coverage"`
+
+	// RunningCriticals Distinct critical vulnerabilities in matched running images
+	RunningCriticals int64 `json:"runningCriticals"`
 }
 
 // ClusterWorkloadResponse defines model for ClusterWorkloadResponse.
@@ -1998,6 +2122,30 @@ type ComponentVulnEntry struct {
 	Summary          *string  `json:"summary,omitempty"`
 }
 
+// ConnectClusterInputBody defines model for ConnectClusterInputBody.
+type ConnectClusterInputBody struct {
+	// Schema A URL to the JSON Schema for this object.
+	Schema *string `json:"$schema,omitempty"`
+
+	// AutoIngest Scan running images with no SBOM on each snapshot. Defaults to true.
+	AutoIngest  *bool   `json:"autoIngest,omitempty"`
+	Description *string `json:"description,omitempty"`
+
+	// Name Cluster name, unique within the namespace
+	Name string `json:"name"`
+
+	// NamespaceId Owning namespace UUID
+	NamespaceId openapi_types.UUID `json:"namespaceId"`
+}
+
+// ConnectClusterOutputBody defines model for ConnectClusterOutputBody.
+type ConnectClusterOutputBody struct {
+	// Schema A URL to the JSON Schema for this object.
+	Schema     *string                   `json:"$schema,omitempty"`
+	Cluster    ClusterResponse           `json:"cluster"`
+	Credential ClusterCredentialResponse `json:"credential"`
+}
+
 // CreateAPIKeyInputBody defines model for CreateAPIKeyInputBody.
 type CreateAPIKeyInputBody struct {
 	// Schema A URL to the JSON Schema for this object.
@@ -2020,6 +2168,15 @@ type CreateAPIKeyOutputBody struct {
 
 	// Key Full API key — shown once, store securely
 	Key string `json:"key"`
+}
+
+// CreateClusterCredentialInputBody defines model for CreateClusterCredentialInputBody.
+type CreateClusterCredentialInputBody struct {
+	// Schema A URL to the JSON Schema for this object.
+	Schema *string `json:"$schema,omitempty"`
+
+	// Name Label for the credential; defaults to '<cluster>-agent'
+	Name *string `json:"name,omitempty"`
 }
 
 // CreateClusterInputBody defines model for CreateClusterInputBody.
@@ -2668,6 +2825,30 @@ type IngestUnknownOutputBody struct {
 	Unauthorized int64 `json:"unauthorized"`
 }
 
+// InventoryAgent defines model for InventoryAgent.
+type InventoryAgent struct {
+	// KubernetesVersion Kubernetes server gitVersion from the discovery API
+	KubernetesVersion *string `json:"kubernetesVersion,omitempty"`
+
+	// Namespaces Namespace allowlist; empty means every namespace
+	Namespaces *[]string `json:"namespaces,omitempty"`
+
+	// NodeCount Distinct nodes running the reported pods
+	NodeCount *int32 `json:"nodeCount,omitempty"`
+
+	// PodName The agent's own pod name
+	PodName *string `json:"podName,omitempty"`
+
+	// PodNamespace Namespace the agent runs in
+	PodNamespace *string `json:"podNamespace,omitempty"`
+
+	// ReportIntervalSeconds Seconds between snapshots; 0 for a one-shot agent
+	ReportIntervalSeconds *int32 `json:"reportIntervalSeconds,omitempty"`
+
+	// Version Agent build version
+	Version *string `json:"version,omitempty"`
+}
+
 // InventoryWorkload defines model for InventoryWorkload.
 type InventoryWorkload struct {
 	ContainerName string `json:"containerName"`
@@ -2693,7 +2874,10 @@ type InventoryWorkload struct {
 type KeyMetaResponse struct {
 	// Capabilities Capabilities this key may exercise, before intersection with the owner's live namespace roles
 	Capabilities *[]string `json:"capabilities"`
-	CreatedAt    time.Time `json:"createdAt"`
+
+	// ClusterId Set for a cluster agent credential, which may only push this cluster's inventory
+	ClusterId *string   `json:"clusterId,omitempty"`
+	CreatedAt time.Time `json:"createdAt"`
 
 	// Id Key UUID
 	Id         string     `json:"id"`
@@ -2777,6 +2961,13 @@ type ListArtifactsOutputBody struct {
 	Total *int64 `json:"total,omitempty"`
 }
 
+// ListClusterCredentialsOutputBody defines model for ListClusterCredentialsOutputBody.
+type ListClusterCredentialsOutputBody struct {
+	// Schema A URL to the JSON Schema for this object.
+	Schema *string                      `json:"$schema,omitempty"`
+	Data   *[]ClusterCredentialResponse `json:"data"`
+}
+
 // ListClusterImagesOutputBody defines model for ListClusterImagesOutputBody.
 type ListClusterImagesOutputBody struct {
 	// Schema A URL to the JSON Schema for this object.
@@ -2793,6 +2984,13 @@ type ListClusterNamespacesOutputBody struct {
 	Data   *[]NamespaceFacetResponse `json:"data"`
 }
 
+// ListClusterPushesOutputBody defines model for ListClusterPushesOutputBody.
+type ListClusterPushesOutputBody struct {
+	// Schema A URL to the JSON Schema for this object.
+	Schema *string                `json:"$schema,omitempty"`
+	Data   *[]ClusterPushResponse `json:"data"`
+}
+
 // ListClusterUnknownImagesOutputBody defines model for ListClusterUnknownImagesOutputBody.
 type ListClusterUnknownImagesOutputBody struct {
 	// Schema A URL to the JSON Schema for this object.
@@ -2803,6 +3001,9 @@ type ListClusterUnknownImagesOutputBody struct {
 	Hosts      *[]UnknownHostResponse   `json:"hosts"`
 	Pagination PaginationMeta           `json:"pagination"`
 	Reasons    UnknownImageReasonCounts `json:"reasons"`
+
+	// ScanningEnabled Whether this deployment can scan images at all. When false, nothing can be ingested from here (manually or by auto-ingest) and the ingest endpoint returns 503.
+	ScanningEnabled bool `json:"scanningEnabled"`
 }
 
 // ListClusterVulnsOutputBody defines model for ListClusterVulnsOutputBody.
@@ -2941,6 +3142,13 @@ type ListRegistriesOutputBody struct {
 	Schema     *string             `json:"$schema,omitempty"`
 	Data       *[]RegistryResponse `json:"data"`
 	Pagination PaginationMeta      `json:"pagination"`
+}
+
+// ListRegistryGapsOutputBody defines model for ListRegistryGapsOutputBody.
+type ListRegistryGapsOutputBody struct {
+	// Schema A URL to the JSON Schema for this object.
+	Schema *string                       `json:"$schema,omitempty"`
+	Data   *[]RegistryClusterGapResponse `json:"data"`
 }
 
 // ListSBOMComponentsOutputBody defines model for ListSBOMComponentsOutputBody.
@@ -3230,7 +3438,8 @@ type ProviderResponse struct {
 // PutInventoryInputBody defines model for PutInventoryInputBody.
 type PutInventoryInputBody struct {
 	// Schema A URL to the JSON Schema for this object.
-	Schema *string `json:"$schema,omitempty"`
+	Schema *string         `json:"$schema,omitempty"`
+	Agent  *InventoryAgent `json:"agent,omitempty"`
 
 	// Workloads The complete set of running container images. Omitted entries are pruned.
 	Workloads *[]InventoryWorkload `json:"workloads"`
@@ -3249,6 +3458,12 @@ type PutInventoryOutputBody struct {
 
 	// SeenAt Timestamp recorded on the cluster
 	SeenAt string `json:"seenAt"`
+
+	// ServerVersion The server's version
+	ServerVersion *string `json:"serverVersion,omitempty"`
+
+	// VersionSkew Set when the reported agent version's major.minor differs from the server's
+	VersionSkew *string `json:"versionSkew,omitempty"`
 }
 
 // ReadinessCheckOutputBody defines model for ReadinessCheckOutputBody.
@@ -3285,6 +3500,19 @@ type RegenerateWebhookSecretOutputBody struct {
 
 	// WebhookSecret New webhook secret — shown once only. The previous secret is immediately invalidated.
 	WebhookSecret string `json:"webhookSecret"`
+}
+
+// RegistryClusterGapResponse defines model for RegistryClusterGapResponse.
+type RegistryClusterGapResponse struct {
+	ClusterId   string `json:"clusterId"`
+	ClusterName string `json:"clusterName"`
+
+	// Images Running images with no SBOM whose host resolves to this registry
+	Images int64 `json:"images"`
+
+	// Ready How many of those can be ingested now; the rest wait on this registry
+	Ready      int64  `json:"ready"`
+	RegistryId string `json:"registryId"`
 }
 
 // RegistryPreview defines model for RegistryPreview.
@@ -3820,6 +4048,9 @@ type UpdateClusterInputBody struct {
 	AutoIngest  *bool   `json:"autoIngest,omitempty"`
 	Description *string `json:"description,omitempty"`
 	Name        string  `json:"name"`
+
+	// Paused Pause (true) or resume (false) the cluster. A paused cluster refuses snapshots and keeps its last inventory. Omit to leave unchanged.
+	Paused *bool `json:"paused,omitempty"`
 }
 
 // UpdateNamespaceInputBody defines model for UpdateNamespaceInputBody.
@@ -4237,6 +4468,11 @@ type ListArtifactVulnsParamsSort string
 // ListArtifactVulnsParamsDir defines parameters for ListArtifactVulns.
 type ListArtifactVulnsParamsDir string
 
+// ListArtifactWorkloadsParams defines parameters for ListArtifactWorkloads.
+type ListArtifactWorkloadsParams struct {
+	Limit *int32 `form:"limit,omitempty" json:"limit,omitempty"`
+}
+
 // ListClustersParams defines parameters for ListClusters.
 type ListClustersParams struct {
 	// NamespaceId Limit to clusters in one namespace
@@ -4275,6 +4511,11 @@ type ListClusterImagesParamsSort string
 
 // ListClusterImagesParamsDir defines parameters for ListClusterImages.
 type ListClusterImagesParamsDir string
+
+// ListClusterPushesParams defines parameters for ListClusterPushes.
+type ListClusterPushesParams struct {
+	Limit *int32 `form:"limit,omitempty" json:"limit,omitempty"`
+}
 
 // ListClusterUnknownImagesParams defines parameters for ListClusterUnknownImages.
 type ListClusterUnknownImagesParams struct {
@@ -4843,8 +5084,14 @@ type CreateApiKeyJSONRequestBody = CreateAPIKeyInputBody
 // CreateClusterJSONRequestBody defines body for CreateCluster for application/json ContentType.
 type CreateClusterJSONRequestBody = CreateClusterInputBody
 
+// ConnectClusterJSONRequestBody defines body for ConnectCluster for application/json ContentType.
+type ConnectClusterJSONRequestBody = ConnectClusterInputBody
+
 // UpdateClusterJSONRequestBody defines body for UpdateCluster for application/json ContentType.
 type UpdateClusterJSONRequestBody = UpdateClusterInputBody
+
+// CreateClusterCredentialJSONRequestBody defines body for CreateClusterCredential for application/json ContentType.
+type CreateClusterCredentialJSONRequestBody = CreateClusterCredentialInputBody
 
 // IngestClusterUnknownImagesJSONRequestBody defines body for IngestClusterUnknownImages for application/json ContentType.
 type IngestClusterUnknownImagesJSONRequestBody = IngestUnknownInputBody

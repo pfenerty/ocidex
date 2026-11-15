@@ -245,7 +245,8 @@ The inventory agent, installed once in each cluster OCIDex should see.
 | <code>image.<wbr>digest</code> | "" | digest pins the agent image to an immutable sha256 digest and is baked in at release-package time by the helm-release CI task (release builds only; empty for main/dev sha builds). An explicit image.tag takes precedence over digest. |
 | <code>server</code> | | server.url is the base URL of the OCIDex API server (OCIDEX_SERVER). Unlike the other charts this is usually a cluster-EXTERNAL URL, since OCIDex generally runs elsewhere. Example: "https://ocidex.app" |
 | <code>server.<wbr>url</code> | "" |  |
-| <code>apiKey</code> | | apiKey configures where the agent reads its OCIDex API key (OCIDEX_API_KEY). The key needs the push_inventory capability, and must belong to a member of the namespace the cluster is registered under whose role grants it (ADR-044 K8, ADR-046). |
+| <code>apiKey</code> | | apiKey configures where the agent reads its OCIDex API key (OCIDEX_API_KEY). The key needs the push_inventory capability, and must belong to a member of the namespace the cluster is registered under whose role grants it (ADR-044 K8, ADR-046). Two ways to supply it (ocidex-70eo.6): |
+| <code>apiKey.<wbr>value</code> | "" |  |
 | <code>apiKey.<wbr>secretName</code> | `ocidex-k8s-agent-secrets` |  |
 | <code>apiKey.<wbr>secretKey</code> | `OCIDEX_API_KEY` |  |
 | <code>cluster.<wbr>id</code> | "" | id is the UUID of the cluster record in OCIDex (OCIDEX_CLUSTER_ID). Register the cluster first (UI, or POST /api/v1/clusters) and paste its id here. Supplied rather than discovered: a Kubernetes cluster has no stable self-identifier the agent could derive, and a guessed one would let a redeployed agent silently start replacing a different cluster's inventory. |

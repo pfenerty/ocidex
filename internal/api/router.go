@@ -1,6 +1,7 @@
 package api
 
 import (
+	"log/slog"
 	"net/http"
 	"net/url"
 	"regexp"
@@ -194,6 +195,9 @@ func NewRouter(h *Handler, corsOrigins, frontendURL, apiBaseURL string) chi.Rout
 		AllowCredentials: true,
 		MaxAge:           300,
 	}))
+	// Outside authentication, so a push refused there is still recorded
+	// against its cluster (ocidex-70eo.4).
+	r.Use(RecordInventoryPushes(h.pushRecorder()))
 	r.Use(OptionalAuthenticate(h.authService))
 	r.Use(CrossOriginGuard(allowedOrigins, apiBaseURL))
 	r.Use(middleware.Timeout(30 * time.Second))
@@ -970,6 +974,12 @@ func registerSourceOps(api huma.API, h *Handler) {
 // ---------------------------------------------------------------------------
 
 func registerClusterOps(api huma.API, h *Handler) {
+	// Said once, here, because every consequence is otherwise silent: auto-
+	// ingest skips each snapshot without a word and the ingest endpoint 503s
+	// (ocidex-70eo.12).
+	if h.scanSubmitter == nil {
+		slog.Info("no scanner configured: cluster auto-ingest and unknown-image ingest are disabled")
+	}
 	authMW := RequireAuthenticated(api)
 	writeMW := RequireWrite(api)
 
@@ -1044,6 +1054,90 @@ func registerClusterOps(api huma.API, h *Handler) {
 		Tags:        []string{tagClusters},
 		Middlewares: huma.Middlewares{authMW, writeMW},
 	}, h.PutInventory)
+
+	huma.Register(api, huma.Operation{
+		OperationID:   "connect-cluster",
+		Method:        http.MethodPost,
+		Path:          "/api/v1/clusters/connect",
+		Summary:       "Connect a cluster",
+		Description:   "Registers a cluster and mints its first agent credential in one step. The credential's key is in the response and nowhere else.",
+		Tags:          []string{tagClusters},
+		DefaultStatus: http.StatusCreated,
+		Middlewares:   huma.Middlewares{authMW, writeMW},
+	}, h.ConnectCluster)
+
+	// Agent credentials (ocidex-70eo.5): keys bound to the cluster that may
+	// only push its inventory.
+	huma.Register(api, huma.Operation{
+		OperationID: "list-cluster-credentials",
+		Method:      http.MethodGet,
+		Path:        pathClusterByID + "/credentials",
+		Summary:     "List cluster agent credentials",
+		Description: "The agent credentials bound to this cluster, with who minted each and when it was last used. Keys are never returned here.",
+		Tags:        []string{tagClusters},
+		Middlewares: huma.Middlewares{authMW},
+	}, h.ListClusterCredentials)
+
+	huma.Register(api, huma.Operation{
+		OperationID:   "create-cluster-credential",
+		Method:        http.MethodPost,
+		Path:          pathClusterByID + "/credentials",
+		Summary:       "Mint a cluster agent credential",
+		Description:   "Mints an API key bound to this cluster that can do nothing but push its inventory. The key is returned once.",
+		Tags:          []string{tagClusters},
+		DefaultStatus: http.StatusCreated,
+		Middlewares:   huma.Middlewares{authMW, writeMW},
+	}, h.CreateClusterCredential)
+
+	huma.Register(api, huma.Operation{
+		OperationID: "rotate-cluster-credential",
+		Method:      http.MethodPost,
+		Path:        pathClusterByID + "/credentials/{credentialId}/rotate",
+		Summary:     "Rotate a cluster agent credential",
+		Description: "Revokes the credential and mints a replacement with the same name, owned by the caller. The agent fails to push until it is given the new key; for an overlap, mint a second credential and revoke the first once the agent has rolled.",
+		Tags:        []string{tagClusters},
+		Middlewares: huma.Middlewares{authMW, writeMW},
+	}, h.RotateClusterCredential)
+
+	huma.Register(api, huma.Operation{
+		OperationID:   "revoke-cluster-credential",
+		Method:        http.MethodDelete,
+		Path:          pathClusterByID + "/credentials/{credentialId}",
+		Summary:       "Revoke a cluster agent credential",
+		Tags:          []string{tagClusters},
+		DefaultStatus: http.StatusNoContent,
+		Middlewares:   huma.Middlewares{authMW, writeMW},
+	}, h.RevokeClusterCredential)
+
+	huma.Register(api, huma.Operation{
+		OperationID: "list-registry-cluster-gaps",
+		Method:      http.MethodGet,
+		Path:        "/api/v1/clusters/registry-gaps",
+		Summary:     "List the cluster gaps each registry would close",
+		Description: "For every visible cluster, its running images with no SBOM grouped by the registry each resolves to, with how many can be ingested now.",
+		Tags:        []string{tagClusters},
+		Middlewares: huma.Middlewares{authMW},
+	}, h.ListRegistryGaps)
+
+	huma.Register(api, huma.Operation{
+		OperationID: "list-artifact-workloads",
+		Method:      http.MethodGet,
+		Path:        "/api/v1/artifacts/{id}/workloads",
+		Summary:     "List where an artifact is running",
+		Description: "Kubernetes workloads running any version of this artifact, across every cluster visible to the caller, each with the version it runs.",
+		Tags:        []string{tagClusters},
+		Middlewares: huma.Middlewares{authMW},
+	}, h.ListArtifactWorkloads)
+
+	huma.Register(api, huma.Operation{
+		OperationID: "list-cluster-pushes",
+		Method:      http.MethodGet,
+		Path:        pathClusterByID + "/pushes",
+		Summary:     "List recent inventory pushes",
+		Description: "The cluster's most recent push attempts, accepted and rejected, newest first. A rejected push carries the reason it was refused.",
+		Tags:        []string{tagClusters},
+		Middlewares: huma.Middlewares{authMW},
+	}, h.ListClusterPushes)
 
 	huma.Register(api, huma.Operation{
 		OperationID: "list-cluster-workloads",

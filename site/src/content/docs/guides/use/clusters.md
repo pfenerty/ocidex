@@ -5,23 +5,30 @@ sidebar:
   order: 6
 ---
 
-A registered cluster runs the inventory agent, which reports every running container's image.
-Installing it is in the [operator guide](/guides/operate/clusters-and-operator/). The cluster page
+A connected cluster runs the inventory agent, which reports every running container's image.
+Connecting one is in the [operator guide](/guides/operate/clusters-and-operator/). The cluster page
 answers one question: **what's actually running here, and what do we know about it?**
+
+## The cluster list
+
+The **Clusters** page puts problems first. Each row shows the agent's health with its reason
+(*erroring*, *stale*, *never reported*, *healthy* or *paused*), how many containers it runs, how
+much of that is assessed, the critical vulnerabilities running in the assessed part, and the agent
+and Kubernetes versions. A **skew** badge means the agent and server versions differ.
 
 ## The coverage band
 
 ![A cluster page: the coverage band, and the most severe vulnerabilities running in the cluster](../../../../assets/screenshots/cluster.png)
 
-Four tiles sit above the tabs and always describe the **whole cluster**, never the current filter,
-so a filtered table of three clean rows can't pass for a clean cluster.
+A bar above the tabs splits every container in the cluster three ways, and always describes the
+**whole cluster**, never the current filter, so a filtered table of three clean rows can't pass for
+a clean cluster. Each part of the legend links to the rows behind it.
 
-| Tile | Meaning | What to do |
+| Part | Meaning | What to do |
 | --- | --- | --- |
-| **Containers** | Workload containers in the last snapshot, with the pod count beneath | |
-| **Matched** | The image digest matches an ingested SBOM | Nothing: these are assessed |
-| **No SBOM** | A valid registry digest, but nothing ingested for it | Ingest it: see [Gaps](#gaps) |
-| **Unresolvable** | The container runtime reported no registry digest | Upgrade the node's runtime |
+| **Matched** (green) | The image digest matches an ingested SBOM | Nothing: these are assessed |
+| **No SBOM** (amber) | A valid registry digest, but nothing ingested for it | Ingest it: see [Gaps](#gaps) |
+| **No digest readable** (grey) | The container runtime reported no registry digest | Upgrade the node's runtime |
 
 Containers are counted per namespace, workload, container and image, so a three-replica Deployment
 is one container and three pods. Every vulnerability figure on the page counts containers.
@@ -30,13 +37,17 @@ is one container and three pods. Every vulnerability figure on the page counts c
 the counts describe those 40. The other 60 are *not assessed*, which isn't the same as clean, and
 the page says so.
 
-Before the agent's first report, the page shows install commands with this cluster's id instead
-of four zeroed tiles.
+Before the agent's first report there's no bar and no inventory tabs, only the install command and
+a live wait for the first snapshot. A stale, erroring or paused cluster gets a banner above the bar
+that says so, because an old inventory looks exactly like a current one.
 
 ## Tabs
 
-**Overview** shows the five most severe vulnerabilities running in the cluster (headed "top 5 of N"),
-how stale the last report is, and whether auto-ingest is on.
+The header lists what the agent reported about itself: its version, the Kubernetes version and node
+count, how often it reports, and the pod it runs in.
+
+**Overview** shows the five most severe vulnerabilities running in the cluster (headed "top 5 of N")
+and whether auto-ingest is on.
 
 **Workloads** shows the inventory two ways, chosen with **Group by**:
 
@@ -49,6 +60,21 @@ assessed says so in words, never as a zero.
 
 **Vulnerabilities** lists each advisory once, however many workloads run it. Expand a row to see
 which ones do. An advisory's own page shows the reverse: every cluster running it.
+
+**Agent** shows the last pushes with their result and any refusal reason, the cluster's
+[agent credentials](/guides/operate/clusters-and-operator/#agent-credentials), its settings (name,
+description, auto-ingest), and **Retire…** to pause or delete it. Settings and retiring need the
+`manage_cluster` capability.
+
+## Elsewhere in OCIDex
+
+- An **artifact's page** says when it's running and where: a *running in N clusters* badge, a
+  **Running** column on its versions, and a **Running** tab listing every workload.
+- The **Workspace** clusters panel counts your clusters by health and sums the critical
+  vulnerabilities running in them.
+- **Search** (⌘K) finds clusters by name.
+
+Clusters are visible only to signed-in users, and only in namespaces you can see.
 
 ## Gaps
 
@@ -82,7 +108,7 @@ queues what it says.
 ## Auto-ingest
 
 Auto-ingest is **on** for every new cluster: each report queues a scan of every `ready to ingest`
-image. Turn it off per cluster on the **Clusters** page (Edit, then Save).
+image. Turn it off per cluster in the **Agent** tab's settings, or when connecting it.
 
 - **Credentials come only from the cluster's namespace.** A registry in another namespace is never
   used, even for the same host.
@@ -103,7 +129,10 @@ minutes later. A row that stays after its scan finished means the scan failed; t
 
 | Symptom | Cause |
 | --- | --- |
-| The cluster reads *never reported* | The agent has never sent a report. That's different from running nothing. Check the agent's logs. |
+| The cluster reads *never reported* | No snapshot has arrived. That's different from running nothing. Check the agent's logs. |
+| The cluster reads *erroring* | The agent reaches OCIDex and is refused. The reason is on the pill and the Agent tab. See [Health](/guides/operate/clusters-and-operator/#health). |
+| The cluster reads *stale* | No accepted snapshot for three report intervals. The agent is down, or can't reach `server.url`. |
 | Workloads vanished after a configuration change | Each report replaces the whole inventory. Narrowing the agent's namespaces removes the others. |
 | An image shows as a bare hash | The runtime reported an image id with no name, and the pod spec had none either. |
-| Auto-ingest queues nothing | Check the Gaps tab: every state other than `ready` names its fix. If every row is `ready`, the installation has no scanner running. |
+| Gaps says *This deployment can't scan images* | The installation has no scanner. Nothing can be ingested from OCIDex, and auto-ingest does nothing; upload SBOMs instead. |
+| Auto-ingest queues nothing | Check the Gaps tab: every state other than `ready` names its fix. |

@@ -110,6 +110,7 @@ type KeyMetaResponse struct {
 	Capabilities []string   `json:"capabilities" doc:"Capabilities this key may exercise, before intersection with the owner's live namespace roles"`
 	CreatedAt    time.Time  `json:"createdAt"`
 	LastUsedAt   *time.Time `json:"lastUsedAt,omitempty"`
+	ClusterID    string     `json:"clusterId,omitempty" doc:"Set for a cluster agent credential, which may only push this cluster's inventory"`
 }
 
 // ListAPIKeysOutput is the response for GET /api/v1/auth/keys.
