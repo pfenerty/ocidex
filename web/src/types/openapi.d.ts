@@ -2253,7 +2253,17 @@ export interface components {
             namespaceName?: string;
             /** @description When the cluster was paused; empty while active */
             pausedAt?: string;
+            /** @description Coverage and running criticals, on list responses for a cluster that has reported */
+            summary?: components["schemas"]["ClusterSummaryResponse"];
             updatedAt: string;
+        };
+        ClusterSummaryResponse: {
+            coverage: components["schemas"]["WorkloadCoverageResponse"];
+            /**
+             * Format: int64
+             * @description Distinct critical vulnerabilities in matched running images
+             */
+            runningCriticals: number;
         };
         ClusterWorkloadResponse: {
             artifactId?: string;

@@ -104,7 +104,7 @@ export function AgentCredentials(props: { clusterId: string; namespaceId: string
 
     return (
         <Show when={canManage()}>
-            <Card class="mt-4" data-testid="agent-credentials">
+            <Card data-testid="agent-credentials">
                 <CardHeader title="Agent credentials" />
                 <p class="text-muted">
                     A credential can push this cluster&apos;s inventory and do nothing else. It acts

@@ -64,6 +64,21 @@ export function useRefreshClusterInventory() {
         });
 }
 
+/** useClusterPushes — the cluster's recent push attempts, refused ones included. */
+export function useClusterPushes(id: Accessor<string | undefined>) {
+    return createQuery(() => ({
+        queryKey: ["clusters", id(), "pushes"] as const,
+        queryFn: () =>
+            unwrap(
+                client.GET("/api/v1/clusters/{id}/pushes", {
+                    params: { path: { id: id() ?? "" }, query: { limit: 20 } },
+                }),
+            ),
+        enabled: id() !== undefined,
+        select: (resp) => resp.data ?? [],
+    }));
+}
+
 /** useConnectCluster — register a cluster with its first agent credential. */
 export function useConnectCluster() {
     const queryClient = useQueryClient();

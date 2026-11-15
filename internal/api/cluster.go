@@ -63,8 +63,31 @@ func (h *Handler) listClusters(ctx context.Context, vis service.VisibilityFilter
 	out.Body.Data = make([]ClusterResponse, len(rows))
 	for i, c := range rows {
 		out.Body.Data[i] = toClusterResponse(c)
+		out.Body.Data[i].Summary = h.clusterSummary(ctx, c, vis)
 	}
 	return out, nil
+}
+
+// clusterSummary is one list row's coverage and running criticals
+// (ocidex-70eo.7). Nil for a cluster that has never reported, where both
+// would be zeros that read as clean, and on any error: a summary is an aid to
+// the list, not a reason to fail it. One cluster at a time, because a
+// namespace has a handful of clusters, not hundreds.
+func (h *Handler) clusterSummary(ctx context.Context, c service.Cluster, vis service.VisibilityFilter) *ClusterSummaryResponse {
+	if c.LastSeenAt == nil {
+		return nil
+	}
+	cov, err := h.clusterService.Coverage(ctx, c.ID, vis)
+	if err != nil {
+		slog.WarnContext(ctx, "cluster summary coverage", "cluster_id", c.ID, "err", err)
+		return nil
+	}
+	crit, err := h.clusterService.RunningVulns(ctx, c.ID, service.RunningVulnParams{Severity: "CRITICAL", Limit: 1}, vis)
+	if err != nil {
+		slog.WarnContext(ctx, "cluster summary criticals", "cluster_id", c.ID, "err", err)
+		return nil
+	}
+	return &ClusterSummaryResponse{Coverage: toCoverageResponse(cov), RunningCriticals: crit.Total}
 }
 
 // GetCluster returns one cluster, gated on its namespace's visibility.

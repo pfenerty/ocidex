@@ -1960,8 +1960,17 @@ type ClusterResponse struct {
 	NamespaceName *string `json:"namespaceName,omitempty"`
 
 	// PausedAt When the cluster was paused; empty while active
-	PausedAt  *string `json:"pausedAt,omitempty"`
-	UpdatedAt string  `json:"updatedAt"`
+	PausedAt  *string                 `json:"pausedAt,omitempty"`
+	Summary   *ClusterSummaryResponse `json:"summary,omitempty"`
+	UpdatedAt string                  `json:"updatedAt"`
+}
+
+// ClusterSummaryResponse defines model for ClusterSummaryResponse.
+type ClusterSummaryResponse struct {
+	Coverage WorkloadCoverageResponse `json:"coverage"`
+
+	// RunningCriticals Distinct critical vulnerabilities in matched running images
+	RunningCriticals int64 `json:"runningCriticals"`
 }
 
 // ClusterWorkloadResponse defines model for ClusterWorkloadResponse.

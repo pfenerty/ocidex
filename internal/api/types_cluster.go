@@ -8,18 +8,28 @@ package api
 // workloads (ADR-044). Like a source, it carries no visibility of its own —
 // the owning namespace decides who may see it.
 type ClusterResponse struct {
-	ID            string                `json:"id"`
-	NamespaceID   string                `json:"namespaceId"`
-	NamespaceName string                `json:"namespaceName,omitempty" doc:"Owning namespace name; populated on list responses"`
-	Name          string                `json:"name"`
-	Description   string                `json:"description,omitempty"`
-	LastSeenAt    string                `json:"lastSeenAt,omitempty" doc:"When an agent last pushed a snapshot. Empty means no agent has ever reported: a cluster showing no workloads for this reason is not a cluster running nothing."`
-	AutoIngest    bool                  `json:"autoIngest" doc:"Submit a scan job for every running image with no SBOM whose host resolves to a registry in this cluster's namespace, on every accepted snapshot."`
-	Agent         *ClusterAgentResponse `json:"agent,omitempty" doc:"What the agent reported about itself with its last accepted snapshot. Absent until an agent that self-reports has pushed."`
-	Health        ClusterHealthResponse `json:"health" doc:"The agent's health, derived from its pushes"`
-	PausedAt      string                `json:"pausedAt,omitempty" doc:"When the cluster was paused; empty while active"`
-	CreatedAt     string                `json:"createdAt"`
-	UpdatedAt     string                `json:"updatedAt"`
+	ID            string                  `json:"id"`
+	NamespaceID   string                  `json:"namespaceId"`
+	NamespaceName string                  `json:"namespaceName,omitempty" doc:"Owning namespace name; populated on list responses"`
+	Name          string                  `json:"name"`
+	Description   string                  `json:"description,omitempty"`
+	LastSeenAt    string                  `json:"lastSeenAt,omitempty" doc:"When an agent last pushed a snapshot. Empty means no agent has ever reported: a cluster showing no workloads for this reason is not a cluster running nothing."`
+	AutoIngest    bool                    `json:"autoIngest" doc:"Submit a scan job for every running image with no SBOM whose host resolves to a registry in this cluster's namespace, on every accepted snapshot."`
+	Agent         *ClusterAgentResponse   `json:"agent,omitempty" doc:"What the agent reported about itself with its last accepted snapshot. Absent until an agent that self-reports has pushed."`
+	Health        ClusterHealthResponse   `json:"health" doc:"The agent's health, derived from its pushes"`
+	PausedAt      string                  `json:"pausedAt,omitempty" doc:"When the cluster was paused; empty while active"`
+	Summary       *ClusterSummaryResponse `json:"summary,omitempty" doc:"Coverage and running criticals, on list responses for a cluster that has reported"`
+	CreatedAt     string                  `json:"createdAt"`
+	UpdatedAt     string                  `json:"updatedAt"`
+}
+
+// ClusterSummaryResponse is what the cluster list shows per row
+// (ocidex-70eo.7): how much of what runs OCIDex can assess, and the worst of
+// what it found. Criticals count only the matched containers, which is why
+// coverage travels with them.
+type ClusterSummaryResponse struct {
+	Coverage         WorkloadCoverageResponse `json:"coverage"`
+	RunningCriticals int64                    `json:"runningCriticals" doc:"Distinct critical vulnerabilities in matched running images"`
 }
 
 // ClusterHealthResponse is a cluster's derived agent health (ocidex-70eo.4).

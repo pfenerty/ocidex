@@ -1,17 +1,12 @@
-import { Match, Show, Switch, createSignal } from "solid-js";
+import { Match, Show, Switch } from "solid-js";
 import { A } from "@solidjs/router";
 import DataTable from "~/components/DataTable";
 import type { Column } from "~/components/DataTable";
 import { Button, PageHeader, StatusPill } from "~/components/ui";
-import { useToast } from "~/context/toast";
-import { RetireClusterDialog } from "./RetireClusterDialog";
+import "./ClusterDetail/ClusterDetail.css";
 import { relativeDate, formatDateTime } from "~/utils/format";
 import type { Cluster } from "~/api/client";
-import {
-    useListClusters,
-    useUpdateCluster,
-    useDeleteCluster,
-} from "~/api/queries";
+import { useListClusters } from "~/api/queries";
 
 type ClusterHealth = Cluster["health"];
 
@@ -81,83 +76,60 @@ export function StalenessPill(props: { lastSeenAt: string | undefined; health?: 
     );
 }
 
+/** Problems first: the list exists to answer "is anything wrong?". */
+const HEALTH_ORDER: Record<string, number> = {
+    erroring: 0,
+    stale: 1,
+    never_reported: 2,
+    healthy: 3,
+    paused: 4,
+};
+
+/** One row's coverage as a compact bar, with its share matched in words. */
+export function CoverageCell(props: { cluster: Cluster }) {
+    return (
+        <Show when={props.cluster.summary} fallback={<span class="text-muted">—</span>}>
+            {(s) => {
+                const c = () => s().coverage;
+                const pct = (n: number) => (c().total === 0 ? 0 : (n / c().total) * 100);
+                return (
+                    <div class="grid gap-1">
+                        <div class="coverage-bar compact" role="img" aria-label={`${Math.round(pct(c().matched))}% matched`}>
+                            <Show when={c().matched > 0}>
+                                <i class="coverage-bar-matched" style={{ width: `${pct(c().matched)}%` }} />
+                            </Show>
+                            <Show when={c().unknown > 0}>
+                                <i class="coverage-bar-unknown" style={{ width: `${pct(c().unknown)}%` }} />
+                            </Show>
+                            <Show when={c().unresolvable > 0}>
+                                <i class="coverage-bar-unresolvable" style={{ width: `${pct(c().unresolvable)}%` }} />
+                            </Show>
+                        </div>
+                        <span class="text-muted text-sm">{Math.round(pct(c().matched))}% matched</span>
+                    </div>
+                );
+            }}
+        </Show>
+    );
+}
+
 /**
- * Clusters is the registration and management surface for the Kubernetes
- * clusters an agent reports into (ADR-044).
+ * Clusters answers "is any of my clusters in trouble?" without opening one
+ * (ocidex-70eo.7): health with its reason, how much of what runs OCIDex can
+ * assess, the criticals it found there, and the agent's version.
  *
- * Not an Admin tab, unlike namespaces and sources: a cluster is owned by its
- * namespace and managed by whoever owns that namespace (K8 reuses ClassOwner,
- * not a site-admin role), and the Admin section is only rendered for
- * `role === "admin"`. Putting it there would lock every namespace owner out of
- * their own fleet.
+ * Read-only on purpose. Editing, credentials, pausing and deleting live on the
+ * cluster's Agent tab, beside the push history that explains the health.
  */
 export default function Clusters() {
     const query = useListClusters();
-    const updateCluster = useUpdateCluster();
-    const deleteCluster = useDeleteCluster();
-    const toast = useToast();
 
-    const [editingID, setEditingID] = createSignal<string | null>(null);
-    const [editName, setEditName] = createSignal("");
-    const [editDescription, setEditDescription] = createSignal("");
-    const [editAutoIngest, setEditAutoIngest] = createSignal(true);
-
-
-    function startEdit(c: Cluster) {
-        setEditingID(c.id);
-        setEditName(c.name);
-        setEditDescription(c.description ?? "");
-        setEditAutoIngest(c.autoIngest);
-    }
-
-    function saveEdit(id: string) {
-        const name = editName().trim();
-        if (name === "") return;
-        updateCluster.mutate(
-            { id, name, description: editDescription().trim(), autoIngest: editAutoIngest() },
-            {
-                onSuccess: () => {
-                    setEditingID(null);
-                    toast("Cluster updated", "success");
-                },
-                onError: () => toast("Failed to update cluster", "error"),
-            },
+    const rows = () =>
+        [...(query.data?.data ?? [])].sort(
+            (a, b) =>
+                (HEALTH_ORDER[a.health.state] ?? 9) - (HEALTH_ORDER[b.health.state] ?? 9) ||
+                a.name.localeCompare(b.name),
         );
-    }
-
-    // Retiring goes through a dialog that offers pause beside delete and says
-    // what each keeps (ocidex-70eo.9).
-    let retireRef: HTMLDialogElement | undefined;
-    const [retiring, setRetiring] = createSignal<Cluster | null>(null);
-    function handleRetire(c: Cluster) {
-        setRetiring(c);
-        retireRef?.showModal();
-    }
-    function closeRetire() {
-        retireRef?.close();
-        setRetiring(null);
-    }
-    function handleDelete(c: Cluster) {
-        deleteCluster.mutate(c.id, {
-            onSuccess: () => {
-                toast("Cluster deleted", "success");
-                closeRetire();
-            },
-            onError: () => toast("Failed to delete cluster", "error"),
-        });
-    }
-    function setPaused(c: Cluster, paused: boolean) {
-        updateCluster.mutate(
-            { id: c.id, name: c.name, description: c.description, paused },
-            {
-                onSuccess: () => {
-                    toast(paused ? "Cluster paused" : "Cluster resumed", "success");
-                    if (paused) closeRetire();
-                },
-                onError: () => toast(paused ? "Failed to pause cluster" : "Failed to resume cluster", "error"),
-            },
-        );
-    }
 
     const columns: Column<Cluster>[] = [
         {
@@ -165,116 +137,82 @@ export default function Clusters() {
             sortKey: "name",
             sortValue: (c) => c.name,
             render: (c) => (
-                <Show
-                    when={editingID() === c.id}
-                    fallback={<A href={`/clusters/${c.id}`}>{c.name}</A>}
-                >
-                    <input
-                        type="text"
-                        data-testid="edit-name"
-                        value={editName()}
-                        onInput={(e) => setEditName(e.currentTarget.value)}
-                        class="min-w-40"
-                    />
+                <div class="grid">
+                    <A href={`/clusters/${c.id}`}>{c.name}</A>
+                    <span class="text-muted text-sm">{c.namespaceName ?? "—"}</span>
+                </div>
+            ),
+        },
+        {
+            header: "Agent health",
+            sortValue: (c) => HEALTH_ORDER[c.health.state] ?? 9,
+            render: (c) => (
+                <div class="grid justify-items-start gap-1">
+                    <StalenessPill lastSeenAt={c.lastSeenAt} health={c.health} />
+                    <Show when={c.health.state !== "healthy" && (c.health.reason ?? "") !== ""}>
+                        <span class="text-muted text-sm cluster-health-reason clamp-2" title={c.health.reason}>
+                            {c.health.reason}
+                        </span>
+                    </Show>
+                    <Show when={c.health.state === "never_reported"}>
+                        <A href={`/clusters/${c.id}`} class="text-sm">
+                            finish connecting
+                        </A>
+                    </Show>
+                </div>
+            ),
+        },
+        {
+            header: "Containers",
+            align: "right",
+            sortValue: (c) => c.summary?.coverage.total ?? -1,
+            render: (c) => (
+                <Show when={c.summary} fallback={<span class="text-muted">—</span>}>
+                    {(s) => s().coverage.total.toLocaleString()}
                 </Show>
             ),
         },
         {
-            header: "Namespace",
-            sortKey: "namespace",
-            sortValue: (c) => c.namespaceName ?? "",
-            render: (c) => <span class="text-muted">{c.namespaceName ?? "—"}</span>,
+            header: "Coverage",
+            sortValue: (c) =>
+                c.summary === undefined || c.summary.coverage.total === 0
+                    ? -1
+                    : c.summary.coverage.matched / c.summary.coverage.total,
+            render: (c) => <CoverageCell cluster={c} />,
         },
         {
-            header: "Description",
+            header: "Running criticals",
+            align: "right",
+            sortValue: (c) => c.summary?.runningCriticals ?? -1,
             render: (c) => (
-                <Show
-                    when={editingID() === c.id}
-                    fallback={<span class="text-muted">{c.description ?? "—"}</span>}
-                >
-                    <input
-                        type="text"
-                        data-testid="edit-description"
-                        value={editDescription()}
-                        onInput={(e) => setEditDescription(e.currentTarget.value)}
-                        class="min-w-48"
-                    />
+                <Show when={c.summary} fallback={<span class="text-muted">—</span>}>
+                    {(s) => (
+                        <span class={s().runningCriticals > 0 ? "sev-critical-text" : ""}>
+                            {s().runningCriticals.toLocaleString()}
+                        </span>
+                    )}
                 </Show>
             ),
         },
         {
-            // Read-only outside edit mode: flipping ingest on for a cluster is
-            // a decision to spend that namespace's registry credentials, so it
-            // goes through the same Save as a rename rather than firing off a
-            // stray click in a table.
-            header: "Auto-ingest",
+            header: "Agent",
             render: (c) => (
-                <Show
-                    when={editingID() === c.id}
-                    fallback={
-                        <span class="text-muted">{c.autoIngest ? "On" : "Off"}</span>
-                    }
-                >
-                    <label class="flex items-center gap-1.5">
-                        <input
-                            type="checkbox"
-                            data-testid="edit-auto-ingest"
-                            checked={editAutoIngest()}
-                            onChange={(e) => setEditAutoIngest(e.currentTarget.checked)}
-                        />
-                        <span class="text-muted text-sm">scan unknown images on push</span>
-                    </label>
-                </Show>
-            ),
-        },
-        {
-            header: "Last reported",
-            sortKey: "last_seen",
-            sortValue: (c) => c.lastSeenAt ?? "",
-            render: (c) => <StalenessPill lastSeenAt={c.lastSeenAt} health={c.health} />,
-        },
-        {
-            header: "",
-            render: (c) => (
-                <Show
-                    when={editingID() === c.id}
-                    fallback={
-                        <div class="flex gap-2">
-                            <Button size="sm" onClick={() => startEdit(c)}>
-                                Edit
-                            </Button>
-                            <Show when={c.pausedAt !== undefined}>
-                                <Button
-                                    size="sm"
-                                    onClick={() => setPaused(c, false)}
-                                    disabled={updateCluster.isPending}
-                                >
-                                    Resume
-                                </Button>
+                <Show when={c.agent} fallback={<span class="text-muted">—</span>}>
+                    {(a) => (
+                        <div class="grid">
+                            <span>
+                                {a().version ?? "unknown"}{" "}
+                                <Show when={(a().versionSkew ?? "") !== ""}>
+                                    <StatusPill variant="warning" title={a().versionSkew}>
+                                        skew
+                                    </StatusPill>
+                                </Show>
+                            </span>
+                            <Show when={a().kubernetesVersion}>
+                                {(v) => <span class="text-muted text-sm">k8s {v()}</span>}
                             </Show>
-                            <Button
-                                size="sm"
-                                onClick={() => handleRetire(c)}
-                                disabled={deleteCluster.isPending}
-                            >
-                                Retire
-                            </Button>
                         </div>
-                    }
-                >
-                    <div class="flex gap-2">
-                        <Button
-                            variant="primary"
-                            size="sm"
-                            onClick={() => saveEdit(c.id)}
-                            disabled={updateCluster.isPending || editName().trim() === ""}
-                        >
-                            Save
-                        </Button>
-                        <Button size="sm" onClick={() => setEditingID(null)}>
-                            Cancel
-                        </Button>
-                    </div>
+                    )}
                 </Show>
             ),
         },
@@ -294,27 +232,13 @@ export default function Clusters() {
 
             <DataTable
                 columns={columns}
-                rows={query.data?.data}
+                rows={query.data ? rows() : undefined}
                 loading={query.isFetching}
                 isError={query.isError}
                 error={query.error}
                 emptyTitle="No clusters connected"
                 emptyMessage="Connect a cluster: name it, run one helm command against it, and its workloads appear here."
             />
-
-            {/* After the table in document order as well as visually: a
-                dialog renders in the top layer when open, so its position
-                here costs nothing, and the data stays first for anything
-                that reads the page linearly. */}
-            <RetireClusterDialog
-                ref={(el) => (retireRef = el)}
-                cluster={retiring()}
-                busy={deleteCluster.isPending || updateCluster.isPending}
-                onPause={(c) => setPaused(c, true)}
-                onDelete={handleDelete}
-                onCancel={closeRetire}
-            />
-
         </>
     );
 }

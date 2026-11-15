@@ -917,6 +917,10 @@
             "description": "When the cluster was paused; empty while active",
             "type": "string"
           },
+          "summary": {
+            "$ref": "#/components/schemas/ClusterSummaryResponse",
+            "description": "Coverage and running criticals, on list responses for a cluster that has reported"
+          },
           "updatedAt": {
             "type": "string"
           }
@@ -929,6 +933,24 @@
           "health",
           "createdAt",
           "updatedAt"
+        ],
+        "type": "object"
+      },
+      "ClusterSummaryResponse": {
+        "additionalProperties": false,
+        "properties": {
+          "coverage": {
+            "$ref": "#/components/schemas/WorkloadCoverageResponse"
+          },
+          "runningCriticals": {
+            "description": "Distinct critical vulnerabilities in matched running images",
+            "format": "int64",
+            "type": "integer"
+          }
+        },
+        "required": [
+          "coverage",
+          "runningCriticals"
         ],
         "type": "object"
       },

@@ -139,6 +139,7 @@ const cluster = {
     namespaceId: "ns-acme",
     namespaceName: "acme",
     lastSeenAt: new Date().toISOString(),
+    health: { state: "healthy" },
     createdAt: "2026-01-01T00:00:00Z",
     updatedAt: "2026-01-01T00:00:00Z",
 };
@@ -428,10 +429,11 @@ describe("ClusterDetail", () => {
     it("states coverage before any vulnerability figure", () => {
         const { container } = renderPage([workload()], GAPPY);
 
-        const tiles = [...container.querySelectorAll(".coverage-tile")];
-        expect(tiles).toHaveLength(4);
-        expect(must(tiles[1], "matched tile").textContent).toContain("4");
-        expect(must(tiles[1], "matched tile").textContent).toContain("40%");
+        const band = must(container.querySelector(".coverage-band"), "coverage band");
+        const segments = [...band.querySelectorAll(".coverage-segment")];
+        expect(segments).toHaveLength(3);
+        expect(must(segments[0], "matched").textContent).toContain("4");
+        expect(must(band.querySelector(".coverage-bar"), "bar").getAttribute("aria-label")).toBe("40% matched");
     });
 
     // The tile counts workload-containers, which is the denominator every
@@ -441,14 +443,10 @@ describe("ClusterDetail", () => {
     it("labels the containers tile with what it actually counts", () => {
         const { container } = renderPage([workload()], GAPPY);
 
-        const containers = must(
-            container.querySelectorAll(".coverage-tile")[0],
-            "containers tile",
-        );
-        expect(containers.textContent).toContain("10");
-        expect(containers.textContent).toContain("workload containers");
-        expect(containers.textContent).toContain("23 pods");
-        expect(containers.textContent).not.toContain("deduplicated");
+        const total = must(container.querySelector(".coverage-total"), "total");
+        expect(total.textContent).toContain("10 workload containers");
+        expect(total.textContent).toContain("23 pods");
+        expect(total.textContent).not.toContain("deduplicated");
     });
 
     // The complaint this epic started from: the No-SBOM tile was tinted red on
@@ -458,9 +456,9 @@ describe("ClusterDetail", () => {
     it("does not raise a permanent alarm on the gap tiles", () => {
         const { container } = renderPage([workload()], GAPPY);
 
-        for (const tile of container.querySelectorAll(".coverage-tile")) {
-            expect(tile.className).not.toContain("bad");
-            expect(tile.className).not.toContain("active");
+        for (const seg of container.querySelectorAll(".coverage-segment")) {
+            expect(seg.className).not.toContain("bad");
+            expect(seg.className).not.toContain("selected");
         }
     });
 
@@ -468,14 +466,14 @@ describe("ClusterDetail", () => {
     // one, so a non-zero gap is marked and states its remedy.
     it("keeps a non-zero gap visually distinct and actionable", () => {
         const { container } = renderPage([workload()], GAPPY);
+        const segments = [...container.querySelectorAll(".coverage-segment")];
 
-        const tiles = [...container.querySelectorAll(".coverage-tile")];
-        const noSbom = must(tiles[2], "no-SBOM tile");
+        const noSbom = must(segments[1], "no-SBOM entry");
         expect(noSbom.className).toContain("gap");
         expect(noSbom.textContent).toContain("ingest to fix");
         expect(noSbom.getAttribute("href")).toBe("/clusters/c-prod?tab=gaps");
 
-        const unresolvable = must(tiles[3], "unresolvable tile");
+        const unresolvable = must(segments[2], "unresolvable entry");
         expect(unresolvable.className).toContain("gap");
         expect(unresolvable.textContent).toContain("runtime gap");
     });
@@ -489,8 +487,8 @@ describe("ClusterDetail", () => {
             pods: 9,
         });
 
-        for (const tile of container.querySelectorAll(".coverage-tile")) {
-            expect(tile.className).not.toContain("gap");
+        for (const seg of container.querySelectorAll(".coverage-segment")) {
+            expect(seg.className).not.toContain("gap");
         }
         expect(container.querySelector(".coverage-caveat")).toBeNull();
     });
@@ -572,11 +570,13 @@ describe("ClusterDetail", () => {
         try {
             const { container } = renderPage([], EMPTY, []);
 
-            expect(container.querySelectorAll(".coverage-tile")).toHaveLength(0);
+            expect(container.querySelector(".coverage-band")).toBeNull();
             const tabLabels = [...container.querySelectorAll(".tab-bar button, .tab-bar a")].map(
                 (t) => t.textContent,
             );
-            expect(tabLabels).toEqual(["Overview"]);
+            // The Agent tab stays: credentials and push history are how a
+            // cluster that never reported gets diagnosed (design Q2).
+            expect(tabLabels).toEqual(["Overview", "Agent"]);
             expect(container.querySelector('[data-testid="install-agent"]')).not.toBeNull();
         } finally {
             cluster.lastSeenAt = clusterLastSeen;
@@ -614,9 +614,9 @@ describe("ClusterDetail", () => {
         searchParams = { tab: "workloads", matchState: "exact" };
         const { container } = renderPage([workload()], GAPPY);
 
-        const tiles = [...container.querySelectorAll(".coverage-tile")];
-        expect(must(tiles[1], "matched tile").className).toContain("active");
-        expect(must(tiles[0], "containers tile").className).not.toContain("active");
+        const segments = [...container.querySelectorAll(".coverage-segment")];
+        expect(must(segments[0], "matched entry").className).toContain("selected");
+        expect(must(container.querySelector(".coverage-total"), "total").className).not.toContain("selected");
     });
 
     it("labels every match state in words, not colour alone", () => {
