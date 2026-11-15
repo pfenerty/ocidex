@@ -27,8 +27,10 @@
 # Multi-repo configuration (experimental - bd-307)
 # Allows hydrating from multiple repositories and routing writes to the correct JSONL
 repos:
-  primary: "."
-  # additional: removed — HydrateFromMultiRepo panics on Dolt-backed stores (experimental, unimplemented)
+    primary: "."
+    # additional: removed — HydrateFromMultiRepo panics on Dolt-backed stores (experimental, unimplemented)
+export:
+    auto: true
 
 # Integration settings (access with 'bd config get/set')
 # These are stored in the database, not in this file:

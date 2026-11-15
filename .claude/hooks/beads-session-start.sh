@@ -14,7 +14,7 @@ set -uo pipefail
 
 # Pinned to the bd version in pfenerty/planning's Flox manifest (rewritten by
 # `hub vendor`). @latest would let cloud and local bd disagree on the JSONL.
-BD_VERSION="v1.0.3"
+BD_VERSION="v1.3.2"
 
 PROJECT_DIR="${CLAUDE_PROJECT_DIR:-$(cd "$(dirname "${BASH_SOURCE[0]}")/../.." && pwd)}"
 HOOKS_DIR="$PROJECT_DIR/.claude/hooks"
