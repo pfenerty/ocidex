@@ -121,6 +121,19 @@ tests/                 # Integration tests (testcontainers)
   [docs/DEVELOPMENT.md § Testing diff/tree changes](docs/DEVELOPMENT.md#testing-difftree-changes)
 - Prefer small, composable, idiomatic libraries over batteries-included frameworks
 
+## Gotchas
+
+- **OCI registries paginate `/v2/<repo>/tags/list` and `/v2/_catalog`, oldest first.** ghcr.io returns 100 per page by default (`?n=` up to 1000); quay.io caps at 100 whatever `n` says. A client that reads one page sees only ancient tags, and the result looks like a correctly empty one (ocidex-zogv). Follow `Link: <...>; rel=next` (`ociListPaged`). A stub API that returns everything in one page hides this: registry-facing code needs one live check against ghcr.io or quay.io before it counts as verified.
+- **Catalog built binaries, not the source tree, for Go SBOMs.** `syft dir:. --select-catalogers go` reads `go.sum`, which lists every module version seen during resolution (76 versions of `golang.org/x/sys` against 1 selected), so grype floods with CVEs for versions that don't ship. The go-binary cataloger on the built binaries reads one linker-embedded version per module (`.tektonic/jobs/sbom-push`). govulncheck is the reachability-aware complement.
+- **nushell 0.113 traps** (all fail quietly, not as parse errors):
+  - `http post` with a record body needs `--content-type application/json`.
+  - `error make` inside a `catch` block re-raises the original error, and your message never appears. Return a sentinel from the `catch` and raise outside the `try`.
+  - Parentheses inside an interpolated `$"..."` string run as subexpressions: `$"see (docker compose logs x)"` runs the command. Escape them as `\( \)` or use a plain string.
+  - `do { ... } | complete` only captures exit codes of external commands; a failing internal command (`http get` on a refused connection) propagates through it. Use `try`/`catch` for those.
+- **Claude Code's Bash tool shell varies between sessions** (zsh or nu), whatever the environment header says. Probe once before writing anything shell-specific. macOS bash is 3.2 (no `declare -A`). Monitor scripts always run under bash.
+- **Never `2>/dev/null` a polling query in a Monitor script.** A kubectl jsonpath error (a dotted label key needs escaping, e.g. `pipelinesascode\.tekton\.dev/sha`) was swallowed, every poll came back empty, and the monitor reported "no PipelineRun" while the pipeline ran fine.
+- **This clone has old git stashes.** Never run a bare `git stash; git pull; git stash pop`: with nothing stashed, `pop` applies an old stash. Use `git pull --rebase --autostash`.
+
 ## Issue Tracking & Branching
 
 `bd prime` runs at session start and covers the command reference. What follows is
