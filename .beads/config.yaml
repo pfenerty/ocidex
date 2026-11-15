@@ -30,7 +30,9 @@ repos:
     primary: "."
     # additional: removed — HydrateFromMultiRepo panics on Dolt-backed stores (experimental, unimplemented)
 export:
-    auto: true
+    auto: false
+sync:
+    remote: "git+ssh://git@github.com/pfenerty/ocidex.git"
 
 # Integration settings (access with 'bd config get/set')
 # These are stored in the database, not in this file:
@@ -40,3 +42,4 @@ export:
 # - linear.api-key
 # - github.org
 # - github.repo
+issue-prefix: "ocidex"

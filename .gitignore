@@ -60,3 +60,6 @@ Thumbs.db
 # Local authenticated dev rig state (scripts/dev-auth.sh)
 .dev/
 __pycache__/
+
+# bd runtime lock
+.beads.gate.lock
