@@ -480,6 +480,10 @@ type ListClusterUnknownImagesOutput struct {
 		Reasons    UnknownImageReasonCounts `json:"reasons" doc:"Breakdown of the entire gap by remedy, independent of the page returned"`
 		Hosts      []UnknownHostResponse    `json:"hosts" doc:"The entire gap grouped by registry scope, biggest first; independent of the page returned"`
 		Pagination PaginationMeta           `json:"pagination"`
+		// ocidex-70eo.12: without a scanner, "ready" means "would be ready",
+		// and the ingest endpoint answers 503. Clients branch on this rather
+		// than offering an action that cannot run.
+		ScanningEnabled bool `json:"scanningEnabled" doc:"Whether this deployment can scan images at all. When false, nothing can be ingested from here (manually or by auto-ingest) and the ingest endpoint returns 503."`
 	}
 }
 

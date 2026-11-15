@@ -209,6 +209,8 @@ let unknownImages: unknown[] = [];
  * directly to describe a gap larger than the page they are handed.
  */
 let unknownGap: { total: number; reasons: Record<string, number> } | undefined;
+/** What the server says about the deployment's scanner (ocidex-70eo.12). */
+let scanningEnabled = true;
 
 /** The server's per-host rollup of the whole gap; the rollup-card tests set it. */
 let unknownHosts: unknown[] = [];
@@ -376,6 +378,7 @@ function renderPage(
             data: unknownImages,
             reasons: unknownGap?.reasons ?? reasonsOf(unknownImages),
             hosts: unknownHosts,
+            scanningEnabled,
             pagination: {
                 total: unknownGap?.total ?? unknownImages.length,
                 limit: 50,
@@ -417,6 +420,7 @@ describe("ClusterDetail", () => {
         ingestCalls = [];
         ingestResult = undefined;
         autoIngest = true;
+        scanningEnabled = true;
     });
 
     it("states coverage before any vulnerability figure", () => {
@@ -1023,6 +1027,36 @@ describe("ClusterDetail", () => {
 
         // No digests: the whole gap, which is what the button says.
         expect(ingestCalls).toEqual([{ id: "c-prod", imageDigests: undefined }]);
+    });
+
+    // ocidex-70eo.12: with no scanner, the ingest endpoint 503s. The tab must
+    // say so and offer nothing, rather than a "ready" row and a button that
+    // fails with the raw error.
+    it("offers no ingest action on a deployment without a scanner", () => {
+        searchParams = { tab: "gaps" };
+        scanningEnabled = false;
+        unknownImages = [
+            unknownImage({ imageRef: "ghcr.io/a:v1", reason: "ready" }),
+            unknownImage({ imageRef: "gcr.io/c:v1", reason: "unauthorized" }),
+        ];
+        const { container } = renderPage([workload({ matchState: "unknown" })], GAPPY);
+
+        expect(container.querySelector('[data-testid="no-scanner"]')).not.toBeNull();
+        expect(container.textContent).not.toContain("ready to ingest");
+        expect(container.textContent).toContain("scanning not enabled");
+        const actions = [...container.querySelectorAll("button")].filter((b) =>
+            /^(Ingest|Retry)/.test(b.textContent),
+        );
+        expect(actions).toHaveLength(0);
+    });
+
+    it("tells the overview reader the deployment cannot scan", () => {
+        scanningEnabled = false;
+        unknownImages = [unknownImage({ reason: "ready" })];
+        const { container } = renderPage([workload({ matchState: "unknown" })], GAPPY);
+
+        expect(container.textContent).toContain("This deployment has no scanner");
+        expect(container.textContent).not.toContain("can be ingested now");
     });
 
     // A per-row button that queued the whole cluster would be lying about what

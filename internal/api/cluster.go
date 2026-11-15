@@ -484,6 +484,7 @@ func (h *Handler) ListClusterUnknownImages(ctx context.Context, in *ListClusterU
 			RegistryName:       img.RegistryName,
 		}
 	}
+	out.Body.ScanningEnabled = h.scanSubmitter != nil
 	out.Body.Reasons = UnknownImageReasonCounts{
 		Ready:            page.Reasons[service.IngestReasonReady],
 		Scanning:         page.Reasons[service.IngestReasonScanning],

@@ -3307,6 +3307,8 @@ export interface components {
             pagination: components["schemas"]["PaginationMeta"];
             /** @description Breakdown of the entire gap by remedy, independent of the page returned */
             reasons: components["schemas"]["UnknownImageReasonCounts"];
+            /** @description Whether this deployment can scan images at all. When false, nothing can be ingested from here (manually or by auto-ingest) and the ingest endpoint returns 503. */
+            scanningEnabled: boolean;
         };
         ListClusterVulnsOutputBody: {
             /**

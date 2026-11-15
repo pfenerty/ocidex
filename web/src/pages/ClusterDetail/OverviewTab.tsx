@@ -156,6 +156,19 @@ export function OverviewTab(props: {
                 >
                     <p class="text-muted">
                         <Show
+                            when={images.data?.scanningEnabled ?? true}
+                            fallback={
+                                <>
+                                    This deployment has no scanner, so OCIDex can&apos;t ingest
+                                    these images and auto-ingest does nothing. Upload their SBOMs
+                                    to close the gap.{" "}
+                                    <A href={tabHref("gaps")} class="dash-link">
+                                        Review the gap
+                                    </A>
+                                </>
+                            }
+                        >
+                        <Show
                             when={props.autoIngest}
                             fallback={
                                 <>
@@ -182,6 +195,7 @@ export function OverviewTab(props: {
                         <A href={tabHref("gaps")} class="dash-link">
                             Review the gap
                         </A>
+                        </Show>
                     </p>
                 </Show>
             </Card>

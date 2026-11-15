@@ -104,12 +104,23 @@ function IngestTargetCell(props: {
     namespace: string;
     onIngest: (digest: string) => void;
     pending: boolean;
+    scanningEnabled: boolean;
 }) {
-    const reason = () => REASON_PRESENTATION[props.image.reason];
+    // Without a scanner, "ready" would be a promise nothing keeps
+    // (ocidex-70eo.12): the row says what is true and offers no button.
+    const reason = () =>
+        !props.scanningEnabled && props.image.reason === "ready"
+            ? { label: "scanning not enabled", variant: "warning" as const }
+            : REASON_PRESENTATION[props.image.reason];
     return (
         <div class="ingest-target">
             <StatusPill variant={reason().variant}>{reason().label}</StatusPill>
-            <Show when={props.image.reason === "ready" || RETRYABLE.has(props.image.reason)}>
+            <Show
+                when={
+                    props.scanningEnabled &&
+                    (props.image.reason === "ready" || RETRYABLE.has(props.image.reason))
+                }
+            >
                 <Button
                     size="sm"
                     disabled={props.pending}
@@ -118,7 +129,13 @@ function IngestTargetCell(props: {
                     {props.pending ? "Queueing…" : props.image.reason === "ready" ? "Ingest" : "Retry"}
                 </Button>
             </Show>
-            <Show when={props.image.reason === "ready" && props.image.registryId === undefined}>
+            <Show
+                when={
+                    props.scanningEnabled &&
+                    props.image.reason === "ready" &&
+                    props.image.registryId === undefined
+                }
+            >
                 <span class="text-muted text-sm">anonymous pull</span>
             </Show>
             {/* Registries are managed on the Sources tab. These used to point at
@@ -185,6 +202,7 @@ function unknownImageColumns(
     namespace: string,
     onIngest: (digest: string) => void,
     pendingDigest: () => string | null,
+    scanningEnabled: () => boolean,
 ): Column<UnknownImage>[] {
     return [
     {
@@ -231,6 +249,7 @@ function unknownImageColumns(
                 namespace={namespace}
                 onIngest={onIngest}
                 pending={pendingDigest() === i.imageDigest}
+                scanningEnabled={scanningEnabled()}
             />
         ),
     },
@@ -306,6 +325,9 @@ export function GapsTab(props: {
     const hosts = () => images.data?.hosts ?? [];
     const readyCount = () => images.data?.reasons.ready ?? 0;
     const gapTotal = () => images.data?.pagination.total ?? 0;
+    // Assumed on until the server says otherwise, so a loading tab does not
+    // flash the no-scanner banner.
+    const scanningEnabled = () => images.data?.scanningEnabled ?? true;
 
     const ingest = useIngestUnknown();
     // Which row is mid-flight, so only that row's button shows its own pending
@@ -333,7 +355,7 @@ export function GapsTab(props: {
                     title="No SBOM ingested"
                     count={props.coverage.unknown}
                     actions={
-                        <Show when={readyCount() > 0}>
+                        <Show when={scanningEnabled() && readyCount() > 0}>
                             <Button
                                 size="sm"
                                 variant="primary"
@@ -347,10 +369,18 @@ export function GapsTab(props: {
                         </Show>
                     }
                 />
+                <Show when={!scanningEnabled()}>
+                    <Card tone="warning" class="mb-3" data-testid="no-scanner">
+                        <strong>This deployment can&apos;t scan images.</strong> No scanner is
+                        configured, so nothing here can be ingested from OCIDex, and auto-ingest
+                        does nothing on push. Close these gaps by uploading SBOMs, or ask an
+                        administrator to enable the scanner.
+                    </Card>
+                </Show>
                 <p class="text-muted">
                     These images report a registry-addressable digest that matches nothing in the
                     catalog. Ingesting the image is what closes this gap.
-                    <Show when={gapTotal() > 0}>
+                    <Show when={scanningEnabled() && gapTotal() > 0}>
                         {" "}
                         {readyCount().toLocaleString()} of {plural(gapTotal(), "image")} can be
                         ingested now, with this namespace's registries or anonymously.
@@ -368,6 +398,7 @@ export function GapsTab(props: {
                         props.namespace,
                         (d) => runIngest([d]),
                         pendingDigest,
+                        scanningEnabled,
                     )}
                     rows={images.data?.data}
                     loading={images.isFetching}

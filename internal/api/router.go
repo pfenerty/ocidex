@@ -1,6 +1,7 @@
 package api
 
 import (
+	"log/slog"
 	"net/http"
 	"net/url"
 	"regexp"
@@ -973,6 +974,12 @@ func registerSourceOps(api huma.API, h *Handler) {
 // ---------------------------------------------------------------------------
 
 func registerClusterOps(api huma.API, h *Handler) {
+	// Said once, here, because every consequence is otherwise silent: auto-
+	// ingest skips each snapshot without a word and the ingest endpoint 503s
+	// (ocidex-70eo.12).
+	if h.scanSubmitter == nil {
+		slog.Info("no scanner configured: cluster auto-ingest and unknown-image ingest are disabled")
+	}
 	authMW := RequireAuthenticated(api)
 	writeMW := RequireWrite(api)
 

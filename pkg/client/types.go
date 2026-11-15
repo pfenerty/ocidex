@@ -2959,6 +2959,9 @@ type ListClusterUnknownImagesOutputBody struct {
 	Hosts      *[]UnknownHostResponse   `json:"hosts"`
 	Pagination PaginationMeta           `json:"pagination"`
 	Reasons    UnknownImageReasonCounts `json:"reasons"`
+
+	// ScanningEnabled Whether this deployment can scan images at all. When false, nothing can be ingested from here (manually or by auto-ingest) and the ingest endpoint returns 503.
+	ScanningEnabled bool `json:"scanningEnabled"`
 }
 
 // ListClusterVulnsOutputBody defines model for ListClusterVulnsOutputBody.
