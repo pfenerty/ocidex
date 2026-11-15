@@ -43,6 +43,10 @@ type AuthUser struct {
 	// carries no ceiling, and an empty slice on a key means a key that may do
 	// nothing but read public data.
 	APIKeyCaps []authz.Capability
+	// APIKeyClusterID is set when the key is a cluster agent credential
+	// (ocidex-70eo.5). Such a key may push that cluster's inventory and do
+	// nothing else; the API layer rejects it on every other route.
+	APIKeyClusterID string
 	// Grants is the caller's namespace membership, keyed by namespace ID
 	// string. A namespace absent from the map is one the caller is not a member
 	// of, which grants nothing — a public namespace is readable through the SQL
@@ -64,6 +68,8 @@ type APIKeyMeta struct {
 	Capabilities []authz.Capability
 	CreatedAt    time.Time
 	LastUsedAt   *time.Time
+	// ClusterID is set for a cluster agent credential.
+	ClusterID string
 }
 
 // KeyAllows reports whether the credential this request arrived on permits c at
@@ -503,18 +509,12 @@ func (s *authService) CreateAPIKey(ctx context.Context, userID pgtype.UUID, name
 			return "", &ValidationError{Message: fmt.Sprintf("unknown capability %q", c)}
 		}
 	}
-	raw := make([]byte, 32)
-	if _, err := rand.Read(raw); err != nil {
-		return "", fmt.Errorf("generating api key: %w", err)
-	}
-	plaintext := "ocidex_" + base64.RawURLEncoding.EncodeToString(raw)
-	hash := sha256hex(plaintext)
-	prefix := plaintext
-	if len(prefix) > 8 {
-		prefix = prefix[:8]
+	plaintext, hash, prefix, err := newAPIKeyMaterial()
+	if err != nil {
+		return "", err
 	}
 
-	_, err := s.repo.CreateAPIKey(ctx, repository.CreateAPIKeyParams{
+	_, err = s.repo.CreateAPIKey(ctx, repository.CreateAPIKeyParams{
 		UserID:  userID,
 		Name:    name,
 		KeyHash: hash,
@@ -526,6 +526,22 @@ func (s *authService) CreateAPIKey(ctx context.Context, userID pgtype.UUID, name
 		return "", fmt.Errorf("creating api key: %w", err)
 	}
 	return plaintext, nil
+}
+
+// newAPIKeyMaterial generates a key's plaintext with the hash stored for it
+// and the prefix shown for it. Shared by ordinary keys and cluster agent
+// credentials, which are the same row with a cluster binding.
+func newAPIKeyMaterial() (plaintext, hash, prefix string, err error) {
+	raw := make([]byte, 32)
+	if _, err := rand.Read(raw); err != nil {
+		return "", "", "", fmt.Errorf("generating api key: %w", err)
+	}
+	plaintext = "ocidex_" + base64.RawURLEncoding.EncodeToString(raw)
+	prefix = plaintext
+	if len(prefix) > 8 {
+		prefix = prefix[:8]
+	}
+	return plaintext, sha256hex(plaintext), prefix, nil
 }
 
 func (s *authService) ValidateAPIKey(ctx context.Context, rawKey string) (AuthUser, error) {
@@ -553,6 +569,9 @@ func (s *authService) ValidateAPIKey(ctx context.Context, rawKey string) (AuthUs
 		Role:        row.Role,
 		APIKeyAuth:  true,
 		APIKeyCaps:  caps,
+		// Empty for an ordinary key. Set, it confines the key to pushing
+		// this one cluster's inventory (ocidex-70eo.5).
+		APIKeyClusterID: uuidToStr(row.ClusterID),
 	}, nil
 }
 
@@ -580,6 +599,7 @@ func (s *authService) ListAPIKeys(ctx context.Context, userID pgtype.UUID) ([]AP
 			Prefix:       r.Prefix,
 			Capabilities: caps,
 			CreatedAt:    r.CreatedAt.Time,
+			ClusterID:    uuidToStr(r.ClusterID),
 		}
 		if r.LastUsedAt.Valid {
 			t := r.LastUsedAt.Time

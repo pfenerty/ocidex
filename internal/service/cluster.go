@@ -369,6 +369,13 @@ type ClusterService interface {
 	// "nothing could be queued because no registry serves ghcr.io" look
 	// identical from a count alone.
 	IngestUnknown(ctx context.Context, clusterID string, sub RunningImageSubmitter, params IngestUnknownParams, filter VisibilityFilter) (IngestResult, error)
+
+	// Agent credentials (ocidex-70eo.5): API keys bound to this cluster that
+	// may only push its inventory. Callers authorize manage_cluster first.
+	CreateCredential(ctx context.Context, clusterID string, userID pgtype.UUID, name string) (ClusterCredential, error)
+	ListCredentials(ctx context.Context, clusterID string) ([]ClusterCredential, error)
+	RevokeCredential(ctx context.Context, clusterID, credentialID string) error
+	RotateCredential(ctx context.Context, clusterID, credentialID string, userID pgtype.UUID) (ClusterCredential, error)
 }
 
 type clusterService struct {

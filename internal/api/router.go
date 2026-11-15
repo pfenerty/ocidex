@@ -1045,6 +1045,49 @@ func registerClusterOps(api huma.API, h *Handler) {
 		Middlewares: huma.Middlewares{authMW, writeMW},
 	}, h.PutInventory)
 
+	// Agent credentials (ocidex-70eo.5): keys bound to the cluster that may
+	// only push its inventory.
+	huma.Register(api, huma.Operation{
+		OperationID: "list-cluster-credentials",
+		Method:      http.MethodGet,
+		Path:        pathClusterByID + "/credentials",
+		Summary:     "List cluster agent credentials",
+		Description: "The agent credentials bound to this cluster, with who minted each and when it was last used. Keys are never returned here.",
+		Tags:        []string{tagClusters},
+		Middlewares: huma.Middlewares{authMW},
+	}, h.ListClusterCredentials)
+
+	huma.Register(api, huma.Operation{
+		OperationID:   "create-cluster-credential",
+		Method:        http.MethodPost,
+		Path:          pathClusterByID + "/credentials",
+		Summary:       "Mint a cluster agent credential",
+		Description:   "Mints an API key bound to this cluster that can do nothing but push its inventory. The key is returned once.",
+		Tags:          []string{tagClusters},
+		DefaultStatus: http.StatusCreated,
+		Middlewares:   huma.Middlewares{authMW, writeMW},
+	}, h.CreateClusterCredential)
+
+	huma.Register(api, huma.Operation{
+		OperationID: "rotate-cluster-credential",
+		Method:      http.MethodPost,
+		Path:        pathClusterByID + "/credentials/{credentialId}/rotate",
+		Summary:     "Rotate a cluster agent credential",
+		Description: "Revokes the credential and mints a replacement with the same name, owned by the caller. The agent fails to push until it is given the new key; for an overlap, mint a second credential and revoke the first once the agent has rolled.",
+		Tags:        []string{tagClusters},
+		Middlewares: huma.Middlewares{authMW, writeMW},
+	}, h.RotateClusterCredential)
+
+	huma.Register(api, huma.Operation{
+		OperationID:   "revoke-cluster-credential",
+		Method:        http.MethodDelete,
+		Path:          pathClusterByID + "/credentials/{credentialId}",
+		Summary:       "Revoke a cluster agent credential",
+		Tags:          []string{tagClusters},
+		DefaultStatus: http.StatusNoContent,
+		Middlewares:   huma.Middlewares{authMW, writeMW},
+	}, h.RevokeClusterCredential)
+
 	huma.Register(api, huma.Operation{
 		OperationID: "list-cluster-workloads",
 		Method:      http.MethodGet,

@@ -30,6 +30,10 @@ export {
     useVulnWorkloads,
     useClusterUnknownImages,
     useIngestUnknown,
+    useClusterCredentials,
+    useCreateClusterCredential,
+    useRotateClusterCredential,
+    useRevokeClusterCredential,
 } from "./clusters";
 export type {
     WorkloadQueryParams,

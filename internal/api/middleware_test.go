@@ -469,3 +469,43 @@ func TestCrossOriginGuardSelfOriginFromRequest(t *testing.T) {
 	handler.ServeHTTP(w, r)
 	is.Equal(w.Code, http.StatusOK)
 }
+
+// TestClusterCredentialConfinedToItsInventoryPush pins ocidex-70eo.5: a key
+// bound to a cluster is refused on every route but that cluster's inventory
+// push, including reads a session-less caller could make.
+func TestClusterCredentialConfinedToItsInventoryPush(t *testing.T) {
+	const bound = "0eea643d-b563-4fbc-8093-ed801966a739"
+	agent := service.AuthUser{ID: ownerUUID, Role: "member", APIKeyAuth: true,
+		APIKeyCaps: []authz.Capability{authz.CapPushInventory}, APIKeyClusterID: bound}
+	authSvc := &fakeAuthService{users: map[string]service.AuthUser{"agent": agent}}
+	reached := false
+	ok := http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
+		reached = true
+		w.WriteHeader(http.StatusOK)
+	})
+	handler := api.OptionalAuthenticate(authSvc)(ok)
+
+	tests := []struct {
+		name, method, path string
+		want               int
+	}{
+		{"own push", http.MethodPost, "/api/v1/clusters/" + bound + "/inventory", http.StatusOK},
+		{"own push, upper-case id", http.MethodPost, "/api/v1/clusters/0EEA643D-B563-4FBC-8093-ED801966A739/inventory", http.StatusOK},
+		{"another cluster", http.MethodPost, "/api/v1/clusters/22e457b6-3338-4526-8af3-66435dd9eb1a/inventory", http.StatusForbidden},
+		{"public read", http.MethodGet, "/api/v1/artifacts", http.StatusForbidden},
+		{"own cluster read", http.MethodGet, "/api/v1/clusters/" + bound, http.StatusForbidden},
+		{"sbom upload", http.MethodPost, "/api/v1/sboms", http.StatusForbidden},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			is := is.New(t)
+			reached = false
+			r := httptest.NewRequest(tt.method, tt.path, nil)
+			r.Header.Set("Authorization", "Bearer agent")
+			w := httptest.NewRecorder()
+			handler.ServeHTTP(w, r)
+			is.Equal(w.Code, tt.want)
+			is.Equal(reached, tt.want == http.StatusOK)
+		})
+	}
+}

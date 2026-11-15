@@ -1825,6 +1825,28 @@ type ClusterAgentResponse struct {
 	VersionSkew *string `json:"versionSkew,omitempty"`
 }
 
+// ClusterCredentialResponse defines model for ClusterCredentialResponse.
+type ClusterCredentialResponse struct {
+	// Schema A URL to the JSON Schema for this object.
+	Schema    *string `json:"$schema,omitempty"`
+	CreatedAt string  `json:"createdAt"`
+	Id        string  `json:"id"`
+
+	// Key The full key, shown once on create or rotate. Store it in the agent's secret.
+	Key *string `json:"key,omitempty"`
+
+	// LastUsedAt When the agent last authenticated with it; empty if never
+	LastUsedAt *string `json:"lastUsedAt,omitempty"`
+	Name       string  `json:"name"`
+
+	// OwnerId User who minted it. The credential narrows with that user's live namespace roles.
+	OwnerId   string  `json:"ownerId"`
+	OwnerName *string `json:"ownerName,omitempty"`
+
+	// Prefix First 8 characters of the key
+	Prefix string `json:"prefix"`
+}
+
 // ClusterImageResponse defines model for ClusterImageResponse.
 type ClusterImageResponse struct {
 	ArtifactId   *string `json:"artifactId,omitempty"`
@@ -2048,6 +2070,15 @@ type CreateAPIKeyOutputBody struct {
 
 	// Key Full API key — shown once, store securely
 	Key string `json:"key"`
+}
+
+// CreateClusterCredentialInputBody defines model for CreateClusterCredentialInputBody.
+type CreateClusterCredentialInputBody struct {
+	// Schema A URL to the JSON Schema for this object.
+	Schema *string `json:"$schema,omitempty"`
+
+	// Name Label for the credential; defaults to '<cluster>-agent'
+	Name *string `json:"name,omitempty"`
 }
 
 // CreateClusterInputBody defines model for CreateClusterInputBody.
@@ -2745,7 +2776,10 @@ type InventoryWorkload struct {
 type KeyMetaResponse struct {
 	// Capabilities Capabilities this key may exercise, before intersection with the owner's live namespace roles
 	Capabilities *[]string `json:"capabilities"`
-	CreatedAt    time.Time `json:"createdAt"`
+
+	// ClusterId Set for a cluster agent credential, which may only push this cluster's inventory
+	ClusterId *string   `json:"clusterId,omitempty"`
+	CreatedAt time.Time `json:"createdAt"`
 
 	// Id Key UUID
 	Id         string     `json:"id"`
@@ -2827,6 +2861,13 @@ type ListArtifactsOutputBody struct {
 
 	// Total Artifacts matching the filters, on the first page only
 	Total *int64 `json:"total,omitempty"`
+}
+
+// ListClusterCredentialsOutputBody defines model for ListClusterCredentialsOutputBody.
+type ListClusterCredentialsOutputBody struct {
+	// Schema A URL to the JSON Schema for this object.
+	Schema *string                      `json:"$schema,omitempty"`
+	Data   *[]ClusterCredentialResponse `json:"data"`
 }
 
 // ListClusterImagesOutputBody defines model for ListClusterImagesOutputBody.
@@ -4904,6 +4945,9 @@ type CreateClusterJSONRequestBody = CreateClusterInputBody
 
 // UpdateClusterJSONRequestBody defines body for UpdateCluster for application/json ContentType.
 type UpdateClusterJSONRequestBody = UpdateClusterInputBody
+
+// CreateClusterCredentialJSONRequestBody defines body for CreateClusterCredential for application/json ContentType.
+type CreateClusterCredentialJSONRequestBody = CreateClusterCredentialInputBody
 
 // IngestClusterUnknownImagesJSONRequestBody defines body for IngestClusterUnknownImages for application/json ContentType.
 type IngestClusterUnknownImagesJSONRequestBody = IngestUnknownInputBody

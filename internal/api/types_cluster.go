@@ -481,3 +481,51 @@ type IngestUnknownOutput struct {
 		Failed                  int `json:"failed" doc:"Submission errored: a manifest that is not there, or a transient registry or queue problem"`
 	}
 }
+
+// ---------------------------------------------------------------------------
+// Agent credentials (ocidex-70eo.5)
+// ---------------------------------------------------------------------------
+
+// ClusterCredentialResponse is an agent credential bound to one cluster. Key
+// is present only on the response that minted it.
+type ClusterCredentialResponse struct {
+	ID         string `json:"id"`
+	Name       string `json:"name"`
+	Prefix     string `json:"prefix" doc:"First 8 characters of the key"`
+	CreatedAt  string `json:"createdAt"`
+	LastUsedAt string `json:"lastUsedAt,omitempty" doc:"When the agent last authenticated with it; empty if never"`
+	OwnerID    string `json:"ownerId" doc:"User who minted it. The credential narrows with that user's live namespace roles."`
+	OwnerName  string `json:"ownerName,omitempty"`
+	Key        string `json:"key,omitempty" doc:"The full key, shown once on create or rotate. Store it in the agent's secret."`
+}
+
+// ListClusterCredentialsInput is the request for GET /api/v1/clusters/{id}/credentials.
+type ListClusterCredentialsInput struct {
+	ID string `path:"id" doc:"Cluster UUID" format:"uuid"`
+}
+
+// ListClusterCredentialsOutput is the response for GET /api/v1/clusters/{id}/credentials.
+type ListClusterCredentialsOutput struct {
+	Body struct {
+		Data []ClusterCredentialResponse `json:"data"`
+	}
+}
+
+// CreateClusterCredentialInput is the request for POST /api/v1/clusters/{id}/credentials.
+type CreateClusterCredentialInput struct {
+	ID   string `path:"id" doc:"Cluster UUID" format:"uuid"`
+	Body struct {
+		Name string `json:"name,omitempty" maxLength:"100" doc:"Label for the credential; defaults to '<cluster>-agent'"`
+	}
+}
+
+// ClusterCredentialOutput is the response for creating or rotating a credential.
+type ClusterCredentialOutput struct {
+	Body ClusterCredentialResponse
+}
+
+// ClusterCredentialInput addresses one credential of one cluster.
+type ClusterCredentialInput struct {
+	ID           string `path:"id" doc:"Cluster UUID" format:"uuid"`
+	CredentialID string `path:"credentialId" doc:"Credential UUID" format:"uuid"`
+}

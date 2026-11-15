@@ -214,6 +214,49 @@ func (q *Queries) CreateCluster(ctx context.Context, arg CreateClusterParams) (C
 	return i, err
 }
 
+const createClusterCredential = `-- name: CreateClusterCredential :one
+
+INSERT INTO api_key (user_id, name, key_hash, prefix, capabilities, cluster_id)
+VALUES ($1, $2, $3, $4, ARRAY['push_inventory']::text[], $5)
+RETURNING id, name, prefix, created_at
+`
+
+type CreateClusterCredentialParams struct {
+	UserID    pgtype.UUID `json:"user_id"`
+	Name      string      `json:"name"`
+	KeyHash   string      `json:"key_hash"`
+	Prefix    string      `json:"prefix"`
+	ClusterID pgtype.UUID `json:"cluster_id"`
+}
+
+type CreateClusterCredentialRow struct {
+	ID        pgtype.UUID        `json:"id"`
+	Name      string             `json:"name"`
+	Prefix    string             `json:"prefix"`
+	CreatedAt pgtype.Timestamptz `json:"created_at"`
+}
+
+// Cluster agent credentials (ocidex-70eo.5). These are api_key rows bound to a
+// cluster; the CHECK on api_key pins their ceiling to push_inventory. Every
+// caller here has already passed manage_cluster on the cluster's namespace.
+func (q *Queries) CreateClusterCredential(ctx context.Context, arg CreateClusterCredentialParams) (CreateClusterCredentialRow, error) {
+	row := q.db.QueryRow(ctx, createClusterCredential,
+		arg.UserID,
+		arg.Name,
+		arg.KeyHash,
+		arg.Prefix,
+		arg.ClusterID,
+	)
+	var i CreateClusterCredentialRow
+	err := row.Scan(
+		&i.ID,
+		&i.Name,
+		&i.Prefix,
+		&i.CreatedAt,
+	)
+	return i, err
+}
+
 const deleteCluster = `-- name: DeleteCluster :execrows
 DELETE FROM cluster WHERE id = $1
 `
@@ -222,6 +265,23 @@ DELETE FROM cluster WHERE id = $1
 // agent, so losing it with the cluster is correct.
 func (q *Queries) DeleteCluster(ctx context.Context, id pgtype.UUID) (int64, error) {
 	result, err := q.db.Exec(ctx, deleteCluster, id)
+	if err != nil {
+		return 0, err
+	}
+	return result.RowsAffected(), nil
+}
+
+const deleteClusterCredential = `-- name: DeleteClusterCredential :execrows
+DELETE FROM api_key WHERE id = $1 AND cluster_id = $2
+`
+
+type DeleteClusterCredentialParams struct {
+	ID        pgtype.UUID `json:"id"`
+	ClusterID pgtype.UUID `json:"cluster_id"`
+}
+
+func (q *Queries) DeleteClusterCredential(ctx context.Context, arg DeleteClusterCredentialParams) (int64, error) {
+	result, err := q.db.Exec(ctx, deleteClusterCredential, arg.ID, arg.ClusterID)
 	if err != nil {
 		return 0, err
 	}
@@ -340,6 +400,52 @@ func (q *Queries) GetClusterWorkloadCoverage(ctx context.Context, arg GetCluster
 		&i.Pods,
 	)
 	return i, err
+}
+
+const listClusterCredentials = `-- name: ListClusterCredentials :many
+SELECT k.id, k.name, k.prefix, k.created_at, k.last_used_at, k.user_id, u.display_name
+FROM api_key k
+JOIN ocidex_user u ON u.id = k.user_id
+WHERE k.cluster_id = $1
+ORDER BY k.created_at ASC
+`
+
+type ListClusterCredentialsRow struct {
+	ID          pgtype.UUID        `json:"id"`
+	Name        string             `json:"name"`
+	Prefix      string             `json:"prefix"`
+	CreatedAt   pgtype.Timestamptz `json:"created_at"`
+	LastUsedAt  pgtype.Timestamptz `json:"last_used_at"`
+	UserID      pgtype.UUID        `json:"user_id"`
+	DisplayName pgtype.Text        `json:"display_name"`
+}
+
+func (q *Queries) ListClusterCredentials(ctx context.Context, clusterID pgtype.UUID) ([]ListClusterCredentialsRow, error) {
+	rows, err := q.db.Query(ctx, listClusterCredentials, clusterID)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	items := []ListClusterCredentialsRow{}
+	for rows.Next() {
+		var i ListClusterCredentialsRow
+		if err := rows.Scan(
+			&i.ID,
+			&i.Name,
+			&i.Prefix,
+			&i.CreatedAt,
+			&i.LastUsedAt,
+			&i.UserID,
+			&i.DisplayName,
+		); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
 }
 
 const listClusterImages = `-- name: ListClusterImages :many
@@ -1300,6 +1406,56 @@ func (q *Queries) PruneClusterWorkloads(ctx context.Context, arg PruneClusterWor
 		return 0, err
 	}
 	return result.RowsAffected(), nil
+}
+
+const rotateClusterCredential = `-- name: RotateClusterCredential :one
+WITH old AS (
+    DELETE FROM api_key
+    WHERE api_key.id = $5 AND api_key.cluster_id = $4
+    RETURNING api_key.name
+)
+INSERT INTO api_key (user_id, name, key_hash, prefix, capabilities, cluster_id)
+SELECT $1, old.name, $2, $3,
+       ARRAY['push_inventory']::text[], $4
+FROM old
+RETURNING id, name, prefix, created_at
+`
+
+type RotateClusterCredentialParams struct {
+	UserID    pgtype.UUID `json:"user_id"`
+	KeyHash   string      `json:"key_hash"`
+	Prefix    string      `json:"prefix"`
+	ClusterID pgtype.UUID `json:"cluster_id"`
+	OldID     pgtype.UUID `json:"old_id"`
+}
+
+type RotateClusterCredentialRow struct {
+	ID        pgtype.UUID        `json:"id"`
+	Name      string             `json:"name"`
+	Prefix    string             `json:"prefix"`
+	CreatedAt pgtype.Timestamptz `json:"created_at"`
+}
+
+// Revokes the old credential and mints its replacement under the same name, in
+// one statement so a failure leaves the old one working. The replacement
+// belongs to the caller: a key narrows with its owner's roles, so it must be
+// owned by someone who holds them now.
+func (q *Queries) RotateClusterCredential(ctx context.Context, arg RotateClusterCredentialParams) (RotateClusterCredentialRow, error) {
+	row := q.db.QueryRow(ctx, rotateClusterCredential,
+		arg.UserID,
+		arg.KeyHash,
+		arg.Prefix,
+		arg.ClusterID,
+		arg.OldID,
+	)
+	var i RotateClusterCredentialRow
+	err := row.Scan(
+		&i.ID,
+		&i.Name,
+		&i.Prefix,
+		&i.CreatedAt,
+	)
+	return i, err
 }
 
 const touchClusterLastSeen = `-- name: TouchClusterLastSeen :exec

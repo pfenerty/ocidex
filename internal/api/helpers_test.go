@@ -241,6 +241,20 @@ func (f *fakeClusterService) ReplaceInventory(_ context.Context, _ string, _ []s
 	return 0, nil
 }
 
+func (f *fakeClusterService) CreateCredential(_ context.Context, _ string, _ pgtype.UUID, _ string) (service.ClusterCredential, error) {
+	return service.ClusterCredential{}, nil
+}
+
+func (f *fakeClusterService) ListCredentials(_ context.Context, _ string) ([]service.ClusterCredential, error) {
+	return nil, nil
+}
+
+func (f *fakeClusterService) RevokeCredential(_ context.Context, _, _ string) error { return nil }
+
+func (f *fakeClusterService) RotateCredential(_ context.Context, _, _ string, _ pgtype.UUID) (service.ClusterCredential, error) {
+	return service.ClusterCredential{}, nil
+}
+
 func (f *fakeClusterService) ListWorkloads(_ context.Context, _ string, _ service.WorkloadParams, _ service.VisibilityFilter) (service.PagedResult[service.ClusterWorkload], error) {
 	return service.PagedResult[service.ClusterWorkload]{}, nil
 }

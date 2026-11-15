@@ -757,6 +757,7 @@ func (h *Handler) ListAPIKeys(ctx context.Context, _ *struct{}) (*ListAPIKeysOut
 			Capabilities: authz.Strings(k.Capabilities),
 			CreatedAt:    k.CreatedAt,
 			LastUsedAt:   k.LastUsedAt,
+			ClusterID:    k.ClusterID,
 		}
 	}
 	return out, nil

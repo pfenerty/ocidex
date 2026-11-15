@@ -172,6 +172,35 @@ The interim exposure is stated plainly so it is not discovered later: **an agent
 upload SBOMs and mutate other resources in namespaces its owner controls.** Mitigation available
 today is to give the agent a key belonging to a user who owns only the cluster's namespace.
 
+### Rule K8a — The agent's credential is bound to its cluster
+
+*Amendment, epic `ocidex-70eo` (story `ocidex-70eo.5`). This closes the interim exposure K8 stated.
+ADR-046 has since replaced scopes with capabilities, so K8's `read-write` / `ClassOwner` wording
+now reads as `push_inventory` / `ClassCapability`; the exposure was the same.*
+
+A **cluster agent credential** is an `api_key` row with `cluster_id` set. It is minted, listed,
+rotated and revoked from the cluster (`/api/v1/clusters/{id}/credentials`), and it can do exactly
+one thing: `POST /api/v1/clusters/{its cluster}/inventory`. Three layers say so:
+
+* **The schema.** A CHECK pins a bound key's capability ceiling to `{push_inventory}`.
+* **The authenticate middleware.** A bound key is refused with 403 on every other request, before
+  any route runs, so a route added later cannot forget to exclude it. That includes public reads:
+  it is refused rather than downgraded to anonymous.
+* **The owner's live roles (ADR-046).** The key still belongs to the user who minted it and is
+  intersected with that user's roles on every request, like any key. Minting needs both
+  `manage_cluster` (it is cluster configuration) and `push_inventory` (an owner who cannot push
+  would mint a key refused on first use). If the minter loses the role, the agent starts failing;
+  the cluster page names the minter for that reason, and rotation re-owns the key to the rotator.
+
+Deleting the cluster cascades to its credentials. Rotation revokes the old key and mints a
+same-named replacement in one statement, so the agent fails until its secret is updated; an overlap
+is *mint a second, roll the agent, revoke the first*.
+
+What this does not do: make the credential independent of a person. A credential owned by the
+cluster itself would survive its minter leaving, but it would be a new kind of principal with no
+roles to intersect against, and that is a change to ADR-046 rather than to this ADR. Ordinary
+`push_inventory` keys keep working, so existing agents need no change.
+
 ### Rule K9 — Unknown running images are ingested automatically, within the namespace
 
 *Amendment, epic `ocidex-6zoe`. This answers the last Consequence below: gaps that "appear forever

@@ -489,6 +489,67 @@ export interface paths {
         patch: operations["update-cluster"];
         trace?: never;
     };
+    "/api/v1/clusters/{id}/credentials": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * List cluster agent credentials
+         * @description The agent credentials bound to this cluster, with who minted each and when it was last used. Keys are never returned here.
+         */
+        get: operations["list-cluster-credentials"];
+        put?: never;
+        /**
+         * Mint a cluster agent credential
+         * @description Mints an API key bound to this cluster that can do nothing but push its inventory. The key is returned once.
+         */
+        post: operations["create-cluster-credential"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/clusters/{id}/credentials/{credentialId}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        post?: never;
+        /** Revoke a cluster agent credential */
+        delete: operations["revoke-cluster-credential"];
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/clusters/{id}/credentials/{credentialId}/rotate": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Rotate a cluster agent credential
+         * @description Revokes the credential and mints a replacement with the same name, owned by the caller. The agent fails to push until it is given the new key; for an overlap, mint a second credential and revoke the first once the agent has rolled.
+         */
+        post: operations["rotate-cluster-credential"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/v1/clusters/{id}/images": {
         parameters: {
             query?: never;
@@ -2041,6 +2102,26 @@ export interface components {
             /** @description Set when the agent's major.minor differs from the server's */
             versionSkew?: string;
         };
+        ClusterCredentialResponse: {
+            /**
+             * Format: uri
+             * @description A URL to the JSON Schema for this object.
+             * @example https://example.com/api/schemas/ClusterCredentialResponse.json
+             */
+            readonly $schema?: string;
+            createdAt: string;
+            id: string;
+            /** @description The full key, shown once on create or rotate. Store it in the agent's secret. */
+            key?: string;
+            /** @description When the agent last authenticated with it; empty if never */
+            lastUsedAt?: string;
+            name: string;
+            /** @description User who minted it. The credential narrows with that user's live namespace roles. */
+            ownerId: string;
+            ownerName?: string;
+            /** @description First 8 characters of the key */
+            prefix: string;
+        };
         ClusterImageResponse: {
             artifactId?: string;
             artifactName?: string;
@@ -2286,6 +2367,16 @@ export interface components {
             readonly $schema?: string;
             /** @description Full API key — shown once, store securely */
             key: string;
+        };
+        CreateClusterCredentialInputBody: {
+            /**
+             * Format: uri
+             * @description A URL to the JSON Schema for this object.
+             * @example https://example.com/api/schemas/CreateClusterCredentialInputBody.json
+             */
+            readonly $schema?: string;
+            /** @description Label for the credential; defaults to '<cluster>-agent' */
+            name?: string;
         };
         CreateClusterInputBody: {
             /**
@@ -3014,6 +3105,8 @@ export interface components {
         KeyMetaResponse: {
             /** @description Capabilities this key may exercise, before intersection with the owner's live namespace roles */
             capabilities: string[] | null;
+            /** @description Set for a cluster agent credential, which may only push this cluster's inventory */
+            clusterId?: string;
             /** Format: date-time */
             createdAt: string;
             /** @description Key UUID */
@@ -3109,6 +3202,15 @@ export interface components {
              * @description Artifacts matching the filters, on the first page only
              */
             total?: number;
+        };
+        ListClusterCredentialsOutputBody: {
+            /**
+             * Format: uri
+             * @description A URL to the JSON Schema for this object.
+             * @example https://example.com/api/schemas/ListClusterCredentialsOutputBody.json
+             */
+            readonly $schema?: string;
+            data: components["schemas"]["ClusterCredentialResponse"][] | null;
         };
         ListClusterImagesOutputBody: {
             /**
@@ -5588,6 +5690,140 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["ClusterResponse"];
+                };
+            };
+            /** @description Error */
+            default: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["ErrorModel"];
+                };
+            };
+        };
+    };
+    "list-cluster-credentials": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                /** @description Cluster UUID */
+                id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description OK */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ListClusterCredentialsOutputBody"];
+                };
+            };
+            /** @description Error */
+            default: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["ErrorModel"];
+                };
+            };
+        };
+    };
+    "create-cluster-credential": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                /** @description Cluster UUID */
+                id: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["CreateClusterCredentialInputBody"];
+            };
+        };
+        responses: {
+            /** @description Created */
+            201: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ClusterCredentialResponse"];
+                };
+            };
+            /** @description Error */
+            default: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["ErrorModel"];
+                };
+            };
+        };
+    };
+    "revoke-cluster-credential": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                /** @description Cluster UUID */
+                id: string;
+                /** @description Credential UUID */
+                credentialId: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description No Content */
+            204: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description Error */
+            default: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["ErrorModel"];
+                };
+            };
+        };
+    };
+    "rotate-cluster-credential": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                /** @description Cluster UUID */
+                id: string;
+                /** @description Credential UUID */
+                credentialId: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description OK */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ClusterCredentialResponse"];
                 };
             };
             /** @description Error */

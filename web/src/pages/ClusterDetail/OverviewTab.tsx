@@ -227,12 +227,15 @@ function AgentSetup(props: { clusterId: string; clusterName: string }) {
                 agent reports, OCIDex knows nothing about what is running here.
             </p>
             <p class="text-muted">
-                Run these against the target cluster&apos;s kubeconfig context, with an API key
-                that has the <code>push_inventory</code> capability and belongs to someone who
-                owns this cluster&apos;s namespace.{" "}
+                Run these against the target cluster&apos;s kubeconfig context, with an agent
+                credential for this cluster in <code>$OCIDEX_API_KEY</code>: mint one under{" "}
+                <strong>Agent credentials</strong> below. It can push this cluster&apos;s inventory
+                and nothing else. Without permission to manage the cluster, ask someone who can, or
+                use your own{" "}
                 <A href={agentKeyHref()} class="dash-link">
-                    Create an agent key
+                    API key with push_inventory
                 </A>
+                .
             </p>
             <pre class="agent-setup-commands">{install()}</pre>
             <p class="text-muted">

@@ -99,6 +99,16 @@ func OptionalAuthenticate(authSvc service.AuthService) func(http.Handler) http.H
 			// check but still answers public-class routes. Failing the whole
 			// request would take the browse surface down with the membership
 			// table.
+			// A cluster agent credential (ocidex-70eo.5) is refused everywhere
+			// but its own inventory push. Checked here, before any route runs,
+			// so a route added later cannot forget to exclude it; and refused
+			// rather than demoted to anonymous, which would still let it read
+			// public data.
+			if user.APIKeyClusterID != "" && !clusterCredentialRoute(r, user.APIKeyClusterID) {
+				writeClusterCredentialForbidden(w)
+				return
+			}
+
 			grants, gerr := authSvc.LoadGrants(r.Context(), user.ID)
 			if gerr != nil {
 				slog.WarnContext(r.Context(), "loading namespace grants", "error", gerr)
@@ -110,6 +120,19 @@ func OptionalAuthenticate(authSvc service.AuthService) func(http.Handler) http.H
 			next.ServeHTTP(w, r.WithContext(ctx))
 		})
 	}
+}
+
+// clusterCredentialRoute reports whether r is the one request a credential
+// bound to clusterID may make: pushing that cluster's inventory.
+func clusterCredentialRoute(r *http.Request, clusterID string) bool {
+	return r.Method == http.MethodPost &&
+		strings.EqualFold(r.URL.Path, "/api/v1/clusters/"+clusterID+"/inventory")
+}
+
+func writeClusterCredentialForbidden(w http.ResponseWriter) {
+	w.Header().Set("Content-Type", "application/problem+json")
+	w.WriteHeader(http.StatusForbidden)
+	_, _ = w.Write([]byte(`{"title":"Forbidden","status":403,"detail":"a cluster agent credential may only push its own cluster's inventory"}`))
 }
 
 // UserFromContext retrieves the authenticated user from a request context.

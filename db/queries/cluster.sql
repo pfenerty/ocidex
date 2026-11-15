@@ -679,3 +679,38 @@ WHERE EXISTS (
   AND c.namespace_id IN (SELECT visible_namespace_ids(sqlc.narg('user_id')::uuid, sqlc.narg('is_admin')::boolean))
 ORDER BY c.name ASC, w.k8s_namespace ASC, w.workload_name ASC
 LIMIT sqlc.narg('limit')::int;
+
+-- Cluster agent credentials (ocidex-70eo.5). These are api_key rows bound to a
+-- cluster; the CHECK on api_key pins their ceiling to push_inventory. Every
+-- caller here has already passed manage_cluster on the cluster's namespace.
+
+-- name: CreateClusterCredential :one
+INSERT INTO api_key (user_id, name, key_hash, prefix, capabilities, cluster_id)
+VALUES ($1, $2, $3, $4, ARRAY['push_inventory']::text[], $5)
+RETURNING id, name, prefix, created_at;
+
+-- name: ListClusterCredentials :many
+SELECT k.id, k.name, k.prefix, k.created_at, k.last_used_at, k.user_id, u.display_name
+FROM api_key k
+JOIN ocidex_user u ON u.id = k.user_id
+WHERE k.cluster_id = $1
+ORDER BY k.created_at ASC;
+
+-- name: DeleteClusterCredential :execrows
+DELETE FROM api_key WHERE id = $1 AND cluster_id = $2;
+
+-- name: RotateClusterCredential :one
+-- Revokes the old credential and mints its replacement under the same name, in
+-- one statement so a failure leaves the old one working. The replacement
+-- belongs to the caller: a key narrows with its owner's roles, so it must be
+-- owned by someone who holds them now.
+WITH old AS (
+    DELETE FROM api_key
+    WHERE api_key.id = sqlc.arg('old_id') AND api_key.cluster_id = sqlc.arg('cluster_id')
+    RETURNING api_key.name
+)
+INSERT INTO api_key (user_id, name, key_hash, prefix, capabilities, cluster_id)
+SELECT sqlc.arg('user_id'), old.name, sqlc.arg('key_hash'), sqlc.arg('prefix'),
+       ARRAY['push_inventory']::text[], sqlc.arg('cluster_id')
+FROM old
+RETURNING id, name, prefix, created_at;

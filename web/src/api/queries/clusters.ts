@@ -369,3 +369,65 @@ export function useDeleteCluster() {
         },
     }));
 }
+
+// ---------------------------------------------------------------------------
+// Agent credentials (ocidex-70eo.5): API keys bound to one cluster that can do
+// nothing but push its inventory.
+// ---------------------------------------------------------------------------
+
+/** useClusterCredentials — the cluster's agent credentials. Keys are never listed. */
+export function useClusterCredentials(id: Accessor<string | undefined>, enabled: Accessor<boolean>) {
+    return createQuery(() => ({
+        queryKey: ["clusters", id(), "credentials"] as const,
+        queryFn: () =>
+            unwrap(client.GET("/api/v1/clusters/{id}/credentials", { params: { path: { id: id() ?? "" } } })),
+        enabled: id() !== undefined && enabled(),
+        select: (resp) => resp.data ?? [],
+    }));
+}
+
+export function useCreateClusterCredential() {
+    const queryClient = useQueryClient();
+    return createMutation(() => ({
+        mutationFn: ({ id, name }: { id: string; name?: string }) =>
+            unwrap(
+                client.POST("/api/v1/clusters/{id}/credentials", {
+                    params: { path: { id } },
+                    body: hasText(name) ? { name } : {},
+                }),
+            ),
+        onSuccess: (_d, vars) => {
+            void queryClient.invalidateQueries({ queryKey: ["clusters", vars.id, "credentials"] });
+        },
+    }));
+}
+
+export function useRotateClusterCredential() {
+    const queryClient = useQueryClient();
+    return createMutation(() => ({
+        mutationFn: ({ id, credentialId }: { id: string; credentialId: string }) =>
+            unwrap(
+                client.POST("/api/v1/clusters/{id}/credentials/{credentialId}/rotate", {
+                    params: { path: { id, credentialId } },
+                }),
+            ),
+        onSuccess: (_d, vars) => {
+            void queryClient.invalidateQueries({ queryKey: ["clusters", vars.id, "credentials"] });
+        },
+    }));
+}
+
+export function useRevokeClusterCredential() {
+    const queryClient = useQueryClient();
+    return createMutation(() => ({
+        mutationFn: ({ id, credentialId }: { id: string; credentialId: string }) =>
+            unwrap(
+                client.DELETE("/api/v1/clusters/{id}/credentials/{credentialId}", {
+                    params: { path: { id, credentialId } },
+                }),
+            ),
+        onSuccess: (_d, vars) => {
+            void queryClient.invalidateQueries({ queryKey: ["clusters", vars.id, "credentials"] });
+        },
+    }));
+}

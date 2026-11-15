@@ -31,6 +31,13 @@ vi.mock("~/api/queries", () => ({
     useCreateCluster: vi.fn(),
     useUpdateCluster: vi.fn(),
     useDeleteCluster: vi.fn(),
+    // The credentials card hides itself for a caller without manage_cluster,
+    // which an empty namespace list is.
+    useListNamespaces: () => ({ data: { data: [] } }),
+    useClusterCredentials: () => ({ data: [], isFetching: false, isError: false, error: null }),
+    useCreateClusterCredential: () => ({ mutate: vi.fn(), isPending: false }),
+    useRotateClusterCredential: () => ({ mutate: vi.fn(), isPending: false }),
+    useRevokeClusterCredential: () => ({ mutate: vi.fn(), isPending: false }),
 }));
 
 vi.mock("~/context/toast", () => ({ useToast: () => vi.fn() }));

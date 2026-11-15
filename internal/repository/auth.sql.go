@@ -25,7 +25,7 @@ func (q *Queries) CountIdentitiesByUser(ctx context.Context, userID pgtype.UUID)
 const createAPIKey = `-- name: CreateAPIKey :one
 INSERT INTO api_key (user_id, name, key_hash, prefix, capabilities)
 VALUES ($1, $2, $3, $4, $5)
-RETURNING id, user_id, name, key_hash, prefix, created_at, last_used_at, capabilities
+RETURNING id, user_id, name, key_hash, prefix, created_at, last_used_at, capabilities, cluster_id
 `
 
 type CreateAPIKeyParams struct {
@@ -54,6 +54,7 @@ func (q *Queries) CreateAPIKey(ctx context.Context, arg CreateAPIKeyParams) (Api
 		&i.CreatedAt,
 		&i.LastUsedAt,
 		&i.Capabilities,
+		&i.ClusterID,
 	)
 	return i, err
 }
@@ -225,7 +226,7 @@ func (q *Queries) DeleteSession(ctx context.Context, tokenHash string) error {
 
 const getAPIKeyByHash = `-- name: GetAPIKeyByHash :one
 SELECT k.id, k.user_id, k.name, k.key_hash, k.prefix, k.capabilities, k.created_at, k.last_used_at,
-       u.display_name, u.role
+       k.cluster_id, u.display_name, u.role
 FROM api_key k
 JOIN ocidex_user u ON u.id = k.user_id
 WHERE k.key_hash = $1
@@ -240,6 +241,7 @@ type GetAPIKeyByHashRow struct {
 	Capabilities []string           `json:"capabilities"`
 	CreatedAt    pgtype.Timestamptz `json:"created_at"`
 	LastUsedAt   pgtype.Timestamptz `json:"last_used_at"`
+	ClusterID    pgtype.UUID        `json:"cluster_id"`
 	DisplayName  pgtype.Text        `json:"display_name"`
 	Role         string             `json:"role"`
 }
@@ -256,6 +258,7 @@ func (q *Queries) GetAPIKeyByHash(ctx context.Context, keyHash string) (GetAPIKe
 		&i.Capabilities,
 		&i.CreatedAt,
 		&i.LastUsedAt,
+		&i.ClusterID,
 		&i.DisplayName,
 		&i.Role,
 	)
@@ -365,7 +368,7 @@ func (q *Queries) GetUserByIdentity(ctx context.Context, arg GetUserByIdentityPa
 }
 
 const listAPIKeysByUser = `-- name: ListAPIKeysByUser :many
-SELECT id, name, prefix, capabilities, created_at, last_used_at
+SELECT id, name, prefix, capabilities, created_at, last_used_at, cluster_id
 FROM api_key
 WHERE user_id = $1
 ORDER BY created_at ASC
@@ -378,6 +381,7 @@ type ListAPIKeysByUserRow struct {
 	Capabilities []string           `json:"capabilities"`
 	CreatedAt    pgtype.Timestamptz `json:"created_at"`
 	LastUsedAt   pgtype.Timestamptz `json:"last_used_at"`
+	ClusterID    pgtype.UUID        `json:"cluster_id"`
 }
 
 func (q *Queries) ListAPIKeysByUser(ctx context.Context, userID pgtype.UUID) ([]ListAPIKeysByUserRow, error) {
@@ -396,6 +400,7 @@ func (q *Queries) ListAPIKeysByUser(ctx context.Context, userID pgtype.UUID) ([]
 			&i.Capabilities,
 			&i.CreatedAt,
 			&i.LastUsedAt,
+			&i.ClusterID,
 		); err != nil {
 			return nil, err
 		}

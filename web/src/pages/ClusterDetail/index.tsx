@@ -24,6 +24,7 @@ import { WorkloadsTab, ImagesTab, WorkloadsFilterBar } from "./WorkloadsTab";
 import type { InventoryGrouping } from "./WorkloadsTab";
 import { VulnerabilitiesTab, SEVERITIES, SORT_KEYS as VULN_SORT_KEYS } from "./VulnerabilitiesTab";
 import { GapsTab } from "./GapsTab";
+import { AgentCredentials } from "./AgentCredentials";
 
 const TABS = ["overview", "workloads", "vulnerabilities", "gaps"] as const;
 type Tab = (typeof TABS)[number];
@@ -156,6 +157,10 @@ export default function ClusterDetail() {
                                 // the line never claims ingest is running
                                 // before it knows.
                                 autoIngest={clusterQuery.data?.autoIngest ?? false}
+                            />
+                            <AgentCredentials
+                                clusterId={params.id}
+                                namespaceId={clusterQuery.data?.namespaceId}
                             />
                         </Show>
                         <Show when={tab() === "workloads"}>

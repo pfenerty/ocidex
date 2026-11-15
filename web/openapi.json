@@ -676,6 +676,56 @@
         },
         "type": "object"
       },
+      "ClusterCredentialResponse": {
+        "additionalProperties": false,
+        "properties": {
+          "$schema": {
+            "description": "A URL to the JSON Schema for this object.",
+            "examples": [
+              "https://example.com/api/schemas/ClusterCredentialResponse.json"
+            ],
+            "format": "uri",
+            "readOnly": true,
+            "type": "string"
+          },
+          "createdAt": {
+            "type": "string"
+          },
+          "id": {
+            "type": "string"
+          },
+          "key": {
+            "description": "The full key, shown once on create or rotate. Store it in the agent's secret.",
+            "type": "string"
+          },
+          "lastUsedAt": {
+            "description": "When the agent last authenticated with it; empty if never",
+            "type": "string"
+          },
+          "name": {
+            "type": "string"
+          },
+          "ownerId": {
+            "description": "User who minted it. The credential narrows with that user's live namespace roles.",
+            "type": "string"
+          },
+          "ownerName": {
+            "type": "string"
+          },
+          "prefix": {
+            "description": "First 8 characters of the key",
+            "type": "string"
+          }
+        },
+        "required": [
+          "id",
+          "name",
+          "prefix",
+          "createdAt",
+          "ownerId"
+        ],
+        "type": "object"
+      },
       "ClusterImageResponse": {
         "additionalProperties": false,
         "properties": {
@@ -1375,6 +1425,26 @@
         "required": [
           "key"
         ],
+        "type": "object"
+      },
+      "CreateClusterCredentialInputBody": {
+        "additionalProperties": false,
+        "properties": {
+          "$schema": {
+            "description": "A URL to the JSON Schema for this object.",
+            "examples": [
+              "https://example.com/api/schemas/CreateClusterCredentialInputBody.json"
+            ],
+            "format": "uri",
+            "readOnly": true,
+            "type": "string"
+          },
+          "name": {
+            "description": "Label for the credential; defaults to '\u003ccluster\u003e-agent'",
+            "maxLength": 100,
+            "type": "string"
+          }
+        },
         "type": "object"
       },
       "CreateClusterInputBody": {
@@ -3251,6 +3321,10 @@
               "null"
             ]
           },
+          "clusterId": {
+            "description": "Set for a cluster agent credential, which may only push this cluster's inventory",
+            "type": "string"
+          },
           "createdAt": {
             "format": "date-time",
             "type": "string"
@@ -3519,6 +3593,33 @@
         "required": [
           "data",
           "pagination"
+        ],
+        "type": "object"
+      },
+      "ListClusterCredentialsOutputBody": {
+        "additionalProperties": false,
+        "properties": {
+          "$schema": {
+            "description": "A URL to the JSON Schema for this object.",
+            "examples": [
+              "https://example.com/api/schemas/ListClusterCredentialsOutputBody.json"
+            ],
+            "format": "uri",
+            "readOnly": true,
+            "type": "string"
+          },
+          "data": {
+            "items": {
+              "$ref": "#/components/schemas/ClusterCredentialResponse"
+            },
+            "type": [
+              "array",
+              "null"
+            ]
+          }
+        },
+        "required": [
+          "data"
         ],
         "type": "object"
       },
@@ -8909,6 +9010,208 @@
           }
         },
         "summary": "Rename a cluster",
+        "tags": [
+          "Clusters"
+        ]
+      }
+    },
+    "/api/v1/clusters/{id}/credentials": {
+      "get": {
+        "description": "The agent credentials bound to this cluster, with who minted each and when it was last used. Keys are never returned here.",
+        "operationId": "list-cluster-credentials",
+        "parameters": [
+          {
+            "description": "Cluster UUID",
+            "in": "path",
+            "name": "id",
+            "required": true,
+            "schema": {
+              "description": "Cluster UUID",
+              "format": "uuid",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ListClusterCredentialsOutputBody"
+                }
+              }
+            },
+            "description": "OK"
+          },
+          "default": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorModel"
+                }
+              }
+            },
+            "description": "Error"
+          }
+        },
+        "summary": "List cluster agent credentials",
+        "tags": [
+          "Clusters"
+        ]
+      },
+      "post": {
+        "description": "Mints an API key bound to this cluster that can do nothing but push its inventory. The key is returned once.",
+        "operationId": "create-cluster-credential",
+        "parameters": [
+          {
+            "description": "Cluster UUID",
+            "in": "path",
+            "name": "id",
+            "required": true,
+            "schema": {
+              "description": "Cluster UUID",
+              "format": "uuid",
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/CreateClusterCredentialInputBody"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "201": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ClusterCredentialResponse"
+                }
+              }
+            },
+            "description": "Created"
+          },
+          "default": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorModel"
+                }
+              }
+            },
+            "description": "Error"
+          }
+        },
+        "summary": "Mint a cluster agent credential",
+        "tags": [
+          "Clusters"
+        ]
+      }
+    },
+    "/api/v1/clusters/{id}/credentials/{credentialId}": {
+      "delete": {
+        "operationId": "revoke-cluster-credential",
+        "parameters": [
+          {
+            "description": "Cluster UUID",
+            "in": "path",
+            "name": "id",
+            "required": true,
+            "schema": {
+              "description": "Cluster UUID",
+              "format": "uuid",
+              "type": "string"
+            }
+          },
+          {
+            "description": "Credential UUID",
+            "in": "path",
+            "name": "credentialId",
+            "required": true,
+            "schema": {
+              "description": "Credential UUID",
+              "format": "uuid",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "204": {
+            "description": "No Content"
+          },
+          "default": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorModel"
+                }
+              }
+            },
+            "description": "Error"
+          }
+        },
+        "summary": "Revoke a cluster agent credential",
+        "tags": [
+          "Clusters"
+        ]
+      }
+    },
+    "/api/v1/clusters/{id}/credentials/{credentialId}/rotate": {
+      "post": {
+        "description": "Revokes the credential and mints a replacement with the same name, owned by the caller. The agent fails to push until it is given the new key; for an overlap, mint a second credential and revoke the first once the agent has rolled.",
+        "operationId": "rotate-cluster-credential",
+        "parameters": [
+          {
+            "description": "Cluster UUID",
+            "in": "path",
+            "name": "id",
+            "required": true,
+            "schema": {
+              "description": "Cluster UUID",
+              "format": "uuid",
+              "type": "string"
+            }
+          },
+          {
+            "description": "Credential UUID",
+            "in": "path",
+            "name": "credentialId",
+            "required": true,
+            "schema": {
+              "description": "Credential UUID",
+              "format": "uuid",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ClusterCredentialResponse"
+                }
+              }
+            },
+            "description": "OK"
+          },
+          "default": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorModel"
+                }
+              }
+            },
+            "description": "Error"
+          }
+        },
+        "summary": "Rotate a cluster agent credential",
         "tags": [
           "Clusters"
         ]
