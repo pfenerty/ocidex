@@ -296,7 +296,8 @@ def cloud_end(root, quiet):
 def pre_commit(root):
     if not sync_remote(root):
         return 0
-    staged = git(root, "diff", "--cached", "--name-only").stdout.split()
+    # Deleting it (the migration commit) is fine; adding or changing it isn't.
+    staged = git(root, "diff", "--cached", "--name-only", "--diff-filter=d").stdout.split()
     if ".beads/issues.jsonl" not in staged:
         return 0
     note("refusing to commit .beads/issues.jsonl: this repo syncs beads through "
