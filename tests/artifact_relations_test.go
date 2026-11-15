@@ -210,10 +210,10 @@ func artifactIDByName(t *testing.T, pool *pgxpool.Pool, name string) string {
 // declare its own identity (ADR-040).
 func uploadPath(sourceID, subjectType, subjectName, digest string) string {
 	q := url.Values{
-		"source":       {sourceID},
-		"subject_type": {subjectType},
-		"subject_name": {subjectName},
-		"digest":       {digest},
+		"source":      {sourceID},
+		"subjectType": {subjectType},
+		"subjectName": {subjectName},
+		"digest":      {digest},
 	}
 	return "/api/v1/sboms?" + q.Encode()
 }

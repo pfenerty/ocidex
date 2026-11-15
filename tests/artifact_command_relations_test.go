@@ -104,12 +104,12 @@ func cmdBinarySBOM(serial int, command string) string {
 // carry the module, and the purl takes no @version.
 func cmdUploadPath(sourceID, name, module, digest string) string {
 	q := url.Values{
-		"source":        {sourceID},
-		"subject_type":  {"application"},
-		"subject_name":  {name},
-		"subject_group": {module},
-		"subject_purl":  {"pkg:golang/" + module + "/cmd/" + name},
-		"digest":        {digest},
+		"source":       {sourceID},
+		"subjectType":  {"application"},
+		"subjectName":  {name},
+		"subjectGroup": {module},
+		"subjectPurl":  {"pkg:golang/" + module + "/cmd/" + name},
+		"digest":       {digest},
 	}
 	return "/api/v1/sboms?" + q.Encode()
 }
