@@ -107,6 +107,10 @@ api:
     apiRateLimitHeavy: "120"
     frontendUrl: ""
     corsAllowedOrigins: ""
+    # DISCOVER_FEATURED: comma-separated artifact names for the landing page's
+    # featured cards, in order (e.g. "library/nginx,library/postgres"). Empty
+    # features the public images with the most packages.
+    discoverFeatured: ""
     apiBaseUrl: ""
     githubRedirectUrl: ""
     scannerEnabled: "true"

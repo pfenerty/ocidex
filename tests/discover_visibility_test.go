@@ -12,6 +12,7 @@ import (
 	"github.com/jackc/pgx/v5/pgxpool"
 	"github.com/matryer/is"
 
+	"github.com/pfenerty/ocidex/internal/service"
 	"github.com/pfenerty/ocidex/internal/vuln"
 )
 
@@ -133,6 +134,18 @@ const discoverPrivateOnlySBOM = `{
 // discoverPayload models the fields this test asserts on. The endpoint body is
 // snake_case; the section rows are service DTOs and stay camelCase.
 type discoverPayload struct {
+	FeaturedArtifacts []struct {
+		Name           string `json:"name"`
+		SubjectVersion string `json:"subjectVersion"`
+		PackageCount   int64  `json:"packageCount"`
+		Vulns          struct {
+			Critical int64 `json:"critical"`
+		} `json:"vulns"`
+		Licenses struct {
+			Permissive int64 `json:"permissive"`
+			Copyleft   int64 `json:"copyleft"`
+		} `json:"licenses"`
+	} `json:"featuredArtifacts"`
 	TopArtifacts []struct {
 		ID           string `json:"id"`
 		Name         string `json:"name"`
@@ -312,6 +325,62 @@ func TestDiscoverExcludesPrivateNamespaces(t *testing.T) {
 	is.Equal(lic.SpdxID, "MIT")
 	// MIT covers three distinct components across the fixture; two are private.
 	is.Equal(lic.ComponentCount, int64(1))
+
+	// --- featured (no DISCOVER_FEATURED): the newest PUBLIC SBOM -----------
+	// The private 2.0 SBOM is newer by version and by time; the card must
+	// still summarise 1.0, with its one component, its one CVE and its MIT.
+	is.Equal(len(anonPayload.FeaturedArtifacts), 1)
+	f := anonPayload.FeaturedArtifacts[0]
+	is.Equal(f.Name, "docker.io/discover-shared")
+	is.Equal(f.SubjectVersion, "1.0")
+	is.Equal(f.PackageCount, int64(1))
+	is.Equal(f.Vulns.Critical, int64(1))
+	is.Equal(f.Licenses.Permissive, int64(1))
+	is.Equal(f.Licenses.Copyleft, int64(0))
+}
+
+// TestDiscoverFeaturedConfiguredNames covers DISCOVER_FEATURED: an entry
+// matches by "/<entry>" suffix, rows follow the configured order, and a name
+// that matches only private content yields no card.
+func TestDiscoverFeaturedConfiguredNames(t *testing.T) {
+	if testing.Short() {
+		t.Skip("skipping integration test in short mode")
+	}
+	requireTestInfra(t)
+
+	pool, cleanup := setupTestDB(t)
+	defer cleanup()
+
+	srv, authSvc, _ := setupServerWithStats(t, pool)
+	defer srv.Close()
+
+	is := is.New(t)
+
+	owner := seedUser(t, pool, 7321, "discover-featured-owner", "member")
+	key, err := authSvc.CreateAPIKey(t.Context(), owner, "featured", nil)
+	is.NoErr(err)
+	publicSrc := discoverNS(t, pool, "discover-feat-pub", owner, "public")
+	privateSrc := discoverNS(t, pool, "discover-feat-priv", owner, "private")
+	ingestInto(t, srv.URL, publicSrc, discoverSharedPublicSBOM, key)
+	ingestInto(t, srv.URL, privateSrc, discoverPrivateOnlySBOM, key)
+	refreshRollups(t, pool)
+
+	svc := service.NewSearchService(pool, service.WithFeatured([]string{
+		"discover-private",  // private only: no card
+		" discover-shared ", // suffix of docker.io/discover-shared; trimmed
+		"no-such-image",
+	}))
+	d, err := svc.WarmDiscovery(t.Context())
+	is.NoErr(err)
+	is.Equal(len(d.FeaturedArtifacts), 1)
+	is.Equal(d.FeaturedArtifacts[0].Name, "docker.io/discover-shared")
+
+	// Configured, but nothing public matches: the section is empty rather
+	// than falling back to the package-count ranking.
+	none := service.NewSearchService(pool, service.WithFeatured([]string{"no-such-image"}))
+	d, err = none.WarmDiscovery(t.Context())
+	is.NoErr(err)
+	is.Equal(len(d.FeaturedArtifacts), 0)
 }
 
 // TestDiscoverEmptyWhenAllContentIsPrivate is the degenerate case of the same
@@ -354,6 +423,7 @@ func TestDiscoverEmptyWhenAllContentIsPrivate(t *testing.T) {
 	is.Equal(len(payload.RecentArtifacts), 0)
 	is.Equal(len(payload.TopVulnerabilities), 0)
 	is.Equal(len(payload.LicenseSpread), 0)
+	is.Equal(len(payload.FeaturedArtifacts), 0)
 	if strings.Contains(raw, "discover-private") || strings.Contains(raw, "CVE-2030-0002") {
 		t.Fatalf("private content leaked into an all-private discovery payload: %s", raw)
 	}

@@ -99,6 +99,10 @@ spec:
             - name: FRONTEND_URL
               value: {{ .Values.api.env.frontendUrl | quote }}
             {{- end }}
+            {{- if .Values.api.env.discoverFeatured }}
+            - name: DISCOVER_FEATURED
+              value: {{ .Values.api.env.discoverFeatured | quote }}
+            {{- end }}
             {{- if .Values.api.env.corsAllowedOrigins }}
             - name: CORS_ALLOWED_ORIGINS
               value: {{ .Values.api.env.corsAllowedOrigins | quote }}

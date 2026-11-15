@@ -11,6 +11,180 @@ import (
 	"github.com/jackc/pgx/v5/pgtype"
 )
 
+const getDiscoverFeaturedArtifacts = `-- name: GetDiscoverFeaturedArtifacts :many
+WITH public_ns AS (
+    SELECT visible_namespace_ids(NULL::uuid, false) AS id
+),
+wanted AS (
+    SELECT w.entry, w.ord
+    FROM unnest($2::text[]) WITH ORDINALITY AS w(entry, ord)
+),
+configured AS (
+    SELECT DISTINCT ON (w.ord) a.id, a.type, a.name, w.ord::bigint AS ord
+    FROM wanted w
+    JOIN artifact a ON a.name = w.entry OR a.name LIKE '%/' || w.entry
+    WHERE EXISTS (
+        SELECT 1 FROM sbom s
+        WHERE s.artifact_id = a.id AND s.namespace_id IN (SELECT id FROM public_ns)
+    )
+    ORDER BY w.ord, length(a.name), a.id
+),
+fallback AS (
+    SELECT a.id, a.type, a.name, 0::bigint AS ord
+    FROM artifact a
+    WHERE cardinality($2::text[]) = 0
+      AND a.type = 'container'
+      AND EXISTS (
+          SELECT 1 FROM sbom s
+          WHERE s.artifact_id = a.id AND s.namespace_id IN (SELECT id FROM public_ns)
+      )
+),
+picked AS (
+    SELECT id, type, name, ord FROM configured
+    UNION ALL
+    SELECT id, type, name, ord FROM fallback
+)
+SELECT p.id                                   AS artifact_id,
+       p.type,
+       p.name,
+       l.sbom_id,
+       l.subject_version,
+       l.created_at,
+       pc.package_count,
+       vc.critical_count,
+       vc.high_count,
+       vc.medium_count,
+       vc.low_count,
+       vc.unknown_count,
+       lc.permissive_count,
+       lc.weak_copyleft_count,
+       lc.copyleft_count,
+       lc.uncategorized_count
+FROM picked p
+CROSS JOIN LATERAL (
+    SELECT s.id AS sbom_id, s.subject_version, s.created_at
+    FROM sbom s
+    WHERE s.artifact_id = p.id
+      AND s.namespace_id IN (SELECT id FROM public_ns)
+    ORDER BY s.version_major DESC NULLS LAST,
+             s.version_minor DESC NULLS LAST,
+             s.version_patch DESC NULLS LAST,
+             s.created_at DESC, s.id DESC
+    LIMIT 1
+) l
+CROSS JOIN LATERAL (
+    SELECT COUNT(*)::bigint AS package_count
+    FROM component c
+    WHERE c.sbom_id = l.sbom_id
+) pc
+CROSS JOIN LATERAL (
+    SELECT COUNT(DISTINCT v.canonical_id) FILTER (WHERE v.severity = 'CRITICAL')::bigint AS critical_count,
+           COUNT(DISTINCT v.canonical_id) FILTER (WHERE v.severity = 'HIGH')::bigint     AS high_count,
+           COUNT(DISTINCT v.canonical_id) FILTER (WHERE v.severity = 'MEDIUM')::bigint   AS medium_count,
+           COUNT(DISTINCT v.canonical_id) FILTER (WHERE v.severity = 'LOW')::bigint      AS low_count,
+           COUNT(DISTINCT v.canonical_id) FILTER (
+               WHERE v.severity IS NULL OR v.severity NOT IN ('CRITICAL', 'HIGH', 'MEDIUM', 'LOW')
+           )::bigint AS unknown_count
+    FROM (
+        SELECT DISTINCT c1.purl::text AS purl, COALESCE(c1.go_symbol_set_id, 0) AS go_symbol_set_id
+        FROM component c1
+        WHERE c1.sbom_id = l.sbom_id AND c1.purl IS NOT NULL
+        UNION
+        SELECT DISTINCT c2.source_purl::text AS purl, 0::bigint AS go_symbol_set_id
+        FROM component c2
+        WHERE c2.sbom_id = l.sbom_id AND c2.source_purl IS NOT NULL
+    ) sc
+    JOIN package_vulnerability pv ON pv.purl = sc.purl AND pv.go_symbol_set_id = sc.go_symbol_set_id
+    JOIN vulnerability v ON v.id = pv.vulnerability_id
+) vc
+CROSS JOIN LATERAL (
+    SELECT COUNT(DISTINCT c.id) FILTER (WHERE license_category(li.spdx_id) = 'permissive')::bigint    AS permissive_count,
+           COUNT(DISTINCT c.id) FILTER (WHERE license_category(li.spdx_id) = 'weak-copyleft')::bigint AS weak_copyleft_count,
+           COUNT(DISTINCT c.id) FILTER (WHERE license_category(li.spdx_id) = 'copyleft')::bigint      AS copyleft_count,
+           COUNT(DISTINCT c.id) FILTER (WHERE license_category(li.spdx_id) = 'uncategorized')::bigint AS uncategorized_count
+    FROM component c
+    JOIN component_license cl ON cl.component_id = c.id
+    JOIN license li ON li.id = cl.license_id
+    WHERE c.sbom_id = l.sbom_id
+) lc
+ORDER BY p.ord, pc.package_count DESC, p.name
+LIMIT $1::int
+`
+
+type GetDiscoverFeaturedArtifactsParams struct {
+	RowLimit int32    `json:"row_limit"`
+	Names    []string `json:"names"`
+}
+
+type GetDiscoverFeaturedArtifactsRow struct {
+	ArtifactID         pgtype.UUID        `json:"artifact_id"`
+	Type               string             `json:"type"`
+	Name               string             `json:"name"`
+	SbomID             pgtype.UUID        `json:"sbom_id"`
+	SubjectVersion     pgtype.Text        `json:"subject_version"`
+	CreatedAt          pgtype.Timestamptz `json:"created_at"`
+	PackageCount       int64              `json:"package_count"`
+	CriticalCount      int64              `json:"critical_count"`
+	HighCount          int64              `json:"high_count"`
+	MediumCount        int64              `json:"medium_count"`
+	LowCount           int64              `json:"low_count"`
+	UnknownCount       int64              `json:"unknown_count"`
+	PermissiveCount    int64              `json:"permissive_count"`
+	WeakCopyleftCount  int64              `json:"weak_copyleft_count"`
+	CopyleftCount      int64              `json:"copyleft_count"`
+	UncategorizedCount int64              `json:"uncategorized_count"`
+}
+
+// Landing-page cards: per artifact, its newest public SBOM summarised as a
+// version, a package count, vulnerability counts by severity and package
+// counts by license category (ocidex-08ys).
+//
+// Selection: with @names set (DISCOVER_FEATURED), each entry picks the public
+// artifact whose name equals it or ends in "/<entry>", so "library/nginx"
+// finds registry-1.docker.io/library/nginx; rows keep the configured order.
+// With @names empty, the public container images with the most packages fill
+// the slots.
+//
+// "Newest" is the GetArtifactVulnSummary ordering (version parts, created_at
+// as a tiebreak), and the severity counts use its unit, distinct canonical_id
+// per severity, so a card and that artifact's own page agree.
+func (q *Queries) GetDiscoverFeaturedArtifacts(ctx context.Context, arg GetDiscoverFeaturedArtifactsParams) ([]GetDiscoverFeaturedArtifactsRow, error) {
+	rows, err := q.db.Query(ctx, getDiscoverFeaturedArtifacts, arg.RowLimit, arg.Names)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	items := []GetDiscoverFeaturedArtifactsRow{}
+	for rows.Next() {
+		var i GetDiscoverFeaturedArtifactsRow
+		if err := rows.Scan(
+			&i.ArtifactID,
+			&i.Type,
+			&i.Name,
+			&i.SbomID,
+			&i.SubjectVersion,
+			&i.CreatedAt,
+			&i.PackageCount,
+			&i.CriticalCount,
+			&i.HighCount,
+			&i.MediumCount,
+			&i.LowCount,
+			&i.UnknownCount,
+			&i.PermissiveCount,
+			&i.WeakCopyleftCount,
+			&i.CopyleftCount,
+			&i.UncategorizedCount,
+		); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
 const getDiscoverLicenseSpread = `-- name: GetDiscoverLicenseSpread :many
 SELECT l.id,
        l.spdx_id,

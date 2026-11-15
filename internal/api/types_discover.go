@@ -19,6 +19,7 @@ type DiscoveryOutput struct {
 	CacheControl string `header:"Cache-Control"`
 
 	Body struct {
+		FeaturedArtifacts  []service.DiscoverFeatured `json:"featuredArtifacts" doc:"Featured public artifacts (DISCOVER_FEATURED, in order), each summarised from its newest SBOM"`
 		TopArtifacts       []service.DiscoverArtifact `json:"topArtifacts" doc:"Artifacts ranked by how widely they are used, how many versions are tracked, and how recently they were seen"`
 		RecentArtifacts    []service.DiscoverRecent   `json:"recentArtifacts" doc:"Most recently updated public artifacts, one row per artifact"`
 		TopVulnerabilities []service.DiscoverVuln     `json:"topVulnerabilities" doc:"Vulnerabilities ranked by how many public artifacts they affect"`

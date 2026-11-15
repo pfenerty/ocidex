@@ -18,6 +18,7 @@ import (
 // makes it safe to cache at the edge. Anything personalised belongs on the
 // dashboard (ocidex-998g), not here.
 type Discovery struct {
+	FeaturedArtifacts  []DiscoverFeatured `json:"featuredArtifacts"`
 	TopArtifacts       []DiscoverArtifact `json:"topArtifacts"`
 	RecentArtifacts    []DiscoverRecent   `json:"recentArtifacts"`
 	TopVulnerabilities []DiscoverVuln     `json:"topVulnerabilities"`
@@ -45,6 +46,41 @@ type DiscoverArtifact struct {
 	// caller can tell a near-tie from a runaway leader rather than reading the
 	// ordinal position as a magnitude.
 	Score float64 `json:"score"`
+}
+
+// DiscoverFeatured is one landing-page card: an artifact summarised from its
+// newest public SBOM (ocidex-08ys).
+type DiscoverFeatured struct {
+	ArtifactID     string    `json:"artifactId"`
+	Type           string    `json:"type"`
+	Name           string    `json:"name"`
+	SbomID         string    `json:"sbomId"`
+	SubjectVersion *string   `json:"subjectVersion,omitempty"`
+	CreatedAt      time.Time `json:"createdAt"`
+	PackageCount   int64     `json:"packageCount" doc:"Components in the newest SBOM"`
+	// Vulns counts distinct canonical vulnerabilities per severity, the unit
+	// the artifact page's tile uses, so the two agree.
+	Vulns VulnSeverityCounts `json:"vulns"`
+	// Licenses counts the newest SBOM's components per license category; a
+	// component under two licenses of one category counts once in it.
+	Licenses LicenseCategoryMix `json:"licenses"`
+}
+
+// VulnSeverityCounts is a per-severity vulnerability count.
+type VulnSeverityCounts struct {
+	Critical int64 `json:"critical"`
+	High     int64 `json:"high"`
+	Medium   int64 `json:"medium"`
+	Low      int64 `json:"low"`
+	Unknown  int64 `json:"unknown"`
+}
+
+// LicenseCategoryMix is a per-category component count (license_category()).
+type LicenseCategoryMix struct {
+	Permissive    int64 `json:"permissive"`
+	WeakCopyleft  int64 `json:"weakCopyleft"`
+	Copyleft      int64 `json:"copyleft"`
+	Uncategorized int64 `json:"uncategorized"`
 }
 
 // DiscoverRecent is one recently updated artifact, with the SBOM that updated it.
@@ -90,6 +126,7 @@ type DiscoverLicense struct {
 // list page to link to. Nothing here is caller-tunable, which is part of why the
 // response can be identical for everyone.
 const (
+	discoverFeaturedLimit    = 12
 	discoverTopArtifactLimit = 12
 	discoverRecentLimit      = 12
 	discoverVulnLimit        = 10
@@ -122,6 +159,7 @@ func (s *searchService) GetDiscovery(ctx context.Context) (*Discovery, error) {
 		return cached, nil
 	}
 	return &Discovery{
+		FeaturedArtifacts:  []DiscoverFeatured{},
 		TopArtifacts:       []DiscoverArtifact{},
 		RecentArtifacts:    []DiscoverRecent{},
 		TopVulnerabilities: []DiscoverVuln{},
@@ -136,6 +174,7 @@ func (s *searchService) WarmDiscovery(ctx context.Context) (*Discovery, error) {
 	q := repository.New(s.warmHandle())
 
 	var (
+		featured []repository.GetDiscoverFeaturedArtifactsRow
 		top      []repository.GetDiscoverTopArtifactsRow
 		recent   []repository.GetDiscoverRecentArtifactsRow
 		vulns    []repository.GetDiscoverTopVulnerabilitiesRow
@@ -148,6 +187,20 @@ func (s *searchService) WarmDiscovery(ctx context.Context) (*Discovery, error) {
 	// I/O and only holds more connections at once.
 	g.SetLimit(statsWarmConcurrency)
 
+	g.Go(func() error {
+		var err error
+		// A non-nil slice: sqlc binds nil as NULL, and cardinality(NULL) is
+		// NULL, which would switch the fallback off.
+		names := append([]string{}, s.featured...)
+		featured, err = q.GetDiscoverFeaturedArtifacts(gctx, repository.GetDiscoverFeaturedArtifactsParams{
+			Names:    names,
+			RowLimit: discoverFeaturedLimit,
+		})
+		if err != nil {
+			return fmt.Errorf("getting featured artifacts: %w", err)
+		}
+		return nil
+	})
 	g.Go(func() error {
 		var err error
 		top, err = q.GetDiscoverTopArtifacts(gctx, discoverTopArtifactLimit)
@@ -188,7 +241,7 @@ func (s *searchService) WarmDiscovery(ctx context.Context) (*Discovery, error) {
 		return nil, err
 	}
 
-	payload := buildDiscovery(top, recent, vulns, licenses)
+	payload := buildDiscovery(featured, top, recent, vulns, licenses)
 
 	if s.discoverCache != nil {
 		s.discoverCache.set(discoverCacheKey, payload)
@@ -198,11 +251,38 @@ func (s *searchService) WarmDiscovery(ctx context.Context) (*Discovery, error) {
 
 // buildDiscovery maps the four raw aggregate row sets into the Discovery DTO.
 func buildDiscovery(
+	featured []repository.GetDiscoverFeaturedArtifactsRow,
 	top []repository.GetDiscoverTopArtifactsRow,
 	recent []repository.GetDiscoverRecentArtifactsRow,
 	vulns []repository.GetDiscoverTopVulnerabilitiesRow,
 	licenses []repository.GetDiscoverLicenseSpreadRow,
 ) *Discovery {
+	featuredItems := make([]DiscoverFeatured, 0, len(featured))
+	for _, r := range featured {
+		featuredItems = append(featuredItems, DiscoverFeatured{
+			ArtifactID:     uuidToString(r.ArtifactID),
+			Type:           r.Type,
+			Name:           r.Name,
+			SbomID:         uuidToString(r.SbomID),
+			SubjectVersion: textToPtr(r.SubjectVersion),
+			CreatedAt:      r.CreatedAt.Time,
+			PackageCount:   r.PackageCount,
+			Vulns: VulnSeverityCounts{
+				Critical: r.CriticalCount,
+				High:     r.HighCount,
+				Medium:   r.MediumCount,
+				Low:      r.LowCount,
+				Unknown:  r.UnknownCount,
+			},
+			Licenses: LicenseCategoryMix{
+				Permissive:    r.PermissiveCount,
+				WeakCopyleft:  r.WeakCopyleftCount,
+				Copyleft:      r.CopyleftCount,
+				Uncategorized: r.UncategorizedCount,
+			},
+		})
+	}
+
 	topItems := make([]DiscoverArtifact, 0, len(top))
 	for _, r := range top {
 		item := DiscoverArtifact{
@@ -268,6 +348,7 @@ func buildDiscovery(
 	}
 
 	return &Discovery{
+		FeaturedArtifacts:  featuredItems,
 		TopArtifacts:       topItems,
 		RecentArtifacts:    recentItems,
 		TopVulnerabilities: vulnItems,

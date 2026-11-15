@@ -136,6 +136,10 @@ type Config struct {
 
 	// Frontend URL — used as the post-OAuth redirect target and for CORS defaults.
 	FrontendURL string `env:"FRONTEND_URL" envDefault:"http://localhost:3000"`
+	// DiscoverFeatured names the artifacts the landing page features, in
+	// order (ocidex-08ys). Empty features the public container images with
+	// the most packages.
+	DiscoverFeatured []string `env:"DISCOVER_FEATURED" envSeparator:","`
 
 	// APIBaseURL — optional public base URL of the API, used to populate the OpenAPI servers block.
 	APIBaseURL string `env:"API_BASE_URL" envDefault:""`
