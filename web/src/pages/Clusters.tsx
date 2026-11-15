@@ -4,6 +4,7 @@ import DataTable from "~/components/DataTable";
 import type { Column } from "~/components/DataTable";
 import { Button, FormField, Modal, PageHeader, StatusPill } from "~/components/ui";
 import { useToast } from "~/context/toast";
+import { RetireClusterDialog } from "./RetireClusterDialog";
 import { relativeDate, formatDateTime } from "~/utils/format";
 import type { Cluster } from "~/api/client";
 import {
@@ -63,6 +64,11 @@ export function StalenessPill(props: { lastSeenAt: string | undefined; health?: 
             <Match when={state() === "never_reported"}>
                 <StatusPill variant="warning" title={reason("No agent has ever pushed a snapshot for this cluster")}>
                     never reported
+                </StatusPill>
+            </Match>
+            <Match when={state() === "paused"}>
+                <StatusPill variant="default" title={reason("Paused: snapshots are refused")}>
+                    paused
                 </StatusPill>
             </Match>
             <Match when={state() === "stale"}>
@@ -158,18 +164,38 @@ export default function Clusters() {
         );
     }
 
+    // Retiring goes through a dialog that offers pause beside delete and says
+    // what each keeps (ocidex-70eo.9).
+    let retireRef: HTMLDialogElement | undefined;
+    const [retiring, setRetiring] = createSignal<Cluster | null>(null);
+    function handleRetire(c: Cluster) {
+        setRetiring(c);
+        retireRef?.showModal();
+    }
+    function closeRetire() {
+        retireRef?.close();
+        setRetiring(null);
+    }
     function handleDelete(c: Cluster) {
-        if (
-            !confirm(
-                `Delete cluster "${c.name}"? Its recorded inventory goes with it. The agent will start failing until it is pointed at a new cluster ID.`,
-            )
-        ) {
-            return;
-        }
         deleteCluster.mutate(c.id, {
-            onSuccess: () => toast("Cluster deleted", "success"),
+            onSuccess: () => {
+                toast("Cluster deleted", "success");
+                closeRetire();
+            },
             onError: () => toast("Failed to delete cluster", "error"),
         });
+    }
+    function setPaused(c: Cluster, paused: boolean) {
+        updateCluster.mutate(
+            { id: c.id, name: c.name, description: c.description, paused },
+            {
+                onSuccess: () => {
+                    toast(paused ? "Cluster paused" : "Cluster resumed", "success");
+                    if (paused) closeRetire();
+                },
+                onError: () => toast(paused ? "Failed to pause cluster" : "Failed to resume cluster", "error"),
+            },
+        );
     }
 
     const columns: Column<Cluster>[] = [
@@ -256,12 +282,21 @@ export default function Clusters() {
                             <Button size="sm" onClick={() => startEdit(c)}>
                                 Edit
                             </Button>
+                            <Show when={c.pausedAt !== undefined}>
+                                <Button
+                                    size="sm"
+                                    onClick={() => setPaused(c, false)}
+                                    disabled={updateCluster.isPending}
+                                >
+                                    Resume
+                                </Button>
+                            </Show>
                             <Button
                                 size="sm"
-                                onClick={() => handleDelete(c)}
+                                onClick={() => handleRetire(c)}
                                 disabled={deleteCluster.isPending}
                             >
-                                Delete
+                                Retire
                             </Button>
                         </div>
                     }
@@ -310,6 +345,15 @@ export default function Clusters() {
                 dialog renders in the top layer when open, so its position
                 here costs nothing, and the data stays first for anything
                 that reads the page linearly. */}
+            <RetireClusterDialog
+                ref={(el) => (retireRef = el)}
+                cluster={retiring()}
+                busy={deleteCluster.isPending || updateCluster.isPending}
+                onPause={(c) => setPaused(c, true)}
+                onDelete={handleDelete}
+                onCancel={closeRetire}
+            />
+
             <Modal
                 ref={(el) => (dialogRef = el)}
                 title="Register cluster"

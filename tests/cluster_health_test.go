@@ -67,3 +67,43 @@ func TestClusterPushHistoryAndHealth(t *testing.T) {
 	// A push to an id that is no cluster leaves no trace and no error.
 	is.NoErr(svc.RecordPush(ctx, "00000000-0000-0000-0000-000000000000", service.PushAttempt{Status: 401, Reason: "x"}))
 }
+
+// TestClusterPauseAndResume pins ocidex-70eo.9: pausing is reported as its own
+// state, and resuming clears the refusals the pause itself caused.
+func TestClusterPauseAndResume(t *testing.T) {
+	if testing.Short() {
+		t.Skip("skipping integration test in short mode")
+	}
+	requireTestInfra(t)
+
+	pool, cleanup := setupTestDB(t)
+	defer cleanup()
+
+	ctx := t.Context()
+	is := is.New(t)
+	svc := service.NewClusterService(pool, nil)
+
+	owner := seedUser(t, pool, 9031, "pause-owner", "member")
+	nsID := seedNamespace(t, pool, "pause-ns", owner, "private")
+	clusterID := seedCluster(t, pool, nsID, "prod")
+
+	yes, no := true, false
+	c, err := svc.Update(ctx, service.UpdateClusterParams{ID: clusterID, Name: "prod", Paused: &yes})
+	is.NoErr(err)
+	is.True(c.PausedAt != nil)
+	is.Equal(c.Health(time.Now()).State, service.HealthPaused)
+
+	// A push refused while paused.
+	is.NoErr(svc.RecordPush(ctx, clusterID, service.PushAttempt{Status: 409, Reason: "paused"}))
+
+	// A rename leaves the pause alone.
+	c, err = svc.Update(ctx, service.UpdateClusterParams{ID: clusterID, Name: "prod-2"})
+	is.NoErr(err)
+	is.True(c.PausedAt != nil)
+
+	c, err = svc.Update(ctx, service.UpdateClusterParams{ID: clusterID, Name: "prod-2", Paused: &no})
+	is.NoErr(err)
+	is.True(c.PausedAt == nil)
+	is.Equal(c.LastPushError, "")
+	is.Equal(c.Health(time.Now()).State, service.HealthNeverReported)
+}

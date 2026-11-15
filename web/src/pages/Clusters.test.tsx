@@ -220,18 +220,39 @@ describe("Clusters", () => {
         });
     });
 
-    it("only deletes on confirm", () => {
-        const confirmSpy = vi.fn((_message?: string) => false);
-        vi.stubGlobal("confirm", confirmSpy);
-        const { container } = renderPage();
+    // ocidex-70eo.9: retiring opens a dialog offering pause or delete, and
+    // says what deletion takes with it, rather than a bare confirm().
+    it("retires through a dialog that explains pause and delete", () => {
+        const dialogProto = globalThis.HTMLDialogElement.prototype as { showModal: () => void };
+        const original = dialogProto.showModal;
+        dialogProto.showModal = vi.fn();
+        try {
+            const { container } = renderPage();
+            fireEvent.click(button(container, "Retire"));
+            expect(deleteMutate).not.toHaveBeenCalled();
 
-        fireEvent.click(button(container, "Delete"));
-        expect(deleteMutate).not.toHaveBeenCalled();
-        expect(confirmSpy.mock.calls[0][0]).toContain("recorded inventory");
+            const dialog = must(container.querySelector('[data-testid="retire-dialog"]'), "retire dialog");
+            expect(dialog.textContent).toContain("helm uninstall ocidex-k8s-agent");
+            expect(dialog.textContent).toContain("agent credentials are revoked");
+            expect(dialog.textContent).toContain("protection from retention");
 
-        confirmSpy.mockReturnValue(true);
-        fireEvent.click(button(container, "Delete"));
-        expect(deleteMutate).toHaveBeenCalledWith("c-prod", expect.anything());
+            fireEvent.click(button(container, "Pause cluster"));
+            expect(updateMutate.mock.calls[0][0]).toMatchObject({ id: "c-prod", paused: true });
+
+            fireEvent.click(button(container, "Delete prod-eu-west"));
+            expect(deleteMutate).toHaveBeenCalledWith("c-prod", expect.anything());
+        } finally {
+            dialogProto.showModal = original;
+        }
+    });
+
+    it("offers resume on a paused cluster", () => {
+        const { container } = renderPage([
+            { ...prod, pausedAt: "2026-11-14T00:00:00Z", health: { state: "paused", reason: "Paused" } },
+        ]);
+        expect(container.textContent).toContain("paused");
+        fireEvent.click(button(container, "Resume"));
+        expect(updateMutate.mock.calls[0][0]).toMatchObject({ id: "c-prod", paused: false });
     });
 
     // The form used to sit permanently expanded above the table, outweighing

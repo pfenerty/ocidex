@@ -17,13 +17,14 @@ type ClusterResponse struct {
 	AutoIngest    bool                  `json:"autoIngest" doc:"Submit a scan job for every running image with no SBOM whose host resolves to a registry in this cluster's namespace, on every accepted snapshot."`
 	Agent         *ClusterAgentResponse `json:"agent,omitempty" doc:"What the agent reported about itself with its last accepted snapshot. Absent until an agent that self-reports has pushed."`
 	Health        ClusterHealthResponse `json:"health" doc:"The agent's health, derived from its pushes"`
+	PausedAt      string                `json:"pausedAt,omitempty" doc:"When the cluster was paused; empty while active"`
 	CreatedAt     string                `json:"createdAt"`
 	UpdatedAt     string                `json:"updatedAt"`
 }
 
 // ClusterHealthResponse is a cluster's derived agent health (ocidex-70eo.4).
 type ClusterHealthResponse struct {
-	State             string `json:"state" enum:"never_reported,healthy,stale,erroring" doc:"never_reported: nothing pushed yet. healthy: last push accepted and recent. stale: no accepted push within three report intervals. erroring: the agent is pushing and being refused."`
+	State             string `json:"state" enum:"never_reported,healthy,stale,erroring,paused" doc:"never_reported: nothing pushed yet. healthy: last push accepted and recent. stale: no accepted push within three report intervals. erroring: the agent is pushing and being refused. paused: paused on purpose; snapshots are refused."`
 	Reason            string `json:"reason,omitempty" doc:"Why, for every state but healthy"`
 	StaleAfterSeconds int64  `json:"staleAfterSeconds,omitempty" doc:"Seconds after the last accepted push at which the cluster turns stale; absent for a one-shot agent"`
 }
@@ -114,6 +115,8 @@ type UpdateClusterInput struct {
 		// A pointer so omitting the field leaves the setting alone: a rename
 		// must not be able to switch ingest off as a side effect.
 		AutoIngest *bool `json:"autoIngest,omitempty" doc:"Auto-ingest unknown running images on every accepted snapshot. Omit to leave unchanged."`
+		// Same pointer reasoning as AutoIngest.
+		Paused *bool `json:"paused,omitempty" doc:"Pause (true) or resume (false) the cluster. A paused cluster refuses snapshots and keeps its last inventory. Omit to leave unchanged."`
 	}
 }
 

@@ -2151,10 +2151,10 @@ export interface components {
              */
             staleAfterSeconds?: number;
             /**
-             * @description never_reported: nothing pushed yet. healthy: last push accepted and recent. stale: no accepted push within three report intervals. erroring: the agent is pushing and being refused.
+             * @description never_reported: nothing pushed yet. healthy: last push accepted and recent. stale: no accepted push within three report intervals. erroring: the agent is pushing and being refused. paused: paused on purpose; snapshots are refused.
              * @enum {string}
              */
-            state: "never_reported" | "healthy" | "stale" | "erroring";
+            state: "never_reported" | "healthy" | "stale" | "erroring" | "paused";
         };
         ClusterImageResponse: {
             artifactId?: string;
@@ -2229,6 +2229,8 @@ export interface components {
             namespaceId: string;
             /** @description Owning namespace name; populated on list responses */
             namespaceName?: string;
+            /** @description When the cluster was paused; empty while active */
+            pausedAt?: string;
             updatedAt: string;
         };
         ClusterWorkloadResponse: {
@@ -4432,6 +4434,8 @@ export interface components {
             autoIngest?: boolean;
             description?: string;
             name: string;
+            /** @description Pause (true) or resume (false) the cluster. A paused cluster refuses snapshots and keeps its last inventory. Omit to leave unchanged. */
+            paused?: boolean;
         };
         UpdateNamespaceInputBody: {
             /**

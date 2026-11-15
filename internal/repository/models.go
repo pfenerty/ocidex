@@ -71,6 +71,8 @@ type Cluster struct {
 	AgentPodNamespace          pgtype.Text        `json:"agent_pod_namespace"`
 	LastPushErrorAt            pgtype.Timestamptz `json:"last_push_error_at"`
 	LastPushError              pgtype.Text        `json:"last_push_error"`
+	// Set while the cluster is paused: snapshots are refused and the last inventory is kept. NULL when active.
+	PausedAt pgtype.Timestamptz `json:"paused_at"`
 }
 
 // Recent inventory push attempts per cluster, accepted and rejected (ocidex-70eo.4). Capped per cluster on insert.

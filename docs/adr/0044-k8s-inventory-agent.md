@@ -221,6 +221,12 @@ carries the state and reason, and the API exports `ocidex_cluster_health{cluster
 for alerting. The agent logs the server's reason as its own field and counts pushes by outcome
 (`ocidex_agent_pushes_total`).
 
+A cluster can also be **paused** (`ocidex-70eo.9`, `PATCH … {"paused": true}`): pushes get 409, the
+last inventory is kept (and with it retention's protection of the images it lists), and health
+reads `paused`, ahead of every other state, so a deliberate pause never alerts. Resuming clears
+the refusals the pause caused. Deleting is the other way to retire a cluster; it revokes the
+cluster's credentials (K8a) and drops the inventory.
+
 ### Rule K9 — Unknown running images are ingested automatically, within the namespace
 
 *Amendment, epic `ocidex-6zoe`. This answers the last Consequence below: gaps that "appear forever

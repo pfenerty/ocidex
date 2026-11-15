@@ -28,6 +28,9 @@ const (
 	// HealthErroring: OCIDex is hearing from the agent and refusing it. The
 	// reason says why.
 	HealthErroring = "erroring"
+	// HealthPaused: someone paused the cluster on purpose (ocidex-70eo.9).
+	// It outranks the others: refusals and silence are both expected.
+	HealthPaused = "paused"
 )
 
 // DefaultReportInterval is what staleness is judged against when the agent
@@ -71,6 +74,9 @@ type PushAttempt struct {
 
 // Health derives the cluster's agent health at now.
 func (c Cluster) Health(now time.Time) ClusterHealth {
+	if c.PausedAt != nil {
+		return ClusterHealth{State: HealthPaused, Reason: "Paused " + c.PausedAt.UTC().Format("2006-01-02 15:04 UTC") + ": snapshots are refused and the last inventory is kept."}
+	}
 	if c.LastPushErrorAt != nil && (c.LastSeenAt == nil || c.LastPushErrorAt.After(*c.LastSeenAt)) {
 		return ClusterHealth{State: HealthErroring, Reason: c.LastPushError}
 	}

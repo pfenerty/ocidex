@@ -37,10 +37,19 @@ ORDER BY c.created_at ASC;
 -- name: UpdateCluster :one
 -- auto_ingest is a narg rather than a plain column: a PATCH that only renames
 -- the cluster must not silently switch ingest off by omitting the field.
+-- paused is a narg for the same reason. Resuming clears the last push error:
+-- refusals while paused were the pause working, not the agent failing.
 UPDATE cluster
 SET name        = $2,
     description = $3,
     auto_ingest = COALESCE(sqlc.narg('auto_ingest')::boolean, auto_ingest),
+    paused_at   = CASE
+                      WHEN sqlc.narg('paused')::boolean IS NULL THEN paused_at
+                      WHEN sqlc.narg('paused')::boolean THEN COALESCE(paused_at, now())
+                      ELSE NULL
+                  END,
+    last_push_error_at = CASE WHEN sqlc.narg('paused')::boolean = false THEN NULL ELSE last_push_error_at END,
+    last_push_error    = CASE WHEN sqlc.narg('paused')::boolean = false THEN NULL ELSE last_push_error END,
     updated_at  = now()
 WHERE id = $1
 RETURNING *;

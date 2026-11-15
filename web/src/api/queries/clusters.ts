@@ -319,6 +319,8 @@ export function useUpdateCluster() {
             // it: the API reads an absent autoIngest as "leave it alone", so a
             // rename cannot switch ingest off as a side effect.
             autoIngest?: boolean;
+            // Same omission rule: absent leaves the pause alone (ocidex-70eo.9).
+            paused?: boolean;
         }) => unwrap(client.PATCH("/api/v1/clusters/{id}", { params: { path: { id } }, body })),
         onSuccess: () => {
             void queryClient.invalidateQueries({ queryKey: ["clusters"] });

@@ -57,8 +57,11 @@ type Cluster struct {
 	// They mean "erroring" only while newer than LastSeenAt (see Health).
 	LastPushErrorAt *time.Time
 	LastPushError   string
-	CreatedAt       time.Time
-	UpdatedAt       time.Time
+	// PausedAt is set while the cluster is paused (ocidex-70eo.9): pushes are
+	// refused and the last inventory is kept.
+	PausedAt  *time.Time
+	CreatedAt time.Time
+	UpdatedAt time.Time
 }
 
 // AgentInfo is the agent's own description of itself and the cluster it runs
@@ -323,6 +326,8 @@ type UpdateClusterParams struct {
 	// AutoIngest is a pointer so an omitted field leaves the setting alone. A
 	// rename must not be able to switch ingest off as a side effect.
 	AutoIngest *bool
+	// Paused pauses (true) or resumes (false) the cluster; nil leaves it.
+	Paused *bool
 }
 
 // ClusterService manages registered clusters and the inventory they report.
@@ -490,11 +495,16 @@ func (s *clusterService) Update(ctx context.Context, params UpdateClusterParams)
 	if params.AutoIngest != nil {
 		auto = pgtype.Bool{Bool: *params.AutoIngest, Valid: true}
 	}
+	paused := pgtype.Bool{}
+	if params.Paused != nil {
+		paused = pgtype.Bool{Bool: *params.Paused, Valid: true}
+	}
 	row, err := s.repo.UpdateCluster(ctx, repository.UpdateClusterParams{
 		ID:          cid,
 		Name:        params.Name,
 		Description: params.Description,
 		AutoIngest:  auto,
+		Paused:      paused,
 	})
 	if err != nil {
 		if isUniqueViolation(err) {
@@ -924,6 +934,10 @@ func clusterFromRepo(c repository.Cluster) Cluster {
 		out.UpdatedAt = c.UpdatedAt.Time
 	}
 	out.Agent = agentInfoFromRepo(c)
+	if c.PausedAt.Valid {
+		t := c.PausedAt.Time
+		out.PausedAt = &t
+	}
 	if c.LastPushErrorAt.Valid {
 		t := c.LastPushErrorAt.Time
 		out.LastPushErrorAt = &t

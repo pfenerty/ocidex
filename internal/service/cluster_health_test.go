@@ -25,6 +25,7 @@ func TestClusterHealth(t *testing.T) {
 		{"reported interval narrows it", Cluster{LastSeenAt: ago(4 * time.Minute), Agent: secs(60)}, HealthStale},
 		{"one-shot is never stale", Cluster{LastSeenAt: ago(30 * 24 * time.Hour), Agent: secs(0)}, HealthHealthy},
 		{"rejection after last accept", Cluster{LastSeenAt: ago(time.Hour), LastPushErrorAt: ago(time.Minute), LastPushError: "x"}, HealthErroring},
+		{"paused outranks erroring", Cluster{PausedAt: ago(time.Hour), LastPushErrorAt: ago(time.Minute), LastPushError: "x"}, HealthPaused},
 		{"accept after last rejection", Cluster{LastSeenAt: ago(time.Minute), LastPushErrorAt: ago(time.Hour), LastPushError: "x"}, HealthHealthy},
 	}
 	for _, tt := range tests {

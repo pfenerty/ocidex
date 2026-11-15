@@ -41,6 +41,7 @@ const (
 	Erroring      ClusterHealthResponseState = "erroring"
 	Healthy       ClusterHealthResponseState = "healthy"
 	NeverReported ClusterHealthResponseState = "never_reported"
+	Paused        ClusterHealthResponseState = "paused"
 	Stale         ClusterHealthResponseState = "stale"
 )
 
@@ -52,6 +53,8 @@ func (e ClusterHealthResponseState) Valid() bool {
 	case Healthy:
 		return true
 	case NeverReported:
+		return true
+	case Paused:
 		return true
 	case Stale:
 		return true
@@ -1879,11 +1882,11 @@ type ClusterHealthResponse struct {
 	// StaleAfterSeconds Seconds after the last accepted push at which the cluster turns stale; absent for a one-shot agent
 	StaleAfterSeconds *int64 `json:"staleAfterSeconds,omitempty"`
 
-	// State never_reported: nothing pushed yet. healthy: last push accepted and recent. stale: no accepted push within three report intervals. erroring: the agent is pushing and being refused.
+	// State never_reported: nothing pushed yet. healthy: last push accepted and recent. stale: no accepted push within three report intervals. erroring: the agent is pushing and being refused. paused: paused on purpose; snapshots are refused.
 	State ClusterHealthResponseState `json:"state"`
 }
 
-// ClusterHealthResponseState never_reported: nothing pushed yet. healthy: last push accepted and recent. stale: no accepted push within three report intervals. erroring: the agent is pushing and being refused.
+// ClusterHealthResponseState never_reported: nothing pushed yet. healthy: last push accepted and recent. stale: no accepted push within three report intervals. erroring: the agent is pushing and being refused. paused: paused on purpose; snapshots are refused.
 type ClusterHealthResponseState string
 
 // ClusterImageResponse defines model for ClusterImageResponse.
@@ -1952,7 +1955,10 @@ type ClusterResponse struct {
 
 	// NamespaceName Owning namespace name; populated on list responses
 	NamespaceName *string `json:"namespaceName,omitempty"`
-	UpdatedAt     string  `json:"updatedAt"`
+
+	// PausedAt When the cluster was paused; empty while active
+	PausedAt  *string `json:"pausedAt,omitempty"`
+	UpdatedAt string  `json:"updatedAt"`
 }
 
 // ClusterWorkloadResponse defines model for ClusterWorkloadResponse.
@@ -3986,6 +3992,9 @@ type UpdateClusterInputBody struct {
 	AutoIngest  *bool   `json:"autoIngest,omitempty"`
 	Description *string `json:"description,omitempty"`
 	Name        string  `json:"name"`
+
+	// Paused Pause (true) or resume (false) the cluster. A paused cluster refuses snapshots and keeps its last inventory. Omit to leave unchanged.
+	Paused *bool `json:"paused,omitempty"`
 }
 
 // UpdateNamespaceInputBody defines model for UpdateNamespaceInputBody.

@@ -106,6 +106,7 @@ func (h *Handler) UpdateCluster(ctx context.Context, in *UpdateClusterInput) (*U
 		Name:        in.Body.Name,
 		Description: in.Body.Description,
 		AutoIngest:  in.Body.AutoIngest,
+		Paused:      in.Body.Paused,
 	})
 	if err != nil {
 		return nil, mapServiceError(err)
@@ -134,6 +135,9 @@ func (h *Handler) DeleteCluster(ctx context.Context, in *DeleteClusterInput) (*s
 func (h *Handler) PutInventory(ctx context.Context, in *PutInventoryInput) (*PutInventoryOutput, error) {
 	if err := h.clusterCapabilityCheck(ctx, in.ID, authz.CapPushInventory); err != nil {
 		return nil, err
+	}
+	if c, err := h.clusterService.Get(ctx, in.ID); err == nil && c.PausedAt != nil {
+		return nil, huma.Error409Conflict("cluster is paused: snapshots are refused until it is resumed")
 	}
 
 	workloads := make([]service.ReportedWorkload, len(in.Body.Workloads))
@@ -603,6 +607,9 @@ func toClusterResponse(c service.Cluster) ClusterResponse {
 	}
 	if c.LastSeenAt != nil {
 		out.LastSeenAt = c.LastSeenAt.UTC().Format(time.RFC3339)
+	}
+	if c.PausedAt != nil {
+		out.PausedAt = c.PausedAt.UTC().Format(time.RFC3339)
 	}
 	health := c.Health(time.Now())
 	out.Health = ClusterHealthResponse{

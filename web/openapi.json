@@ -739,12 +739,13 @@
             "type": "integer"
           },
           "state": {
-            "description": "never_reported: nothing pushed yet. healthy: last push accepted and recent. stale: no accepted push within three report intervals. erroring: the agent is pushing and being refused.",
+            "description": "never_reported: nothing pushed yet. healthy: last push accepted and recent. stale: no accepted push within three report intervals. erroring: the agent is pushing and being refused. paused: paused on purpose; snapshots are refused.",
             "enum": [
               "never_reported",
               "healthy",
               "stale",
-              "erroring"
+              "erroring",
+              "paused"
             ],
             "type": "string"
           }
@@ -906,6 +907,10 @@
           },
           "namespaceName": {
             "description": "Owning namespace name; populated on list responses",
+            "type": "string"
+          },
+          "pausedAt": {
+            "description": "When the cluster was paused; empty while active",
             "type": "string"
           },
           "updatedAt": {
@@ -6762,6 +6767,10 @@
             "maxLength": 100,
             "minLength": 1,
             "type": "string"
+          },
+          "paused": {
+            "description": "Pause (true) or resume (false) the cluster. A paused cluster refuses snapshots and keeps its last inventory. Omit to leave unchanged.",
+            "type": "boolean"
           }
         },
         "required": [
