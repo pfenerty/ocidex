@@ -19,6 +19,7 @@ import VulnerabilityDetail from "~/pages/VulnerabilityDetail";
 import Diff from "~/pages/Diff";
 import Clusters from "~/pages/Clusters";
 import ClusterDetail from "~/pages/ClusterDetail";
+import ConnectCluster from "~/pages/ConnectCluster";
 import Login from "~/pages/Login";
 import Admin from "~/pages/Admin";
 import NotFound from "~/pages/NotFound";
@@ -68,6 +69,7 @@ export default function App() {
                 {/* The page is "Compare" in the nav, so /compare is the URL people type. */}
                 <Route path="/compare" component={() => <Navigate href={(l) => `/diff${l.location.search}`} />} />
                 <Route path="/clusters" component={Clusters} />
+                <Route path="/clusters/new" component={ConnectCluster} />
                 <Route path="/clusters/:id" component={ClusterDetail} />
                 <Route path="/admin" component={Admin} />
                 <Route path="/admin/keys" component={Admin} />

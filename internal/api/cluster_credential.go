@@ -58,7 +58,9 @@ func (h *Handler) CreateClusterCredential(ctx context.Context, in *CreateCluster
 	if err != nil {
 		return nil, mapServiceError(err)
 	}
-	return &ClusterCredentialOutput{Body: toClusterCredentialResponse(cred)}, nil
+	out := &ClusterCredentialOutput{Body: toClusterCredentialResponse(cred)}
+	out.Body.ServerURL = h.cfg.APIBaseURL
+	return out, nil
 }
 
 // RotateClusterCredential replaces a credential with a new key of the same
@@ -82,7 +84,43 @@ func (h *Handler) RotateClusterCredential(ctx context.Context, in *ClusterCreden
 	if err != nil {
 		return nil, mapServiceError(err)
 	}
-	return &ClusterCredentialOutput{Body: toClusterCredentialResponse(cred)}, nil
+	out := &ClusterCredentialOutput{Body: toClusterCredentialResponse(cred)}
+	out.Body.ServerURL = h.cfg.APIBaseURL
+	return out, nil
+}
+
+// ConnectCluster registers a cluster and mints its first agent credential in
+// one step (ocidex-70eo.6). Both capabilities are checked first: the cluster
+// is manage_cluster, the key is useless without push_inventory.
+func (h *Handler) ConnectCluster(ctx context.Context, in *ConnectClusterInput) (*ConnectClusterOutput, error) {
+	user, ok := UserFromContext(ctx)
+	if !ok {
+		return nil, huma.Error401Unauthorized("not authenticated")
+	}
+	for _, c := range []authz.Capability{authz.CapManageCluster, authz.CapPushInventory} {
+		if err := h.requireNamespaceCapability(ctx, user, in.Body.NamespaceID, c); err != nil {
+			return nil, err
+		}
+	}
+	auto := true
+	if in.Body.AutoIngest != nil {
+		auto = *in.Body.AutoIngest
+	}
+	cluster, cred, err := h.clusterService.Connect(ctx, service.ConnectClusterParams{
+		NamespaceID: in.Body.NamespaceID,
+		Name:        in.Body.Name,
+		Description: in.Body.Description,
+		AutoIngest:  auto,
+		Owner:       user.ID,
+	})
+	if err != nil {
+		return nil, mapServiceError(err)
+	}
+	out := &ConnectClusterOutput{}
+	out.Body.Cluster = toClusterResponse(cluster)
+	out.Body.Credential = toClusterCredentialResponse(cred)
+	out.Body.Credential.ServerURL = h.cfg.APIBaseURL
+	return out, nil
 }
 
 // RevokeClusterCredential deletes one of the cluster's credentials.

@@ -142,33 +142,7 @@ describe("Clusters", () => {
         expect(container.textContent).not.toContain("never reported");
     });
 
-    it("registers a cluster in the chosen namespace", () => {
-        const { container } = renderPage();
 
-        const inputs = [...container.querySelectorAll("form input")];
-        fireEvent.input(must(inputs[0], "name input"), { target: { value: "  staging  " } });
-        fireEvent.change(must(container.querySelector("form select"), "namespace select"), {
-            target: { value: "ns-acme" },
-        });
-        fireEvent.input(must(inputs[1], "description input"), { target: { value: "staging rig" } });
-        fireEvent.submit(must(container.querySelector("form"), "create form"));
-
-        expect(createMutate).toHaveBeenCalledTimes(1);
-        expect(createMutate.mock.calls[0][0]).toEqual({
-            namespaceId: "ns-acme",
-            name: "staging",
-            description: "staging rig",
-        });
-    });
-
-    it("does not submit without a namespace", () => {
-        const { container } = renderPage();
-        fireEvent.input(must(container.querySelector("form input"), "name input"), {
-            target: { value: "staging" },
-        });
-        fireEvent.submit(must(container.querySelector("form"), "create form"));
-        expect(createMutate).not.toHaveBeenCalled();
-    });
 
     it("renames a cluster inline", () => {
         const { container } = renderPage();
@@ -255,33 +229,12 @@ describe("Clusters", () => {
         expect(updateMutate.mock.calls[0][0]).toMatchObject({ id: "c-prod", paused: false });
     });
 
-    // The form used to sit permanently expanded above the table, outweighing
-    // the data it introduced (ocidex-ag4q.37). These two assertions are what
-    // keep it from drifting back: the table leads, and the form is behind a
-    // dialog rather than merely restyled.
-    it("leads with the table, not the registration form", () => {
-        const { container } = renderPage();
-        const table = must(container.querySelector("table"), "cluster table");
-        const form = must(container.querySelector("form"), "register form");
-        // Node.DOCUMENT_POSITION_FOLLOWING: the form comes after the table.
-        expect(table.compareDocumentPosition(form) & 4).toBeTruthy();
-        expect(must(form.closest("dialog"), "form's dialog")).toBeTruthy();
-    });
 
-    it("opens the register dialog from the header button", () => {
-        const showModal = vi.fn();
-        vi.stubGlobal("HTMLDialogElement", globalThis.HTMLDialogElement);
-        const dialogProto = globalThis.HTMLDialogElement.prototype as {
-            showModal: () => void;
-        };
-        const original = dialogProto.showModal;
-        dialogProto.showModal = showModal;
-        try {
-            const { container } = renderPage();
-            fireEvent.click(button(container, "Register cluster"));
-            expect(showModal).toHaveBeenCalledTimes(1);
-        } finally {
-            dialogProto.showModal = original;
-        }
+    // ocidex-70eo.6: connecting is its own page; the list only links to it.
+    it("links to the connect page instead of a register form", () => {
+        const { container } = renderPage();
+        const link = [...container.querySelectorAll("a")].find((a) => a.textContent.trim() === "Connect a cluster");
+        expect(must(link, "connect link").getAttribute("href")).toBe("/clusters/new");
+        expect(container.querySelector("form")).toBeNull();
     });
 });

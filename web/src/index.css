@@ -463,6 +463,11 @@
         border-color: var(--color-warning);
     }
 
+    .card-danger {
+        border-color: var(--color-danger);
+        background: var(--color-danger-bg);
+    }
+
     .card-header {
         display: flex;
         align-items: center;

@@ -715,6 +715,10 @@
           "prefix": {
             "description": "First 8 characters of the key",
             "type": "string"
+          },
+          "serverUrl": {
+            "description": "The API's configured public URL (API_BASE_URL), for the agent's server.url; absent when not configured. Set only alongside key.",
+            "type": "string"
           }
         },
         "required": [
@@ -1428,6 +1432,70 @@
           "canonicalId",
           "severity",
           "matchedViaSource"
+        ],
+        "type": "object"
+      },
+      "ConnectClusterInputBody": {
+        "additionalProperties": false,
+        "properties": {
+          "$schema": {
+            "description": "A URL to the JSON Schema for this object.",
+            "examples": [
+              "https://example.com/api/schemas/ConnectClusterInputBody.json"
+            ],
+            "format": "uri",
+            "readOnly": true,
+            "type": "string"
+          },
+          "autoIngest": {
+            "description": "Scan running images with no SBOM on each snapshot. Defaults to true.",
+            "type": "boolean"
+          },
+          "description": {
+            "maxLength": 500,
+            "type": "string"
+          },
+          "name": {
+            "description": "Cluster name, unique within the namespace",
+            "maxLength": 100,
+            "minLength": 1,
+            "type": "string"
+          },
+          "namespaceId": {
+            "description": "Owning namespace UUID",
+            "format": "uuid",
+            "type": "string"
+          }
+        },
+        "required": [
+          "namespaceId",
+          "name"
+        ],
+        "type": "object"
+      },
+      "ConnectClusterOutputBody": {
+        "additionalProperties": false,
+        "properties": {
+          "$schema": {
+            "description": "A URL to the JSON Schema for this object.",
+            "examples": [
+              "https://example.com/api/schemas/ConnectClusterOutputBody.json"
+            ],
+            "format": "uri",
+            "readOnly": true,
+            "type": "string"
+          },
+          "cluster": {
+            "$ref": "#/components/schemas/ClusterResponse"
+          },
+          "credential": {
+            "$ref": "#/components/schemas/ClusterCredentialResponse",
+            "description": "The cluster's first agent credential; its key is shown only here"
+          }
+        },
+        "required": [
+          "cluster",
+          "credential"
         ],
         "type": "object"
       },
@@ -8986,6 +9054,48 @@
           }
         },
         "summary": "Register a cluster",
+        "tags": [
+          "Clusters"
+        ]
+      }
+    },
+    "/api/v1/clusters/connect": {
+      "post": {
+        "description": "Registers a cluster and mints its first agent credential in one step. The credential's key is in the response and nowhere else.",
+        "operationId": "connect-cluster",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/ConnectClusterInputBody"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "201": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ConnectClusterOutputBody"
+                }
+              }
+            },
+            "description": "Created"
+          },
+          "default": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorModel"
+                }
+              }
+            },
+            "description": "Error"
+          }
+        },
+        "summary": "Connect a cluster",
         "tags": [
           "Clusters"
         ]

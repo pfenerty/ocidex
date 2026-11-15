@@ -67,6 +67,7 @@ const ENTRIES: readonly Entry[] = [
 
     { path: "/dashboard", label: "Workspace", group: "Workspace", keywords: "dashboard mine watched", visible: signedIn },
     { path: "/clusters", label: "Clusters", group: "Workspace", keywords: "kubernetes k8s workloads inventory coverage", visible: signedIn },
+    { path: "/clusters/new", label: "Connect a cluster", group: "Workspace", keywords: "kubernetes k8s agent install register helm", visible: signedIn },
 
     // Sources sits under /admin for historical reasons only — any signed-in
     // user may manage the registries they own. See the note in Layout.tsx.

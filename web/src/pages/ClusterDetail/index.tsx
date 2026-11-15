@@ -1,7 +1,9 @@
 import "./ClusterDetail.css";
-import { Show, createSignal } from "solid-js";
+import { Show, createEffect, createSignal, on } from "solid-js";
 import { useParams, useSearchParams } from "@solidjs/router";
-import { Breadcrumb, DetailField, DetailGrid, PageHeader, QueryBoundary, TabBar, type TabDef } from "~/components/ui";
+import { Breadcrumb, Button, Card, DetailField, DetailGrid, PageHeader, QueryBoundary, TabBar, type TabDef } from "~/components/ui";
+import { plural } from "~/utils/format";
+import { forgetInstallKey } from "./installKey";
 import { SkeletonHeader } from "~/components/Skeleton";
 import { StalenessPill } from "../Clusters";
 import {
@@ -9,6 +11,7 @@ import {
     useClusterImages,
     useClusterNamespaces,
     useClusterWorkloads,
+    useRefreshClusterInventory,
 } from "~/api/queries";
 import type {
     WorkloadSortKey,
@@ -61,6 +64,32 @@ export default function ClusterDetail() {
     // ocidex-70eo.13). Until then the page is the Overview's setup card alone.
     // Undefined while loading, which hides the band rather than flashing zeros.
     const reported = () => (clusterQuery.data?.lastSeenAt ?? "") !== "";
+
+    // The first snapshot arriving while this page is open (ocidex-70eo.6):
+    // say so, drop the one-time key, and re-read the inventory queries, which
+    // were fetched empty and would otherwise wait out their own staleness.
+    const refreshInventory = useRefreshClusterInventory();
+    const [justConnected, setJustConnected] = createSignal(false);
+    let sawUnreported = false;
+    createEffect(
+        on(
+            () => clusterQuery.data?.lastSeenAt,
+            (seen) => {
+                if (clusterQuery.data === undefined) return;
+                if ((seen ?? "") === "") {
+                    sawUnreported = true;
+                    return;
+                }
+                if (sawUnreported) {
+                    sawUnreported = false;
+                    setJustConnected(true);
+                    forgetInstallKey(params.id);
+                }
+                void refreshInventory(params.id);
+            },
+            { defer: true },
+        ),
+    );
     const visibleTabs = () => (reported() ? tabs : tabs.filter((t) => t.id === "overview"));
 
     const tab = (): Tab => {
@@ -115,6 +144,23 @@ export default function ClusterDetail() {
                 )}
             </QueryBoundary>
 
+            <Show when={justConnected() && clusterQuery.data}>
+                {(c) => (
+                    <Card tone="success" class="mb-4" data-testid="just-connected">
+                        <strong>Connected.</strong>{" "}
+                        <Show when={coverageQuery.data}>
+                            {(d) => <>{plural(d().coverage.total, "container")} </>}
+                        </Show>
+                        <Show when={c().agent?.nodeCount}>{(n) => <>on {plural(n(), "node")} </>}</Show>
+                        <Show when={c().agent?.kubernetesVersion}>{(v) => <>· Kubernetes {v()} </>}</Show>
+                        <Show when={c().agent?.version}>{(v) => <>· agent {v()}</>}</Show>
+                        <Button size="sm" class="ml-2" onClick={() => setJustConnected(false)}>
+                            Dismiss
+                        </Button>
+                    </Card>
+                )}
+            </Show>
+
             <Show when={reported() && coverageQuery.data}>
                 {(data) => (
                     <CoverageBand
@@ -165,6 +211,8 @@ export default function ClusterDetail() {
                                 // the line never claims ingest is running
                                 // before it knows.
                                 autoIngest={clusterQuery.data?.autoIngest ?? false}
+                                namespaceId={clusterQuery.data?.namespaceId}
+                                health={clusterQuery.data?.health}
                             />
                             <AgentCredentials
                                 clusterId={params.id}

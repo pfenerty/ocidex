@@ -26,13 +26,54 @@ export function useListClusters(namespaceId?: Accessor<string | undefined>) {
     }));
 }
 
-/** useCluster — one cluster by id. */
+/** How often a cluster page re-reads the cluster, by its agent health. */
+export const POLL_WAITING_MS = 5_000;
+export const POLL_SETTLED_MS = 30_000;
+
+/**
+ * useCluster — one cluster by id.
+ *
+ * It polls, faster while the cluster is waiting for its first snapshot or
+ * being refused (ocidex-70eo.6): the page is where someone just ran the
+ * install command or a fix, and a reload should not be how they find out
+ * whether it worked.
+ */
 export function useCluster(id: Accessor<string | undefined>) {
     return createQuery(() => ({
         queryKey: ["clusters", id()] as const,
         queryFn: () =>
             unwrap(client.GET("/api/v1/clusters/{id}", { params: { path: { id: id() ?? "" } } })),
         enabled: id() !== undefined,
+        refetchInterval: (query: { state: { data?: { health: { state: string } } } }) => {
+            const state = query.state.data?.health.state;
+            return state === "never_reported" || state === "erroring" ? POLL_WAITING_MS : POLL_SETTLED_MS;
+        },
+    }));
+}
+
+/**
+ * useRefreshClusterInventory returns a function that re-reads every query
+ * under one cluster except the cluster itself: workloads, images, vulns, gaps.
+ * The cluster page calls it when a new snapshot lands (ocidex-70eo.6).
+ */
+export function useRefreshClusterInventory() {
+    const queryClient = useQueryClient();
+    return (id: string) =>
+        queryClient.invalidateQueries({
+            predicate: (q) => q.queryKey[0] === "clusters" && q.queryKey[1] === id && q.queryKey.length > 2,
+        });
+}
+
+/** useConnectCluster — register a cluster with its first agent credential. */
+export function useConnectCluster() {
+    const queryClient = useQueryClient();
+    return createMutation(() => ({
+        mutationFn: (body: { namespaceId: string; name: string; description?: string; autoIngest: boolean }) =>
+            unwrap(client.POST("/api/v1/clusters/connect", { body })),
+        onSuccess: () => {
+            void queryClient.invalidateQueries({ queryKey: ["clusters"] });
+            void queryClient.invalidateQueries({ queryKey: ["me", "clusters"] });
+        },
     }));
 }
 

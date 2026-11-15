@@ -6,6 +6,7 @@ import { VulnId } from "~/components/cells";
 import { plural } from "~/utils/format";
 import type { WorkloadCoverage } from "~/api/client";
 import { useClusterVulns, useClusterUnknownImages } from "~/api/queries";
+import { InstallAgent } from "./InstallAgent";
 
 /**
  * OverviewTab answers "should I be looking at this cluster today?" and then
@@ -20,6 +21,8 @@ export function OverviewTab(props: {
     clusterName: string;
     coverage: WorkloadCoverage;
     autoIngest: boolean;
+    namespaceId?: string;
+    health?: { state: string; reason?: string };
     lastSeenAt: string | undefined;
 }) {
     const topVulns = useClusterVulns(() => props.clusterId, () => ({ limit: 5 }));
@@ -47,7 +50,14 @@ export function OverviewTab(props: {
         // nobody has looked at (ADR-044 K5). Lead with what is missing.
         <Show
             when={reported()}
-            fallback={<AgentSetup clusterId={props.clusterId} clusterName={props.clusterName} />}
+            fallback={
+                <InstallAgent
+                    clusterId={props.clusterId}
+                    clusterName={props.clusterName}
+                    namespaceId={props.namespaceId}
+                    health={props.health}
+                />
+            }
         >
             <Card class="mb-4">
                 <CardHeader
@@ -203,62 +213,3 @@ export function OverviewTab(props: {
     );
 }
 
-/**
- * AgentSetup is the Overview a cluster gets before its first snapshot.
- *
- * The registration and the reporting are two separate steps — ADR-044 puts the
- * agent in the target cluster, which may be nowhere near this one — so a
- * registered cluster with nothing in it is the expected first state, not a
- * fault. The commands carry the cluster's own id so there is nothing to
- * transcribe.
- */
-function AgentSetup(props: { clusterId: string; clusterName: string }) {
-    // Opens the key form with only push_inventory chosen: the agent needs
-    // nothing else, and a narrower key is a smaller leak.
-    const agentKeyHref = () =>
-        `/admin/keys?${new URLSearchParams({
-            name: `${props.clusterName}-agent`,
-            capabilities: "push_inventory",
-        }).toString()}`;
-    const install = () =>
-        [
-            "kubectl create namespace ocidex-agent",
-            "kubectl -n ocidex-agent create secret generic ocidex-k8s-agent-secrets \\",
-            '  --from-literal=OCIDEX_API_KEY="$OCIDEX_API_KEY"',
-            "",
-            "helm install ocidex-k8s-agent oci://ghcr.io/pfenerty/charts/ocidex-k8s-agent \\",
-            "  -n ocidex-agent \\",
-            `  --set server.url=${window.location.origin} \\`,
-            `  --set cluster.id=${props.clusterId}`,
-        ].join("\n");
-
-    return (
-        <Card>
-            <CardHeader title="No agent has reported yet" />
-            <p>
-                <strong>{props.clusterName}</strong> is registered, but nothing has pushed an
-                inventory to it. That is not the same as a cluster running nothing — until an
-                agent reports, OCIDex knows nothing about what is running here.
-            </p>
-            <p class="text-muted">
-                Run these against the target cluster&apos;s kubeconfig context, with an agent
-                credential for this cluster in <code>$OCIDEX_API_KEY</code>: mint one under{" "}
-                <strong>Agent credentials</strong> below. It can push this cluster&apos;s inventory
-                and nothing else. Without permission to manage the cluster, ask someone who can, or
-                use your own{" "}
-                <A href={agentKeyHref()} class="dash-link">
-                    API key with push_inventory
-                </A>
-                .
-            </p>
-            <pre class="agent-setup-commands">{install()}</pre>
-            <p class="text-muted">
-                The agent reaches OCIDex from inside the target cluster, so{" "}
-                <code>server.url</code> has to be routable and TLS-valid there. Verify with{" "}
-                <code>kubectl -n ocidex-agent logs deploy/ocidex-k8s-agent</code>: an{" "}
-                <code>inventory reported</code> line means the snapshot landed, and this page
-                will fill in on the next refresh.
-            </p>
-        </Card>
-    );
-}

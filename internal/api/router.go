@@ -1055,6 +1055,17 @@ func registerClusterOps(api huma.API, h *Handler) {
 		Middlewares: huma.Middlewares{authMW, writeMW},
 	}, h.PutInventory)
 
+	huma.Register(api, huma.Operation{
+		OperationID:   "connect-cluster",
+		Method:        http.MethodPost,
+		Path:          "/api/v1/clusters/connect",
+		Summary:       "Connect a cluster",
+		Description:   "Registers a cluster and mints its first agent credential in one step. The credential's key is in the response and nowhere else.",
+		Tags:          []string{tagClusters},
+		DefaultStatus: http.StatusCreated,
+		Middlewares:   huma.Middlewares{authMW, writeMW},
+	}, h.ConnectCluster)
+
 	// Agent credentials (ocidex-70eo.5): keys bound to the cluster that may
 	// only push its inventory.
 	huma.Register(api, huma.Operation{

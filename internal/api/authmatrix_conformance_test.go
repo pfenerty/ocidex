@@ -163,6 +163,7 @@ var capProbes = map[string]capProbe{
 	"revoke-cluster-credential":     capEnforced,
 
 	"create-cluster":        capRequestGated,
+	"connect-cluster":       capRequestGated,
 	"update-cluster":        capRequestGated,
 	"put-cluster-inventory": capRequestGated,
 	"create-source":         capRequestGated,

@@ -23,6 +23,12 @@ spec:
       app.kubernetes.io/instance: {{ .Release.Name }}
   template:
     metadata:
+      {{- if .Values.apiKey.value }}
+      annotations:
+        # A rotated key (helm upgrade --set apiKey.value=...) restarts the agent;
+        # env from a Secret is read only at container start.
+        checksum/api-key: {{ .Values.apiKey.value | sha256sum }}
+      {{- end }}
       labels:
         app.kubernetes.io/name: {{ include "ocidex-k8s-agent.name" . }}
         app.kubernetes.io/instance: {{ .Release.Name }}

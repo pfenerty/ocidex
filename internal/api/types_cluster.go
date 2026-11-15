@@ -535,6 +535,25 @@ type ClusterCredentialResponse struct {
 	OwnerID    string `json:"ownerId" doc:"User who minted it. The credential narrows with that user's live namespace roles."`
 	OwnerName  string `json:"ownerName,omitempty"`
 	Key        string `json:"key,omitempty" doc:"The full key, shown once on create or rotate. Store it in the agent's secret."`
+	ServerURL  string `json:"serverUrl,omitempty" doc:"The API's configured public URL (API_BASE_URL), for the agent's server.url; absent when not configured. Set only alongside key."`
+}
+
+// ConnectClusterInput is the request for POST /api/v1/clusters/connect.
+type ConnectClusterInput struct {
+	Body struct {
+		NamespaceID string `json:"namespaceId" format:"uuid" doc:"Owning namespace UUID"`
+		Name        string `json:"name" minLength:"1" maxLength:"100" doc:"Cluster name, unique within the namespace"`
+		Description string `json:"description,omitempty" maxLength:"500"`
+		AutoIngest  *bool  `json:"autoIngest,omitempty" doc:"Scan running images with no SBOM on each snapshot. Defaults to true."`
+	}
+}
+
+// ConnectClusterOutput is the response for POST /api/v1/clusters/connect.
+type ConnectClusterOutput struct {
+	Body struct {
+		Cluster    ClusterResponse           `json:"cluster"`
+		Credential ClusterCredentialResponse `json:"credential" doc:"The cluster's first agent credential; its key is shown only here"`
+	}
 }
 
 // ListClusterCredentialsInput is the request for GET /api/v1/clusters/{id}/credentials.

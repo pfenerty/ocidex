@@ -31,6 +31,8 @@ export {
     useClusterUnknownImages,
     useIngestUnknown,
     useClusterCredentials,
+    useConnectCluster,
+    useRefreshClusterInventory,
     useCreateClusterCredential,
     useRotateClusterCredential,
     useRevokeClusterCredential,

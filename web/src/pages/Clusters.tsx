@@ -1,18 +1,16 @@
-import { For, Match, Show, Switch, createSignal } from "solid-js";
+import { Match, Show, Switch, createSignal } from "solid-js";
 import { A } from "@solidjs/router";
 import DataTable from "~/components/DataTable";
 import type { Column } from "~/components/DataTable";
-import { Button, FormField, Modal, PageHeader, StatusPill } from "~/components/ui";
+import { Button, PageHeader, StatusPill } from "~/components/ui";
 import { useToast } from "~/context/toast";
 import { RetireClusterDialog } from "./RetireClusterDialog";
 import { relativeDate, formatDateTime } from "~/utils/format";
 import type { Cluster } from "~/api/client";
 import {
     useListClusters,
-    useCreateCluster,
     useUpdateCluster,
     useDeleteCluster,
-    useMyNamespaces,
 } from "~/api/queries";
 
 type ClusterHealth = Cluster["health"];
@@ -95,52 +93,15 @@ export function StalenessPill(props: { lastSeenAt: string | undefined; health?: 
  */
 export default function Clusters() {
     const query = useListClusters();
-    const namespacesQuery = useMyNamespaces();
-    const createCluster = useCreateCluster();
     const updateCluster = useUpdateCluster();
     const deleteCluster = useDeleteCluster();
     const toast = useToast();
-
-    const [newName, setNewName] = createSignal("");
-    const [newNamespace, setNewNamespace] = createSignal("");
-    const [newDescription, setNewDescription] = createSignal("");
-
-    // Registration is a once-per-cluster act; the table is what a reader comes
-    // back to. The form used to sit permanently expanded above it, outweighing
-    // the data it introduced, so it lives in a dialog now (ocidex-ag4q.37).
-    let dialogRef: HTMLDialogElement | undefined;
-
-    function resetForm() {
-        setNewName("");
-        setNewNamespace("");
-        setNewDescription("");
-    }
 
     const [editingID, setEditingID] = createSignal<string | null>(null);
     const [editName, setEditName] = createSignal("");
     const [editDescription, setEditDescription] = createSignal("");
     const [editAutoIngest, setEditAutoIngest] = createSignal(true);
 
-    function handleCreate(e: Event) {
-        e.preventDefault();
-        const name = newName().trim();
-        const namespaceID = newNamespace();
-        if (name === "" || namespaceID === "") return;
-        const description = newDescription().trim();
-        createCluster.mutate(
-            { namespaceId: namespaceID, name, ...(description === "" ? {} : { description }) },
-            {
-                onSuccess: () => {
-                    // `close()` fires the dialog's own `close` event, which is
-                    // wired to resetForm — so Escape and a successful submit
-                    // leave exactly the same state behind.
-                    dialogRef?.close();
-                    toast("Cluster registered — install the agent with its cluster ID", "success");
-                },
-                onError: () => toast("Failed to register cluster", "error"),
-            },
-        );
-    }
 
     function startEdit(c: Cluster) {
         setEditingID(c.id);
@@ -323,10 +284,10 @@ export default function Clusters() {
         <>
             <PageHeader
                 title="Clusters"
-                subtitle="Kubernetes clusters reporting what they run. Register a cluster here, then install the agent chart in it with the cluster ID."
+                subtitle="What your Kubernetes clusters are running, and how much of it OCIDex can assess."
                 actions={
-                    <Button variant="primary" onClick={() => dialogRef?.showModal()}>
-                        Register cluster
+                    <Button variant="primary" as={A} href="/clusters/new">
+                        Connect a cluster
                     </Button>
                 }
             />
@@ -337,8 +298,8 @@ export default function Clusters() {
                 loading={query.isFetching}
                 isError={query.isError}
                 error={query.error}
-                emptyTitle="No clusters registered"
-                emptyMessage="Register a cluster, then install charts/ocidex-k8s-agent in it to start reporting the images it runs."
+                emptyTitle="No clusters connected"
+                emptyMessage="Connect a cluster: name it, run one helm command against it, and its workloads appear here."
             />
 
             {/* After the table in document order as well as visually: a
@@ -354,63 +315,6 @@ export default function Clusters() {
                 onCancel={closeRetire}
             />
 
-            <Modal
-                ref={(el) => (dialogRef = el)}
-                title="Register cluster"
-                size="sm"
-                onClose={resetForm}
-            >
-                <form onSubmit={handleCreate}>
-                    <div class="mb-3 grid gap-3">
-                        <FormField label="Name">
-                            <input
-                                type="text"
-                                placeholder="prod-eu-west"
-                                value={newName()}
-                                onInput={(e) => setNewName(e.currentTarget.value)}
-                            />
-                        </FormField>
-                        <FormField
-                            label="Namespace"
-                            hint="who owns the cluster and can see its inventory"
-                        >
-                            <select
-                                value={newNamespace()}
-                                onChange={(e) => setNewNamespace(e.currentTarget.value)}
-                            >
-                                <option value="">select…</option>
-                                <For each={namespacesQuery.data?.data ?? []}>
-                                    {(ns) => <option value={ns.id}>{ns.name}</option>}
-                                </For>
-                            </select>
-                        </FormField>
-                        <FormField label="Description">
-                            <input
-                                type="text"
-                                placeholder="optional"
-                                value={newDescription()}
-                                onInput={(e) => setNewDescription(e.currentTarget.value)}
-                            />
-                        </FormField>
-                    </div>
-                    <div class="flex gap-2">
-                        <Button
-                            variant="primary"
-                            type="submit"
-                            disabled={
-                                createCluster.isPending ||
-                                newName().trim() === "" ||
-                                newNamespace() === ""
-                            }
-                        >
-                            Register
-                        </Button>
-                        <Button type="button" onClick={() => dialogRef?.close()}>
-                            Cancel
-                        </Button>
-                    </div>
-                </form>
-            </Modal>
         </>
     );
 }

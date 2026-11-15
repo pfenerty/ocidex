@@ -86,3 +86,44 @@ func TestClusterCredentialLifecycle(t *testing.T) {
 		VALUES ($1, 'x', 'h2', 'p', ARRAY['ingest'], $2)`, owner, mustUUID(t, other))
 	is.True(err != nil)
 }
+
+// TestClusterConnect pins ocidex-70eo.6: the cluster and its first credential
+// arrive together, and a failed connect leaves neither behind.
+func TestClusterConnect(t *testing.T) {
+	if testing.Short() {
+		t.Skip("skipping integration test in short mode")
+	}
+	requireTestInfra(t)
+
+	pool, cleanup := setupTestDB(t)
+	defer cleanup()
+
+	ctx := t.Context()
+	is := is.New(t)
+	clusters := service.NewClusterService(pool, nil)
+	auth := service.NewAuthService(pool, &config.Config{SessionSecret: testSessionSecret}, event.NewBus(slog.Default()), nil)
+
+	owner := seedUser(t, pool, 9040, "connect-owner", "member")
+	nsID := seedNamespace(t, pool, "connect-ns", owner, "private")
+
+	c, cred, err := clusters.Connect(ctx, service.ConnectClusterParams{
+		NamespaceID: nsID, Name: "prod", Owner: owner, AutoIngest: false,
+	})
+	is.NoErr(err)
+	is.Equal(c.AutoIngest, false)
+	is.Equal(cred.Name, "prod-agent")
+	user, err := auth.ValidateAPIKey(ctx, cred.Plaintext)
+	is.NoErr(err)
+	is.Equal(user.APIKeyClusterID, c.ID)
+
+	// Same name again: the conflict rolls the whole connect back.
+	var before int
+	is.NoErr(pool.QueryRow(ctx, `SELECT count(*) FROM api_key`).Scan(&before))
+	_, _, err = clusters.Connect(ctx, service.ConnectClusterParams{
+		NamespaceID: nsID, Name: "prod", Owner: owner, AutoIngest: true,
+	})
+	is.Equal(err, service.ErrConflict)
+	var after int
+	is.NoErr(pool.QueryRow(ctx, `SELECT count(*) FROM api_key`).Scan(&after))
+	is.Equal(after, before)
+}

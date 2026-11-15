@@ -241,6 +241,10 @@ func (f *fakeClusterService) ReplaceInventory(_ context.Context, _ string, _ []s
 	return 0, nil
 }
 
+func (f *fakeClusterService) Connect(_ context.Context, _ service.ConnectClusterParams) (service.Cluster, service.ClusterCredential, error) {
+	return f.cluster(), service.ClusterCredential{}, nil
+}
+
 func (f *fakeClusterService) CreateCredential(_ context.Context, _ string, _ pgtype.UUID, _ string) (service.ClusterCredential, error) {
 	return service.ClusterCredential{}, nil
 }

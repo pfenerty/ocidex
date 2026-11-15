@@ -381,6 +381,8 @@ type ClusterService interface {
 
 	// Agent credentials (ocidex-70eo.5): API keys bound to this cluster that
 	// may only push its inventory. Callers authorize manage_cluster first.
+	// Connect registers a cluster with its first credential, atomically.
+	Connect(ctx context.Context, p ConnectClusterParams) (Cluster, ClusterCredential, error)
 	CreateCredential(ctx context.Context, clusterID string, userID pgtype.UUID, name string) (ClusterCredential, error)
 	ListCredentials(ctx context.Context, clusterID string) ([]ClusterCredential, error)
 	RevokeCredential(ctx context.Context, clusterID, credentialID string) error

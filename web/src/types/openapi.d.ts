@@ -467,6 +467,26 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/v1/clusters/connect": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Connect a cluster
+         * @description Registers a cluster and mints its first agent credential in one step. The credential's key is in the response and nowhere else.
+         */
+        post: operations["connect-cluster"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/v1/clusters/{id}": {
         parameters: {
             query?: never;
@@ -2141,6 +2161,8 @@ export interface components {
             ownerName?: string;
             /** @description First 8 characters of the key */
             prefix: string;
+            /** @description The API's configured public URL (API_BASE_URL), for the agent's server.url; absent when not configured. Set only alongside key. */
+            serverUrl?: string;
         };
         ClusterHealthResponse: {
             /** @description Why, for every state but healthy */
@@ -2400,6 +2422,35 @@ export interface components {
             matchedViaSource: boolean;
             severity: string;
             summary?: string;
+        };
+        ConnectClusterInputBody: {
+            /**
+             * Format: uri
+             * @description A URL to the JSON Schema for this object.
+             * @example https://example.com/api/schemas/ConnectClusterInputBody.json
+             */
+            readonly $schema?: string;
+            /** @description Scan running images with no SBOM on each snapshot. Defaults to true. */
+            autoIngest?: boolean;
+            description?: string;
+            /** @description Cluster name, unique within the namespace */
+            name: string;
+            /**
+             * Format: uuid
+             * @description Owning namespace UUID
+             */
+            namespaceId: string;
+        };
+        ConnectClusterOutputBody: {
+            /**
+             * Format: uri
+             * @description A URL to the JSON Schema for this object.
+             * @example https://example.com/api/schemas/ConnectClusterOutputBody.json
+             */
+            readonly $schema?: string;
+            cluster: components["schemas"]["ClusterResponse"];
+            /** @description The cluster's first agent credential; its key is shown only here */
+            credential: components["schemas"]["ClusterCredentialResponse"];
         };
         CreateAPIKeyInputBody: {
             /**
@@ -5660,6 +5711,39 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["ClusterResponse"];
+                };
+            };
+            /** @description Error */
+            default: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["ErrorModel"];
+                };
+            };
+        };
+    };
+    "connect-cluster": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["ConnectClusterInputBody"];
+            };
+        };
+        responses: {
+            /** @description Created */
+            201: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ConnectClusterOutputBody"];
                 };
             };
             /** @description Error */

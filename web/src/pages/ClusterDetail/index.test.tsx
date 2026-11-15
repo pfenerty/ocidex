@@ -12,6 +12,7 @@ import {
     useClusterUnknownImages,
     useIngestUnknown,
 } from "~/api/queries";
+import { rememberInstallKey } from "./installKey";
 import ClusterDetail from "./index";
 
 // The mutation hooks are never called here, but StalenessPill lives in
@@ -38,6 +39,7 @@ vi.mock("~/api/queries", () => ({
     useCreateClusterCredential: () => ({ mutate: vi.fn(), isPending: false }),
     useRotateClusterCredential: () => ({ mutate: vi.fn(), isPending: false }),
     useRevokeClusterCredential: () => ({ mutate: vi.fn(), isPending: false }),
+    useRefreshClusterInventory: () => vi.fn(),
 }));
 
 vi.mock("~/context/toast", () => ({ useToast: () => vi.fn() }));
@@ -539,15 +541,19 @@ describe("ClusterDetail", () => {
     it("leads with agent setup when nothing has ever reported", () => {
         const clusterLastSeen = cluster.lastSeenAt;
         cluster.lastSeenAt = "";
+        rememberInstallKey("c-prod", { key: "ocidex_onetime" });
         try {
             const { container } = renderPage([], EMPTY, []);
 
-            expect(container.textContent).toContain("No agent has reported yet");
-            expect(container.textContent).toContain("not the same as a cluster running nothing");
-            // The command carries the cluster's own id, so there is nothing to
-            // transcribe out of the URL.
+            expect(container.textContent).toContain("no agent has reported");
+            expect(container.textContent).toContain("not the same as knowing that nothing runs");
+            // The command carries the cluster's own id and the one-time key the
+            // connect page left behind (ocidex-70eo.6): one command, nothing
+            // to transcribe.
             const commands = must(container.querySelector(".agent-setup-commands"), "commands");
             expect(commands.textContent).toContain("--set cluster.id=c-prod");
+            expect(commands.textContent).toContain("--set apiKey.value=ocidex_onetime");
+            expect(container.textContent).toContain("Waiting for the first snapshot");
             // And none of the cards that would summarise an inventory it does
             // not have.
             expect(container.querySelector(".overview-vuln-list")).toBeNull();
@@ -571,7 +577,7 @@ describe("ClusterDetail", () => {
                 (t) => t.textContent,
             );
             expect(tabLabels).toEqual(["Overview"]);
-            expect(container.textContent).toContain("No agent has reported yet");
+            expect(container.querySelector('[data-testid="install-agent"]')).not.toBeNull();
         } finally {
             cluster.lastSeenAt = clusterLastSeen;
         }

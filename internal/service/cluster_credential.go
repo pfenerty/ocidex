@@ -150,3 +150,68 @@ func (s *clusterService) RotateCredential(ctx context.Context, clusterID, creden
 		Plaintext: plaintext,
 	}, nil
 }
+
+// ConnectClusterParams registers a cluster and mints its first credential.
+type ConnectClusterParams struct {
+	NamespaceID string
+	Name        string
+	Description string
+	AutoIngest  bool
+	// Owner mints the credential; it acts with their roles.
+	Owner pgtype.UUID
+}
+
+// Connect registers a cluster and mints its first agent credential in one
+// transaction (ocidex-70eo.6), so the connect flow can never leave a cluster
+// behind with no key to install.
+func (s *clusterService) Connect(ctx context.Context, p ConnectClusterParams) (Cluster, ClusterCredential, error) {
+	nsID, err := parseUUID(p.NamespaceID)
+	if err != nil {
+		return Cluster{}, ClusterCredential{}, ErrNotFound
+	}
+	plaintext, hash, prefix, err := newAPIKeyMaterial()
+	if err != nil {
+		return Cluster{}, ClusterCredential{}, err
+	}
+	tx, err := s.pool.Begin(ctx)
+	if err != nil {
+		return Cluster{}, ClusterCredential{}, fmt.Errorf("beginning transaction: %w", err)
+	}
+	defer tx.Rollback(ctx) //nolint:errcheck // rollback on a committed tx is a no-op
+	q := repository.New(tx)
+
+	row, err := q.CreateCluster(ctx, repository.CreateClusterParams{
+		NamespaceID: nsID, Name: p.Name, Description: p.Description,
+	})
+	if err != nil {
+		if isUniqueViolation(err) {
+			return Cluster{}, ClusterCredential{}, ErrConflict
+		}
+		return Cluster{}, ClusterCredential{}, fmt.Errorf("creating cluster: %w", err)
+	}
+	if !p.AutoIngest {
+		if row, err = q.UpdateCluster(ctx, repository.UpdateClusterParams{
+			ID: row.ID, Name: row.Name, Description: row.Description,
+			AutoIngest: pgtype.Bool{Bool: false, Valid: true},
+		}); err != nil {
+			return Cluster{}, ClusterCredential{}, fmt.Errorf("setting auto-ingest: %w", err)
+		}
+	}
+	cred, err := q.CreateClusterCredential(ctx, repository.CreateClusterCredentialParams{
+		UserID: p.Owner, Name: p.Name + "-agent", KeyHash: hash, Prefix: prefix, ClusterID: row.ID,
+	})
+	if err != nil {
+		return Cluster{}, ClusterCredential{}, fmt.Errorf("creating cluster credential: %w", err)
+	}
+	if err := tx.Commit(ctx); err != nil {
+		return Cluster{}, ClusterCredential{}, fmt.Errorf("committing connect: %w", err)
+	}
+	return clusterFromRepo(row), ClusterCredential{
+		ID:        uuidToStr(cred.ID),
+		Name:      cred.Name,
+		Prefix:    cred.Prefix,
+		CreatedAt: cred.CreatedAt.Time,
+		OwnerID:   uuidToStr(p.Owner),
+		Plaintext: plaintext,
+	}, nil
+}

@@ -1872,6 +1872,9 @@ type ClusterCredentialResponse struct {
 
 	// Prefix First 8 characters of the key
 	Prefix string `json:"prefix"`
+
+	// ServerUrl The API's configured public URL (API_BASE_URL), for the agent's server.url; absent when not configured. Set only alongside key.
+	ServerUrl *string `json:"serverUrl,omitempty"`
 }
 
 // ClusterHealthResponse defines model for ClusterHealthResponse.
@@ -2108,6 +2111,30 @@ type ComponentVulnEntry struct {
 	MatchedViaSource bool     `json:"matchedViaSource"`
 	Severity         string   `json:"severity"`
 	Summary          *string  `json:"summary,omitempty"`
+}
+
+// ConnectClusterInputBody defines model for ConnectClusterInputBody.
+type ConnectClusterInputBody struct {
+	// Schema A URL to the JSON Schema for this object.
+	Schema *string `json:"$schema,omitempty"`
+
+	// AutoIngest Scan running images with no SBOM on each snapshot. Defaults to true.
+	AutoIngest  *bool   `json:"autoIngest,omitempty"`
+	Description *string `json:"description,omitempty"`
+
+	// Name Cluster name, unique within the namespace
+	Name string `json:"name"`
+
+	// NamespaceId Owning namespace UUID
+	NamespaceId openapi_types.UUID `json:"namespaceId"`
+}
+
+// ConnectClusterOutputBody defines model for ConnectClusterOutputBody.
+type ConnectClusterOutputBody struct {
+	// Schema A URL to the JSON Schema for this object.
+	Schema     *string                   `json:"$schema,omitempty"`
+	Cluster    ClusterResponse           `json:"cluster"`
+	Credential ClusterCredentialResponse `json:"credential"`
 }
 
 // CreateAPIKeyInputBody defines model for CreateAPIKeyInputBody.
@@ -5022,6 +5049,9 @@ type CreateApiKeyJSONRequestBody = CreateAPIKeyInputBody
 
 // CreateClusterJSONRequestBody defines body for CreateCluster for application/json ContentType.
 type CreateClusterJSONRequestBody = CreateClusterInputBody
+
+// ConnectClusterJSONRequestBody defines body for ConnectCluster for application/json ContentType.
+type ConnectClusterJSONRequestBody = ConnectClusterInputBody
 
 // UpdateClusterJSONRequestBody defines body for UpdateCluster for application/json ContentType.
 type UpdateClusterJSONRequestBody = UpdateClusterInputBody
