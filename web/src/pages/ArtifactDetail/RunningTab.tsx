@@ -44,7 +44,11 @@ const columns: Column<RunningWorkload>[] = [
         sortValue: (r) => r.subjectVersion ?? "",
         render: (r) => (
             <Show when={r.sbomId} fallback={<span class="text-muted">—</span>}>
-                {(id) => <A href={`/sboms/${id()}`}>{r.subjectVersion ?? "SBOM"}</A>}
+                {(id) => (
+                    <A href={`/sboms/${id()}`} classList={{ "font-mono": r.subjectVersion !== undefined }}>
+                        {r.subjectVersion ?? "SBOM"}
+                    </A>
+                )}
             </Show>
         ),
     },

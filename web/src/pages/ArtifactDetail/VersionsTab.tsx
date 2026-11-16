@@ -62,7 +62,9 @@ export function VersionsTab(props: {
         {
             header: "Version",
             render: (version) => (
-                <A href={`/sboms/${version.sbomId}`}>{version.versionKey}</A>
+                <A href={`/sboms/${version.sbomId}`} class="font-mono">
+                    {version.versionKey}
+                </A>
             ),
         },
         {

@@ -9,10 +9,13 @@ export function ComponentNameCell(props: {
 }) {
     const inner = () => (
         <>
+            {/* A package name is machine-written, so mono, as on the SBOM
+                packages table (ocidex-iz0r.10). Weight 500, not bold: mono
+                bold set the name heavier than anything else in the row. */}
             <Show when={props.group !== undefined && props.group !== ""}>
-                <span class="text-muted">{props.group}/</span>
+                <span class="font-mono text-muted">{props.group}/</span>
             </Show>
-            <strong>{props.name}</strong>
+            <span class="font-mono font-medium">{props.name}</span>
         </>
     );
 

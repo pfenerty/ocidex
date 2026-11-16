@@ -92,8 +92,13 @@ export default function Vulnerabilities() {
             align: "right",
             sortKey: "cvssScore",
             sortType: "numeric",
+            // Mono, as the score reads on every other page (ocidex-iz0r.10).
             render: (row) =>
-                row.cvssScore !== undefined ? row.cvssScore.toFixed(1) : "—",
+                row.cvssScore !== undefined ? (
+                    <span class="font-mono tabular-nums">{row.cvssScore.toFixed(1)}</span>
+                ) : (
+                    "—"
+                ),
         },
         {
             // Free text with no useful ordering — left unsortable deliberately.
