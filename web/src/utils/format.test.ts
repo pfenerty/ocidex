@@ -74,3 +74,31 @@ describe("formatDate", () => {
         expect(result).toContain("2025");
     });
 });
+
+describe("timestamps that carry no information (ocidex-5692)", () => {
+    it("treats the epoch, Go's zero time and garbage as absent", async () => {
+        const { meaningfulDate } = await import("~/utils/format");
+        expect(meaningfulDate("1970-01-01T00:00:00Z")).toBeUndefined();
+        expect(meaningfulDate("0001-01-01T00:00:00Z")).toBeUndefined();
+        expect(meaningfulDate("not a date")).toBeUndefined();
+        expect(meaningfulDate(undefined)).toBeUndefined();
+        expect(meaningfulDate("2026-09-06T08:09:00Z")).toBe("2026-09-06T08:09:00Z");
+    });
+
+    it("never renders a reproducible-build epoch as Dec 31, 1969", async () => {
+        const { formatDate, formatDateTime, relativeDate } = await import("~/utils/format");
+        for (const f of [formatDate, formatDateTime, relativeDate]) {
+            expect(f("1970-01-01T00:00:00Z")).toBe("—");
+        }
+    });
+
+    it("falls back to the ingest time when the build date is meaningless", async () => {
+        const { buildTime } = await import("~/utils/format");
+        expect(buildTime({ buildDate: "1970-01-01T00:00:00Z", createdAt: "2026-09-06T08:09:00Z" })).toBe(
+            "2026-09-06T08:09:00Z",
+        );
+        expect(buildTime({ buildDate: "2026-08-01T00:00:00Z", createdAt: "2026-09-06T08:09:00Z" })).toBe(
+            "2026-08-01T00:00:00Z",
+        );
+    });
+});

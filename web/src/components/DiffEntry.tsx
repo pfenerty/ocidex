@@ -1,6 +1,6 @@
 import { Show } from "solid-js";
 import { A } from "@solidjs/router";
-import { relativeDate } from "~/utils/format";
+import { relativeDate, buildTime } from "~/utils/format";
 import { changelogRefLabel } from "~/utils/diff";
 import type { ChangelogEntryData } from "~/utils/diff";
 import type { ComponentDiff } from "~/api/client";
@@ -115,7 +115,7 @@ export default function DiffEntry(props: DiffEntryProps) {
                             </A>
                             <span class="text-muted">
                                 {" "}
-                                ({relativeDate(props.entry.to.buildDate ?? props.entry.to.createdAt)})
+                                ({relativeDate(buildTime(props.entry.to))})
                             </span>
                         </div>
                         <div class="changelog-summary">

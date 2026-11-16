@@ -6,7 +6,7 @@ import { useSearchParams } from "@solidjs/router";
 import { useArtifacts, useArtifactSBOMs } from "~/api/queries";
 import { EmptyState } from "~/components/Feedback";
 import { DiffPairView, ViewToggle } from "~/components/DiffPairView";
-import { sbomPickerLabel } from "~/utils/format";
+import { sbomPickerLabel, buildTime } from "~/utils/format";
 import type { ArtifactSummary, SBOMSummary } from "~/api/client";
 import { Button, Card, Combobox, PageHeader } from "~/components/ui";
 
@@ -26,7 +26,7 @@ function sbomSub(s: SBOMSummary): string | undefined {
 
 /** builtAt is when an SBOM's subject was built, or ingested if that is unknown. */
 function builtAt(s: SBOMSummary): string {
-    return s.buildDate ?? s.createdAt;
+    return buildTime(s);
 }
 
 /**

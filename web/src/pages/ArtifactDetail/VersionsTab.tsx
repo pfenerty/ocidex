@@ -9,6 +9,7 @@ import { VulnCountBadges } from "~/components/VulnBadge";
 import { Button, StatusPill } from "~/components/ui";
 import { StatusChip } from "~/components/ui";
 import { VULN_DATA_STATUS } from "~/utils/status";
+import { buildTime } from "~/utils/format";
 
 export function VersionsTab(props: {
     /** Where the artifact runs, for the Running column (ocidex-70eo.8);
@@ -98,7 +99,7 @@ export function VersionsTab(props: {
         {
             header: "Build Date",
             render: (version) => (
-                <TimestampCell iso={version.buildDate ?? version.createdAt} />
+                <TimestampCell iso={buildTime(version)} />
             ),
         },
         {

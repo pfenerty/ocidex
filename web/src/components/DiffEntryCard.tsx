@@ -2,7 +2,7 @@ import { createSignal, Show, For } from "solid-js";
 import { A } from "@solidjs/router";
 import type { ChangelogEntryData } from "~/utils/diff";
 import { changelogRefLabel } from "~/utils/diff";
-import { relativeDate } from "~/utils/format";
+import { relativeDate, buildTime } from "~/utils/format";
 import { DiffPairView } from "~/components/DiffPairView";
 import { Card } from "~/components/ui";
 
@@ -68,7 +68,7 @@ export function DiffEntryCard(props: {
                         </A>
                         <span class="text-muted">
                             {" "}
-                            ({relativeDate(props.entry.to.buildDate ?? props.entry.to.createdAt)})
+                            ({relativeDate(buildTime(props.entry.to))})
                         </span>
                     </div>
                 </div>

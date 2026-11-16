@@ -111,11 +111,35 @@ export function componentDisplayName(component: {
 }
 
 /**
+ * meaningfulDate returns the timestamp unless it carries no information
+ * (ocidex-5692): unparseable, Go's zero time, or the Unix epoch. The epoch is
+ * the common one: reproducible builds pin SOURCE_DATE_EPOCH=0, so an image's
+ * build date is 1970-01-01T00:00:00Z, which US time zones rendered as
+ * "Dec 31, 1969". Anything before 1971 is treated the same way; no SBOM'd
+ * software was built then.
+ */
+export function meaningfulDate(iso: string | undefined): string | undefined {
+    if (iso === undefined || iso === "") return undefined;
+    const t = new Date(iso).getTime();
+    if (Number.isNaN(t) || t < Date.UTC(1971, 0, 1)) return undefined;
+    return iso;
+}
+
+/**
+ * buildTime is when a build happened, for ordering and display: its build date
+ * when that means something, else when OCIDex ingested it.
+ */
+export function buildTime(x: { buildDate?: string; createdAt: string }): string {
+    return meaningfulDate(x.buildDate) ?? x.createdAt;
+}
+
+/**
  * Format a date string as a short human-readable date.
  *
  *  "Jan 15, 2025"
  */
 export function formatDate(iso: string): string {
+    if (meaningfulDate(iso) === undefined) return "—";
     return new Date(iso).toLocaleDateString("en-US", {
         month: "short",
         day: "numeric",
@@ -129,6 +153,7 @@ export function formatDate(iso: string): string {
  *  "Jan 15, 2025, 3:42 PM"
  */
 export function formatDateTime(iso: string): string {
+    if (meaningfulDate(iso) === undefined) return "—";
     return new Date(iso).toLocaleString("en-US", {
         month: "short",
         day: "numeric",
@@ -143,6 +168,7 @@ export function formatDateTime(iso: string): string {
  * Falls back to absolute date for anything older than 1 year.
  */
 export function relativeDate(iso: string): string {
+    if (meaningfulDate(iso) === undefined) return "—";
     const now = Date.now();
     const then = new Date(iso).getTime();
     const diffMs = now - then;
