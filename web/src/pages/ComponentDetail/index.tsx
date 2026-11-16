@@ -1,6 +1,6 @@
 import { Show, createSignal } from "solid-js";
 import { A, useParams } from "@solidjs/router";
-import { Breadcrumb, Button, ButtonGroup, PageHeader, QueryBoundary, type Crumb } from "~/components/ui";
+import { Breadcrumb, Button, ButtonGroup, EntryLine, PageHeader, QueryBoundary, type Crumb } from "~/components/ui";
 import { useComponent, useComponentVersions, useComponentVulns } from "~/api/queries";
 import { EmptyState } from "~/components/Feedback";
 import { Skeleton, SkeletonHeader } from "~/components/Skeleton";
@@ -106,6 +106,7 @@ export default function ComponentDetail() {
                             {/* --- Hero --- */}
                             <PageHeader
                                 breadcrumb={<Breadcrumb items={crumbs()} />}
+                                eyebrow={<EntryLine kind="Component" id={detail.id} />}
                                 title={
                                     <span class="title-inline">
                                         {detail.name}

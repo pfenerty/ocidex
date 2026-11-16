@@ -32,18 +32,22 @@ function sources(dir = SRC, acc: string[] = []): string[] {
     return acc;
 }
 
-// Where brand red is legitimate: OCIDex's own chrome. index.css is exempt
-// because it defines the tokens. The shell and header stories of ocidex-iz0r
-// shrink this list to the mark itself.
-const BRAND_FILES = [
-    "index.css",
-    "components/Layout.css",
-    "components/Feedback.css",
-    "pages/Home.css",
-    "pages/Login.tsx",
-];
+// Brand red is the mark's LED and nothing else (ocidex-iz0r). index.css
+// defines the token and the one rule that uses it (.brand-mark-led); no other
+// stylesheet or component may reach for it. The sidebar slab, the wordmark's
+// red "Dex", the H1 underline and the spinner each used to, and each read as
+// "error" or "click" rather than "OCIDex".
+const BRAND_FILES = ["index.css"];
 
-describe("brand red stays on brand surfaces", () => {
+describe("brand red stays on the mark", () => {
+    it("is used by exactly one rule in index.css, the mark's LED", () => {
+        const css = read("index.css");
+        const uses = [...css.matchAll(/([^{}]+)\{[^{}]*var\(--color-brand[^)]*\)[^{}]*\}/g)].map((m) =>
+            m[1].replace(/\/\*[\s\S]*?\*\//g, "").trim(),
+        );
+        expect(uses).toEqual([".brand-mark-led"]);
+    });
+
     it("is not reachable from any other file", () => {
         const offenders = sources()
             .filter((f) => !BRAND_FILES.some((b) => f.endsWith(b)))

@@ -17,7 +17,6 @@ export function BrandMark(props: { size?: number; class?: string; title?: string
             role={labelled() ? "img" : undefined}
             aria-label={labelled() ? props.title : undefined}
             aria-hidden={labelled() ? undefined : "true"}
-            focusable="false"
         >
             <path
                 fill="currentColor"

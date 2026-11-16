@@ -26,7 +26,45 @@ export function documentTitleFor(text: string): string {
  * The subtitle carries no class: `.page-header p` already resolves to
  * `--color-text-muted`, so the `text-muted` some call sites add is a no-op.
  */
+/**
+ * EntryLine is the Dex-entry eyebrow every detail page opens with (ocidex-iz0r.6):
+ * the kind of thing, then its short id, the way a Dex entry opens with its number.
+ * Chips (type, status) follow it as siblings in the `eyebrow` slot.
+ */
+export function EntryLine(props: { kind: string; id?: string }): JSX.Element {
+    return (
+        <span class="entry-line">
+            {props.kind}
+            <Show when={props.id !== undefined && props.id !== ""}>
+                {" № "}
+                {props.id?.slice(0, 8)}
+            </Show>
+        </span>
+    );
+}
+
+/**
+ * TitleWithPrefix mutes everything up to the last "/" of a slash-path name, so
+ * "ghcr.io/pfenerty/ocidex-api" reads as its registry path plus its name.
+ */
+export function TitleWithPrefix(props: { name: string }): JSX.Element {
+    const cut = () => props.name.lastIndexOf("/") + 1;
+    return (
+        <>
+            <Show when={cut() > 0}>
+                <span class="page-header-prefix">{props.name.slice(0, cut())}</span>
+            </Show>
+            {props.name.slice(cut())}
+        </>
+    );
+}
+
 export function PageHeader(props: {
+    /**
+     * Above the title: an <EntryLine> plus any type or status chips. Detail
+     * pages set it; list pages do not.
+     */
+    eyebrow?: JSX.Element;
     title: JSX.Element;
     subtitle?: JSX.Element;
     /** Right-hand slot. Usually a `.btn-group`. */
@@ -81,6 +119,9 @@ export function PageHeader(props: {
             </Show>
             <div class="page-header-row">
                 <div>
+                    <Show when={props.eyebrow !== undefined}>
+                        <div class="page-header-eyebrow">{props.eyebrow}</div>
+                    </Show>
                     <h2 ref={heading}>{props.title}</h2>
                     <Show when={props.subtitle !== undefined}>
                         <p>{props.subtitle}</p>

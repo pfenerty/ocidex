@@ -1,7 +1,7 @@
 import "~/components/DetailSection.css";
 import { Show, createMemo, createSignal } from "solid-js";
 import { A, useParams, useNavigate, useSearchParams } from "@solidjs/router";
-import { Breadcrumb, Button, ButtonGroup, Card, CardHeader, PageHeader, QueryBoundary, TabBar, createExpandedSet, type Crumb } from "~/components/ui";
+import { Breadcrumb, Button, ButtonGroup, Card, CardHeader, EntryLine, PageHeader, QueryBoundary, TabBar, createExpandedSet, type Crumb } from "~/components/ui";
 import { useSBOM, useSBOMComponents, sbomComponents, useSBOMDependencies, useSBOMDriftHistory, useArtifactSBOMs } from "~/api/queries";
 import { useArtifactNames } from "~/api/queries";
 import type { OCIMetadata, Provenance, GitCommitMetadata } from "~/api/client";
@@ -209,6 +209,7 @@ export default function SBOMDetail() {
                             {/* --- Hero --- */}
                             <PageHeader
                                 breadcrumb={<Breadcrumb items={crumbs()} />}
+                                eyebrow={<EntryLine kind="SBOM" id={s.id} />}
                                 title={
                                     <span class="title-inline">
                                         {title()}

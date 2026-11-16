@@ -5,12 +5,18 @@ import type { ArtifactDetail } from "~/api/client";
 import PurlLink from "~/components/PurlLink";
 import CopyShareLink, { artifactLookupPath } from "~/components/CopyShareLink";
 import WatchStar from "~/components/WatchStar";
-import { Button, ButtonGroup, Card, DetailField, DetailGrid, PageHeader, TypeBadge } from "~/components/ui";
+import { Button, ButtonGroup, Card, DetailField, DetailGrid, EntryLine, PageHeader, TitleWithPrefix, TypeBadge } from "~/components/ui";
 import { purlToRegistryUrl, purlTypeLabel } from "~/utils/purl";
 import { artifactDisplayName, formatDateTime } from "~/utils/format";
 import { containerRegistryUrl, detectRegistry } from "~/utils/oci";
 
-/** ArtifactHeader is the title row: name (linked to its registry), counts, actions. */
+/**
+ * ArtifactHeader is the title row: entry line, name, actions (ocidex-iz0r.6).
+ *
+ * The name used to *be* the registry link, which made the page title link-blue
+ * and the one thing on the page that looked clickable for no visible reason.
+ * The registry is an action now, beside Compare, which is the page's primary.
+ */
 export function ArtifactHeader(props: { artifact: ArtifactDetail; breadcrumb?: JSX.Element }) {
     const a = () => props.artifact;
     const registryPurl = () => {
@@ -21,41 +27,50 @@ export function ArtifactHeader(props: { artifact: ArtifactDetail; breadcrumb?: J
     return (
         <PageHeader
             breadcrumb={props.breadcrumb}
-            title={
-                <Show
-                    when={a().type === "container" && detectRegistry(a().name) !== "redhat"}
-                    fallback={artifactDisplayName(a())}
-                >
-                    <a href={containerRegistryUrl(a().name)} target="_blank" rel="noopener noreferrer">
-                        {artifactDisplayName(a())}
-                    </a>
-                </Show>
+            /* Type only beside the entry number. The SBOM count and the
+               first-tracked date are tiles in ArtifactBand. */
+            eyebrow={
+                <>
+                    <EntryLine kind="Artifact" id={a().id} />
+                    <TypeBadge type={a().type} />
+                </>
             }
-            /* Type only. The SBOM count and the first-tracked date are tiles in
-               ArtifactBand now, and repeating them here was half of what made
-               the old About card redundant. */
-            subtitle={<TypeBadge type={a().type} />}
+            title={<TitleWithPrefix name={artifactDisplayName(a())} />}
             actions={
                 <ButtonGroup>
                     <WatchStar artifactId={a().id} watched={a().watched} />
-                    <Show when={registryPurl()}>
-                        {(purl) => (
-                            <Button
-                                as="a"
-                                href={purlToRegistryUrl(purl()) ?? ""}
-                                target="_blank"
-                                rel="noopener noreferrer"
-                                size="sm"
-                                variant="primary"
-                            >
-                                View on {purlTypeLabel(purl()) ?? "Registry"}
-                            </Button>
-                        )}
+                    <Show
+                        when={a().type === "container" && detectRegistry(a().name) !== "redhat"}
+                        fallback={
+                            <Show when={registryPurl()}>
+                                {(purl) => (
+                                    <Button
+                                        as="a"
+                                        href={purlToRegistryUrl(purl()) ?? ""}
+                                        target="_blank"
+                                        rel="noopener noreferrer"
+                                        size="sm"
+                                    >
+                                        View on {purlTypeLabel(purl()) ?? "registry"}
+                                    </Button>
+                                )}
+                            </Show>
+                        }
+                    >
+                        <Button
+                            as="a"
+                            href={containerRegistryUrl(a().name)}
+                            target="_blank"
+                            rel="noopener noreferrer"
+                            size="sm"
+                        >
+                            View in registry
+                        </Button>
                     </Show>
-                    <Button as={A} href={`/diff`} size="sm">
+                    <CopyShareLink path={artifactLookupPath(a())} />
+                    <Button as={A} href={`/diff`} size="sm" variant="primary">
                         Compare SBOMs
                     </Button>
-                    <CopyShareLink path={artifactLookupPath(a())} />
                 </ButtonGroup>
             }
         />
