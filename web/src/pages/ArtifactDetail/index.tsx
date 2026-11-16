@@ -190,7 +190,14 @@ export default function ArtifactDetail() {
         { id: "versions", label: `Versions (${versionCount})` },
         { id: "changelog", label: "Changelog" },
         { id: "licenses", label: "Licenses" },
-        { id: "vulns", label: `Vulnerabilities (${vulnSummaryQuery.data?.summary.total ?? 0})` },
+        // No count without a summary: never-scanned is not "(0)" (ocidex-9yjp).
+        {
+            id: "vulns",
+            label: (() => {
+                const total = vulnSummaryQuery.data?.summary?.total;
+                return total === undefined ? "Vulnerabilities" : `Vulnerabilities (${total})`;
+            })(),
+        },
         { id: "relationships", label: "Relationships" },
         ...(signedIn()
             ? [{ id: "running" as const, label: `Running (${(runningQuery.data ?? []).length})` }]
@@ -244,7 +251,7 @@ export default function ArtifactDetail() {
                                 <ArtifactBand
                                     artifact={a()}
                                     isContainer={isContainer()}
-                                    vulns={vulnSummaryQuery.data?.summary ?? undefined}
+                                    vulns={vulnSummaryQuery.data?.summary}
                                     vulnsVersion={vulnSummaryQuery.data?.subjectVersion}
                                     ordering={effectiveMode()}
                                     active={tab()}
@@ -347,7 +354,7 @@ export default function ArtifactDetail() {
                                 <Show when={tab() === "vulns"}>
                                     <VulnerabilitiesTab
                                         artifactId={params.id}
-                                        summary={vulnSummaryQuery.data?.summary ?? undefined}
+                                        summary={vulnSummaryQuery.data?.summary}
                                         severity={vulnSeverity()}
                                         vuln={vulnFilter()}
                                         sortBy={vulnSortBy()}

@@ -6,3 +6,6 @@
 # and drop the "error at ..., in API " prefix and the trailing " [rule-id]. ..." text.
 # After 1.0, an entry here needs a new major version (/api/v2); see API_VERSIONING.md.
 # Clear the file after each release: the release's spec becomes the new base.
+# ocidex-9yjp: the server already sent "summary": null for a never-scanned artifact; the
+# schema now says so (optional) instead of promising a field it did not deliver.
+GET /api/v1/artifacts/{id}/vuln-summary the response property `summary` became optional for the status `200`

@@ -3061,7 +3061,7 @@ export interface components {
             readonly $schema?: string;
             /** @description Version whose newest SBOM the summary counts */
             subjectVersion?: string;
-            summary: components["schemas"]["VulnSummary"];
+            summary?: components["schemas"]["VulnSummary"];
         };
         GetComponentVersionsOutputBody: {
             /**

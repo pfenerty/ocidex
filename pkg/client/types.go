@@ -2699,8 +2699,8 @@ type GetArtifactVulnSummaryOutputBody struct {
 	Schema *string `json:"$schema,omitempty"`
 
 	// SubjectVersion Version whose newest SBOM the summary counts
-	SubjectVersion *string     `json:"subjectVersion,omitempty"`
-	Summary        VulnSummary `json:"summary"`
+	SubjectVersion *string      `json:"subjectVersion,omitempty"`
+	Summary        *VulnSummary `json:"summary,omitempty"`
 }
 
 // GetComponentVersionsOutputBody defines model for GetComponentVersionsOutputBody.

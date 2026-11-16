@@ -1159,3 +1159,21 @@ func TestListArtifactsTotalOnFirstPageOnly(t *testing.T) {
 	is.NoErr(json.Unmarshal(w.Body.Bytes(), &next))
 	is.True(next.Total == nil)
 }
+
+// A never-scanned artifact has no summary. It must be absent, not
+// "summary": null against a schema that called it required: the UI read
+// .total off that null and never left its loading skeleton (ocidex-9yjp).
+func TestGetArtifactVulnSummaryOmitsAbsentSummary(t *testing.T) {
+	is := is.New(t)
+	router := newTestRouter(&fakeSBOMService{}, &fakeSearchService{})
+
+	r := httptest.NewRequest(http.MethodGet, "/api/v1/artifacts/00000000-0000-0000-0000-000000000001/vuln-summary", nil)
+	w := httptest.NewRecorder()
+	router.ServeHTTP(w, r)
+	is.Equal(w.Code, http.StatusOK)
+
+	var body map[string]json.RawMessage
+	is.NoErr(json.Unmarshal(w.Body.Bytes(), &body))
+	_, present := body["summary"]
+	is.True(!present)
+}
