@@ -18,6 +18,9 @@ vi.mock("~/api/queries", () => ({
     useRotateClusterCredential: () => ({ mutate: vi.fn(), isPending: false }),
     useRevokeClusterCredential: () => ({ mutate: vi.fn(), isPending: false }),
 }));
+// The shared ConfirmDialog (ocidex-iz0r.7), answered by the test.
+const confirmSpy = vi.fn((_options: { title: string; body: unknown }) => Promise.resolve(false));
+vi.mock("~/context/confirm", () => ({ useConfirm: () => confirmSpy }));
 vi.mock("~/context/toast", () => ({ useToast: () => vi.fn() }));
 
 describe("AgentCredentials", () => {

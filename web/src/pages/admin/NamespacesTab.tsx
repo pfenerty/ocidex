@@ -13,6 +13,7 @@ import {
     useDeleteNamespace,
     useListSources,
 } from "~/api/queries";
+import { useConfirm } from "~/context/confirm";
 
 type Visibility = "public" | "private";
 
@@ -29,6 +30,7 @@ export function NamespacesTab() {
     const updateNamespace = useUpdateNamespace();
     const deleteNamespace = useDeleteNamespace();
     const toast = useToast();
+    const confirm = useConfirm();
 
     const [newName, setNewName] = createSignal("");
     const [newVisibility, setNewVisibility] = createSignal<Visibility>("private");
@@ -94,15 +96,18 @@ export function NamespacesTab() {
         );
     }
 
-    function handleDelete(ns: Namespace) {
+    async function handleDelete(ns: Namespace) {
         const count = sourceCounts().get(ns.id) ?? 0;
         const scope =
             count > 0
                 ? `${String(count)} source${count === 1 ? "" : "s"} and everything ingested under them`
                 : "everything ingested under it";
-        if (!confirm(`Delete namespace "${ns.name}"? This removes ${scope}. This cannot be undone.`)) {
-            return;
-        }
+        const ok = await confirm({
+            title: `Delete namespace "${ns.name}"?`,
+            body: `This removes ${scope}. This cannot be undone.`,
+            confirmLabel: "Delete namespace",
+        });
+        if (!ok) return;
         deleteNamespace.mutate(ns.id, {
             onSuccess: () => toast("Namespace deleted", "success"),
             onError: () => toast("Failed to delete namespace", "error"),
@@ -196,7 +201,7 @@ export function NamespacesTab() {
                             </Button>
                             <Button
                                 size="sm"
-                                onClick={() => handleDelete(ns)}
+                                onClick={() => void handleDelete(ns)}
                                 disabled={deleteNamespace.isPending}
                             >
                                 Delete

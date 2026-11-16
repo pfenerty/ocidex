@@ -2,6 +2,7 @@ import { Router, Route, Navigate } from "@solidjs/router";
 import { QueryClient, QueryClientProvider } from "@tanstack/solid-query";
 import { AuthProvider } from "~/context/auth";
 import { ToastProvider } from "~/context/toast";
+import { ConfirmProvider } from "~/context/confirm";
 import Layout from "~/components/Layout";
 import Home from "~/pages/Home";
 import Dashboard from "~/pages/Dashboard";
@@ -40,6 +41,7 @@ export default function App() {
     return (
         <QueryClientProvider client={queryClient}>
             <ToastProvider>
+            <ConfirmProvider>
             <AuthProvider>
             <Router root={Layout}>
                 <Route path="/" component={Home} />
@@ -85,6 +87,7 @@ export default function App() {
                 <Route path="*404" component={NotFound} />
             </Router>
             </AuthProvider>
+            </ConfirmProvider>
             </ToastProvider>
         </QueryClientProvider>
     );

@@ -16,6 +16,7 @@ import {
     useRemoveNamespaceMember,
     useSetNamespaceMember,
 } from "~/api/queries";
+import { useConfirm } from "~/context/confirm";
 
 /**
  * The roles a namespace member can hold (ADR-046), most privileged first. The
@@ -61,6 +62,7 @@ function canManageMembers(role: string | undefined, userID: string | undefined, 
 export function NamespaceMembers(props: { namespace: Namespace; onClose: () => void }): JSX.Element {
     const { user } = useAuth();
     const toast = useToast();
+    const confirm = useConfirm();
 
     const allowed = createMemo(() =>
         canManageMembers(user()?.role, user()?.id, props.namespace),
@@ -119,8 +121,13 @@ export function NamespaceMembers(props: { namespace: Namespace; onClose: () => v
         );
     }
 
-    function handleRemove(userID: string, username: string) {
-        if (!confirm(`Remove ${username} from "${props.namespace.name}"?`)) return;
+    async function handleRemove(userID: string, username: string) {
+        const ok = await confirm({
+            title: `Remove ${username} from "${props.namespace.name}"?`,
+            body: "They lose every role in this namespace, and any API key of theirs narrows with it.",
+            confirmLabel: "Remove member",
+        });
+        if (!ok) return;
         removeMember.mutate(
             { id: props.namespace.id, userID },
             {
@@ -169,7 +176,7 @@ export function NamespaceMembers(props: { namespace: Namespace; onClose: () => v
                         size="sm"
                         variant="danger"
                         disabled={removeMember.isPending}
-                        onClick={() => handleRemove(m.userId, memberLabel(m))}
+                        onClick={() => void handleRemove(m.userId, memberLabel(m))}
                     >
                         Remove
                     </Button>

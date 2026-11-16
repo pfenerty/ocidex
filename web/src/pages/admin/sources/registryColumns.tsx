@@ -16,6 +16,7 @@ import {
 import { hasWebhook, regTypeLabel } from "./registryTypes";
 import { Button } from "~/components/ui";
 import { formatDateTime } from "~/utils/format";
+import { useConfirm } from "~/context/confirm";
 
 /**
  * registryColumns builds the registry table's columns. It is a function rather
@@ -34,6 +35,7 @@ export function registryColumns(opts: {
     gapsFor?: (registryID: string) => RegistryClusterGap[];
 }): Column<Registry>[] {
     const toast = useToast();
+    const confirm = useConfirm();
     const deleteReg = useDeleteRegistry();
     const scanReg = useScanRegistry();
     const regenSecret = useRegenerateWebhookSecret();
@@ -231,13 +233,19 @@ export function registryColumns(opts: {
                                 </Button>
                                 <Button
                                     title="Re-scan every image, including already-scanned digests (repopulates enrichment)"
-                                    onClick={() => {
-                                        if (!confirm("Force a full re-scan of every image in this registry, including digests already ingested? This re-pulls and re-scans everything.")) return;
+                                    onClick={() => void (async () => {
+                                        const ok = await confirm({
+                                            title: `Re-scan everything in ${reg.name}?`,
+                                            body: "Every image is pulled and scanned again, including digests already ingested. On a large registry this takes a while and uses registry rate limit.",
+                                            confirmLabel: "Re-scan all",
+                                            tone: "default",
+                                        });
+                                        if (!ok) return;
                                         scanReg.mutate({ id: reg.id, force: true }, {
                                             onSuccess: (data) => toast(data.message, "success"),
                                             onError: () => toast("Failed to start scan", "error"),
                                         });
-                                    }}
+                                    })()}
                                     disabled={scanReg.isPending}
                                 >
                                     Force
@@ -250,10 +258,19 @@ export function registryColumns(opts: {
                             </Show>
                             <Show when={canManage()}>
                                 <Button
-                                    onClick={() => deleteReg.mutate(reg.id, {
-                                        onSuccess: () => toast("Registry deleted", "success"),
-                                        onError: () => toast("Failed to delete registry", "error"),
-                                    })}
+                                    variant="danger"
+                                    onClick={() => void (async () => {
+                                        const ok = await confirm({
+                                            title: `Delete registry ${reg.name}?`,
+                                            body: "Polling stops and the registry's settings and credentials are removed. Artifacts already ingested from it stay in the catalog.",
+                                            confirmLabel: "Delete registry",
+                                        });
+                                        if (!ok) return;
+                                        deleteReg.mutate(reg.id, {
+                                            onSuccess: () => toast("Registry deleted", "success"),
+                                            onError: () => toast("Failed to delete registry", "error"),
+                                        });
+                                    })()}
                                     disabled={deleteReg.isPending}
                                 >
                                     Delete

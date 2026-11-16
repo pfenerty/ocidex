@@ -8,6 +8,7 @@ import { API_REFERENCE_URL } from "~/api/client";
 import { useListAPIKeys, useCreateAPIKey, useDeleteAPIKey } from "~/api/queries";
 import { Button, Card, CardHeader } from "~/components/ui";
 import { TimestampCell } from "~/components/cells";
+import { useConfirm } from "~/context/confirm";
 
 /**
  * Every capability a key may declare, in the order the role table grants them:
@@ -68,6 +69,7 @@ export function APIKeysTab(props: { initialName?: string; initialCapabilities?: 
     const createKey = useCreateAPIKey();
     const deleteKey = useDeleteAPIKey();
     const toast = useToast();
+    const confirm = useConfirm();
     const prefilled = props.initialCapabilities ?? [];
     const [newKeyName, setNewKeyName] = createSignal(props.initialName ?? "");
     const [preset, setPreset] = createSignal<Preset>(prefilled.length > 0 ? "custom" : "full");
@@ -143,10 +145,26 @@ export function APIKeysTab(props: { initialName?: string; initialCapabilities?: 
             header: "",
             render: (k) => (
                 <Button
-                    onClick={() => deleteKey.mutate(k.id, {
-                        onSuccess: () => toast("API key deleted", "success"),
-                        onError: () => toast("Failed to delete API key", "error"),
-                    })}
+                    variant="danger"
+                    onClick={() => void (async () => {
+                        // Was a one-click delete (ocidex-tpnv).
+                        const ok = await confirm({
+                            title: `Delete API key "${k.name}"?`,
+                            body: "Anything still sending this key gets 401 from the next request. This cannot be undone.",
+                            confirmLabel: "Delete key",
+                        });
+                        if (!ok) return;
+                        deleteKey.mutate(k.id, {
+                            onSuccess: () => {
+                                // The create response carries only the secret,
+                                // which starts with the listed prefix: a deleted
+                                // key's secret must not stay on screen (ocidex-rzmn).
+                                if (revealedKey()?.startsWith(k.prefix) === true) setRevealedKey(null);
+                                toast("API key deleted", "success");
+                            },
+                            onError: () => toast("Failed to delete API key", "error"),
+                        });
+                    })()}
                     disabled={deleteKey.isPending}
                 >
                     Delete

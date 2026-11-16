@@ -22,6 +22,9 @@ vi.mock("~/api/queries", () => ({
     useDeleteNamespace: vi.fn(),
 }));
 
+// The shared ConfirmDialog (ocidex-iz0r.7), answered by the test.
+const confirmSpy = vi.fn((_options: { title: string; body: unknown }) => Promise.resolve(false));
+vi.mock("~/context/confirm", () => ({ useConfirm: () => confirmSpy }));
 vi.mock("~/context/toast", () => ({ useToast: () => vi.fn() }));
 
 const mockList = vi.mocked(useListNamespaces);
@@ -154,17 +157,18 @@ describe("NamespacesTab", () => {
         expect(container.querySelector('[data-testid="edit-name"]')).toBeNull();
     });
 
-    it("names what a delete would take with it, and only deletes on confirm", () => {
-        const confirmSpy = vi.fn((_message?: string) => false);
-        vi.stubGlobal("confirm", confirmSpy);
+    it("names what a delete would take with it, and only deletes on confirm", async () => {
+        confirmSpy.mockClear();
+        confirmSpy.mockResolvedValue(false);
         const { container } = renderTab([acme], [{ id: "s1", namespaceId: "ns-acme" }]);
 
         fireEvent.click(button(container, "Delete"));
+        await Promise.resolve();
         expect(deleteMutate).not.toHaveBeenCalled();
-        expect(confirmSpy.mock.calls[0][0]).toContain("1 source and everything ingested under them");
+        expect(confirmSpy.mock.calls[0][0].body).toContain("1 source and everything ingested under them");
 
-        confirmSpy.mockReturnValue(true);
+        confirmSpy.mockResolvedValue(true);
         fireEvent.click(button(container, "Delete"));
-        expect(deleteMutate).toHaveBeenCalledWith("ns-acme", expect.anything());
+        await vi.waitFor(() => expect(deleteMutate).toHaveBeenCalledWith("ns-acme", expect.anything()));
     });
 });
