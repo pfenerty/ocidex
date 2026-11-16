@@ -10,15 +10,18 @@ export const CATEGORY_COLORS: Partial<
         label: "Permissive",
         badge: "badge-success",
     },
+    // Copyleft is an obligation to check, not a failure: the warn tone, never
+    // danger red, which belongs to failures and trust problems (ocidex-iz0r.4).
+    // Weak copyleft is the same tone at lower strength in bars.
     "weak-copyleft": {
-        bg: "var(--color-warning)",
-        label: "Weak Copyleft",
+        bg: "color-mix(in srgb, var(--color-warning) 55%, transparent)",
+        label: "Weak copyleft",
         badge: "badge-warning",
     },
     copyleft: {
-        bg: "var(--color-danger)",
+        bg: "var(--color-warning)",
         label: "Copyleft",
-        badge: "badge-danger",
+        badge: "badge-warning",
     },
     uncategorized: {
         bg: "var(--color-text-dim)",

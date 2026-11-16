@@ -358,7 +358,7 @@ describe("Artifacts severity column", () => {
     it("says 'not scanned' when no summary is present", () => {
         mockUseArtifacts.mockReturnValue(makeQuery({ data: page([makeArtifact()]) }) as never);
         const { getByText } = renderArtifacts();
-        expect(getByText("not scanned")).toBeDefined();
+        expect(getByText("Not scanned")).toBeDefined();
     });
 
     it("renders per-severity counts when a summary is present", () => {
@@ -370,7 +370,7 @@ describe("Artifacts severity column", () => {
             }) as never
         );
         const { container, queryByText } = renderArtifacts();
-        expect(queryByText("not scanned")).toBeNull();
+        expect(queryByText("Not scanned")).toBeNull();
         const chip = container.querySelector(".vuln-chip");
         expect(chip?.textContent.replace(/\s+/g, "")).toBe("23010");
     });

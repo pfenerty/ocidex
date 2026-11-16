@@ -419,7 +419,7 @@ describe("Home discovery panels", () => {
         const f = data.featuredArtifacts?.[0];
         if (f) f.vulns = { critical: 0, high: 0, medium: 0, low: 0, unknown: 0 };
         const { container } = renderHome(warmStats, { isError: false, data });
-        expect(container.querySelector(".featured-card")?.textContent).toContain("none known");
+        expect(container.querySelector(".featured-card")?.textContent).toContain("0 known");
     });
 
     it("omits the featured section when nothing is featured", () => {

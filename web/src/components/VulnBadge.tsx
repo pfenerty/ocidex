@@ -2,6 +2,8 @@ import "./VulnBadge.css";
 import { Show, For } from "solid-js";
 import type { JSX } from "solid-js";
 import type { VulnSummary } from "~/api/client";
+import { StatusChip } from "~/components/ui/StatusChip";
+import { VULN_DATA_STATUS } from "~/utils/status";
 
 // severityColorClass maps a severity to a de-escalating redscale class,
 // shared by every vulnerability display in the app — compact chips
@@ -55,7 +57,9 @@ export function VulnBadge(props: { count: number | undefined; maxSeverity: strin
 // VulnCountBadges renders a compact severity breakdown as a single seamless
 // bar of solid-colored segments (e.g. "5 3 4 1 0" for
 // critical|high|medium|low|unknown), each segment colored by its severity.
-// Renders "—" when all counts are zero. Suitable for table cells and
+// Renders the "0 known" status chip when all counts are zero (ocidex-iz0r.4).
+// Callers that cannot tell zero from never-scanned must not pass zeros: they
+// render VULN_DATA_STATUS.unscanned instead. Suitable for table cells and
 // version summary rows across the app.
 export function VulnCountBadges(props: {
     criticalCount?: number;
@@ -80,7 +84,7 @@ export function VulnCountBadges(props: {
             .join(", ");
 
     return (
-        <Show when={total() > 0} fallback={<span class="text-muted">—</span>}>
+        <Show when={total() > 0} fallback={<StatusChip status={VULN_DATA_STATUS.clean} />}>
             <span class="vuln-chip" title={title()}>
                 <For each={counts()}>
                     {/* A zero takes no severity colour: a red "0" read as an

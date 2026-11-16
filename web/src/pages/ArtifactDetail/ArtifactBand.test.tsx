@@ -135,7 +135,7 @@ describe("ArtifactBand vulnerability tile", () => {
         const { container } = renderBand({ vulns: undefined });
         const t = tile(container, "Vulnerabilities");
         expect(t.querySelector(".tile-value")?.textContent).toBe("—");
-        expect(sub(container, "Vulnerabilities")).toBe("not scanned");
+        expect(sub(container, "Vulnerabilities")).toBe("Not scanned");
     });
 
     it("is a button, because the page now has a vulnerabilities tab", () => {

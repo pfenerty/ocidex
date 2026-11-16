@@ -1,12 +1,13 @@
-import { Match, Show, Switch } from "solid-js";
+import { Show } from "solid-js";
 import { A } from "@solidjs/router";
 import DataTable from "~/components/DataTable";
 import type { Column } from "~/components/DataTable";
-import { Button, PageHeader, StatusPill } from "~/components/ui";
+import { Button, PageHeader, StatusChip, StatusPill } from "~/components/ui";
 import "./ClusterDetail/ClusterDetail.css";
-import { relativeDate, formatDateTime } from "~/utils/format";
+import { relativeDate } from "~/utils/format";
 import type { Cluster } from "~/api/client";
 import { useListClusters } from "~/api/queries";
+import { AGENT_HEALTH_STATUS } from "~/utils/status";
 
 type ClusterHealth = Cluster["health"];
 
@@ -43,37 +44,13 @@ export function StalenessPill(props: { lastSeenAt: string | undefined; health?: 
         const s = seen();
         return s === undefined ? "" : ` · ${relativeDate(s)}`;
     };
-    return (
-        <Switch fallback={
-            <Show when={seen()}>
-                {(s) => <span title={formatDateTime(s())}>{relativeDate(s())}</span>}
-            </Show>
-        }>
-            <Match when={state() === "erroring"}>
-                <StatusPill variant="danger" title={reason("The agent is pushing and being refused")}>
-                    erroring{when()}
-                </StatusPill>
-            </Match>
-            <Match when={state() === "never_reported"}>
-                <StatusPill variant="warning" title={reason("No agent has ever pushed a snapshot for this cluster")}>
-                    never reported
-                </StatusPill>
-            </Match>
-            <Match when={state() === "paused"}>
-                <StatusPill variant="default" title={reason("Paused: snapshots are refused")}>
-                    paused
-                </StatusPill>
-            </Match>
-            <Match when={state() === "stale"}>
-                <StatusPill
-                    variant="warning"
-                    title={reason("The inventory below may not be what is running now")}
-                >
-                    stale{when()}
-                </StatusPill>
-            </Match>
-        </Switch>
-    );
+    // Every state gets a chip, the healthy one included: a bare "9m ago" next
+    // to four toned chips read as missing data (ocidex-iz0r.4).
+    const status = () => AGENT_HEALTH_STATUS[state()];
+    const suffix = () => (state() === "never_reported" || state() === "paused" ? "" : when());
+    const title = () =>
+        state() === "healthy" ? status().title : reason(status().title);
+    return <StatusChip status={status()} suffix={suffix()} title={title()} />;
 }
 
 /** Problems first: the list exists to answer "is anything wrong?". */

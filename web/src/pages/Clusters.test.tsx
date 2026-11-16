@@ -87,7 +87,7 @@ describe("Clusters", () => {
         const { container } = renderPage([
             { ...prod, lastSeenAt: "", health: { state: "never_reported" }, summary: undefined, agent: undefined },
         ]);
-        expect(container.textContent).toContain("never reported");
+        expect(container.textContent).toContain("Never reported");
         expect(container.textContent).toContain("finish connecting");
         expect(container.textContent).not.toContain("% matched");
     });
@@ -96,20 +96,20 @@ describe("Clusters", () => {
         const { container } = renderPage([
             { ...prod, health: { state: "erroring", reason: "The agent's API key was not accepted" } },
         ]);
-        const pill = [...container.querySelectorAll(".badge")].find((b) => b.textContent.startsWith("erroring"));
+        const pill = [...container.querySelectorAll(".status-chip")].find((b) => b.textContent.startsWith("Erroring"));
         expect(pill?.getAttribute("title")).toBe("The agent's API key was not accepted");
         expect(container.textContent).toContain("The agent's API key was not accepted");
     });
 
     it("trusts the server's stale verdict over the client's hour", () => {
         const { container } = renderPage([{ ...prod, health: { state: "stale", reason: "No snapshot for 16m" } }]);
-        expect(container.textContent).toContain("stale");
+        expect(container.textContent).toContain("Stale");
     });
 
     it("does not call a fresh cluster stale", () => {
         const { container } = renderPage();
-        expect(container.textContent).not.toContain("stale");
-        expect(container.textContent).not.toContain("never reported");
+        expect(container.textContent).not.toContain("Stale");
+        expect(container.textContent).not.toContain("Never reported");
     });
 
     it("puts problems first", () => {

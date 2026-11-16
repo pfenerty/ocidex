@@ -192,14 +192,14 @@ describe("Components severity column", () => {
     // Unlike /artifacts, an all-zero row here is a real "nothing known against
     // this package" — component_rollup carries a row for every identity, so
     // there is no never-scanned state to warn about (ADR-044).
-    it("renders an em dash, not a scan warning, when nothing is known", () => {
+    it("says 0 known, not a scan warning, when nothing is known", () => {
         const { container, queryByText } = renderRows([
             row({ vulns: { critical: 0, high: 0, medium: 0, low: 0, unknown: 0, total: 0 } }),
         ]);
 
         expect(container.querySelector(".vuln-chip")).toBeNull();
-        expect(queryByText("—")).toBeTruthy();
-        expect(queryByText("not scanned")).toBeNull();
+        expect(queryByText("0 known")).toBeTruthy();
+        expect(queryByText("Not scanned")).toBeNull();
     });
 
     it("asks the server for a worst-first severity sort when the header is clicked", async () => {

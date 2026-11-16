@@ -306,20 +306,8 @@
     display: block;
 }
 
-.coverage-bar-matched,
-.coverage-segment-matched i {
-    background: var(--color-success);
-}
-
-.coverage-bar-unknown,
-.coverage-segment-unknown i {
-    background: var(--color-warning);
-}
-
-.coverage-bar-unresolvable,
-.coverage-segment-unresolvable i {
-    background: var(--color-text-muted);
-}
+/* Segment and swatch colours come from the status map's tones
+   (.tone-fill-* in index.css, ocidex-iz0r.4), the same ones the row chips use. */
 
 .coverage-legend {
     display: flex;
