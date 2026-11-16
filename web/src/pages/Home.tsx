@@ -68,10 +68,7 @@ export default function Home() {
     return (
         <div class="landing">
             <section class="landing-hero">
-                <h1 class="brand landing-title">
-                    OCI<span>Dex</span>
-                </h1>
-                <p class="landing-tagline">The supply-chain catalog for the software you ship.</p>
+                <h1 class="brand landing-title">Know what you ship, and what you run.</h1>
                 <p class="landing-pitch">
                     OCIDex reads a software bill of materials for every image, binary and
                     library you ship: the packages inside, their licenses and the

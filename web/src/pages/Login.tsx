@@ -2,6 +2,7 @@ import { For, Show } from "solid-js";
 import { API_BASE_URL } from "~/api/client";
 import { GitHubMark } from "~/components/icons/GitHubMark";
 import { useAuthProviders } from "~/api/queries";
+import { BrandMark } from "~/components/BrandMark";
 
 /**
  * The sign-in buttons are drawn from the API rather than hardcoded, because the
@@ -18,14 +19,14 @@ export default function Login() {
     return (
         <div class="flex flex-1 items-center justify-center bg-[var(--color-bg)]">
             <div class="flex flex-col items-center gap-8 p-12 bg-[var(--color-surface)] border border-[var(--color-border)] rounded-xl w-full max-w-[360px]">
-                {/* Logo */}
-                <div class="text-center">
-                    <h1 class="text-3xl font-bold tracking-tight text-[var(--color-text)] leading-none mb-1.5">
-                        OCI<span class="text-[var(--color-brand)]">Dex</span>
-                    </h1>
-                    <p class="text-[0.8125rem] text-[var(--color-text-muted)] tracking-widest uppercase">
-                        SBOM Explorer
-                    </p>
+                {/* Lockup: the mark carries the brand, the wordmark is text colour
+                    (ocidex-iz0r.3). */}
+                <div class="flex flex-col items-center gap-3 text-center text-[var(--color-text)]">
+                    <BrandMark size={44} />
+                    <div>
+                        <h1 class="brand text-3xl font-bold tracking-tight leading-none mb-1.5">OCIDex</h1>
+                        <p class="font-mono text-[0.8125rem] text-[var(--color-text-muted)]">Supply-chain catalog</p>
+                    </div>
                 </div>
 
                 {/* Divider */}
