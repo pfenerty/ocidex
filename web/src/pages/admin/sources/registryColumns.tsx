@@ -170,7 +170,7 @@ export function registryColumns(opts: {
                 </Show>
             ),
         },
-        { header: "Scan Mode", render: (reg) => <code>{reg.scanMode}</code> },
+        { header: "Scan mode", render: (reg) => <code>{reg.scanMode}</code> },
         {
             header: "Webhook URL",
             render: (reg) => (

@@ -131,7 +131,7 @@ export function AccountTab() {
     return (
         <>
             <Card class="mb-4">
-                <CardHeader title="Link Another Sign-In Method" />
+                <CardHeader title="Link another sign-in method" />
                 <Show
                     when={linkable().length > 0}
                     fallback={

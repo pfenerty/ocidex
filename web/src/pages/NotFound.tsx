@@ -12,7 +12,7 @@ export default function NotFound() {
       {/* `end`: without it the router marks "/" active on every path, and the
           .active rule painted this primary button blue (ocidex-nps9.30). */}
       <Button as={A} href="/" end variant="primary" class="mt-6">
-        Back to Home
+        Back to home
       </Button>
     </div>
   );

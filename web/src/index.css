@@ -687,10 +687,11 @@
         top: 0;
         z-index: 1;
         background: var(--color-surface);
+        /* Registry paths and namespace names: identifiers, so no uppercase
+           (ocidex-iz0r.8). Mono, which is how every other registry path reads. */
+        font-family: var(--font-mono);
         font-size: 0.75rem;
-        font-weight: 600;
-        text-transform: uppercase;
-        letter-spacing: 0.04em;
+        font-weight: 500;
         color: var(--color-text-muted);
         padding: 0.5rem 0.75rem;
         border-bottom: 1px solid var(--color-border);
@@ -746,8 +747,10 @@
         border-radius: 3px;
         background: var(--color-surface-hover);
         color: var(--color-text-muted);
-        text-transform: uppercase;
-        letter-spacing: 0.03em;
+        /* No text-transform (ocidex-hre1, iz0r.8). Badges carry identifiers as
+           often as labels: cluster names, advisory aliases, ecosystems. CSS
+           uppercase rendered GHSA-x527-x647-q7gg as GHSA-X527-X647-Q7GG, which
+           is not the id. Labels are written in sentence case at the source. */
     }
 
     .badge-primary {

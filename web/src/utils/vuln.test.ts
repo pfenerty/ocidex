@@ -22,9 +22,9 @@ describe("parseCvssVector", () => {
             version: "CVSSv3.1",
             metrics: [
                 { label: "Network", variant: "danger" },
-                { label: "Low Complexity", variant: "warning" },
-                { label: "No Privileges", variant: "danger" },
-                { label: "No Interaction", variant: "warning" },
+                { label: "Low complexity", variant: "warning" },
+                { label: "No privileges", variant: "danger" },
+                { label: "No interaction", variant: "warning" },
                 { label: "High confidentiality impact", variant: "danger" },
                 { label: "High integrity impact", variant: "danger" },
                 { label: "High availability impact", variant: "danger" },
@@ -40,16 +40,16 @@ describe("parseCvssVector", () => {
             version: "CVSSv4.0",
             metrics: [
                 { label: "Network", variant: "danger" },
-                { label: "Low Complexity", variant: "warning" },
-                { label: "No Privileges", variant: "danger" },
-                { label: "No Interaction", variant: "warning" },
+                { label: "Low complexity", variant: "warning" },
+                { label: "No privileges", variant: "danger" },
+                { label: "No interaction", variant: "warning" },
                 { label: "High confidentiality impact", variant: "danger" },
                 { label: "High integrity impact", variant: "danger" },
                 { label: "High availability impact", variant: "danger" },
             ],
         });
         // AT:N and SC/SI/SA:N are all "omit" values — no chips for them.
-        expect(result?.metrics.some((m) => m.label.includes("Attack Requirements"))).toBe(false);
+        expect(result?.metrics.some((m) => m.label.includes("Attack requirements"))).toBe(false);
         expect(result?.metrics.some((m) => m.label.includes("downstream"))).toBe(false);
     });
 
@@ -57,14 +57,14 @@ describe("parseCvssVector", () => {
         const result = parseCvssVector(
             "CVSS:4.0/AV:N/AC:L/AT:P/PR:N/UI:P/VC:L/VI:N/VA:N/SC:N/SI:N/SA:N",
         );
-        expect(result?.metrics).toContainEqual({ label: "Attack Requirements", variant: "warning" });
-        expect(result?.metrics).toContainEqual({ label: "Passive Interaction", variant: "" });
+        expect(result?.metrics).toContainEqual({ label: "Attack requirements", variant: "warning" });
+        expect(result?.metrics).toContainEqual({ label: "Passive interaction", variant: "" });
         expect(result?.metrics).toContainEqual({ label: "Low confidentiality impact", variant: "warning" });
     });
 
     it("decodes v4 Active Interaction", () => {
         const result = parseCvssVector("CVSS:4.0/AV:L/AC:H/AT:N/PR:H/UI:A/VC:N/VI:N/VA:N/SC:N/SI:N/SA:N");
-        expect(result?.metrics).toContainEqual({ label: "Active Interaction", variant: "" });
+        expect(result?.metrics).toContainEqual({ label: "Active interaction", variant: "" });
     });
 });
 

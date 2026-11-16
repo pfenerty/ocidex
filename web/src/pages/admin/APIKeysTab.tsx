@@ -199,7 +199,7 @@ export function APIKeysTab(props: { initialName?: string; initialCapabilities?: 
             </Show>
 
             <Card class="mb-4">
-                <CardHeader title="Create Bot Token" />
+                <CardHeader title="Create API key" />
                 <form onSubmit={handleCreate}>
                     <div class="flex flex-wrap items-center gap-2">
                         <input

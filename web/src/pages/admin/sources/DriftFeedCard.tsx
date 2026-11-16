@@ -50,7 +50,7 @@ export function DriftFeedCard() {
             class="mt-6"
             caption={
                 <>
-                    <CardHeader title="Recent Provenance Drift" />
+                    <CardHeader title="Recent provenance drift" />
                     {/* The caption travels into the empty and error branches
                         too, which is the point: "no drift events" only means
                         something once you know the feed is regression-only. */}

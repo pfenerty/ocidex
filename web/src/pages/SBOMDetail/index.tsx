@@ -233,7 +233,7 @@ export default function SBOMDetail() {
                                 actions={
                                     <ButtonGroup>
                                         <Show when={s.artifactId}>
-                                            <Button as={A} href={`/artifacts/${s.artifactId}`} size="sm">View Artifact</Button>
+                                            <Button as={A} href={`/artifacts/${s.artifactId}`} size="sm">View artifact</Button>
                                         </Show>
                                         <Show when={s.artifactId !== undefined && s.subjectVersion !== undefined}>
                                             <Button as={A} href={`/artifacts/${s.artifactId}/versions/${encodeURIComponent(s.subjectVersion ?? "")}`} size="sm">

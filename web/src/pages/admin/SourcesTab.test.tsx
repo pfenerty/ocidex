@@ -543,7 +543,7 @@ describe("SourcesTab permissions", () => {
             { id: "ns-acme", name: "acme", visibility: "public", capabilities: [] },
         ]);
         expect(container.textContent).toContain("Read only");
-        for (const label of ["Edit", "Scan", "Force", "Delete", "Add Registry"]) {
+        for (const label of ["Edit", "Scan", "Force", "Delete", "Add registry"]) {
             expect(buttons(container)).not.toContain(label);
         }
     });
@@ -565,18 +565,18 @@ describe("SourcesTab permissions", () => {
         it(`offers Add Registry to an installation ${role} with no namespaces`, () => {
             mockRole = role;
             const { container } = renderTab([], [], []);
-            expect(buttons(container)).toContain("Add Registry");
+            expect(buttons(container)).toContain("Add registry");
         });
     }
 
     it("still offers no Add Registry to a viewer with no namespaces", () => {
         const { container } = renderTab([], [], []);
-        expect(buttons(container)).not.toContain("Add Registry");
+        expect(buttons(container)).not.toContain("Add registry");
     });
 
     it("offers every action to an owner", () => {
         const { container } = renderTab([baseRegistry]);
-        for (const label of ["Edit", "Scan", "Force", "Delete", "Add Registry"]) {
+        for (const label of ["Edit", "Scan", "Force", "Delete", "Add registry"]) {
             expect(buttons(container)).toContain(label);
         }
     });

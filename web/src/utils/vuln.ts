@@ -21,20 +21,20 @@ const AV: Record<string, CvssMetric> = {
     P: { label: "Physical", variant: "" },
 };
 const AC: Record<string, CvssMetric> = {
-    L: { label: "Low Complexity",  variant: "warning" },
-    H: { label: "High Complexity", variant: "" },
+    L: { label: "Low complexity",  variant: "warning" },
+    H: { label: "High complexity", variant: "" },
 };
 const PR: Record<string, CvssMetric> = {
-    N: { label: "No Privileges",   variant: "danger" },
-    L: { label: "Low Privileges",  variant: "warning" },
-    H: { label: "High Privileges", variant: "" },
+    N: { label: "No privileges",   variant: "danger" },
+    L: { label: "Low privileges",  variant: "warning" },
+    H: { label: "High privileges", variant: "" },
 };
 const UI: Record<string, CvssMetric> = {
-    N: { label: "No Interaction",       variant: "warning" },
-    R: { label: "Requires Interaction", variant: "" },
+    N: { label: "No interaction",       variant: "warning" },
+    R: { label: "Requires interaction", variant: "" },
 };
 const S: Record<string, CvssMetric> = {
-    C: { label: "Scope Changed",    variant: "warning" },
+    C: { label: "Scope changed",    variant: "warning" },
     U: { label: "",                 variant: "" }, // Unchanged — omit
 };
 const IMPACT: Record<string, CvssMetric> = {
@@ -56,12 +56,12 @@ const IMPACT_SUFFIX: Record<string, string> = {
 // and C/I/A are split into Vulnerable-system (VC/VI/VA) and Subsequent-system (SC/SI/SA).
 const AT: Record<string, CvssMetric> = {
     N: { label: "",                    variant: "" }, // None — omit
-    P: { label: "Attack Requirements", variant: "warning" },
+    P: { label: "Attack requirements", variant: "warning" },
 };
 const UI_V4: Record<string, CvssMetric> = {
-    N: { label: "No Interaction",      variant: "warning" },
-    P: { label: "Passive Interaction", variant: "" },
-    A: { label: "Active Interaction",  variant: "" },
+    N: { label: "No interaction",      variant: "warning" },
+    P: { label: "Passive interaction", variant: "" },
+    A: { label: "Active interaction",  variant: "" },
 };
 
 const V4_METRICS: Record<string, Record<string, CvssMetric>> = {

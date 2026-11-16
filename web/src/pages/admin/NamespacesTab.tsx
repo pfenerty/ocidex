@@ -230,7 +230,7 @@ export function NamespacesTab() {
     return (
         <>
             <Card class="mb-4">
-                <CardHeader title="Create Namespace" />
+                <CardHeader title="Create namespace" />
                 <form
                     onSubmit={handleCreate}
                     class="flex flex-wrap items-end gap-3"
