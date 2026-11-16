@@ -221,6 +221,7 @@ function ComponentBrowser() {
             // between no findings and never scanned (ADR-044).
             render: (c) => (
                 <VulnCountBadges
+                    zeroIsClean
                     criticalCount={c.vulns.critical}
                     highCount={c.vulns.high}
                     mediumCount={c.vulns.medium}

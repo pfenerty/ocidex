@@ -12,7 +12,7 @@ import {
 } from "~/components/cells";
 import { plural } from "~/utils/format";
 import { parsePurl } from "~/utils/purl";
-import { Button, ButtonGroup, Card, Tooltip } from "~/components/ui";
+import { Button, Card, Segmented, Tooltip } from "~/components/ui";
 import { componentHref } from "./componentHref";
 import { DependencyTreeView } from "./DependencyTreeView";
 
@@ -248,22 +248,16 @@ export function PackagesTab(props: {
                         Vulnerable only
                     </Button>
                     <Show when={hasTree()}>
-                        <ButtonGroup class="ml-auto">
-                            <Button
-                                size="sm"
-                                active={effectiveMode() === "tree"}
-                                onClick={() => props.onViewMode("tree")}
-                            >
-                                Tree
-                            </Button>
-                            <Button
-                                size="sm"
-                                active={effectiveMode() === "list"}
-                                onClick={() => props.onViewMode("list")}
-                            >
-                                List
-                            </Button>
-                        </ButtonGroup>
+                        <Segmented
+                            class="ml-auto"
+                            label="Package view"
+                            options={[
+                                { id: "tree", label: "Tree" },
+                                { id: "list", label: "List" },
+                            ]}
+                            value={effectiveMode()}
+                            onChange={(m) => props.onViewMode(m)}
+                        />
                     </Show>
                 </div>
 

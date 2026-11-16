@@ -1,6 +1,6 @@
 import "~/components/DetailSection.css";
 import { Show, createMemo, createSignal } from "solid-js";
-import { A, useParams, useNavigate, useSearchParams } from "@solidjs/router";
+import { A, useParams, useSearchParams } from "@solidjs/router";
 import { Breadcrumb, Button, ButtonGroup, Card, CardHeader, EntryLine, PageHeader, QueryBoundary, TabBar, createExpandedSet, type Crumb } from "~/components/ui";
 import { useSBOM, useSBOMComponents, sbomComponents, useSBOMDependencies, useSBOMDriftHistory, useArtifactSBOMs } from "~/api/queries";
 import { useArtifactNames } from "~/api/queries";
@@ -31,7 +31,6 @@ function one(v: string | string[] | undefined): string | undefined {
 
 export default function SBOMDetail() {
     const params = useParams<{ id: string }>();
-    const navigate = useNavigate();
     const [searchParams, setSearchParams] = useSearchParams();
 
     /* The tab used to be component state, which made every view of this page the
@@ -250,16 +249,21 @@ export default function SBOMDetail() {
 
                             {/* --- Arch switcher --- */}
                             <Show when={archSiblings().length > 1}>
-                                {/* A `nav` strip, not a filter: each sibling is
-                                    a different SBOM at a different URL. */}
+                                {/* Chips, as architectures are everywhere else
+                                    (ocidex-iz0r.5), rendered as links: each
+                                    sibling is a different SBOM at its own URL.
+                                    This was a second tab bar stacked above the
+                                    content tabs. */}
                                 <TabBar
+                                    variant="filter"
+                                    label="Architecture"
                                     tabs={archSiblings().map((sib) => ({
                                         id: sib.id,
                                         label: sib.architecture ?? sib.id,
+                                        href: `/sboms/${sib.id}`,
                                     }))}
                                     active={params.id}
-                                    onSelect={(id) => navigate(`/sboms/${id}`)}
-                                    class="mb-sm"
+                                    class="mb-4"
                                 />
                             </Show>
 

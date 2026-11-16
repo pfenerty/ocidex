@@ -5,7 +5,7 @@ import DiffEntry from "~/components/DiffEntry";
 import { DiffTreeView } from "~/components/DiffTreeView";
 import type { ChangelogEntryData } from "~/utils/diff";
 import type { DiffTree } from "~/api/client";
-import { Button, ButtonGroup, QueryBoundary } from "~/components/ui";
+import { QueryBoundary, Segmented } from "~/components/ui";
 
 // Extract the ChangelogEntry-compatible subset from a DiffTree response.
 function asEntry(tree: DiffTree): ChangelogEntryData {
@@ -88,13 +88,14 @@ export function ViewToggle(props: {
     onChange: (mode: "tree" | "list") => void;
 }) {
     return (
-        <ButtonGroup>
-            <Button size="sm" active={props.mode === "tree"} onClick={() => props.onChange("tree")}>
-                Tree
-            </Button>
-            <Button size="sm" active={props.mode === "list"} onClick={() => props.onChange("list")}>
-                List
-            </Button>
-        </ButtonGroup>
+        <Segmented
+            label="Diff view"
+            options={[
+                { id: "tree", label: "Tree" },
+                { id: "list", label: "List" },
+            ]}
+            value={props.mode}
+            onChange={props.onChange}
+        />
     );
 }

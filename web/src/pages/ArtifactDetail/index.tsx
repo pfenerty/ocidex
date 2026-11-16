@@ -1,5 +1,5 @@
 import "~/components/DetailSection.css";
-import { createSignal, For, Show } from "solid-js";
+import { createSignal, Show } from "solid-js";
 import { useParams, useSearchParams } from "@solidjs/router";
 import {
     useArtifact,
@@ -17,7 +17,7 @@ import type { ArtifactVulnSortKey, VulnSeverityFilter } from "~/api/queries";
 import type { SortDir } from "~/components/DataTable";
 import { EmptyState } from "~/components/Feedback";
 import { Skeleton, SkeletonHeader, SkeletonText } from "~/components/Skeleton";
-import { Breadcrumb, ButtonGroup, Button, QueryBoundary, TabBar, createExpandedSet, type Crumb, type TabDef } from "~/components/ui";
+import { Breadcrumb, QueryBoundary, Segmented, TabBar, createExpandedSet, type Crumb, type TabDef } from "~/components/ui";
 import { artifactDisplayName, plural } from "~/utils/format";
 import { ArtifactHeader, ArtifactIdentity } from "./ArtifactHeader";
 import { ArtifactBand, type ArtifactTab } from "./ArtifactBand";
@@ -234,7 +234,7 @@ export default function ArtifactDetail() {
                                     <p class="mb-3" data-testid="running-in">
                                         <button type="button" class="link-button" onClick={() => setTab("running")}>
                                             <StatusPill variant="success" title={runningClusters().join(", ")}>
-                                                running in {runningClusters().length === 1 ? "1 cluster" : `${runningClusters().length} clusters`}
+                                                Running in {runningClusters().length === 1 ? "1 cluster" : `${runningClusters().length} clusters`}
                                             </StatusPill>
                                         </button>{" "}
                                         <span class="text-muted text-sm">{runningClusters().join(", ")}</span>
@@ -256,21 +256,13 @@ export default function ArtifactDetail() {
                                 <TabBar tabs={tabs(a().versionCount)} active={tab()} onSelect={setTab} />
 
                                 <Show when={hasSemver() && (tab() === "versions" || tab() === "changelog")}>
-                                    <ButtonGroup class="mb-4">
-                                        <For each={MODES}>
-                                            {(m) => (
-                                                <Button
-                                                    size="sm"
-                                                    active={effectiveMode() === m.id}
-                                                    title={m.title}
-                                                    aria-pressed={effectiveMode() === m.id}
-                                                    onClick={() => selectMode(m.id)}
-                                                >
-                                                    {m.label}
-                                                </Button>
-                                            )}
-                                        </For>
-                                    </ButtonGroup>
+                                    <Segmented
+                                        class="mb-4"
+                                        label="Version order"
+                                        options={MODES}
+                                        value={effectiveMode()}
+                                        onChange={selectMode}
+                                    />
                                 </Show>
 
                                 <Show when={tab() === "versions"}>
