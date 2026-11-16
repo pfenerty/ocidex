@@ -7,23 +7,25 @@
 @import "tailwindcss";
 
 /* ============================================
-   OCIDex Design Tokens — Pokedex-Inspired
+   OCIDex Design Tokens — the Dex, evolved
    ============================================ */
 
 @theme {
-    /* --- Pokedex Brand ---
+    /* --- One job per hue (ocidex-iz0r) ---
 
-       Red and blue divide by *what the colour is telling you*, not by rank.
-       Before ocidex-ag4q.11 they were interchangeable — the sidebar slab, the
-       active tab underline and the primary CTA were all the same red, so red
-       carried no information at all.
+       A Pokedex is a quiet instrument with one light on it. Until iz0r the app
+       was the opposite: one red was the sidebar slab, the wordmark, every
+       primary button, the H1 underline and (by value) critical severity, so
+       red meant "brand", "click", "danger" and "worst CVE" at once.
 
-         red  (--color-primary)   — identity and consequence. OCIDex's own
-                                    chrome (sidebar slab, wordmark,
-                                    --color-entry-edge) and the one action a
-                                    view is built around (.btn-primary,
-                                    .btn-danger). Loud on purpose: at most one
-                                    red thing competes for attention per view.
+         red  (--color-brand)     — identity only. The mark's lens-LED and
+                                    the "this is live" light. Never a button,
+                                    border, underline or badge: if it is
+                                    clickable, it is not red.
+
+         ink  (--color-ink)       — the one action a view is built around
+                                    (.btn-primary), as the inverted surface:
+                                    light on dark, dark on light.
 
          blue (--color-secondary) — navigation and state. Links, hovers on
                                     link-like affordances, active tabs, active
@@ -31,16 +33,25 @@
                                     Answers "where am I / where can I go",
                                     never "do this".
 
-       Two things follow. A status vocabulary must not borrow either token:
-       --color-severity-critical exists so that restyling the brand cannot
-       silently restyle the top of the severity scale. And --color-info is an
-       alias of --color-secondary rather than a second copy of the hex, since
-       "informational" and "interactive" are the same blue by construction.
+         --color-danger           — consequence: .btn-danger, errors.
+
+       A status vocabulary must not borrow any of these: --color-severity-critical
+       exists so that restyling the brand cannot silently restyle the top of
+       the severity scale. And --color-info is an alias of --color-secondary
+       rather than a second copy of the hex, since "informational" and
+       "interactive" are the same blue by construction.
 
        colorSemantics.test.ts enforces the split. */
-    --color-primary: #DC3545;
-    --color-primary-hover: #E8525F;
-    --color-primary-fg: #FFFFFF;
+    --color-brand: #F0484E;
+    --color-brand-hover: #F26D72;
+    --color-brand-fg: #FFFFFF;
+
+    /* The primary action. Inverted text-on-page, so it is the highest-contrast
+       control on any surface without spending a hue: #0C0E14 on #E6E8EF is
+       15.6:1. Disabled is the shared opacity step, never a darker tint. */
+    --color-ink: #E6E8EF;
+    --color-ink-hover: #FFFFFF;
+    --color-ink-fg: #0C0E14;
 
     --color-secondary: #5B8DEF;
     --color-secondary-hover: #7BA4F4;
@@ -92,7 +103,7 @@
     --color-info: var(--color-secondary);
     --color-info-bg: rgba(91, 141, 239, 0.12);
     /* The top of VulnBadge's de-escalating redscale. Deliberately its own
-       value rather than var(--color-primary): severity is not brand. */
+       value rather than var(--color-brand): severity is not brand. */
     --color-severity-critical: #DC3545;
 
     /* --- Typography --- */
@@ -129,7 +140,7 @@
     /* --- Brand chrome --- */
     --color-accent-amber: #FFB020;
     --color-chrome-deep: #1A1F2E;
-    --color-entry-edge: var(--color-primary);
+    --color-entry-edge: var(--color-brand);
     --font-display: "Space Grotesk", "Inter", sans-serif;
 }
 
@@ -138,9 +149,15 @@
    ============================================ */
 
 .light {
-    --color-primary: #CC1429;
-    --color-primary-hover: #B31020;
-    --color-primary-fg: #FFFFFF;
+    --color-brand: #D7262E;
+    --color-brand-hover: #B91C24;
+    --color-brand-fg: #FFFFFF;
+
+    /* #FFFFFF on #161922 is 17.9:1; the hover step lifts toward the border
+       grey rather than going darker, which there is no room for. */
+    --color-ink: #161922;
+    --color-ink-hover: #2E3242;
+    --color-ink-fg: #FFFFFF;
 
     /* blue-700, not blue-600. This is the link and interactive colour (ADR of
        1.3: blue = interactive), and #2563EB reads 4.42:1 on --color-elevated —
@@ -753,6 +770,17 @@
         color: var(--color-warning);
     }
 
+    /* The mark's lens-LED (components/BrandMark.tsx): the one sanctioned use of
+       brand red. The body is currentColor, so the mark follows whatever text
+       colour it sits in. */
+    .brand-mark {
+        flex-shrink: 0;
+    }
+
+    .brand-mark-led {
+        fill: var(--color-brand);
+    }
+
     /* Buttons — class variants */
     .btn {
         display: inline-flex;
@@ -788,15 +816,18 @@
         cursor: not-allowed;
     }
 
+    /* Ink, not brand red (ocidex-iz0r.2): red had been every CTA, every
+       disabled CTA (as a muddy maroon at 50% opacity) and the top of the
+       severity scale at once. */
     .btn-primary {
-        background: var(--color-primary);
-        border-color: var(--color-primary);
-        color: #fff;
+        background: var(--color-ink);
+        border-color: var(--color-ink);
+        color: var(--color-ink-fg);
     }
 
     .btn-primary:hover {
-        background: var(--color-primary-hover);
-        border-color: var(--color-primary-hover);
+        background: var(--color-ink-hover);
+        border-color: var(--color-ink-hover);
     }
 
     .btn-danger {

@@ -28,7 +28,7 @@
 }
 
 /* The wordmark. Brand red, per the split documented in index.css. */
-.landing-title span { color: var(--color-primary); }
+.landing-title span { color: var(--color-brand); }
 
 .landing-tagline {
     max-width: 580px;

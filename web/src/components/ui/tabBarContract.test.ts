@@ -57,7 +57,7 @@ describe("tab-bar CSS contract", () => {
         // Active is blue on both. The difference is shape, not hue, per the
         // token split documented at the top of index.css.
         expect(rule(".filter-chips button.active,")).toMatch(/--color-secondary/);
-        expect(rule(".filter-chips button.active,")).not.toMatch(/--color-primary/);
+        expect(rule(".filter-chips button.active,")).not.toMatch(/--color-brand/);
     });
 
     it("routes every filter strip through the filter variant", () => {

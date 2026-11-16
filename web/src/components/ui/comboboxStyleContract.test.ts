@@ -51,6 +51,6 @@ describe("Combobox style contract", () => {
     it("highlights with the interactive blue, not the brand red", () => {
         const active = rule(css, ".combobox-option.is-active");
         expect(active).toContain("var(--color-info-bg)");
-        expect(active).not.toContain("--color-primary");
+        expect(active).not.toContain("--color-brand");
     });
 });

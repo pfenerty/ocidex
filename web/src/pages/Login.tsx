@@ -21,7 +21,7 @@ export default function Login() {
                 {/* Logo */}
                 <div class="text-center">
                     <h1 class="text-3xl font-bold tracking-tight text-[var(--color-text)] leading-none mb-1.5">
-                        OCI<span class="text-[var(--color-primary)]">Dex</span>
+                        OCI<span class="text-[var(--color-brand)]">Dex</span>
                     </h1>
                     <p class="text-[0.8125rem] text-[var(--color-text-muted)] tracking-widest uppercase">
                         SBOM Explorer

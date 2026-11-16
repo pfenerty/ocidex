@@ -17,7 +17,7 @@
     margin-top: 4px;
     height: 2px;
     width: 120px;
-    background: linear-gradient(to right, var(--color-primary), transparent);
+    background: linear-gradient(to right, var(--color-brand), transparent);
 }
 
 .page-header p {
@@ -125,7 +125,7 @@
 
 .sidebar-brand {
     padding: 1.25rem;
-    background: var(--color-primary);
+    background: var(--color-brand);
     margin-bottom: 0.75rem;
     border-bottom: 1px solid var(--color-chrome-deep);
 }
@@ -137,7 +137,7 @@
     color: #ffffff;
 }
 
-/* Solid white, not a tint. The wordmark sits on --color-primary, and white at
+/* Solid white, not a tint. The wordmark sits on --color-brand, and white at
    80% alpha measures 4.01:1 on the light red and 3.38:1 on the dark one — the
    product's own name failed AA in both themes. There is no alpha that clears
    4.5 against #DC3545 (solid white is itself only 4.53), so the two-tone split
@@ -196,7 +196,7 @@
 }
 
 .sidebar-sign-in:hover {
-    background: var(--color-primary);
+    background: var(--color-brand);
     color: #fff;
     text-decoration: none;
 }

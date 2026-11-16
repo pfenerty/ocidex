@@ -1,20 +1,22 @@
 /**
  * The OCIDex mark, inline so it takes the theme's tokens: the body is currentColor and
- * the lens-LED is --color-brand, the only place brand red lives (ocidex-iz0r). The
- * geometry is copied from web/public/brand/mark.svg; brandAssets.test.ts keeps the two
- * in step. Decorative by default, since a wordmark always sits beside it.
+ * the lens-LED takes the brand token via .brand-mark-led in index.css, the only place
+ * brand red lives (ocidex-iz0r). The geometry is copied from web/public/brand/mark.svg;
+ * brandAssets.test.ts keeps the two in step. Decorative unless given a title, since a
+ * wordmark almost always sits beside it.
  */
 export function BrandMark(props: { size?: number; class?: string; title?: string }) {
     const size = () => props.size ?? 24;
+    const labelled = () => props.title !== undefined && props.title !== "";
     return (
         <svg
-            class={`brand-mark${props.class ? ` ${props.class}` : ""}`}
+            class={props.class === undefined ? "brand-mark" : `brand-mark ${props.class}`}
             width={size()}
             height={size()}
             viewBox="0 0 32 32"
-            role={props.title ? "img" : undefined}
-            aria-label={props.title}
-            aria-hidden={props.title ? undefined : "true"}
+            role={labelled() ? "img" : undefined}
+            aria-label={labelled() ? props.title : undefined}
+            aria-hidden={labelled() ? undefined : "true"}
             focusable="false"
         >
             <path
