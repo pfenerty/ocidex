@@ -543,7 +543,7 @@ describe("SourcesTab permissions", () => {
             { id: "ns-acme", name: "acme", visibility: "public", capabilities: [] },
         ]);
         expect(container.textContent).toContain("Read only");
-        for (const label of ["Edit", "Scan", "Force", "Delete", "Add registry"]) {
+        for (const label of ["Edit", "Scan", "Re-scan all", "Delete", "Add registry"]) {
             expect(buttons(container)).not.toContain(label);
         }
     });
@@ -576,7 +576,7 @@ describe("SourcesTab permissions", () => {
 
     it("offers every action to an owner", () => {
         const { container } = renderTab([baseRegistry]);
-        for (const label of ["Edit", "Scan", "Force", "Delete", "Add registry"]) {
+        for (const label of ["Edit", "Scan", "Re-scan all", "Delete", "Add registry"]) {
             expect(buttons(container)).toContain(label);
         }
     });

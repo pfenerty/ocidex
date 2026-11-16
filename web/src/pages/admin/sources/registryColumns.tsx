@@ -63,7 +63,9 @@ export function registryColumns(opts: {
                 </div>
             ),
         },
-        { header: "Type", render: (reg) => <code>{regTypeLabel(reg.type)}</code> },
+        // Labels, not machine strings: plain text. In mono they wrapped to four
+        // lines and helped push the table past its card (ocidex-s8i4).
+        { header: "Type", render: (reg) => <span class="text-sm">{regTypeLabel(reg.type)}</span> },
         { header: "URL", render: (reg) => <code>{reg.url}</code> },
         { header: "Visibility", render: (reg) => <span class="badge">{reg.visibility}</span> },
         {
@@ -141,7 +143,7 @@ export function registryColumns(opts: {
             ),
         },
         {
-            header: "Signing Status",
+            header: "Signing status",
             render: (reg) => (
                 <Show
                     when={(() => {
@@ -170,7 +172,7 @@ export function registryColumns(opts: {
                 </Show>
             ),
         },
-        { header: "Scan mode", render: (reg) => <code>{reg.scanMode}</code> },
+        { header: "Scan mode", render: (reg) => <span class="text-sm">{reg.scanMode}</span> },
         {
             header: "Webhook URL",
             render: (reg) => (
@@ -214,14 +216,18 @@ export function registryColumns(opts: {
                             </span>
                         }
                     >
-                        <div class="flex gap-[0.4rem]">
+                        {/* Small and wrapping: four full-size buttons in one
+                            row were most of why the table overflowed a 1440px
+                            screen and clipped Delete (ocidex-s8i4). */}
+                        <div class="flex max-w-[12.5rem] flex-wrap justify-end gap-[0.3rem]">
                             <Show when={canManage()}>
-                                <Button onClick={() => opts.onEdit(reg)}>
+                                <Button size="sm" onClick={() => opts.onEdit(reg)}>
                                     Edit
                                 </Button>
                             </Show>
                             <Show when={canScan()}>
                                 <Button
+                                    size="sm"
                                     title="Scan new/changed images; already-scanned digests are skipped"
                                     onClick={() => scanReg.mutate({ id: reg.id }, {
                                         onSuccess: (data) => toast(data.message, "success"),
@@ -232,6 +238,7 @@ export function registryColumns(opts: {
                                     Scan
                                 </Button>
                                 <Button
+                                    size="sm"
                                     title="Re-scan every image, including already-scanned digests (repopulates enrichment)"
                                     onClick={() => void (async () => {
                                         const ok = await confirm({
@@ -248,7 +255,7 @@ export function registryColumns(opts: {
                                     })()}
                                     disabled={scanReg.isPending}
                                 >
-                                    Force
+                                    Re-scan all
                                 </Button>
                             </Show>
                             <Show when={(opts.activeByRegistry().get(reg.id) ?? 0) > 0}>
@@ -258,6 +265,7 @@ export function registryColumns(opts: {
                             </Show>
                             <Show when={canManage()}>
                                 <Button
+                                    size="sm"
                                     variant="danger"
                                     onClick={() => void (async () => {
                                         const ok = await confirm({
