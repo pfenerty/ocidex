@@ -57,7 +57,7 @@ export default function ImageMetadataCard(props: {
                 title={
                     <span class="title-inline">
                         <OciIcon />
-                        <Show when={m.title} fallback="Image Metadata">
+                        <Show when={m.title} fallback="Image metadata">
                             {m.title}
                         </Show>
                     </span>
@@ -65,7 +65,7 @@ export default function ImageMetadataCard(props: {
                 actions={
                     <span class="text-muted text-sm">
                         <Show when={m.title} fallback="from OCI registry">
-                            Image Metadata
+                            Image metadata
                         </Show>
                     </span>
                 }

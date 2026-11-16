@@ -1,6 +1,6 @@
 import { Show, createMemo, createSignal, createEffect, on } from "solid-js";
 import { A, Navigate, useSearchParams } from "@solidjs/router";
-import { Breadcrumb, Button, ButtonGroup, PageHeader, QueryBoundary, type Crumb } from "~/components/ui";
+import { Breadcrumb, Button, ButtonGroup, EntryLine, PageHeader, QueryBoundary, type Crumb } from "~/components/ui";
 import { useComponent, useComponentVersions, useComponentVersionSummaries, useComponentVulns } from "~/api/queries";
 import { DEFAULT_PAGE_SIZE } from "~/api/client";
 import { EmptyState } from "~/components/Feedback";
@@ -161,6 +161,7 @@ export default function ComponentOverview() {
                                 <>
                                 <PageHeader
                                     breadcrumb={<Breadcrumb items={crumbs()} />}
+                                    eyebrow={<EntryLine kind="Component" />}
                                     title={
                                         <Show when={hasVersion()} fallback={displayName()}>
                                             {displayName()}{" "}

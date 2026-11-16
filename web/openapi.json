@@ -3049,9 +3049,6 @@
             "$ref": "#/components/schemas/VulnSummary"
           }
         },
-        "required": [
-          "summary"
-        ],
         "type": "object"
       },
       "GetComponentVersionsOutputBody": {

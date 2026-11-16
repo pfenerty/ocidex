@@ -9,6 +9,8 @@ import { SigningBadge, TypeBadge } from "~/components/cells";
 import { DEFAULT_PAGE_SIZE, type ArtifactSummary } from "~/api/client";
 import { PageHeader, Toolbar } from "~/components/ui";
 import type { ToolbarField } from "~/components/ui";
+import { StatusChip } from "~/components/ui";
+import { VULN_DATA_STATUS } from "~/utils/status";
 
 const ARTIFACT_TYPES = [
     "application",
@@ -129,9 +131,7 @@ const columns: Column<ArtifactSummary>[] = [
             <Show
                 when={a.vulns}
                 fallback={
-                    <span class="text-muted" title="No findings recorded for this artifact — it may never have been scanned">
-                        not scanned
-                    </span>
+                    <StatusChip status={VULN_DATA_STATUS.unscanned} />
                 }
             >
                 {(v) => (

@@ -2,7 +2,7 @@
     width: 24px;
     height: 24px;
     border: 2px solid var(--color-border);
-    border-top-color: var(--color-primary);
+    border-top-color: var(--color-secondary);
     border-radius: 50%;
     animation: spin 0.6s linear infinite;
     margin-right: 0.5rem;

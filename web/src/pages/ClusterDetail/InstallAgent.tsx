@@ -1,6 +1,6 @@
 import { Show, createMemo, createSignal } from "solid-js";
 import { A } from "@solidjs/router";
-import { Button, ButtonGroup, Card, CardHeader } from "~/components/ui";
+import { Button, Card, CardHeader, Segmented } from "~/components/ui";
 import { copyText } from "~/utils/clipboard";
 import { useToast } from "~/context/toast";
 import { useCreateClusterCredential, useListNamespaces } from "~/api/queries";
@@ -72,14 +72,15 @@ export function InstallAgent(props: {
                     title={install() !== undefined ? "Install the agent" : `Finish connecting ${props.clusterName}`}
                     actions={
                         <Show when={install()}>
-                            <ButtonGroup>
-                                <Button size="sm" active={form() === "helm"} onClick={() => setForm("helm")}>
-                                    helm
-                                </Button>
-                                <Button size="sm" active={form() === "values"} onClick={() => setForm("values")}>
-                                    values.yaml
-                                </Button>
-                            </ButtonGroup>
+                            <Segmented
+                                label="Install format"
+                                options={[
+                                    { id: "helm", label: "helm" },
+                                    { id: "values", label: "values.yaml" },
+                                ]}
+                                value={form()}
+                                onChange={setForm}
+                            />
                         </Show>
                     }
                 />

@@ -21,6 +21,9 @@ vi.mock("~/api/queries", () => ({
 }));
 
 vi.mock("~/context/auth", () => ({ useAuth: vi.fn() }));
+// The shared ConfirmDialog (ocidex-iz0r.7), answered by the test.
+const confirmSpy = vi.fn((_options: { title: string; body: unknown }) => Promise.resolve(false));
+vi.mock("~/context/confirm", () => ({ useConfirm: () => confirmSpy }));
 vi.mock("~/context/toast", () => ({ useToast: () => vi.fn() }));
 
 const mockUsers = vi.mocked(useListUsers);
@@ -169,17 +172,18 @@ describe("NamespaceMembers", () => {
         });
     });
 
-    it("removes a member only on confirm", () => {
-        const confirmSpy = vi.fn((_message?: string) => false);
-        vi.stubGlobal("confirm", confirmSpy);
+    it("removes a member only on confirm", async () => {
+        confirmSpy.mockClear();
+        confirmSpy.mockResolvedValue(false);
         const { container } = renderPanel({ id: "u-owner", role: "member" });
 
         fireEvent.click(button(container, "Remove"));
+        await Promise.resolve();
         expect(removeMutate).not.toHaveBeenCalled();
-        expect(confirmSpy.mock.calls[0][0]).toContain("hubot");
+        expect(confirmSpy.mock.calls[0][0].title).toContain("hubot");
 
-        confirmSpy.mockReturnValue(true);
+        confirmSpy.mockResolvedValue(true);
         fireEvent.click(button(container, "Remove"));
-        expect(removeMutate.mock.calls[0][0]).toEqual({ id: "ns-acme", userID: "u-viewer" });
+        await vi.waitFor(() => expect(removeMutate.mock.calls[0][0]).toEqual({ id: "ns-acme", userID: "u-viewer" }));
     });
 });

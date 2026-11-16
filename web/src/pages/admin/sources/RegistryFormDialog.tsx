@@ -229,7 +229,7 @@ export function RegistryFormDialog(props: {
     return (
         <Modal
             ref={(el) => (dialogRef = el)}
-            title={editingID() !== null ? "Edit Registry" : "Add Registry"}
+            title={editingID() !== null ? "Edit registry" : "Add registry"}
             onClose={reset}
         >
             <Show when={editingManaged()}>
@@ -326,7 +326,7 @@ export function RegistryFormDialog(props: {
                                 </div>
                             </Show>
                         </FormField>
-                        <FormField label="Auth Username" hint="(optional; for registries requiring credentials)">
+                        <FormField label="Auth username" hint="(optional; for registries requiring credentials)">
                             <input
                                 type="text"
                                 value={form().authUsername}
@@ -335,7 +335,7 @@ export function RegistryFormDialog(props: {
                                 class="w-full"
                             />
                         </FormField>
-                        <FormField label="Auth Token" hint="(PAT or password; for registries requiring credentials)">
+                        <FormField label="Auth token" hint="(PAT or password; for registries requiring credentials)">
                             <input
                                 type="password"
                                 value={form().authToken}
@@ -359,7 +359,7 @@ export function RegistryFormDialog(props: {
                                 class={monoInput}
                             />
                         </FormField>
-                        <FormField label="Repository Patterns" hint="(one per line; filters catalog-discovered repos; empty = all)">
+                        <FormField label="Repository patterns" hint="(one per line; filters catalog-discovered repos; empty = all)">
                             <textarea
                                 value={form().repositoryPatterns}
                                 onInput={(e) => setForm(f => ({ ...f, repositoryPatterns: e.currentTarget.value }))}
@@ -426,7 +426,7 @@ export function RegistryFormDialog(props: {
                                 />
                             </FormField>
                         </Show>
-                        <FormField label="Scan Mode">
+                        <FormField label="Scan mode">
                             <select
                                 value={form().scanMode}
                                 onChange={(e) => setForm(f => ({ ...f, scanMode: e.currentTarget.value as ScanMode }))}
@@ -468,7 +468,7 @@ export function RegistryFormDialog(props: {
                                 />
                             </FormField>
                         </Show>
-                        <FormField label="Verification Mode">
+                        <FormField label="Verification mode">
                             <select
                                 value={form().verificationMode}
                                 onChange={(e) => setForm(f => ({

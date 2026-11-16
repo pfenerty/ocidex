@@ -2,7 +2,7 @@ import { createEffect, createMemo, createSignal, Show, For } from "solid-js";
 import { createLocalStorageSignal } from "~/utils/prefs";
 import { A } from "@solidjs/router";
 import { Button } from "~/components/ui";
-import { relativeDate } from "~/utils/format";
+import { relativeDate, buildTime } from "~/utils/format";
 import { changelogRefLabel } from "~/utils/diff";
 import type { DiffTree } from "~/api/client";
 import DataTable from "~/components/DataTable";
@@ -235,7 +235,7 @@ export function DiffTreeView(props: { tree: DiffTree; hideHeader?: boolean }) {
                         </A>
                         <span class="text-muted">
                             {" "}
-                            ({relativeDate(props.tree.to.buildDate ?? props.tree.to.createdAt)})
+                            ({relativeDate(buildTime(props.tree.to))})
                         </span>
                     </div>
                     <div class="changelog-summary">

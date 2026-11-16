@@ -7,6 +7,9 @@ import type { Column, SortDir } from "~/components/DataTable";
 import { SigningBadge, TimestampCell } from "~/components/cells";
 import { VulnCountBadges } from "~/components/VulnBadge";
 import { Button, StatusPill } from "~/components/ui";
+import { StatusChip } from "~/components/ui";
+import { VULN_DATA_STATUS } from "~/utils/status";
+import { buildTime } from "~/utils/format";
 
 export function VersionsTab(props: {
     /** Where the artifact runs, for the Running column (ocidex-70eo.8);
@@ -60,7 +63,9 @@ export function VersionsTab(props: {
         {
             header: "Version",
             render: (version) => (
-                <A href={`/sboms/${version.sbomId}`}>{version.versionKey}</A>
+                <A href={`/sboms/${version.sbomId}`} class="font-mono">
+                    {version.versionKey}
+                </A>
             ),
         },
         {
@@ -94,7 +99,7 @@ export function VersionsTab(props: {
         {
             header: "Build Date",
             render: (version) => (
-                <TimestampCell iso={version.buildDate ?? version.createdAt} />
+                <TimestampCell iso={buildTime(version)} />
             ),
         },
         {
@@ -109,14 +114,7 @@ export function VersionsTab(props: {
                 // claim a clean bill of health nobody issued (ADR-044).
                 <Show
                     when={version.vulns}
-                    fallback={
-                        <span
-                            class="text-muted"
-                            title="No findings recorded for this version — it may never have been scanned"
-                        >
-                            not scanned
-                        </span>
-                    }
+                    fallback={<StatusChip status={VULN_DATA_STATUS.unscanned} />}
                 >
                     {(v) => (
                         <VulnCountBadges

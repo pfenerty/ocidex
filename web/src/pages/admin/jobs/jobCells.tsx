@@ -3,6 +3,9 @@ import { A } from "@solidjs/router";
 import type { Column } from "~/components/DataTable";
 import { TimestampCell } from "~/components/cells";
 import { Button } from "~/components/ui";
+import type { ConfirmFn } from "~/context/confirm";
+import { copyText } from "~/utils/clipboard";
+import "./jobCells.css";
 
 export const JOB_STATE_COLORS: Record<string, string> = {
     queued: "var(--color-text-muted)",
@@ -76,20 +79,36 @@ export function lastErrorColumn<T extends JobRow>(expanded: {
     toggle: (key: string) => void;
 }): Column<T> {
     return {
-        header: "Last Error",
+        header: "Last error",
         render: (job) => (
             <Show when={job.lastError}>
-                <button
-                    class="cursor-pointer border-none bg-transparent p-0 text-[0.85rem] text-[var(--color-secondary)]"
-                    onClick={() => expanded.toggle(job.id)}
-                >
-                    {expanded.has(job.id) ? "Hide error" : "View error"}
-                </button>
-                <Show when={expanded.has(job.id)}>
-                    <code class="mt-1 block text-[0.8rem] break-all">
-                        {job.lastError}
-                    </code>
-                </Show>
+                {(err) => (
+                    <>
+                        <button
+                            class="cursor-pointer border-none bg-transparent p-0 text-[0.85rem] text-[var(--color-secondary)]"
+                            onClick={() => expanded.toggle(job.id)}
+                        >
+                            {expanded.has(job.id) ? "Hide error" : "View error"}
+                        </button>
+                        <Show when={expanded.has(job.id)}>
+                            {/* A block that wraps at spaces and breaks only an
+                                overlong token (a digest, a URL), not every word:
+                                `break-all` split "attempting" mid-word
+                                (ocidex-uliq). Capped and scrollable, with a copy
+                                button, because these get pasted into issues. */}
+                            <div class="job-error">
+                                <pre>{err()}</pre>
+                                <Button
+                                    size="sm"
+                                    variant="ghost"
+                                    onClick={() => void copyText(err())}
+                                >
+                                    Copy
+                                </Button>
+                            </div>
+                        </Show>
+                    </>
+                )}
             </Show>
         ),
     };
@@ -157,17 +176,23 @@ export function retryColumn<T extends JobRow>(
  * the warning has to say "all failed rows, not just this page" in both.
  */
 export async function confirmRetryAll(
+    confirm: ConfirmFn,
+    toast: (message: string, type?: "success" | "error" | "info") => void,
     scopeLabel: string,
     noun: string,
     run: () => Promise<{ count: number }>,
 ): Promise<void> {
-    if (!confirm(`Reset every 'failed' ${noun}_jobs row${scopeLabel} back to 'queued'? This affects all failed rows, not just the visible page.`)) {
-        return;
-    }
+    const ok = await confirm({
+        title: `Retry every failed ${noun} job${scopeLabel}?`,
+        body: "All failed rows go back to queued, not just the ones on this page.",
+        confirmLabel: "Retry all failed",
+        tone: "default",
+    });
+    if (!ok) return;
     try {
         const res = await run();
-        alert(`Re-queued ${res.count} failed ${noun} job${res.count === 1 ? "" : "s"}.`);
+        toast(`Re-queued ${String(res.count)} failed ${noun} job${res.count === 1 ? "" : "s"}`, "success");
     } catch (err) {
-        alert(`Retry all failed: ${err instanceof Error ? err.message : String(err)}`);
+        toast(`Retry all failed: ${err instanceof Error ? err.message : String(err)}`, "error");
     }
 }

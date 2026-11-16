@@ -25,6 +25,8 @@ import {
     type Enricher,
     type EnrichState,
 } from "./EnricherHealthMatrix";
+import { useConfirm } from "~/context/confirm";
+import { useToast } from "~/context/toast";
 
 export function EnrichmentJobsView() {
     const [offset, setOffset] = createSignal(0);
@@ -34,6 +36,8 @@ export function EnrichmentJobsView() {
     const [textFilter, setTextFilter] = createSignal("");
     const retry = useRetryEnrichmentJob();
     const retryAll = useRetryAllFailedEnrichmentJobs();
+    const confirm = useConfirm();
+    const toast = useToast();
 
     createEffect(() => { stateFilter(); enricherFilter(); textFilter(); setOffset(0); });
 
@@ -47,6 +51,8 @@ export function EnrichmentJobsView() {
     const retryAllFailed = () => {
         const scope = enricherFilter();
         void confirmRetryAll(
+            confirm,
+            toast,
             ` for ${scope ? `'${scope}'` : "all enrichers"}`,
             "enrichment",
             () => retryAll.mutateAsync(scope || undefined),

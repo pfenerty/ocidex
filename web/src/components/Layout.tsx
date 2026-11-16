@@ -3,6 +3,7 @@ import { A, useNavigate, useLocation } from "@solidjs/router";
 import { createEffect, createSignal, lazy, onCleanup, onMount, Show, type ParentProps } from "solid-js";
 import { Home, LayoutDashboard, Package, Layers, ShieldCheck, ArrowUpDown, ShieldAlert, Server, Database, Settings, LogOut, Search, Menu, X, User, Info, BookOpen, CircleHelp } from "lucide-solid";
 import ThemeToggle from "~/components/ThemeToggle";
+import { BrandMark } from "~/components/BrandMark";
 import CommandPalette, { openCommandPalette, isAppleShortcut } from "~/components/CommandPalette";
 import { useAuth } from "~/context/auth";
 import { roleEmphasis, type Emphasis } from "~/utils/emphasis";
@@ -86,6 +87,13 @@ export default function Layout(props: ParentProps) {
         onCleanup(() => window.removeEventListener("keydown", onKeyDown));
     });
 
+    // Until /users/me answers, the shell does not know who is looking, and
+    // guessing "signed out" painted Sign in and a short nav on every hard load,
+    // then jumped ~70px when the session arrived (ocidex-dirs). The nav is laid
+    // out but invisible until then, so its links appear once, in place; a
+    // refetch ("refreshing") keeps the previous answer on screen.
+    const settled = () => user.state === "ready" || user.state === "errored" || user.state === "refreshing";
+
     async function handleLogout() {
         await fetch(`${API_BASE_URL}/auth/logout`, { method: "POST", credentials: "include" });
         void refetch();
@@ -120,15 +128,16 @@ export default function Layout(props: ParentProps) {
                 >
                     {drawerOpen() ? <X size={18} /> : <Menu size={18} />}
                 </button>
-                <div class="sidebar-brand">
-                    <div class="sidebar-brand-title">
-                        <span class="brand-led" aria-hidden="true" />
-                        <h1 class="brand">
-                            OCI<span>Dex</span>
-                        </h1>
+                {/* The mark carries the only brand red in the shell: its LED
+                    (ocidex-iz0r.3). The red slab that used to hold the
+                    wordmark read as an error banner on every page. */}
+                <A href="/" end class="sidebar-brand" aria-label="OCIDex home">
+                    <BrandMark size={28} />
+                    <div>
+                        <h1 class="brand">OCIDex</h1>
+                        <p>Supply-chain catalog</p>
                     </div>
-                    <p>SBOM Explorer</p>
-                </div>
+                </A>
                 {/* The palette's own door. A shortcut nobody is told about is a
                     shortcut nobody uses. */}
                 <button type="button" class="sidebar-search" aria-label="Search" onClick={openCommandPalette}>
@@ -136,7 +145,7 @@ export default function Layout(props: ParentProps) {
                     <span>Search</span>
                     <kbd>{isAppleShortcut() ? "\u2318K" : "Ctrl K"}</kbd>
                 </button>
-                <nav>
+                <nav classList={{ "nav-pending": !settled() }} aria-busy={!settled()}>
                     <A href="/" end aria-label="Home">
                         <Home size={16} />
                         <span>Home</span>
@@ -217,6 +226,7 @@ export default function Layout(props: ParentProps) {
                     {/* Neither the sign-in label nor its icon names an issuer:
                         which ones exist is a deployment decision, and the login
                         page is what asks. */}
+                    <Show when={settled()} fallback={<div class="sidebar-auth-pending" aria-hidden="true" />}>
                     <Show when={user()} fallback={
                         <A href="/login" class="sidebar-sign-in" aria-label="Sign in">
                             <User size={16} />
@@ -244,6 +254,7 @@ export default function Layout(props: ParentProps) {
                             </button>
                         </div>
                         )}
+                    </Show>
                     </Show>
                 </div>
             </aside>

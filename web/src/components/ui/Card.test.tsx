@@ -104,7 +104,7 @@ describe("DetailField", () => {
 describe("FormField", () => {
     it("renders the hint next to the label", () => {
         const { container } = render(() => (
-            <FormField label="Auth Token" hint="(optional)">
+            <FormField label="Auth token" hint="(optional)">
                 <input />
             </FormField>
         ));
@@ -139,12 +139,12 @@ describe("Modal", () => {
     it("hands the dialog element back to the caller for showModal()", () => {
         let el: HTMLDialogElement | undefined;
         const { container } = render(() => (
-            <Modal ref={(e) => (el = e)} title="Add Registry">
+            <Modal ref={(e) => (el = e)} title="Add registry">
                 <p>body</p>
             </Modal>
         ));
         expect(el).toBe(container.querySelector("dialog"));
-        expect(container.querySelector("dialog .card-header h3")?.textContent).toBe("Add Registry");
+        expect(container.querySelector("dialog .card-header h3")?.textContent).toBe("Add registry");
     });
 
     it("invokes onClose for the native close event, which Escape also raises", () => {

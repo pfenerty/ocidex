@@ -19,7 +19,11 @@
     max-width: calc(75rem + 4rem);
 }
 
+/* The thesis, not the wordmark: the sidebar already names the product, and the
+   hero repeating "OCIDex" beside it was the first thing the audit flagged. */
 .landing-title {
+    max-width: 18ch;
+    text-wrap: balance;
     font-size: 2.5rem;
     font-weight: 700;
     letter-spacing: -0.01em;
@@ -27,15 +31,6 @@
     line-height: 1.1;
 }
 
-/* The wordmark. Brand red, per the split documented in index.css. */
-.landing-title span { color: var(--color-primary); }
-
-.landing-tagline {
-    max-width: 580px;
-    font-size: 1.125rem;
-    color: var(--color-text-muted);
-    margin: 0;
-}
 
 .landing-pitch {
     font-size: 0.9375rem;

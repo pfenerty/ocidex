@@ -4,11 +4,12 @@ import { readFileSync } from "node:fs";
 import { join } from "node:path";
 
 /**
- * The mobile sidebar is one element in two states: a 56px icon rail, and the
- * same element expanded into a drawer. Every label the rail hides, the drawer
- * has to show again — and the bug this replaced (ocidex-ag4q.49) was exactly a
- * label missing from one of those two lists: the footer's "Sign in with GitHub"
- * was never hidden, so it wrapped over three lines inside the 56px column.
+ * The mobile sidebar is one element in two states: a top bar (mark, search,
+ * menu; ocidex-iz0r.3, which replaced a 56px icon rail) and the same element
+ * opened into a drawer. Everything the bar hides, the drawer has to show again.
+ * The rail's version of this bug (ocidex-ag4q.49) was a footer label missing
+ * from one of the two lists, so "Sign in with GitHub" wrapped over three lines
+ * inside the 56px column.
  *
  * happy-dom has no layout engine and no cascade to query, so this reads the
  * stylesheet as text. A visual check catches the miss once; this keeps it
@@ -58,7 +59,7 @@ function displayValue(decls: string): string | undefined {
     return m === null ? undefined : m[1].trim();
 }
 
-/** What the rail hides, and what the drawer puts back — state token stripped. */
+/** What the bar hides, and what the drawer puts back — state token stripped. */
 function displayStates(): { hidden: Set<string>; shown: Set<string> } {
     const hidden = new Set<string>();
     const shown = new Set<string>();
@@ -78,17 +79,18 @@ function displayStates(): { hidden: Set<string>; shown: Set<string> } {
     return { hidden, shown };
 }
 
-describe("mobile sidebar rail/drawer contract", () => {
-    it("shows in the drawer everything it hides in the rail", () => {
+describe("mobile sidebar bar/drawer contract", () => {
+    it("shows in the drawer everything it hides in the bar", () => {
         const { hidden, shown } = displayStates();
         expect(hidden.size).toBeGreaterThan(0);
         expect([...shown].sort()).toEqual([...hidden].sort());
     });
 
-    it("hides the footer labels, which is what wrapped over three lines", () => {
+    it("keeps the nav and the footer out of the bar", () => {
+        // The bar is one row: anything labelled lives in the drawer.
         const { hidden } = displayStates();
-        expect(hidden).toContain(".sidebar-sign-in span");
-        expect(hidden).toContain(".sidebar-user-info span");
+        expect(hidden).toContain("nav");
+        expect(hidden).toContain(".sidebar-footer");
     });
 
     it("lifts the open drawer out of flow so it does not shove the article", () => {

@@ -93,7 +93,11 @@ describe("the .page-header-row wrapper", () => {
         // guessing.
         const src = code(join(SRC, "components/ui/PageHeader.tsx"));
         // The h2 may carry attributes (its ref feeds document.title).
-        expect(src).toMatch(/<div class="page-header-row">\s*<div>\s*<h2[\s>]/);
+        // The optional eyebrow (ocidex-iz0r.6) is the column's first child when
+        // set; it must sit inside the same <div>, never beside it in the row.
+        expect(src).toMatch(
+            /<div class="page-header-row">\s*<div>\s*(<Show when=\{props\.eyebrow !== undefined\}>[\s\S]*?<\/Show>\s*)?<h2[\s>]/,
+        );
     });
 
     it("is emitted from nowhere else", () => {

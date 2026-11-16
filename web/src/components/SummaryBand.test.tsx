@@ -105,7 +105,7 @@ describe("SummaryBand vulnerability tile", () => {
     it("distinguishes never-scanned from clean", () => {
         // An SBOM with no scan must not read as having no vulnerabilities —
         // the same distinction ADR-044 insists on for unmatched workloads.
-        expect(renderVulnTile(undefined).tile.textContent).toContain("not scanned");
+        expect(renderVulnTile(undefined).tile.textContent).toContain("Not scanned");
         expect(renderVulnTile(undefined).tile.textContent).not.toContain("no known");
     });
 

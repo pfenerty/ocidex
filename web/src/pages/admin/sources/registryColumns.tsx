@@ -16,6 +16,7 @@ import {
 import { hasWebhook, regTypeLabel } from "./registryTypes";
 import { Button } from "~/components/ui";
 import { formatDateTime } from "~/utils/format";
+import { useConfirm } from "~/context/confirm";
 
 /**
  * registryColumns builds the registry table's columns. It is a function rather
@@ -34,6 +35,7 @@ export function registryColumns(opts: {
     gapsFor?: (registryID: string) => RegistryClusterGap[];
 }): Column<Registry>[] {
     const toast = useToast();
+    const confirm = useConfirm();
     const deleteReg = useDeleteRegistry();
     const scanReg = useScanRegistry();
     const regenSecret = useRegenerateWebhookSecret();
@@ -61,7 +63,9 @@ export function registryColumns(opts: {
                 </div>
             ),
         },
-        { header: "Type", render: (reg) => <code>{regTypeLabel(reg.type)}</code> },
+        // Labels, not machine strings: plain text. In mono they wrapped to four
+        // lines and helped push the table past its card (ocidex-s8i4).
+        { header: "Type", render: (reg) => <span class="text-sm">{regTypeLabel(reg.type)}</span> },
         { header: "URL", render: (reg) => <code>{reg.url}</code> },
         { header: "Visibility", render: (reg) => <span class="badge">{reg.visibility}</span> },
         {
@@ -139,7 +143,7 @@ export function registryColumns(opts: {
             ),
         },
         {
-            header: "Signing Status",
+            header: "Signing status",
             render: (reg) => (
                 <Show
                     when={(() => {
@@ -168,7 +172,7 @@ export function registryColumns(opts: {
                 </Show>
             ),
         },
-        { header: "Scan Mode", render: (reg) => <code>{reg.scanMode}</code> },
+        { header: "Scan mode", render: (reg) => <span class="text-sm">{reg.scanMode}</span> },
         {
             header: "Webhook URL",
             render: (reg) => (
@@ -212,14 +216,18 @@ export function registryColumns(opts: {
                             </span>
                         }
                     >
-                        <div class="flex gap-[0.4rem]">
+                        {/* Small and wrapping: four full-size buttons in one
+                            row were most of why the table overflowed a 1440px
+                            screen and clipped Delete (ocidex-s8i4). */}
+                        <div class="flex max-w-[12.5rem] flex-wrap justify-end gap-[0.3rem]">
                             <Show when={canManage()}>
-                                <Button onClick={() => opts.onEdit(reg)}>
+                                <Button size="sm" onClick={() => opts.onEdit(reg)}>
                                     Edit
                                 </Button>
                             </Show>
                             <Show when={canScan()}>
                                 <Button
+                                    size="sm"
                                     title="Scan new/changed images; already-scanned digests are skipped"
                                     onClick={() => scanReg.mutate({ id: reg.id }, {
                                         onSuccess: (data) => toast(data.message, "success"),
@@ -230,17 +238,24 @@ export function registryColumns(opts: {
                                     Scan
                                 </Button>
                                 <Button
+                                    size="sm"
                                     title="Re-scan every image, including already-scanned digests (repopulates enrichment)"
-                                    onClick={() => {
-                                        if (!confirm("Force a full re-scan of every image in this registry, including digests already ingested? This re-pulls and re-scans everything.")) return;
+                                    onClick={() => void (async () => {
+                                        const ok = await confirm({
+                                            title: `Re-scan everything in ${reg.name}?`,
+                                            body: "Every image is pulled and scanned again, including digests already ingested. On a large registry this takes a while and uses registry rate limit.",
+                                            confirmLabel: "Re-scan all",
+                                            tone: "default",
+                                        });
+                                        if (!ok) return;
                                         scanReg.mutate({ id: reg.id, force: true }, {
                                             onSuccess: (data) => toast(data.message, "success"),
                                             onError: () => toast("Failed to start scan", "error"),
                                         });
-                                    }}
+                                    })()}
                                     disabled={scanReg.isPending}
                                 >
-                                    Force
+                                    Re-scan all
                                 </Button>
                             </Show>
                             <Show when={(opts.activeByRegistry().get(reg.id) ?? 0) > 0}>
@@ -250,10 +265,20 @@ export function registryColumns(opts: {
                             </Show>
                             <Show when={canManage()}>
                                 <Button
-                                    onClick={() => deleteReg.mutate(reg.id, {
-                                        onSuccess: () => toast("Registry deleted", "success"),
-                                        onError: () => toast("Failed to delete registry", "error"),
-                                    })}
+                                    size="sm"
+                                    variant="danger"
+                                    onClick={() => void (async () => {
+                                        const ok = await confirm({
+                                            title: `Delete registry ${reg.name}?`,
+                                            body: "Polling stops and the registry's settings and credentials are removed. Artifacts already ingested from it stay in the catalog.",
+                                            confirmLabel: "Delete registry",
+                                        });
+                                        if (!ok) return;
+                                        deleteReg.mutate(reg.id, {
+                                            onSuccess: () => toast("Registry deleted", "success"),
+                                            onError: () => toast("Failed to delete registry", "error"),
+                                        });
+                                    })()}
                                     disabled={deleteReg.isPending}
                                 >
                                     Delete

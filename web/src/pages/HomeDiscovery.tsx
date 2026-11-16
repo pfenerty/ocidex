@@ -9,6 +9,8 @@ import type { DiscoverFeatured, DiscoverRecent, DiscoverVuln } from "~/api/queri
 import { CATEGORY_COLORS } from "~/utils/licenseUtils";
 import { plural, relativeDate } from "~/utils/format";
 import { splitImageRef } from "~/utils/oci";
+import { StatusChip } from "~/components/ui";
+import { VULN_DATA_STATUS } from "~/utils/status";
 
 /** One slice of a MixBar: a count, the class that colours it and its label. */
 interface MixSegment {
@@ -150,7 +152,7 @@ function FeaturedCard(props: { item: DiscoverFeatured }): JSX.Element {
                 <div>
                     <dt>Vulnerabilities</dt>
                     <dd>
-                        <Show when={vulnTotal() > 0} fallback={<span class="text-muted">none known</span>}>
+                        <Show when={vulnTotal() > 0} fallback={<StatusChip status={VULN_DATA_STATUS.clean} />}>
                             <VulnCountBadges
                                 criticalCount={f().vulns.critical}
                                 highCount={f().vulns.high}

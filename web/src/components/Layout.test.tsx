@@ -77,7 +77,9 @@ function Wrapped(props: { children: JSX.Element }) {
 }
 
 function asResource(user?: User, loading = false) {
-    return Object.assign(() => user, { loading });
+    // `state` as well as `loading`: the shell holds the nav and the auth footer
+    // until the session is known (ocidex-dirs), and reads that from `state`.
+    return Object.assign(() => user, { loading, state: loading ? "pending" : "ready" });
 }
 
 describe("Layout", () => {
@@ -89,8 +91,8 @@ describe("Layout", () => {
     it("renders sidebar with brand on non-login path", () => {
         mockUserFn = asResource(makeUser());
         const { getByText } = render(() => <Wrapped>page</Wrapped>);
-        // "SBOM Explorer" is the sidebar tagline, unbroken in a single element
-        expect(getByText("SBOM Explorer")).toBeDefined();
+        // The descriptor beside the mark (ocidex-iz0r.3), unbroken in one element
+        expect(getByText("Supply-chain catalog")).toBeDefined();
         expect(getByText("page")).toBeDefined();
     });
 

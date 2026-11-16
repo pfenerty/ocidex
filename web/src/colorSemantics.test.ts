@@ -5,7 +5,8 @@ import { join } from "node:path";
 /**
  * The red/blue split documented in index.css (ocidex-ag4q.11).
  *
- *   red  (--color-primary)   identity and consequence
+ *   red  (--color-brand)     identity only (the mark's LED)
+ *   ink  (--color-ink)       the one primary action
  *   blue (--color-secondary) navigation and state
  *
  * Nothing in the type system or the linter can tell those apart, and the whole
@@ -31,25 +32,41 @@ function sources(dir = SRC, acc: string[] = []): string[] {
     return acc;
 }
 
-// Where brand red is legitimate: the sidebar slab and its gradient, the
-// wordmark on the landing and login pages, and the loading spinner — OCIDex's
-// own chrome. index.css is exempt because it defines the tokens and styles
-// .btn-primary / .btn-danger, the two sanctioned "consequence" reds.
-const BRAND_FILES = [
-    "index.css",
-    "components/Layout.css",
-    "components/Feedback.css",
-    "pages/Home.css",
-    "pages/Login.tsx",
-];
+// Brand red is the mark's LED and nothing else (ocidex-iz0r). index.css
+// defines the token and the one rule that uses it (.brand-mark-led); no other
+// stylesheet or component may reach for it. The sidebar slab, the wordmark's
+// red "Dex", the H1 underline and the spinner each used to, and each read as
+// "error" or "click" rather than "OCIDex".
+const BRAND_FILES = ["index.css"];
 
-describe("brand red stays on brand surfaces", () => {
+describe("brand red stays on the mark", () => {
+    it("is used by exactly one rule in index.css, the mark's LED", () => {
+        const css = read("index.css");
+        const uses = [...css.matchAll(/([^{}]+)\{[^{}]*var\(--color-brand[^)]*\)[^{}]*\}/g)].map((m) =>
+            m[1].replace(/\/\*[\s\S]*?\*\//g, "").trim(),
+        );
+        expect(uses).toEqual([".brand-mark-led"]);
+    });
+
     it("is not reachable from any other file", () => {
         const offenders = sources()
             .filter((f) => !BRAND_FILES.some((b) => f.endsWith(b)))
-            .filter((f) => readFileSync(f, "utf-8").includes("--color-primary"))
+            .filter((f) => readFileSync(f, "utf-8").includes("--color-brand"))
             .map((f) => f.slice(SRC.length + 1));
         expect(offenders).toEqual([]);
+    });
+});
+
+describe("the primary action is ink, not brand red", () => {
+    // ocidex-iz0r.2: every CTA was brand red, so its disabled state was a muddy
+    // maroon and a view with two CTAs had two competing reds.
+    it.each([".btn-primary {", ".btn-primary:hover {"])("index.css: %s", (selector) => {
+        const css = read("index.css");
+        const at = css.indexOf(selector);
+        expect(at, `no rule ${selector}`).toBeGreaterThan(-1);
+        const body = css.slice(at, css.indexOf("}", at));
+        expect(body).toContain("--color-ink");
+        expect(body).not.toContain("--color-brand");
     });
 });
 
@@ -70,7 +87,7 @@ describe("navigation and state read blue", () => {
         const m = new RegExp(`${escaped}[^{}]*\\{([^}]*)\\}`).exec(css);
         if (m === null) throw new Error(`no rule for ${selector} in ${file}`);
         expect(m[1]).toContain("--color-secondary");
-        expect(m[1]).not.toContain("--color-primary");
+        expect(m[1]).not.toContain("--color-brand");
     });
 });
 
@@ -85,7 +102,7 @@ describe("status vocabularies do not borrow the brand", () => {
     it("names every job state with a semantic token", () => {
         const cells = read("pages/admin/jobs/jobCells.tsx");
         const states = /JOB_STATE_COLORS[^}]*}/.exec(cells)?.[0] ?? "";
-        expect(states).not.toContain("--color-primary");
+        expect(states).not.toContain("--color-brand");
         // --color-error has never been defined; it was falling through to a
         // hardcoded hex fallback that no theme could override.
         expect(states).not.toContain("--color-error");

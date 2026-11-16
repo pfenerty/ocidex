@@ -13,6 +13,7 @@ import {
     useRevokeClusterCredential,
     useRotateClusterCredential,
 } from "~/api/queries";
+import { useConfirm } from "~/context/confirm";
 
 type ClusterCredential = components["schemas"]["ClusterCredentialResponse"];
 
@@ -34,6 +35,7 @@ export function agentSecretCommand(key: string): string {
  */
 export function AgentCredentials(props: { clusterId: string; namespaceId: string | undefined }) {
     const toast = useToast();
+    const confirm = useConfirm();
     const namespaces = useListNamespaces();
     const canManage = createMemo(() => {
         const ns = (namespaces.data?.data ?? []).find((n) => n.id === props.namespaceId);
@@ -68,8 +70,13 @@ export function AgentCredentials(props: { clusterId: string; namespaceId: string
                         size="sm"
                         disabled={busy()}
                         title="Replace with a new key; the agent fails until it gets it"
-                        onClick={() => {
-                            if (!window.confirm(`Rotate "${c.name}"? The agent stops pushing until its secret holds the new key.`)) return;
+                        onClick={() => void (async () => {
+                            const ok = await confirm({
+                                title: `Rotate credential "${c.name}"?`,
+                                body: "The old key stops working now. The agent fails to push until its secret holds the new key, which is shown once.",
+                                confirmLabel: "Rotate",
+                            });
+                            if (!ok) return;
                             rotate.mutate(
                                 { id: props.clusterId, credentialId: c.id },
                                 {
@@ -77,15 +84,21 @@ export function AgentCredentials(props: { clusterId: string; namespaceId: string
                                     onError: () => toast("Failed to rotate credential", "error"),
                                 },
                             );
-                        }}
+                        })()}
                     >
                         Rotate
                     </Button>
                     <Button
                         size="sm"
                         disabled={busy()}
-                        onClick={() => {
-                            if (!window.confirm(`Revoke "${c.name}"? An agent using it stops pushing.`)) return;
+                        variant="danger"
+                        onClick={() => void (async () => {
+                            const ok = await confirm({
+                                title: `Revoke credential "${c.name}"?`,
+                                body: "An agent using it stops pushing, and the cluster's inventory goes stale until it has another.",
+                                confirmLabel: "Revoke",
+                            });
+                            if (!ok) return;
                             revoke.mutate(
                                 { id: props.clusterId, credentialId: c.id },
                                 {
@@ -93,7 +106,7 @@ export function AgentCredentials(props: { clusterId: string; namespaceId: string
                                     onError: () => toast("Failed to revoke credential", "error"),
                                 },
                             );
-                        }}
+                        })()}
                     >
                         Revoke
                     </Button>

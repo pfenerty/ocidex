@@ -75,7 +75,7 @@ describe("VersionsTab severity column", () => {
     it("says not scanned when the version carries no summary", () => {
         const { getByText } = renderTab(true);
         expect(getByText("Vulnerabilities")).toBeDefined();
-        expect(getByText("not scanned")).toBeDefined();
+        expect(getByText("Not scanned")).toBeDefined();
     });
 
     it("renders the per-severity counts when the version has findings", () => {
@@ -84,7 +84,7 @@ describe("VersionsTab severity column", () => {
             vulns: { critical: 2, high: 3, medium: 0, low: 1, unknown: 0, total: 6 },
         };
         const { container, queryByText } = renderTab(true, [withVulns]);
-        expect(queryByText("not scanned")).toBeNull();
+        expect(queryByText("Not scanned")).toBeNull();
         const chip = container.querySelector(".vuln-chip");
         expect(chip?.textContent).toBe("23010");
     });

@@ -153,7 +153,7 @@ export function SourcesTab() {
 
             <Show when={canManageAny()}>
                 <div class="mb-4">
-                    <Button variant="primary" onClick={() => dialog?.openAdd()}>Add Registry</Button>
+                    <Button variant="primary" onClick={() => dialog?.openAdd()}>Add registry</Button>
                 </div>
             </Show>
 

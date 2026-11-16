@@ -1,0 +1,26 @@
+/* Expanded job error (jobCells.tsx, ocidex-uliq). */
+.job-error {
+    display: flex;
+    align-items: flex-start;
+    gap: 0.5rem;
+    margin-top: 0.375rem;
+    max-width: 48rem;
+}
+
+.job-error pre {
+    flex: 1;
+    min-width: 0;
+    max-height: 12rem;
+    overflow: auto;
+    margin: 0;
+    padding: 0.5rem 0.625rem;
+    border: 1px solid var(--color-border);
+    border-radius: var(--radius-md);
+    background: var(--color-bg);
+    font-family: var(--font-mono);
+    font-size: var(--text-xs);
+    line-height: 1.5;
+    white-space: pre-wrap;
+    overflow-wrap: anywhere;
+    word-break: normal;
+}

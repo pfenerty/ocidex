@@ -3,6 +3,8 @@ import type { JSX } from "solid-js";
 import type { VulnSummary } from "~/api/client";
 import type { StatTile } from "./ui/StatBand";
 import { SeverityPill } from "./VulnBadge";
+import { StatusChip } from "~/components/ui/StatusChip";
+import { VULN_DATA_STATUS } from "~/utils/status";
 
 /**
  * The worst severity actually present, which is the figure that decides whether
@@ -44,7 +46,7 @@ function breakdownTitle(v: VulnSummary): string {
  */
 function VulnTileSub(props: { vulns: VulnSummary | undefined }) {
     return (
-        <Show when={props.vulns !== undefined} fallback={<>not scanned</>}>
+        <Show when={props.vulns !== undefined} fallback={<StatusChip status={VULN_DATA_STATUS.unscanned} />}>
             <Show when={worstSeverity(props.vulns)} fallback={<>no known vulnerabilities</>}>
                 {(w) => (
                     <>

@@ -16,3 +16,5 @@ export * from "./Toolbar";
 export * from "./Tooltip";
 export * from "./TypeBadge";
 export * from "./expanded";
+export * from "./StatusChip";
+export * from "./Segmented";

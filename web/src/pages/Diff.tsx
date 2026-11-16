@@ -1,12 +1,12 @@
 import "~/components/DetailSection.css";
-import { createSignal, createMemo, Show } from "solid-js";
+import { createEffect, createSignal, createMemo, Show } from "solid-js";
 import { createLocalStorageSignal } from "~/utils/prefs";
 import "./Diff.css";
 import { useSearchParams } from "@solidjs/router";
-import { useArtifacts, useArtifactSBOMs } from "~/api/queries";
+import { useArtifacts, useArtifactSBOMs, useSBOM } from "~/api/queries";
 import { EmptyState } from "~/components/Feedback";
 import { DiffPairView, ViewToggle } from "~/components/DiffPairView";
-import { sbomPickerLabel } from "~/utils/format";
+import { sbomPickerLabel, buildTime } from "~/utils/format";
 import type { ArtifactSummary, SBOMSummary } from "~/api/client";
 import { Button, Card, Combobox, PageHeader } from "~/components/ui";
 
@@ -26,7 +26,7 @@ function sbomSub(s: SBOMSummary): string | undefined {
 
 /** builtAt is when an SBOM's subject was built, or ingested if that is unknown. */
 function builtAt(s: SBOMSummary): string {
-    return s.buildDate ?? s.createdAt;
+    return buildTime(s);
 }
 
 /**
@@ -52,6 +52,29 @@ export default function Diff() {
     const [showAllArchs, setShowAllArchs] = createSignal(false);
 
     const artifactsQuery = useArtifacts(() => ({ limit: 200 }));
+
+    // A shared link carries only the two SBOM ids. Look up each one's artifact
+    // so the pickers show what is being compared, rather than "Search
+    // artifacts..." above a rendered diff (ocidex-79by). Seeded once: after
+    // that the pickers are the user's.
+    const linkedFrom = useSBOM(() => searchParams.from ?? "", {
+        enabled: () => (searchParams.from ?? "") !== "",
+    });
+    const linkedTo = useSBOM(() => searchParams.to ?? "", {
+        enabled: () => (searchParams.to ?? "") !== "",
+    });
+    createEffect(() => {
+        const a = linkedFrom.data?.artifactId;
+        if (a !== undefined && fromArtifactId() === "" && fromSbomId() === searchParams.from) {
+            setFromArtifactId(a);
+        }
+    });
+    createEffect(() => {
+        const a = linkedTo.data?.artifactId;
+        if (a !== undefined && toArtifactId() === "" && toSbomId() === searchParams.to) {
+            setToArtifactId(a);
+        }
+    });
 
     const fromSbomsQuery = useArtifactSBOMs(
         () => fromArtifactId(),

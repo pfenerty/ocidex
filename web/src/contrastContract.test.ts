@@ -92,16 +92,15 @@ const FOREGROUNDS = [
 ];
 
 /**
- * Brand red is never small text. Its two text uses are the 2.5rem/700 wordmark
- * on the landing page and the same wordmark on login, which is WCAG "large"
- * and so takes the 3:1 threshold — the dark theme's #DC3545 measures 4.26 on
- * the page background, which passes there and would not pass as body copy.
+ * Brand red is never small text: since ocidex-iz0r it is the mark's LED, and
+ * its remaining text uses are large display wordmarks, which are WCAG "large"
+ * and so take the 3:1 threshold.
  * --color-severity-critical is not a text colour at all: it is the deepest
  * step of the redscale in VulnBadge.css, where white sits *on* it (asserted in
  * ON_PAIRS below). Listing them here rather than dropping them keeps that
  * distinction stated instead of silently unchecked.
  */
-const LARGE_FOREGROUNDS = ["--color-primary"];
+const LARGE_FOREGROUNDS = ["--color-brand"];
 
 /**
  * A foreground painted *on* a filled background. The `-fg` tokens name theirs
@@ -109,7 +108,8 @@ const LARGE_FOREGROUNDS = ["--color-primary"];
  * the severity redscale, which is the pairing that has no token to name it.
  */
 const ON_PAIRS: [string, string][] = [
-    ["--color-primary-fg", "--color-primary"],
+    ["--color-ink-fg", "--color-ink"],
+    ["--color-ink-fg", "--color-ink-hover"],
     ["--color-secondary-fg", "--color-secondary"],
     ["--color-text", "--color-elevated"],
 ];

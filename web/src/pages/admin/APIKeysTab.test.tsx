@@ -12,6 +12,9 @@ vi.mock("~/api/queries", () => ({
     useDeleteAPIKey: vi.fn(),
 }));
 
+// The shared ConfirmDialog (ocidex-iz0r.7), answered by the test.
+const confirmSpy = vi.fn((_options: { title: string; body: unknown }) => Promise.resolve(false));
+vi.mock("~/context/confirm", () => ({ useConfirm: () => confirmSpy }));
 vi.mock("~/context/toast", () => ({ useToast: () => vi.fn() }));
 
 const mockList = vi.mocked(useListAPIKeys);
@@ -187,6 +190,49 @@ describe("APIKeysTab", () => {
             { name: "prod-agent", capabilities: ["push_inventory"] },
             expect.anything(),
         );
+    });
+    describe("delete", () => {
+        function deleteButton(container: HTMLElement): HTMLButtonElement {
+            const b = [...container.querySelectorAll<HTMLButtonElement>("button")].find(
+                (x) => x.textContent === "Delete",
+            );
+            return must(b, "Delete button");
+        }
+
+        it("asks first, naming the key, and deletes only on yes (ocidex-tpnv)", async () => {
+            const deleteMutate = vi.fn();
+            mockDelete.mockReturnValue({ mutate: deleteMutate, isPending: false } as unknown as ReturnType<typeof useDeleteAPIKey>);
+            stubKeys([key("ci", null)]);
+            confirmSpy.mockResolvedValue(false);
+            const { container } = render(() => <APIKeysTab />);
+
+            fireEvent.click(deleteButton(container));
+            await Promise.resolve();
+            expect(confirmSpy.mock.calls[0][0].title).toContain('"ci"');
+            expect(deleteMutate).not.toHaveBeenCalled();
+
+            confirmSpy.mockResolvedValue(true);
+            fireEvent.click(deleteButton(container));
+            await vi.waitFor(() => expect(deleteMutate).toHaveBeenCalledWith("k-ci", expect.anything()));
+        });
+
+        it("drops the just-created secret once that key is deleted (ocidex-rzmn)", async () => {
+            createMutate.mockImplementation((_body: unknown, opts: { onSuccess: (d: { key: string }) => void }) =>
+                opts.onSuccess({ key: "ocidex_abSECRET" }),
+            );
+            const deleteMutate = vi.fn((_id: string, opts: { onSuccess: () => void }) => opts.onSuccess());
+            mockDelete.mockReturnValue({ mutate: deleteMutate, isPending: false } as unknown as ReturnType<typeof useDeleteAPIKey>);
+            stubKeys([key("ci", null)]);
+            confirmSpy.mockResolvedValue(true);
+            const { container, queryByText } = render(() => <APIKeysTab />);
+
+            fillName(container, "ci");
+            fireEvent.submit(must(container.querySelector("form"), "form"));
+            expect(queryByText("ocidex_abSECRET")).not.toBeNull();
+
+            fireEvent.click(deleteButton(container));
+            await vi.waitFor(() => expect(queryByText("ocidex_abSECRET")).toBeNull());
+        });
     });
 });
 

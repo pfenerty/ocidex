@@ -45,12 +45,18 @@ export function TabBar<T extends string>(props: {
     class?: string;
 }): JSX.Element {
     const base = (): string => (props.variant === "filter" ? "filter-chips" : "tab-bar");
+    // A nav strip of buttons is a real tablist (ocidex-iz0r.5): it switches the
+    // panel below without leaving the page. A strip of links is navigation, so
+    // it marks the current page instead. Filters are a plain labelled group.
+    const isTablist = (): boolean => props.variant !== "filter" && props.tabs.every((t) => t.href === undefined);
+    const role = (): "group" | "tablist" | undefined =>
+        props.variant === "filter" ? "group" : isTablist() ? "tablist" : undefined;
 
     return (
         <div
             class={props.class !== undefined ? `${base()} ${props.class}` : base()}
-            role={props.variant === "filter" ? "group" : undefined}
-            aria-label={props.variant === "filter" ? props.label : undefined}
+            role={role()}
+            aria-label={props.label}
         >
             <For each={props.tabs}>
                 {(t) => (
@@ -58,7 +64,11 @@ export function TabBar<T extends string>(props: {
                         when={t.href}
                         fallback={
                             <button
+                                type="button"
                                 class={props.active === t.id ? "active" : ""}
+                                role={isTablist() ? "tab" : undefined}
+                                aria-selected={isTablist() ? props.active === t.id : undefined}
+                                aria-pressed={props.variant === "filter" ? props.active === t.id : undefined}
                                 title={t.title}
                                 onClick={() => props.onSelect?.(t.id)}
                             >
@@ -75,6 +85,7 @@ export function TabBar<T extends string>(props: {
                             <A
                                 href={href()}
                                 class={props.active === t.id ? "active" : ""}
+                                aria-current={props.active === t.id ? "page" : undefined}
                                 activeClass="is-route-active"
                                 inactiveClass="is-route-inactive"
                                 title={t.title}

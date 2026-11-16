@@ -39,10 +39,11 @@ export function useSBOMs(
 /** Get a single SBOM by ID. Pass include="raw" to include rawBom. */
 export function useSBOM(
     id: Accessor<string>,
-    options?: { include?: Accessor<string | undefined> },
+    options?: { include?: Accessor<string | undefined>; enabled?: Accessor<boolean> },
 ) {
     return createQuery(() => ({
         queryKey: ["sbom", id(), options?.include?.()] as const,
+        enabled: options?.enabled?.() ?? true,
         queryFn: () =>
             unwrap(
                 client.GET("/api/v1/sboms/{id}", {

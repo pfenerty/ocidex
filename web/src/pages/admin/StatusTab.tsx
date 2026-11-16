@@ -22,7 +22,7 @@ const pollColumns: Column<Registry>[] = [
         render: (r) => r.name,
     },
     {
-        header: "Scan Mode",
+        header: "Scan mode",
         sortKey: "scanMode",
         sortValue: (r) => r.scanMode,
         render: (r) => <span class="badge">{r.scanMode}</span>,

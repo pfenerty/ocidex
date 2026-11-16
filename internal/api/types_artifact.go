@@ -194,7 +194,12 @@ type GetArtifactVulnSummaryInput struct {
 // GetArtifactVulnSummaryOutput is the response for GET /api/v1/artifacts/{id}/vuln-summary.
 type GetArtifactVulnSummaryOutput struct {
 	Body struct {
-		Summary *service.VulnSummary `json:"summary"`
+		// Summary is absent when the latest version's newest SBOM has no rollup
+		// row: never scanned, or nothing recorded. That is not a zero, so it is
+		// optional rather than an all-zero summary (ADR-044). It used to be a
+		// required field that serialized as null, and the UI crashed reading
+		// .total off it (ocidex-9yjp).
+		Summary *service.VulnSummary `json:"summary,omitempty"`
 		// SubjectVersion is the version the summary counts: the highest by
 		// version parts, which need not be the newest build.
 		SubjectVersion string `json:"subjectVersion,omitempty" doc:"Version whose newest SBOM the summary counts"`

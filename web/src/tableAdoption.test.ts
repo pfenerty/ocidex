@@ -132,6 +132,6 @@ describe(".cell-button", () => {
         const active = /\.cell-button\.active\s*\{([^}]*)\}/.exec(css());
         if (active === null) throw new Error("no .cell-button.active rule in index.css");
         expect(active[1]).toContain("--color-secondary");
-        expect(active[1]).not.toContain("--color-primary");
+        expect(active[1]).not.toContain("--color-brand");
     });
 });

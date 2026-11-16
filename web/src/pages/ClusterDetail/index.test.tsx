@@ -621,10 +621,10 @@ describe("ClusterDetail", () => {
 
     it("labels every match state in words, not colour alone", () => {
         const states = [
-            ["exact", "matched"],
-            ["index", "index match"],
-            ["unknown", "no SBOM"],
-            ["unresolvable", "no digest"],
+            ["exact", "Matched"],
+            ["index", "Matched (index)"],
+            ["unknown", "No SBOM"],
+            ["unresolvable", "No digest"],
         ] as const;
         for (const [state, label] of states) {
             searchParams = { tab: "workloads", group: "workload" };
@@ -677,7 +677,7 @@ describe("ClusterDetail", () => {
             GAPPY,
         );
         expect(must(container.querySelector("tbody tr"), "row").textContent).toContain(
-            "not assessed",
+            "Not scanned",
         );
         unmount();
 
@@ -687,8 +687,8 @@ describe("ClusterDetail", () => {
             GAPPY,
         );
         const cleanRow = must(clean.container.querySelector("tbody tr"), "row");
-        expect(cleanRow.textContent).toContain("no findings");
-        expect(cleanRow.textContent).not.toContain("not assessed");
+        expect(cleanRow.textContent).toContain("0 known");
+        expect(cleanRow.textContent).not.toContain("Not scanned");
     });
 
     // Filters must reach the server, not just the rows already fetched — the
@@ -850,8 +850,8 @@ describe("ClusterDetail", () => {
             image({ matchState: "unknown", artifactId: undefined, sbomId: undefined }),
         ]);
         const row = must(container.querySelector("tbody tr"), "image row");
-        expect(row.textContent).toContain("not assessed");
-        expect(row.textContent).toContain("no SBOM");
+        expect(row.textContent).toContain("Not scanned");
+        expect(row.textContent).toContain("No SBOM");
         unmount();
 
         searchParams = { tab: "workloads" };
@@ -859,8 +859,8 @@ describe("ClusterDetail", () => {
             image({ vulns: { critical: 0, high: 0, medium: 0, low: 0 } }),
         ]);
         const cleanRow = must(clean.container.querySelector("tbody tr"), "image row");
-        expect(cleanRow.textContent).toContain("no findings");
-        expect(cleanRow.textContent).not.toContain("not assessed");
+        expect(cleanRow.textContent).toContain("0 known");
+        expect(cleanRow.textContent).not.toContain("Not scanned");
     });
 
     it("links an image row to the artifact and SBOM behind it", () => {

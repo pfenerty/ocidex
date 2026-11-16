@@ -15,7 +15,7 @@ const categoryTabs = [
     { value: "", label: "All" },
     { value: "permissive", label: "Permissive" },
     { value: "copyleft", label: "Copyleft" },
-    { value: "weak-copyleft", label: "Weak Copyleft" },
+    { value: "weak-copyleft", label: "Weak copyleft" },
     { value: "uncategorized", label: "Uncategorized" },
 ] as const;
 

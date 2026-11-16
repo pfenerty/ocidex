@@ -1,0 +1,30 @@
+/* ConfirmDialog (context/confirm.tsx, ocidex-iz0r.7). */
+.confirm-body {
+    color: var(--color-text-muted);
+    margin-bottom: 1.25rem;
+}
+
+.confirm-body strong {
+    color: var(--color-text);
+}
+
+.confirm-actions {
+    display: flex;
+    justify-content: flex-end;
+    gap: 0.5rem;
+}
+
+/* Danger is outlined everywhere else; inside the dialog that asked, it is the
+   filled commit. Page-ground text on it clears AA in both themes (#0C0E14 on
+   #F06565 is 6.6:1, #F8F6F1 on #B91C1C is 6.0:1), which white on the dark
+   theme's salmon does not. */
+.confirm-actions .btn-danger.confirm-go {
+    background: var(--color-danger);
+    border-color: var(--color-danger);
+    color: var(--color-bg);
+}
+
+.confirm-actions .btn-danger.confirm-go:hover {
+    background: var(--color-danger-hover);
+    border-color: var(--color-danger-hover);
+}

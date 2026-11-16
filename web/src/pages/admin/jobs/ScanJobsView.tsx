@@ -21,6 +21,8 @@ import {
     stateColumn,
     workerColumn,
 } from "./jobCells";
+import { useConfirm } from "~/context/confirm";
+import { useToast } from "~/context/toast";
 
 type StateFilter = "active" | "running" | "queued" | "succeeded" | "failed" | "pruned" | "";
 
@@ -33,6 +35,8 @@ export function ScanJobsView() {
     const retry = useRetryScanJob();
     const cancel = useCancelScanJob();
     const retryAll = useRetryAllFailedScanJobs();
+    const confirm = useConfirm();
+    const toast = useToast();
 
     createEffect(() => { stateFilter(); repoFilter(); registryFilter(); setOffset(0); });
 
@@ -123,7 +127,7 @@ export function ScanJobsView() {
                     <Button
                         class="ml-auto"
                         disabled={retryAll.isPending}
-                        onClick={() => { void confirmRetryAll("", "scan", () => retryAll.mutateAsync()); }}
+                        onClick={() => { void confirmRetryAll(confirm, toast, "", "scan", () => retryAll.mutateAsync()); }}
                     >
                         {retryAll.isPending ? "Re-queuing…" : "Retry all failed"}
                     </Button>

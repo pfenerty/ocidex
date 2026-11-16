@@ -1,7 +1,7 @@
 import "./ClusterDetail.css";
 import { Show, createEffect, createSignal, on } from "solid-js";
 import { A, useParams, useSearchParams } from "@solidjs/router";
-import { Breadcrumb, Button, Card, DetailField, DetailGrid, PageHeader, QueryBoundary, TabBar, type TabDef } from "~/components/ui";
+import { Breadcrumb, Button, Card, DetailField, DetailGrid, EntryLine, PageHeader, QueryBoundary, TabBar, type TabDef } from "~/components/ui";
 import { plural } from "~/utils/format";
 import { forgetInstallKey } from "./installKey";
 import { SkeletonHeader } from "~/components/Skeleton";
@@ -129,6 +129,7 @@ export default function ClusterDetail() {
                                 ]}
                             />
                         }
+                        eyebrow={<EntryLine kind="Cluster" id={cluster().id} />}
                         title={cluster().name}
                         subtitle={cluster().description ?? "Kubernetes cluster inventory"}
                         footer={

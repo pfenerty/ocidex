@@ -2,6 +2,8 @@ import "./VulnBadge.css";
 import { Show, For } from "solid-js";
 import type { JSX } from "solid-js";
 import type { VulnSummary } from "~/api/client";
+import { StatusChip } from "~/components/ui/StatusChip";
+import { VULN_DATA_STATUS } from "~/utils/status";
 
 // severityColorClass maps a severity to a de-escalating redscale class,
 // shared by every vulnerability display in the app — compact chips
@@ -55,7 +57,10 @@ export function VulnBadge(props: { count: number | undefined; maxSeverity: strin
 // VulnCountBadges renders a compact severity breakdown as a single seamless
 // bar of solid-colored segments (e.g. "5 3 4 1 0" for
 // critical|high|medium|low|unknown), each segment colored by its severity.
-// Renders "—" when all counts are zero. Suitable for table cells and
+// All-zero renders a neutral dash by default. Only a caller that knows the
+// zeros come from an actual assessment passes `zeroIsClean`, which renders the
+// "0 known" status chip (ocidex-iz0r.4): asserting a clean bill of health from
+// counts that may never have been computed is what ADR-044 forbids. Suitable for table cells and
 // version summary rows across the app.
 export function VulnCountBadges(props: {
     criticalCount?: number;
@@ -63,6 +68,8 @@ export function VulnCountBadges(props: {
     mediumCount?: number;
     lowCount?: number;
     unknownCount?: number;
+    /** The counts come from a completed assessment, so zero means clean. */
+    zeroIsClean?: boolean;
 }) {
     const counts = (): { label: string; severity: string; count: number }[] => [
         { label: "critical", severity: "CRITICAL", count: props.criticalCount ?? 0 },
@@ -80,7 +87,16 @@ export function VulnCountBadges(props: {
             .join(", ");
 
     return (
-        <Show when={total() > 0} fallback={<span class="text-muted">—</span>}>
+        <Show
+            when={total() > 0}
+            fallback={
+                props.zeroIsClean === true ? (
+                    <StatusChip status={VULN_DATA_STATUS.clean} />
+                ) : (
+                    <span class="text-muted">—</span>
+                )
+            }
+        >
             <span class="vuln-chip" title={title()}>
                 <For each={counts()}>
                     {/* A zero takes no severity colour: a red "0" read as an

@@ -1,5 +1,6 @@
-/* OCIDex palette, taken from web/src/index.css so the docs read as the same product.
-   Red is identity (accent chrome); blue is navigation (links), as in the app. */
+/* OCIDex palette, taken from web/src/index.css so the docs read as the same product
+   (ocidex-iz0r.9). One job per hue, as in the app: red is the mark's LED only and
+   lives in the logo file; blue is navigation (links); ink is the primary action. */
 @import url("https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500&family=Space+Grotesk:wght@500;700&display=swap");
 
 :root {
@@ -18,7 +19,9 @@
   --sl-color-gray-5: #2a2e3e;
   --sl-color-gray-6: #161921;
   --sl-color-black: #0c0e14;
-  --ocidex-brand: #dc3545;
+  --ocidex-ink: #e6e8ef;
+  --ocidex-ink-hover: #ffffff;
+  --ocidex-ink-fg: #0c0e14;
 }
 
 :root[data-theme="light"] {
@@ -34,17 +37,50 @@
   --sl-color-gray-6: #f3f1ec;
   --sl-color-gray-7: #f8f6f1;
   --sl-color-black: #ffffff;
-  --ocidex-brand: #cc1429;
+  --ocidex-ink: #161922;
+  --ocidex-ink-hover: #2e3242;
+  --ocidex-ink-fg: #ffffff;
 }
 
 .site-title {
   font-family: "Space Grotesk", "Inter", sans-serif;
   font-weight: 700;
+  /* Text colour, like the app's wordmark: the mark beside it carries the brand. */
+  color: var(--sl-color-white);
+  letter-spacing: -0.025em;
 }
 
-/* The app's red entry edge, on the header. */
-header.header {
-  border-top: 3px solid var(--ocidex-brand);
+/* Display face for page and hero titles, as the app's PageHeader. */
+.hero h1,
+.sl-markdown-content h1,
+h1#_top {
+  font-family: "Space Grotesk", "Inter", sans-serif;
+  letter-spacing: -0.02em;
+}
+
+/* Buttons match the app's .btn: 6px radius, ink primary, bordered secondary.
+   Starlight's own rules sit in @layer starlight.components, so these unlayered
+   ones win without specificity games. The periwinkle pill read as a different
+   product. */
+.sl-link-button {
+  border-radius: 6px;
+  font-weight: 500;
+}
+
+.sl-link-button.primary {
+  background: var(--ocidex-ink);
+  border-color: var(--ocidex-ink);
+  color: var(--ocidex-ink-fg);
+}
+
+.sl-link-button.primary:hover {
+  background: var(--ocidex-ink-hover);
+  border-color: var(--ocidex-ink-hover);
+  color: var(--ocidex-ink-fg);
+}
+
+.sl-link-button.secondary {
+  border-color: var(--sl-color-gray-4);
 }
 
 /* The /next/ preview banner. */

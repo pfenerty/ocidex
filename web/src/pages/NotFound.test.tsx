@@ -15,7 +15,7 @@ describe("NotFound", () => {
             </Router>
         ));
         const link = container.querySelector('a[href="/"]');
-        expect(link?.textContent.trim()).toBe("Back to Home");
+        expect(link?.textContent.trim()).toBe("Back to home");
         expect(link?.className).toContain("btn-primary");
         expect(link?.classList.contains("active")).toBe(false);
     });

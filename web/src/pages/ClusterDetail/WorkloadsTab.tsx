@@ -13,7 +13,9 @@ import type {
     WorkloadMatchState,
 } from "~/api/client";
 import type { ImageSortKey, WorkloadSortKey } from "~/api/queries";
-import { MATCH_PRESENTATION, MatchStatePill } from "./matchState";
+import { MatchStatePill } from "./matchState";
+import { MATCH_STATUS, VULN_DATA_STATUS } from "~/utils/status";
+import { StatusChip } from "~/components/ui";
 
 /** The two ways this tab can group the same rows. */
 export type InventoryGrouping = "image" | "workload";
@@ -41,13 +43,14 @@ export function InventoryVulnCell(props: { vulns: VulnCounts }) {
         <Show
             when={props.vulns}
             fallback={
-                <span class="text-muted italic" title="No SBOM matched this image, so it has never been assessed">
-                    not assessed
-                </span>
+                <StatusChip
+                    status={VULN_DATA_STATUS.unscanned}
+                    title="No SBOM matched this image, so it has never been assessed"
+                />
             }
         >
             {(v) => (
-                <Show when={total() > 0} fallback={<span class="text-muted">no findings</span>}>
+                <Show when={total() > 0} fallback={<StatusChip status={VULN_DATA_STATUS.clean} />}>
                     <VulnCountBadges
                         criticalCount={v().critical}
                         highCount={v().high}
@@ -300,8 +303,8 @@ export function WorkloadsFilterBar(props: {
                 <option value="">All match states</option>
                 <For each={MATCH_STATE_OPTIONS}>
                     {(state) => (
-                        <option value={state} title={MATCH_PRESENTATION[state].title}>
-                            {MATCH_PRESENTATION[state].label}
+                        <option value={state} title={MATCH_STATUS[state].title}>
+                            {MATCH_STATUS[state].label}
                         </option>
                     )}
                 </For>

@@ -1,5 +1,5 @@
 import "~/components/DetailSection.css";
-import { createSignal, For, Show } from "solid-js";
+import { createSignal, Show } from "solid-js";
 import { useParams, useSearchParams } from "@solidjs/router";
 import {
     useArtifact,
@@ -17,7 +17,7 @@ import type { ArtifactVulnSortKey, VulnSeverityFilter } from "~/api/queries";
 import type { SortDir } from "~/components/DataTable";
 import { EmptyState } from "~/components/Feedback";
 import { Skeleton, SkeletonHeader, SkeletonText } from "~/components/Skeleton";
-import { Breadcrumb, ButtonGroup, Button, QueryBoundary, TabBar, createExpandedSet, type Crumb, type TabDef } from "~/components/ui";
+import { Breadcrumb, QueryBoundary, Segmented, TabBar, createExpandedSet, type Crumb, type TabDef } from "~/components/ui";
 import { artifactDisplayName, plural } from "~/utils/format";
 import { ArtifactHeader, ArtifactIdentity } from "./ArtifactHeader";
 import { ArtifactBand, type ArtifactTab } from "./ArtifactBand";
@@ -190,7 +190,14 @@ export default function ArtifactDetail() {
         { id: "versions", label: `Versions (${versionCount})` },
         { id: "changelog", label: "Changelog" },
         { id: "licenses", label: "Licenses" },
-        { id: "vulns", label: `Vulnerabilities (${vulnSummaryQuery.data?.summary.total ?? 0})` },
+        // No count without a summary: never-scanned is not "(0)" (ocidex-9yjp).
+        {
+            id: "vulns",
+            label: (() => {
+                const total = vulnSummaryQuery.data?.summary?.total;
+                return total === undefined ? "Vulnerabilities" : `Vulnerabilities (${total})`;
+            })(),
+        },
         { id: "relationships", label: "Relationships" },
         ...(signedIn()
             ? [{ id: "running" as const, label: `Running (${(runningQuery.data ?? []).length})` }]
@@ -234,7 +241,7 @@ export default function ArtifactDetail() {
                                     <p class="mb-3" data-testid="running-in">
                                         <button type="button" class="link-button" onClick={() => setTab("running")}>
                                             <StatusPill variant="success" title={runningClusters().join(", ")}>
-                                                running in {runningClusters().length === 1 ? "1 cluster" : `${runningClusters().length} clusters`}
+                                                Running in {runningClusters().length === 1 ? "1 cluster" : `${runningClusters().length} clusters`}
                                             </StatusPill>
                                         </button>{" "}
                                         <span class="text-muted text-sm">{runningClusters().join(", ")}</span>
@@ -244,7 +251,7 @@ export default function ArtifactDetail() {
                                 <ArtifactBand
                                     artifact={a()}
                                     isContainer={isContainer()}
-                                    vulns={vulnSummaryQuery.data?.summary ?? undefined}
+                                    vulns={vulnSummaryQuery.data?.summary}
                                     vulnsVersion={vulnSummaryQuery.data?.subjectVersion}
                                     ordering={effectiveMode()}
                                     active={tab()}
@@ -256,21 +263,13 @@ export default function ArtifactDetail() {
                                 <TabBar tabs={tabs(a().versionCount)} active={tab()} onSelect={setTab} />
 
                                 <Show when={hasSemver() && (tab() === "versions" || tab() === "changelog")}>
-                                    <ButtonGroup class="mb-4">
-                                        <For each={MODES}>
-                                            {(m) => (
-                                                <Button
-                                                    size="sm"
-                                                    active={effectiveMode() === m.id}
-                                                    title={m.title}
-                                                    aria-pressed={effectiveMode() === m.id}
-                                                    onClick={() => selectMode(m.id)}
-                                                >
-                                                    {m.label}
-                                                </Button>
-                                            )}
-                                        </For>
-                                    </ButtonGroup>
+                                    <Segmented
+                                        class="mb-4"
+                                        label="Version order"
+                                        options={MODES}
+                                        value={effectiveMode()}
+                                        onChange={selectMode}
+                                    />
                                 </Show>
 
                                 <Show when={tab() === "versions"}>
@@ -355,7 +354,7 @@ export default function ArtifactDetail() {
                                 <Show when={tab() === "vulns"}>
                                     <VulnerabilitiesTab
                                         artifactId={params.id}
-                                        summary={vulnSummaryQuery.data?.summary ?? undefined}
+                                        summary={vulnSummaryQuery.data?.summary}
                                         severity={vulnSeverity()}
                                         vuln={vulnFilter()}
                                         sortBy={vulnSortBy()}

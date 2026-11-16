@@ -11,6 +11,7 @@ import {
     useUnlinkIdentity,
 } from "~/api/queries";
 import { TimestampCell } from "~/components/cells";
+import { useConfirm } from "~/context/confirm";
 
 /** One issuer this account can sign in with. */
 interface Identity {
@@ -39,6 +40,7 @@ export function AccountTab() {
     const startLink = useStartIdentityLink();
     const unlink = useUnlinkIdentity();
     const toast = useToast();
+    const confirm = useConfirm();
     const [searchParams, setSearchParams] = useSearchParams();
     const [selected, setSelected] = createSignal("");
 
@@ -104,13 +106,20 @@ export function AccountTab() {
                     fallback={<span class="text-muted">Only sign-in method</span>}
                 >
                     <Button
+                        variant="danger"
                         disabled={unlink.isPending}
-                        onClick={() =>
+                        onClick={() => void (async () => {
+                            const ok = await confirm({
+                                title: `Unlink ${i.provider}?`,
+                                body: "You will no longer be able to sign in with it. Your other sign-in methods keep working.",
+                                confirmLabel: "Unlink",
+                            });
+                            if (!ok) return;
                             unlink.mutate(i.id, {
                                 onSuccess: () => toast("Sign-in method removed", "success"),
                                 onError: () => toast("Could not remove that sign-in method", "error"),
-                            })
-                        }
+                            });
+                        })()}
                     >
                         Unlink
                     </Button>
@@ -122,7 +131,7 @@ export function AccountTab() {
     return (
         <>
             <Card class="mb-4">
-                <CardHeader title="Link Another Sign-In Method" />
+                <CardHeader title="Link another sign-in method" />
                 <Show
                     when={linkable().length > 0}
                     fallback={

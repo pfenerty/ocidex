@@ -2,6 +2,8 @@ import { A } from "@solidjs/router";
 import { For, Show } from "solid-js";
 import { Card } from "~/components/ui";
 import type { WorkloadCoverage } from "~/api/client";
+import { toneFill } from "~/components/ui";
+import { MATCH_STATUS } from "~/utils/status";
 import { plural } from "~/utils/format";
 
 /**
@@ -33,11 +35,13 @@ export function CoverageBand(props: {
             href: href("tab=workloads&matchState=exact"),
             selected: props.active === "workloads" && props.activeMatchState === "exact",
             gap: false,
+            tone: MATCH_STATUS.exact.tone,
         },
         {
             key: "unknown",
             n: props.coverage.unknown,
             label: "no SBOM · ingest to fix",
+            tone: MATCH_STATUS.unknown.tone,
             href: href("tab=gaps"),
             selected: props.active === "gaps",
             gap: true,
@@ -46,6 +50,7 @@ export function CoverageBand(props: {
             key: "unresolvable",
             n: props.coverage.unresolvable,
             label: "no digest readable · runtime gap",
+            tone: MATCH_STATUS.unresolvable.tone,
             href: href("tab=gaps"),
             selected: false,
             gap: true,
@@ -77,7 +82,7 @@ export function CoverageBand(props: {
                 <For each={segments()}>
                     {(s) => (
                         <Show when={s.n > 0}>
-                            <i class={`coverage-bar-${s.key}`} style={{ width: `${pct(s.n)}%` }} />
+                            <i class={toneFill(s.tone)} style={{ width: `${pct(s.n)}%` }} />
                         </Show>
                     )}
                 </For>
@@ -99,7 +104,7 @@ export function CoverageBand(props: {
                             // entry's path is this page; selection is ours to decide.
                             activeClass="coverage-segment-route"
                         >
-                            <i aria-hidden="true" />
+                            <i class={toneFill(s.tone)} aria-hidden="true" />
                             <strong>{s.n.toLocaleString()}</strong> {s.label}
                         </A>
                     )}
