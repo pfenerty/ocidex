@@ -22,9 +22,11 @@ interface QueryStub<T> {
 
 const mockUseArtifacts = vi.fn<() => QueryStub<typeof artifacts[number]>>();
 const mockUseArtifactSBOMs = vi.fn<(id: string) => QueryStub<SBOMSummary>>();
+const mockUseSBOM = vi.fn<(id: string) => { data?: { artifactId: string } }>(() => ({}));
 vi.mock("~/api/queries", () => ({
     useArtifacts: () => mockUseArtifacts(),
     useArtifactSBOMs: (id: () => string) => mockUseArtifactSBOMs(id()),
+    useSBOM: (id: () => string) => mockUseSBOM(id()),
 }));
 
 vi.mock("~/components/DiffPairView", () => ({
@@ -92,6 +94,17 @@ describe("Diff page picker — arch coupling", () => {
                 ],
             },
         }));
+    });
+
+    it("shows a linked comparison's artifacts and SBOMs in the pickers (ocidex-79by)", () => {
+        mockSearchParams = { from: "sbom-aarch64-a", to: "sbom-aarch64-b" };
+        mockUseSBOM.mockImplementation((id: string) => (id === "" ? {} : { data: { artifactId: "art-multi" } }));
+        const { container } = render(() => <Diff />);
+
+        expect(box(container, "From artifact").value).toBe("ghcr.io/example/svc");
+        expect(box(container, "To artifact").value).toBe("ghcr.io/example/svc");
+        expect(box(container, "From SBOM").value).not.toBe("");
+        expect(box(container, "To SBOM").value).not.toBe("");
     });
 
     it("filters 'To' SBOMs to match 'From' arch by default once From is selected", () => {
