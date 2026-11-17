@@ -270,7 +270,7 @@ cookies carry no ceiling and are unaffected.</p>
 <td><code dir="auto">capability</code></td>
 <td><code dir="auto">delete_artifact</code></td>
 <td>✓</td>
-<td>RequireCapability(delete_artifact) middleware on the artifact’s namespace.</td>
+<td>RequireCapabilityInAny(delete_artifact) over every namespace the artifact hangs from; deletes only in the caller’s namespaces holding delete_artifact (admin: all). ADR-046 M7.</td>
 </tr>
 <tr>
 <td>GET</td>
