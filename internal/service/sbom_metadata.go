@@ -214,9 +214,11 @@ func extractDigestFromBOM(bom *cdx.BOM) string {
 	return ""
 }
 
-// validateContainerDigest checks that container SBOMs reference a single image
-// manifest, not a manifest list. Skipped if no validator is configured.
-func (s *sbomService) validateContainerDigest(ctx context.Context, bom *cdx.BOM) error {
+// validateContainerDigest checks that a container SBOM's digest exists in the
+// registry and is a single image manifest, not a manifest list. A declared
+// digest (params.Digest) is the subject's identity and wins over the BOM's, so
+// it is the one validated. Skipped if no validator is configured.
+func (s *sbomService) validateContainerDigest(ctx context.Context, bom *cdx.BOM, params IngestParams) error {
 	if s.digestValidator == nil {
 		return nil
 	}
@@ -237,6 +239,9 @@ func (s *sbomService) validateContainerDigest(ctx context.Context, bom *cdx.BOM)
 	}
 	if digest == "" && strings.HasPrefix(mc.Version, "sha256:") {
 		digest = mc.Version
+	}
+	if params.Digest != "" {
+		digest = params.Digest
 	}
 	if digest == "" {
 		return nil

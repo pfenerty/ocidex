@@ -1138,7 +1138,7 @@ func TestValidateContainerDigest_NilValidator(t *testing.T) {
 		Type: cdx.ComponentTypeContainer,
 		Name: "docker.io/ubuntu@sha256:abc123",
 	}}}
-	err := svc.validateContainerDigest(context.Background(), bom)
+	err := svc.validateContainerDigest(context.Background(), bom, IngestParams{})
 	is.NoErr(err)
 }
 
@@ -1156,7 +1156,7 @@ func TestValidateContainerDigest_ValidatorSuccess(t *testing.T) {
 		Name:    "docker.io/ubuntu@sha256:abc123",
 		Version: "22.04",
 	}}}
-	err := svc.validateContainerDigest(context.Background(), bom)
+	err := svc.validateContainerDigest(context.Background(), bom, IngestParams{})
 	is.NoErr(err)
 }
 
@@ -1170,9 +1170,42 @@ func TestValidateContainerDigest_ValidatorFailure(t *testing.T) {
 		Type: cdx.ComponentTypeContainer,
 		Name: "docker.io/ubuntu@sha256:abc123",
 	}}}
-	err := svc.validateContainerDigest(context.Background(), bom)
+	err := svc.validateContainerDigest(context.Background(), bom, IngestParams{})
 	var ve *ValidationError
 	is.True(errors.As(err, &ve))
+}
+
+// recordingDigestValidator records the digest it was asked about and fails it
+// when err is set — a registry that lacks the digest.
+type recordingDigestValidator struct {
+	err    error
+	digest string
+}
+
+func (v *recordingDigestValidator) ValidateDigest(_ context.Context, _, digest string) error {
+	v.digest = digest
+	return v.err
+}
+
+// A declared digest is the subject's identity, so it is the one validated
+// against the registry, and one the registry lacks is rejected.
+func TestValidateContainerDigest_DeclaredDigestIsValidated(t *testing.T) {
+	is := is.New(t)
+	v := &recordingDigestValidator{err: errors.New("HEAD: HTTP 404")}
+	svc := &sbomService{digestValidator: v}
+	bom := &cdx.BOM{Metadata: &cdx.Metadata{Component: &cdx.Component{
+		Type: cdx.ComponentTypeContainer,
+		Name: "docker.io/ubuntu",
+	}}}
+	err := svc.validateContainerDigest(context.Background(), bom, IngestParams{Digest: "sha256:declared"})
+	var ve *ValidationError
+	is.True(errors.As(err, &ve))
+	is.Equal(v.digest, "sha256:declared")
+
+	// It also wins over a digest in the BOM.
+	bom.Metadata.Component.Name = "docker.io/ubuntu@sha256:inbom"
+	_ = svc.validateContainerDigest(context.Background(), bom, IngestParams{Digest: "sha256:declared"})
+	is.Equal(v.digest, "sha256:declared")
 }
 
 // TestLinkArtifactNamespace_NilNamespaceID verifies that a nil namespace ID is skipped.

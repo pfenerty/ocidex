@@ -254,11 +254,11 @@ func (s *sbomService) Ingest(ctx context.Context, bom *cdx.BOM, rawJSON []byte, 
 
 	// Validate container digests before starting the transaction.
 	// This makes a network call to the registry, so it runs outside the tx.
-	if err := s.validateContainerDigest(ctx, bom); err != nil {
+	if err := s.validateContainerDigest(ctx, bom, params); err != nil {
 		return pgtype.UUID{}, err
 	}
 
-	if existing, ok := s.existingByDigest(ctx, bom, params); ok {
+	if existing, ok := s.existingByDigest(ctx, namespaceID, bom, params); ok {
 		return existing, nil
 	}
 
@@ -309,7 +309,7 @@ func (s *sbomService) Ingest(ctx context.Context, bom *cdx.BOM, rawJSON []byte, 
 		IndexDigest:    pgtype.Text{String: params.IndexDigest, Valid: params.IndexDigest != ""},
 	})
 	if err != nil {
-		return pgtype.UUID{}, fmt.Errorf("inserting sbom: %w", err)
+		return pgtype.UUID{}, insertSBOMError(err)
 	}
 
 	slog.InfoContext(ctx, "persisting sbom",
@@ -346,18 +346,33 @@ func (s *sbomService) Ingest(ctx context.Context, bom *cdx.BOM, rawJSON []byte, 
 	return sbomRow.ID, nil
 }
 
-// existingByDigest is ingest's idempotency check: the SBOM already stored for
-// this digest, if any. A declared digest wins — an upload's digest lives nowhere
+// insertSBOMError maps an InsertSBOM failure. A unique violation means the
+// namespace already holds an SBOM with this digest or serial number/version (a
+// concurrent ingest, or the same serial on a different digest): a conflict, not
+// a server error.
+func insertSBOMError(err error) error {
+	if isUniqueViolation(err) {
+		return fmt.Errorf("sbom already stored in this namespace: %w", ErrConflict)
+	}
+	return fmt.Errorf("inserting sbom: %w", err)
+}
+
+// existingByDigest is ingest's idempotency check: the SBOM the ingesting
+// namespace already stored for this digest, if any. Another namespace's SBOM for
+// the same digest is never returned: each namespace keeps its own. A declared
+// digest wins — an upload's digest lives nowhere
 // in the BOM, and missing it here would defer duplicate detection to the UNIQUE
 // index, i.e. until after a full transaction and component decomposition
 // (ADR-040). Lookup errors other than "no rows" are ignored; the UNIQUE index is
 // the backstop.
-func (s *sbomService) existingByDigest(ctx context.Context, bom *cdx.BOM, params IngestParams) (pgtype.UUID, bool) {
+func (s *sbomService) existingByDigest(ctx context.Context, namespaceID pgtype.UUID, bom *cdx.BOM, params IngestParams) (pgtype.UUID, bool) {
 	digest := resolveIngestDigest(bom, params)
-	if digest == "" {
+	if digest == "" || !namespaceID.Valid {
 		return pgtype.UUID{}, false
 	}
-	existing, err := repository.New(s.pool).GetSBOMByDigest(ctx, pgtype.Text{String: digest, Valid: true})
+	existing, err := repository.New(s.pool).GetSBOMByNamespaceDigest(ctx, repository.GetSBOMByNamespaceDigestParams{
+		NamespaceID: namespaceID, Digest: digest,
+	})
 	if err != nil {
 		return pgtype.UUID{}, false
 	}

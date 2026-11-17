@@ -297,7 +297,7 @@ func TestScanToEnrichFlow(t *testing.T) {
 	var sbomID pgtype.UUID
 	deadline := time.Now().Add(4 * time.Minute)
 	for time.Now().Before(deadline) {
-		sbomID, _ = repoQ.GetSBOMByDigest(ctx, pgtype.Text{String: digest, Valid: true})
+		_ = pool.QueryRow(ctx, `SELECT id FROM sbom WHERE digest = $1`, digest).Scan(&sbomID)
 		if sbomID.Valid {
 			break
 		}
