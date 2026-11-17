@@ -14,6 +14,7 @@ import (
 	"github.com/google/go-containerregistry/pkg/name"
 	v1 "github.com/google/go-containerregistry/pkg/v1"
 	"github.com/google/go-containerregistry/pkg/v1/remote"
+	"github.com/jackc/pgx/v5/pgtype"
 
 	"github.com/pfenerty/ocidex/internal/enrichment"
 	"github.com/pfenerty/ocidex/internal/enrichment/names"
@@ -62,7 +63,7 @@ type Enricher struct {
 	options            []remote.Option
 	insecure           bool
 	insecureResolver   func(ctx context.Context, host string) bool
-	credentialResolver func(ctx context.Context, host string) (username, token string)
+	credentialResolver func(ctx context.Context, sourceID pgtype.UUID, host string) (username, token string)
 }
 
 // Option configures the OCI Enricher.
@@ -95,9 +96,10 @@ func WithInsecureResolver(fn func(ctx context.Context, host string) bool) Option
 	return func(e *Enricher) { e.insecureResolver = fn }
 }
 
-// WithCredentialResolver sets a function that resolves registry credentials by
-// hostname. Called at enrichment time; takes precedence over anonymous access.
-func WithCredentialResolver(fn func(ctx context.Context, host string) (username, token string)) Option {
+// WithCredentialResolver sets a function that resolves registry credentials for
+// a host on behalf of the SBOM's source (subject.Ref.RegistryID). Called at
+// enrichment time; takes precedence over anonymous access.
+func WithCredentialResolver(fn func(ctx context.Context, sourceID pgtype.UUID, host string) (username, token string)) Option {
 	return func(e *Enricher) { e.credentialResolver = fn }
 }
 
@@ -156,7 +158,7 @@ func (e *Enricher) Enrich(ctx context.Context, ref enrichment.SubjectRef) ([]byt
 	opts = append(opts, remote.WithContext(ctx))
 	opts = append(opts, e.options...)
 	if e.credentialResolver != nil {
-		if u, t := e.credentialResolver(ctx, host); u != "" || t != "" {
+		if u, t := e.credentialResolver(ctx, ref.RegistryID, host); u != "" || t != "" {
 			opts = append(opts, remote.WithAuth(authn.FromConfig(authn.AuthConfig{
 				Username: u,
 				Password: t,

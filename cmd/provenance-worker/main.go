@@ -28,7 +28,7 @@ func buildEnrichers(pool *pgxpool.Pool, appCfg *config.Config) []enrichment.Enri
 	registrySvc := service.NewRegistryService(pool, appCfg.SecretBox)
 	insecureResolver := service.BuildInsecureHostLookup(registrySvc)
 	trustResolver := service.BuildTrustLookup(registrySvc)
-	credResolver := service.BuildCredentialLookup(registrySvc)
+	credResolver := service.BuildCredentialLookup(registrySvc, service.NewSourceLookup(pool))
 	return []enrichment.Enricher{
 		provenance.NewEnricher(
 			provenance.WithInsecureResolver(insecureResolver),
