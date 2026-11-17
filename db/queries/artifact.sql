@@ -6,12 +6,24 @@ SELECT id, purl, cpe FROM artifact
 WHERE type = $1 AND name = $2 AND COALESCE(group_name, '') = COALESCE(sqlc.narg('group_name')::text, '');
 
 -- name: UpsertArtifact :one
+-- The artifact row is shared by name across namespaces, so its purl and cpe are
+-- only rewritten by an ingest into a namespace that already holds the artifact
+-- (or when no namespace holds it). Any other namespace's ingest leaves them as
+-- they are: the conflict arm updates nothing and RETURNING yields no row, which
+-- the caller answers by reading the existing id.
 INSERT INTO artifact (type, name, group_name, purl, cpe)
-VALUES ($1, $2, $3, $4, $5)
+VALUES (@type, @name, sqlc.narg('group_name'), sqlc.narg('purl'), sqlc.narg('cpe'))
 ON CONFLICT (type, name, COALESCE(group_name, ''))
 DO UPDATE SET
     purl = COALESCE(EXCLUDED.purl, artifact.purl),
     cpe  = COALESCE(EXCLUDED.cpe, artifact.cpe)
+WHERE EXISTS (
+          SELECT 1 FROM artifact_namespace an
+          WHERE an.artifact_id = artifact.id
+            AND an.namespace_id = sqlc.narg('namespace_id')::uuid)
+   OR NOT EXISTS (
+          SELECT 1 FROM artifact_namespace an
+          WHERE an.artifact_id = artifact.id)
 RETURNING id;
 
 -- name: GetArtifact :one

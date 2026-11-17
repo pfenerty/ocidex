@@ -973,17 +973,30 @@ ON CONFLICT (type, name, COALESCE(group_name, ''))
 DO UPDATE SET
     purl = COALESCE(EXCLUDED.purl, artifact.purl),
     cpe  = COALESCE(EXCLUDED.cpe, artifact.cpe)
+WHERE EXISTS (
+          SELECT 1 FROM artifact_namespace an
+          WHERE an.artifact_id = artifact.id
+            AND an.namespace_id = $6::uuid)
+   OR NOT EXISTS (
+          SELECT 1 FROM artifact_namespace an
+          WHERE an.artifact_id = artifact.id)
 RETURNING id
 `
 
 type UpsertArtifactParams struct {
-	Type      string      `json:"type"`
-	Name      string      `json:"name"`
-	GroupName pgtype.Text `json:"group_name"`
-	Purl      pgtype.Text `json:"purl"`
-	Cpe       pgtype.Text `json:"cpe"`
+	Type        string      `json:"type"`
+	Name        string      `json:"name"`
+	GroupName   pgtype.Text `json:"group_name"`
+	Purl        pgtype.Text `json:"purl"`
+	Cpe         pgtype.Text `json:"cpe"`
+	NamespaceID pgtype.UUID `json:"namespace_id"`
 }
 
+// The artifact row is shared by name across namespaces, so its purl and cpe are
+// only rewritten by an ingest into a namespace that already holds the artifact
+// (or when no namespace holds it). Any other namespace's ingest leaves them as
+// they are: the conflict arm updates nothing and RETURNING yields no row, which
+// the caller answers by reading the existing id.
 func (q *Queries) UpsertArtifact(ctx context.Context, arg UpsertArtifactParams) (pgtype.UUID, error) {
 	row := q.db.QueryRow(ctx, upsertArtifact,
 		arg.Type,
@@ -991,6 +1004,7 @@ func (q *Queries) UpsertArtifact(ctx context.Context, arg UpsertArtifactParams) 
 		arg.GroupName,
 		arg.Purl,
 		arg.Cpe,
+		arg.NamespaceID,
 	)
 	var id pgtype.UUID
 	err := row.Scan(&id)

@@ -151,7 +151,7 @@ func resolveSubjectIdentity(bom *cdx.BOM, params IngestParams) subjectIdentity {
 
 // resolveArtifact extracts artifact identity from the BOM metadata and upserts
 // the artifact row. It returns the artifact ID, subject version, and image digest.
-func resolveArtifact(ctx context.Context, q *repository.Queries, bom *cdx.BOM, params IngestParams) (artifactInfo, error) {
+func resolveArtifact(ctx context.Context, q *repository.Queries, namespaceID pgtype.UUID, bom *cdx.BOM, params IngestParams) (artifactInfo, error) {
 	// A BOM with no subject component and no declared identity yields no
 	// artifact, as before.
 	hasSubjectComponent := bom.Metadata != nil && bom.Metadata.Component != nil
@@ -197,11 +197,12 @@ func resolveArtifact(ctx context.Context, q *repository.Queries, bom *cdx.BOM, p
 	}
 
 	artifactID, err := ensureArtifact(ctx, q, repository.UpsertArtifactParams{
-		Type:      subj.typ,
-		Name:      name,
-		GroupName: textOrNull(subj.group),
-		Purl:      textOrNull(subj.purl),
-		Cpe:       textOrNull(subj.cpe),
+		Type:        subj.typ,
+		Name:        name,
+		GroupName:   textOrNull(subj.group),
+		Purl:        textOrNull(subj.purl),
+		Cpe:         textOrNull(subj.cpe),
+		NamespaceID: namespaceID,
 	})
 	if err != nil {
 		return artifactInfo{}, err
@@ -216,7 +217,10 @@ func resolveArtifact(ctx context.Context, q *repository.Queries, bom *cdx.BOM, p
 }
 
 // ensureArtifact returns the artifact's id, writing only when it is new or the
-// ingest would change its purl or cpe. UpsertArtifact row-locks the artifact
+// ingest would change its purl or cpe. A change is applied only for an ingest
+// into a namespace that already holds the artifact (p.NamespaceID): the row is
+// shared by name, and a namespace that merely shares the name must not rewrite
+// the identity other namespaces match and look up vulnerabilities by. UpsertArtifact row-locks the artifact
 // until the ingest commits even when it changes nothing, so concurrent ingests
 // of one image (a multi-arch push) would queue behind each other on it
 // (ocidex-q1ni). The read takes no lock; the upsert stays the fallback, and
@@ -232,10 +236,24 @@ func ensureArtifact(ctx context.Context, q *repository.Queries, p repository.Ups
 		return pgtype.UUID{}, fmt.Errorf("looking up artifact: %w", err)
 	}
 	id, err := q.UpsertArtifact(ctx, p)
+	if errors.Is(err, pgx.ErrNoRows) {
+		// The artifact exists and this namespace may not change it.
+		return existingArtifactID(ctx, q, p)
+	}
 	if err != nil {
 		return pgtype.UUID{}, fmt.Errorf("upserting artifact: %w", err)
 	}
 	return id, nil
+}
+
+func existingArtifactID(ctx context.Context, q *repository.Queries, p repository.UpsertArtifactParams) (pgtype.UUID, error) {
+	row, err := q.GetArtifactByIdentity(ctx, repository.GetArtifactByIdentityParams{
+		Type: p.Type, Name: p.Name, GroupName: p.GroupName,
+	})
+	if err != nil {
+		return pgtype.UUID{}, fmt.Errorf("looking up artifact: %w", err)
+	}
+	return row.ID, nil
 }
 
 // unchanged reports whether a COALESCE(new, stored) update would leave stored
@@ -276,7 +294,7 @@ func (s *sbomService) Ingest(ctx context.Context, bom *cdx.BOM, rawJSON []byte, 
 
 	q := repository.New(tx)
 
-	info, err := resolveArtifact(ctx, q, bom, params)
+	info, err := resolveArtifact(ctx, q, namespaceID, bom, params)
 	if err != nil {
 		return pgtype.UUID{}, err
 	}
