@@ -266,21 +266,14 @@ WHERE s.artifact_id = $1
   AND s.enrichment_sufficient
   AND s.namespace_id IN (SELECT visible_namespace_ids(sqlc.narg('user_id')::uuid, sqlc.narg('is_admin')::boolean));
 
--- name: GetArtifactNamespaceID :one
--- Any one namespace holding the artifact. An artifact can hang from several
--- namespaces with different members, and this answers with whichever row comes
--- first — as its owner-returning predecessor did (ocidex-y0hg.5). The caller is
--- a capability check, so the question it settles is now "may you do this here"
--- rather than "are you this one user"; asking it of every namespace the artifact
--- belongs to is ocidex-y0hg.6.
---
--- Ordered rather than left to the heap, so that "whichever row came first" is a
--- stable answer across two identical requests instead of a plan detail.
+-- name: ListArtifactNamespaceIDs :many
+-- Every namespace the artifact hangs from. An artifact is shared by name across
+-- namespaces with different members, so an authorization check asks its
+-- question of each of them rather than of whichever row happens to sort first.
 SELECT an.namespace_id
 FROM artifact_namespace an
 WHERE an.artifact_id = $1
-ORDER BY an.namespace_id
-LIMIT 1;
+ORDER BY an.namespace_id;
 
 -- name: UpsertArtifactNamespace :exec
 INSERT INTO artifact_namespace (artifact_id, namespace_id)
@@ -292,6 +285,28 @@ DELETE FROM sbom WHERE artifact_id = $1;
 
 -- name: DeleteArtifact :execrows
 DELETE FROM artifact WHERE id = $1;
+
+-- name: DeleteArtifactSBOMsInNamespaces :many
+-- Deletes only the artifact's SBOMs that live in the given namespaces, so a
+-- caller removing an artifact from their namespaces leaves every other
+-- namespace's SBOMs of the same artifact in place.
+DELETE FROM sbom
+WHERE artifact_id = @artifact_id::uuid
+  AND namespace_id = ANY (@namespace_ids::uuid[])
+RETURNING id;
+
+-- name: UnlinkArtifactNamespaces :exec
+DELETE FROM artifact_namespace
+WHERE artifact_id = @artifact_id::uuid
+  AND namespace_id = ANY (@namespace_ids::uuid[]);
+
+-- name: DeleteArtifactIfUnused :execrows
+-- Deletes the artifact row only once no namespace holds it and no SBOM is left
+-- under it.
+DELETE FROM artifact a
+WHERE a.id = $1
+  AND NOT EXISTS (SELECT 1 FROM artifact_namespace an WHERE an.artifact_id = a.id)
+  AND NOT EXISTS (SELECT 1 FROM sbom s WHERE s.artifact_id = a.id);
 
 -- name: ListSBOMsByArtifact :many
 SELECT s.id, s.serial_number, s.spec_version, s.version, s.subject_version, s.digest, s.created_at,

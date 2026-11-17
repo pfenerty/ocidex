@@ -65,7 +65,7 @@ cookies carry no ceiling and are unaffected.
 |---|---|---|---|---|---|---|
 | GET | `/api/v1/artifacts` | `list-artifacts` | `public` | — |  | VisibilityFilter. |
 | GET | `/api/v1/artifacts/lookup` | `lookup-artifact` | `public` | — |  | VisibilityFilter applied before the ambiguity count (ADR-042). |
-| DELETE | `/api/v1/artifacts/{id}` | `delete-artifact` | `capability` | `delete_artifact` | ✓ | RequireCapability(delete_artifact) middleware on the artifact's namespace. |
+| DELETE | `/api/v1/artifacts/{id}` | `delete-artifact` | `capability` | `delete_artifact` | ✓ | RequireCapabilityInAny(delete_artifact) over every namespace the artifact hangs from; deletes only in the caller's namespaces holding delete_artifact (admin: all). ADR-046 M7. |
 | GET | `/api/v1/artifacts/{id}` | `get-artifact` | `public` | — |  | VisibilityFilter. |
 | GET | `/api/v1/artifacts/{id}/changelog` | `get-artifact-changelog` | `public` | — |  | VisibilityFilter. |
 | GET | `/api/v1/artifacts/{id}/contains` | `get-artifact-contains` | `public` | — |  | Filtered via visible_namespace_ids (ADR-041). |

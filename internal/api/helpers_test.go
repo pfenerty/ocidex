@@ -46,8 +46,16 @@ func (f *fakeSBOMService) GetSBOMNamespaceID(_ context.Context, _ pgtype.UUID) (
 	return f.namespace()
 }
 
-func (f *fakeSBOMService) GetArtifactNamespaceID(_ context.Context, _ pgtype.UUID) (pgtype.UUID, error) {
-	return f.namespace()
+func (f *fakeSBOMService) DeleteArtifactFromNamespaces(_ context.Context, _ pgtype.UUID, _ []pgtype.UUID) error {
+	return nil
+}
+
+func (f *fakeSBOMService) ListArtifactNamespaceIDs(_ context.Context, _ pgtype.UUID) ([]pgtype.UUID, error) {
+	if f.namespaceID == "" {
+		return nil, nil
+	}
+	id, err := f.namespace()
+	return []pgtype.UUID{id}, err
 }
 
 func (f *fakeSBOMService) namespace() (pgtype.UUID, error) {
@@ -81,8 +89,12 @@ func (f *failSBOMService) GetSBOMNamespaceID(_ context.Context, _ pgtype.UUID) (
 	return pgtype.UUID{}, errors.New("database unavailable")
 }
 
-func (f *failSBOMService) GetArtifactNamespaceID(_ context.Context, _ pgtype.UUID) (pgtype.UUID, error) {
-	return pgtype.UUID{}, errors.New("database unavailable")
+func (f *failSBOMService) DeleteArtifactFromNamespaces(_ context.Context, _ pgtype.UUID, _ []pgtype.UUID) error {
+	return errors.New("database unavailable")
+}
+
+func (f *failSBOMService) ListArtifactNamespaceIDs(_ context.Context, _ pgtype.UUID) ([]pgtype.UUID, error) {
+	return nil, errors.New("database unavailable")
 }
 
 // ---------------------------------------------------------------------------

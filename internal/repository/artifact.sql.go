@@ -140,6 +140,58 @@ func (q *Queries) DeleteArtifact(ctx context.Context, id pgtype.UUID) (int64, er
 	return result.RowsAffected(), nil
 }
 
+const deleteArtifactIfUnused = `-- name: DeleteArtifactIfUnused :execrows
+DELETE FROM artifact a
+WHERE a.id = $1
+  AND NOT EXISTS (SELECT 1 FROM artifact_namespace an WHERE an.artifact_id = a.id)
+  AND NOT EXISTS (SELECT 1 FROM sbom s WHERE s.artifact_id = a.id)
+`
+
+// Deletes the artifact row only once no namespace holds it and no SBOM is left
+// under it.
+func (q *Queries) DeleteArtifactIfUnused(ctx context.Context, id pgtype.UUID) (int64, error) {
+	result, err := q.db.Exec(ctx, deleteArtifactIfUnused, id)
+	if err != nil {
+		return 0, err
+	}
+	return result.RowsAffected(), nil
+}
+
+const deleteArtifactSBOMsInNamespaces = `-- name: DeleteArtifactSBOMsInNamespaces :many
+DELETE FROM sbom
+WHERE artifact_id = $1::uuid
+  AND namespace_id = ANY ($2::uuid[])
+RETURNING id
+`
+
+type DeleteArtifactSBOMsInNamespacesParams struct {
+	ArtifactID   pgtype.UUID   `json:"artifact_id"`
+	NamespaceIds []pgtype.UUID `json:"namespace_ids"`
+}
+
+// Deletes only the artifact's SBOMs that live in the given namespaces, so a
+// caller removing an artifact from their namespaces leaves every other
+// namespace's SBOMs of the same artifact in place.
+func (q *Queries) DeleteArtifactSBOMsInNamespaces(ctx context.Context, arg DeleteArtifactSBOMsInNamespacesParams) ([]pgtype.UUID, error) {
+	rows, err := q.db.Query(ctx, deleteArtifactSBOMsInNamespaces, arg.ArtifactID, arg.NamespaceIds)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	items := []pgtype.UUID{}
+	for rows.Next() {
+		var id pgtype.UUID
+		if err := rows.Scan(&id); err != nil {
+			return nil, err
+		}
+		items = append(items, id)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
 const deleteSBOMsByArtifact = `-- name: DeleteSBOMsByArtifact :execrows
 DELETE FROM sbom WHERE artifact_id = $1
 `
@@ -261,28 +313,34 @@ func (q *Queries) GetArtifactByIdentity(ctx context.Context, arg GetArtifactById
 	return i, err
 }
 
-const getArtifactNamespaceID = `-- name: GetArtifactNamespaceID :one
+const listArtifactNamespaceIDs = `-- name: ListArtifactNamespaceIDs :many
 SELECT an.namespace_id
 FROM artifact_namespace an
 WHERE an.artifact_id = $1
 ORDER BY an.namespace_id
-LIMIT 1
 `
 
-// Any one namespace holding the artifact. An artifact can hang from several
-// namespaces with different members, and this answers with whichever row comes
-// first — as its owner-returning predecessor did (ocidex-y0hg.5). The caller is
-// a capability check, so the question it settles is now "may you do this here"
-// rather than "are you this one user"; asking it of every namespace the artifact
-// belongs to is ocidex-y0hg.6.
-//
-// Ordered rather than left to the heap, so that "whichever row came first" is a
-// stable answer across two identical requests instead of a plan detail.
-func (q *Queries) GetArtifactNamespaceID(ctx context.Context, artifactID pgtype.UUID) (pgtype.UUID, error) {
-	row := q.db.QueryRow(ctx, getArtifactNamespaceID, artifactID)
-	var namespace_id pgtype.UUID
-	err := row.Scan(&namespace_id)
-	return namespace_id, err
+// Every namespace the artifact hangs from. An artifact is shared by name across
+// namespaces with different members, so an authorization check asks its
+// question of each of them rather than of whichever row happens to sort first.
+func (q *Queries) ListArtifactNamespaceIDs(ctx context.Context, artifactID pgtype.UUID) ([]pgtype.UUID, error) {
+	rows, err := q.db.Query(ctx, listArtifactNamespaceIDs, artifactID)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	items := []pgtype.UUID{}
+	for rows.Next() {
+		var namespace_id pgtype.UUID
+		if err := rows.Scan(&namespace_id); err != nil {
+			return nil, err
+		}
+		items = append(items, namespace_id)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
 }
 
 const listArtifactVersions = `-- name: ListArtifactVersions :many
@@ -890,6 +948,22 @@ func (q *Queries) LookupArtifacts(ctx context.Context, arg LookupArtifactsParams
 		return nil, err
 	}
 	return items, nil
+}
+
+const unlinkArtifactNamespaces = `-- name: UnlinkArtifactNamespaces :exec
+DELETE FROM artifact_namespace
+WHERE artifact_id = $1::uuid
+  AND namespace_id = ANY ($2::uuid[])
+`
+
+type UnlinkArtifactNamespacesParams struct {
+	ArtifactID   pgtype.UUID   `json:"artifact_id"`
+	NamespaceIds []pgtype.UUID `json:"namespace_ids"`
+}
+
+func (q *Queries) UnlinkArtifactNamespaces(ctx context.Context, arg UnlinkArtifactNamespacesParams) error {
+	_, err := q.db.Exec(ctx, unlinkArtifactNamespaces, arg.ArtifactID, arg.NamespaceIds)
+	return err
 }
 
 const upsertArtifact = `-- name: UpsertArtifact :one

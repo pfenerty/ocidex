@@ -238,6 +238,42 @@ func RequireCapability(api huma.API, c authz.Capability,
 	}
 }
 
+// RequireCapabilityInAny is RequireCapability for a resource that hangs from
+// several namespaces at once (a shared artifact): it admits a caller holding c
+// in at least one of the namespaces resolve returns. Admission says only that
+// the caller may act somewhere on the resource; the handler must still confine
+// the action to the namespaces where the caller holds c, never to all of them.
+//
+// The answers match RequireCapability's: 401 without credentials, 404 when
+// resolve fails, 403 when no namespace grants c. A resource hanging from no
+// namespace is admin-only.
+func RequireCapabilityInAny(api huma.API, c authz.Capability,
+	resolve func(huma.Context) ([]pgtype.UUID, error),
+) func(huma.Context, func(huma.Context)) {
+	return func(ctx huma.Context, next func(huma.Context)) {
+		user, ok := UserFromContext(ctx.Context())
+		if !ok {
+			_ = huma.WriteErr(api, ctx, http.StatusUnauthorized, "not authenticated")
+			return
+		}
+		namespaceIDs, err := resolve(ctx)
+		if err != nil {
+			_ = huma.WriteErr(api, ctx, http.StatusNotFound, "not found")
+			return
+		}
+		if len(namespaceIDs) == 0 {
+			namespaceIDs = []pgtype.UUID{{}}
+		}
+		for _, ns := range namespaceIDs {
+			if can(user, uuidToStr(ns), c) {
+				next(ctx)
+				return
+			}
+		}
+		_ = huma.WriteErr(api, ctx, http.StatusForbidden, "forbidden")
+	}
+}
+
 // RequireWrite returns a huma middleware that 403s a caller presenting an API
 // key that carries no mutating capability. It checks the key's ceiling only and
 // is deliberately

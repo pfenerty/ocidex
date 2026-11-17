@@ -53,8 +53,11 @@ func (f *fakeSBOMSvc) ListDigestsBySource(_ context.Context, _ string) (map[stri
 func (f *fakeSBOMSvc) GetSBOMNamespaceID(_ context.Context, _ pgtype.UUID) (pgtype.UUID, error) {
 	return pgtype.UUID{}, nil
 }
-func (f *fakeSBOMSvc) GetArtifactNamespaceID(_ context.Context, _ pgtype.UUID) (pgtype.UUID, error) {
-	return pgtype.UUID{}, nil
+func (f *fakeSBOMSvc) DeleteArtifactFromNamespaces(_ context.Context, _ pgtype.UUID, _ []pgtype.UUID) error {
+	return nil
+}
+func (f *fakeSBOMSvc) ListArtifactNamespaceIDs(_ context.Context, _ pgtype.UUID) ([]pgtype.UUID, error) {
+	return nil, nil
 }
 
 func discardLogger() *slog.Logger {

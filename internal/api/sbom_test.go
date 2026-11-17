@@ -1,11 +1,13 @@
 package api_test
 
 import (
+	"context"
 	"net/http"
 	"net/http/httptest"
 	"strings"
 	"testing"
 
+	"github.com/jackc/pgx/v5/pgtype"
 	"github.com/matryer/is"
 
 	"github.com/pfenerty/ocidex/internal/authz"
@@ -230,4 +232,59 @@ func TestIngestSBOM_ServiceError(t *testing.T) {
 	router.ServeHTTP(w, r)
 
 	is.Equal(w.Code, http.StatusInternalServerError)
+}
+
+// multiNSSBOMService hangs every artifact from several namespaces and records
+// the scope a delete was confined to.
+type multiNSSBOMService struct {
+	fakeSBOMService
+	namespaces []string
+	deletedAll bool
+	deletedIn  []string
+}
+
+func (f *multiNSSBOMService) ListArtifactNamespaceIDs(_ context.Context, _ pgtype.UUID) ([]pgtype.UUID, error) {
+	out := make([]pgtype.UUID, len(f.namespaces))
+	for i, ns := range f.namespaces {
+		if err := out[i].Scan(ns); err != nil {
+			return nil, err
+		}
+	}
+	return out, nil
+}
+
+func (f *multiNSSBOMService) DeleteArtifact(_ context.Context, _ pgtype.UUID) error {
+	f.deletedAll = true
+	return nil
+}
+
+func (f *multiNSSBOMService) DeleteArtifactFromNamespaces(_ context.Context, _ pgtype.UUID, ids []pgtype.UUID) error {
+	for _, id := range ids {
+		b, _ := id.Value()
+		f.deletedIn = append(f.deletedIn, b.(string))
+	}
+	return nil
+}
+
+// A shared artifact hanging from the caller's namespace and another tenant's:
+// the delete is admitted (the caller holds delete_artifact in one of them,
+// whichever sorts first) and confined to the caller's namespace.
+func TestDeleteArtifact_SharedArtifactConfinedToCallerNamespaces(t *testing.T) {
+	for _, order := range [][]string{
+		{mwNamespaceID, testNamespaceID},
+		{testNamespaceID, mwNamespaceID},
+	} {
+		is := is.New(t)
+		svc := &multiNSSBOMService{namespaces: order}
+		router := memberRouter(svc)
+
+		r := httptest.NewRequest(http.MethodDelete, "/api/v1/artifacts/01020304-0506-0708-090a-0b0c0d0e0f10", nil)
+		r.Header.Set("Authorization", "Bearer member-token")
+		w := httptest.NewRecorder()
+		router.ServeHTTP(w, r)
+
+		is.Equal(w.Code, http.StatusNoContent)
+		is.True(!svc.deletedAll)
+		is.Equal(svc.deletedIn, []string{testNamespaceID})
+	}
 }

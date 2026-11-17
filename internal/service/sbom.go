@@ -62,17 +62,24 @@ type IngestParams struct {
 type SBOMService interface {
 	Ingest(ctx context.Context, bom *cdx.BOM, rawJSON []byte, params IngestParams) (pgtype.UUID, error)
 	DeleteSBOM(ctx context.Context, id pgtype.UUID) error
+	// DeleteArtifact removes an artifact and every SBOM under it, in every
+	// namespace. Only an installation admin may reach it.
 	DeleteArtifact(ctx context.Context, id pgtype.UUID) error
+	// DeleteArtifactFromNamespaces removes the artifact from the given
+	// namespaces only: their SBOMs of it and their links to it. The artifact row
+	// goes too once no namespace holds it. Other namespaces' SBOMs of the same
+	// artifact are untouched. Returns ErrNotFound when namespaceIDs is empty.
+	DeleteArtifactFromNamespaces(ctx context.Context, id pgtype.UUID, namespaceIDs []pgtype.UUID) error
 	ListDigestsBySource(ctx context.Context, sourceID string) (map[string]bool, error)
 	// GetSBOMNamespaceID returns the namespace_id for the given SBOM.
 	// Returns a zero UUID (with Valid=false) when the SBOM has no registry association.
 	// Returns ErrNotFound if no SBOM with that ID exists.
 	GetSBOMNamespaceID(ctx context.Context, id pgtype.UUID) (pgtype.UUID, error)
-	// GetArtifactNamespaceID returns one namespace the artifact hangs from —
-	// the authorization anchor a capability check asks its question of.
-	// Returns a zero UUID (with Valid=false) when the artifact hangs from none.
-	// Returns ErrNotFound if no artifact with that ID exists.
-	GetArtifactNamespaceID(ctx context.Context, id pgtype.UUID) (pgtype.UUID, error)
+	// ListArtifactNamespaceIDs returns every namespace the artifact hangs from,
+	// so a capability check can ask its question of each one. Empty when the
+	// artifact hangs from none. Returns ErrNotFound if no artifact with that ID
+	// exists.
+	ListArtifactNamespaceIDs(ctx context.Context, id pgtype.UUID) ([]pgtype.UUID, error)
 }
 
 // DigestValidator validates that a container image digest points to a single
@@ -552,6 +559,55 @@ func (s *sbomService) DeleteArtifact(ctx context.Context, id pgtype.UUID) error 
 	return nil
 }
 
+func (s *sbomService) DeleteArtifactFromNamespaces(ctx context.Context, id pgtype.UUID, namespaceIDs []pgtype.UUID) error {
+	if len(namespaceIDs) == 0 {
+		return ErrNotFound
+	}
+	tx, err := s.pool.Begin(ctx)
+	if err != nil {
+		return fmt.Errorf("beginning transaction: %w", err)
+	}
+	defer tx.Rollback(ctx) //nolint:errcheck // rollback on committed tx is a no-op
+
+	q := repository.New(tx)
+
+	// Tombstone the scan jobs before their SBOMs go (ADR-0053 S6).
+	if _, err := q.PruneScanJobsForArtifactInNamespaces(ctx, repository.PruneScanJobsForArtifactInNamespacesParams{
+		ArtifactID: id, NamespaceIds: namespaceIDs,
+	}); err != nil {
+		return fmt.Errorf("tombstoning scan jobs: %w", err)
+	}
+	sbomIDs, err := q.DeleteArtifactSBOMsInNamespaces(ctx, repository.DeleteArtifactSBOMsInNamespacesParams{
+		ArtifactID: id, NamespaceIds: namespaceIDs,
+	})
+	if err != nil {
+		return fmt.Errorf("deleting artifact sboms: %w", err)
+	}
+	if err := q.UnlinkArtifactNamespaces(ctx, repository.UnlinkArtifactNamespacesParams{
+		ArtifactID: id, NamespaceIds: namespaceIDs,
+	}); err != nil {
+		return fmt.Errorf("unlinking artifact namespaces: %w", err)
+	}
+	artifactRows, err := q.DeleteArtifactIfUnused(ctx, id)
+	if err != nil {
+		return fmt.Errorf("deleting artifact: %w", err)
+	}
+
+	if err := tx.Commit(ctx); err != nil {
+		return fmt.Errorf("committing transaction: %w", err)
+	}
+
+	if s.publisher != nil {
+		for _, sbomID := range sbomIDs {
+			s.publisher.Publish(ctx, event.SBOMDeleted, event.SBOMDeletedData{SBOMID: sbomID})
+		}
+		if artifactRows > 0 {
+			s.publisher.Publish(ctx, event.ArtifactDeleted, event.ArtifactDeletedData{ArtifactID: id})
+		}
+	}
+	return nil
+}
+
 // ListDigestsBySource returns the set of SBOM digests already ingested through
 // a source, so a rescan can skip them.
 func (s *sbomService) ListDigestsBySource(ctx context.Context, sourceID string) (map[string]bool, error) {
@@ -582,19 +638,16 @@ func (s *sbomService) GetSBOMNamespaceID(ctx context.Context, id pgtype.UUID) (p
 	return row.NamespaceID, nil
 }
 
-func (s *sbomService) GetArtifactNamespaceID(ctx context.Context, id pgtype.UUID) (pgtype.UUID, error) {
+func (s *sbomService) ListArtifactNamespaceIDs(ctx context.Context, id pgtype.UUID) ([]pgtype.UUID, error) {
 	q := repository.New(s.pool)
 	if _, err := q.GetArtifact(ctx, id); err != nil {
-		return pgtype.UUID{}, ErrNotFound
+		return nil, ErrNotFound
 	}
-	namespaceID, err := q.GetArtifactNamespaceID(ctx, id)
-	if errors.Is(err, pgx.ErrNoRows) {
-		return pgtype.UUID{}, nil
-	}
+	ids, err := q.ListArtifactNamespaceIDs(ctx, id)
 	if err != nil {
-		return pgtype.UUID{}, fmt.Errorf("looking up artifact namespace: %w", err)
+		return nil, fmt.Errorf("listing artifact namespaces: %w", err)
 	}
-	return namespaceID, nil
+	return ids, nil
 }
 
 // Ensure *Queries satisfies the SBOMRepository and ArtifactRepository interfaces.

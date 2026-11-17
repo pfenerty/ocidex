@@ -683,6 +683,31 @@ func (q *Queries) PruneScanJobsForArtifact(ctx context.Context, artifactID pgtyp
 	return result.RowsAffected(), nil
 }
 
+const pruneScanJobsForArtifactInNamespaces = `-- name: PruneScanJobsForArtifactInNamespaces :execrows
+UPDATE scan_jobs j
+SET state = 'pruned', finished_at = now()
+FROM sbom s
+WHERE s.artifact_id = $1::uuid
+  AND s.namespace_id = ANY ($2::uuid[])
+  AND COALESCE(j.cluster_id, j.registry_id) = s.source_id
+  AND j.digest = s.digest
+  AND j.state = 'succeeded'
+`
+
+type PruneScanJobsForArtifactInNamespacesParams struct {
+	ArtifactID   pgtype.UUID   `json:"artifact_id"`
+	NamespaceIds []pgtype.UUID `json:"namespace_ids"`
+}
+
+// PruneScanJobsForArtifact restricted to the SBOMs in the given namespaces.
+func (q *Queries) PruneScanJobsForArtifactInNamespaces(ctx context.Context, arg PruneScanJobsForArtifactInNamespacesParams) (int64, error) {
+	result, err := q.db.Exec(ctx, pruneScanJobsForArtifactInNamespaces, arg.ArtifactID, arg.NamespaceIds)
+	if err != nil {
+		return 0, err
+	}
+	return result.RowsAffected(), nil
+}
+
 const pruneScanJobsForSBOM = `-- name: PruneScanJobsForSBOM :execrows
 UPDATE scan_jobs j
 SET state = 'pruned', finished_at = now()
