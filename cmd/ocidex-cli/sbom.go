@@ -36,17 +36,19 @@ func newSBOMCmd(cfg *rootConfig) *cobra.Command {
 
 // pushOpts mirrors the ingest query parameters the CLI exposes.
 type pushOpts struct {
-	source       string
-	artifactFile string
-	digest       string
-	subjectType  string
-	subjectName  string
-	subjectGroup string
-	subjectPurl  string
-	version      string
-	versionFile  string
-	arch         string
-	archFile     string
+	source        string
+	artifactFile  string
+	digest        string
+	subjectType   string
+	subjectName   string
+	subjectGroup  string
+	subjectPurl   string
+	version       string
+	versionFile   string
+	arch          string
+	archFile      string
+	buildDate     string
+	buildDateFile string
 }
 
 func newSBOMPushCmd(cfg *rootConfig) *cobra.Command {
@@ -74,7 +76,14 @@ key in ~/.config/ocidex/config.yaml.`,
     --subject-name ocidex \
     --subject-purl pkg:golang/github.com/pfenerty/ocidex@v1.2.3 \
     --version v1.2.3 \
-    --arch amd64`,
+    --arch amd64
+
+  # A container image whose SBOM carries no org.opencontainers.image.created label
+  ocidex-cli sbom push ./image.cdx.json \
+    --source myorg/ci \
+    --version v1.2.3 \
+    --arch amd64 \
+    --build-date 2026-11-14T09:30:00Z`,
 		Args: cobra.ExactArgs(1),
 		RunE: func(cmd *cobra.Command, args []string) error {
 			return runSBOMPush(cmd, cfg, o, args[0])
@@ -94,6 +103,10 @@ key in ~/.config/ocidex/config.yaml.`,
 	// push is not necessarily the machine the artifact was built for, and a
 	// wrong architecture is worse than an absent one.
 	f.StringVar(&o.arch, "arch", "", "architecture the artifact was built for, e.g. amd64")
+	// Container SBOMs need a build date. The server reads it from the image's
+	// org.opencontainers.image.created label when there is one; this flag is
+	// for images built without it (ocidex-tge0).
+	f.StringVar(&o.buildDate, "build-date", "", "when the artifact was built: RFC 3339 or YYYY-MM-DD")
 	// The --*-file variants exist for pipelines that split "work out the value"
 	// from "do the push" across two containers. OCIDex's own sbom-push task is
 	// the case in point: the step that derives the version from the git ref has
@@ -102,16 +115,19 @@ key in ~/.config/ocidex/config.yaml.`,
 	// channel between them (ocidex-2u7y).
 	f.StringVar(&o.versionFile, "version-file", "", "read --version from this file")
 	f.StringVar(&o.archFile, "arch-file", "", "read --arch from this file")
+	f.StringVar(&o.buildDateFile, "build-date-file", "", "read --build-date from this file")
 
 	cmd.MarkFlagsMutuallyExclusive("artifact-file", "digest")
 	cmd.MarkFlagsMutuallyExclusive("version", "version-file")
 	cmd.MarkFlagsMutuallyExclusive("arch", "arch-file")
+	cmd.MarkFlagsMutuallyExclusive("build-date", "build-date-file")
 
 	return cmd
 }
 
-// resolveFileFlags folds --version-file and --arch-file into their literal
-// counterparts. Cobra has already rejected passing both forms of either pair.
+// resolveFileFlags folds --version-file, --arch-file and --build-date-file into
+// their literal counterparts. Cobra has already rejected passing both forms of
+// any pair.
 //
 // A missing or blank file is an error rather than a silently omitted value: the
 // caller asked for the value to come from that file, and a push that quietly
@@ -124,6 +140,7 @@ func (o *pushOpts) resolveFileFlags() error {
 	}{
 		{"--version-file", o.versionFile, &o.version},
 		{"--arch-file", o.archFile, &o.arch},
+		{"--build-date-file", o.buildDateFile, &o.buildDate},
 	} {
 		if f.path == "" {
 			continue
@@ -146,6 +163,9 @@ func runSBOMPush(cmd *cobra.Command, cfg *rootConfig, o *pushOpts, sbomPath stri
 		return err
 	}
 	if err := o.resolveFileFlags(); err != nil {
+		return err
+	}
+	if err := validateBuildDate(o.buildDate); err != nil {
 		return err
 	}
 
@@ -177,6 +197,7 @@ func runSBOMPush(cmd *cobra.Command, cfg *rootConfig, o *pushOpts, sbomPath stri
 		SubjectGroup: optional(o.subjectGroup),
 		SubjectPurl:  optional(o.subjectPurl),
 		Architecture: optional(o.arch),
+		BuildDate:    optional(o.buildDate),
 		Digest:       optional(digest),
 	})
 	if err != nil {
@@ -323,6 +344,22 @@ func validateSource(source string) error {
 		return usagef("--source must be a UUID or <namespace>/<name>")
 	}
 	return nil
+}
+
+// validateBuildDate rejects a build date the server could not use. The server
+// stores the value as text and casts it to a timestamp when it reads it back,
+// so a malformed date would be accepted at ingest and break later.
+func validateBuildDate(date string) error {
+	if date == "" {
+		return nil
+	}
+	if _, err := time.Parse(time.RFC3339, date); err == nil {
+		return nil
+	}
+	if _, err := time.Parse(time.DateOnly, date); err == nil {
+		return nil
+	}
+	return usagef("--build-date must be an RFC 3339 timestamp or YYYY-MM-DD, got %q", date)
 }
 
 // fileDigest returns the sha256 of the artifact file, prefixed the way the
