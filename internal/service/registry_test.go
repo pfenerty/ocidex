@@ -760,35 +760,91 @@ func (c *countingListService) List(ctx context.Context, f VisibilityFilter) ([]R
 	return c.fakeListRegistryService.List(ctx, f)
 }
 
-func TestBuildCredentialLookup_MatchingHost(t *testing.T) {
-	is := is.New(t)
-	user := "admin"
-	token := "secret123"
-	svc := &fakeListRegistryService{
-		registries: []Registry{
-			{URL: "https://registry.example.com", AuthUsername: &user, AuthToken: &token},
-		},
+// Two namespaces register the same host with different tokens.
+var (
+	credNSA  = "00000000-0000-0000-0000-0000000000a1"
+	credNSB  = "00000000-0000-0000-0000-0000000000b1"
+	credRegA = pgtype.UUID{Bytes: [16]byte{0xa}, Valid: true}
+	credRegB = pgtype.UUID{Bytes: [16]byte{0xb}, Valid: true}
+)
+
+func credRegistries() []Registry {
+	userA, tokA := "a", "token-a"
+	userB, tokB := "b", "token-b"
+	return []Registry{
+		// B's registry first, so a host-keyed or first-match lookup would pick it.
+		{ID: uuidToStr(credRegB), NamespaceID: credNSB, Enabled: true, URL: "https://ghcr.io", AuthUsername: &userB, AuthToken: &tokB},
+		{ID: uuidToStr(credRegA), NamespaceID: credNSA, Enabled: true, URL: "https://ghcr.io", AuthUsername: &userA, AuthToken: &tokA},
 	}
-	lookup := BuildCredentialLookup(svc)
-
-	u, tk := lookup(context.Background(), "registry.example.com")
-
-	is.Equal(u, user)
-	is.Equal(tk, token)
 }
 
-func TestBuildCredentialLookup_NoMatch(t *testing.T) {
+// sourcesIn answers every source lookup with the given namespace and kind.
+func sourcesIn(namespaceID, kind string) SourceLookup {
+	return func(context.Context, pgtype.UUID) (string, string, error) { return namespaceID, kind, nil }
+}
+
+func TestBuildCredentialLookup_RegistrySourceUsesOwnRegistry(t *testing.T) {
 	is := is.New(t)
-	token := "secret"
-	svc := &fakeListRegistryService{
-		registries: []Registry{
-			{URL: "https://other.example.com", AuthToken: &token},
-		},
-	}
-	lookup := BuildCredentialLookup(svc)
+	lookup := BuildCredentialLookup(&fakeListRegistryService{registries: credRegistries()}, sourcesIn("", ""))
 
-	u, tk := lookup(context.Background(), "registry.example.com")
+	u, tk := lookup(context.Background(), credRegA, "ghcr.io")
+	is.Equal(u, "a")
+	is.Equal(tk, "token-a")
 
+	// Its own registry's credentials are for its own host only.
+	u, tk = lookup(context.Background(), credRegA, "quay.io")
+	is.Equal(u, "")
+	is.Equal(tk, "")
+}
+
+// An uploaded SBOM naming another tenant's image pulls anonymously, even with a
+// registry for that host in its own or another namespace.
+func TestBuildCredentialLookup_UploadSourceIsAnonymous(t *testing.T) {
+	is := is.New(t)
+	upload := pgtype.UUID{Bytes: [16]byte{0xc}, Valid: true}
+	lookup := BuildCredentialLookup(&fakeListRegistryService{registries: credRegistries()},
+		sourcesIn(credNSA, SourceKindUpload))
+
+	u, tk := lookup(context.Background(), upload, "ghcr.io")
+	is.Equal(u, "")
+	is.Equal(tk, "")
+}
+
+// A cluster-attributed SBOM uses the registry in the cluster's namespace that
+// pulled it, never another namespace's registry for the same host.
+func TestBuildCredentialLookup_ClusterSourceStaysInNamespace(t *testing.T) {
+	is := is.New(t)
+	cluster := pgtype.UUID{Bytes: [16]byte{0xd}, Valid: true}
+	regs := credRegistries()
+
+	u, tk := BuildCredentialLookup(&fakeListRegistryService{registries: regs},
+		sourcesIn(credNSA, SourceKindCluster))(context.Background(), cluster, "ghcr.io")
+	is.Equal(u, "a")
+	is.Equal(tk, "token-a")
+
+	// Its namespace has no registry for the host: anonymous, not B's.
+	u, tk = BuildCredentialLookup(&fakeListRegistryService{registries: regs[:1]},
+		sourcesIn(credNSA, SourceKindCluster))(context.Background(), cluster, "ghcr.io")
+	is.Equal(u, "")
+	is.Equal(tk, "")
+}
+
+func TestBuildCredentialLookup_NoSourceIsAnonymous(t *testing.T) {
+	is := is.New(t)
+	lookup := BuildCredentialLookup(&fakeListRegistryService{registries: credRegistries()},
+		sourcesIn(credNSA, SourceKindCluster))
+	u, tk := lookup(context.Background(), pgtype.UUID{}, "ghcr.io")
+	is.Equal(u, "")
+	is.Equal(tk, "")
+}
+
+func TestBuildCredentialLookup_NoAuthToken(t *testing.T) {
+	is := is.New(t)
+	reg := pgtype.UUID{Bytes: [16]byte{1}, Valid: true}
+	svc := &fakeListRegistryService{registries: []Registry{
+		{ID: uuidToStr(reg), URL: "https://registry.example.com"}, // no token
+	}}
+	u, tk := BuildCredentialLookup(svc, sourcesIn("", ""))(context.Background(), reg, "registry.example.com")
 	is.Equal(u, "")
 	is.Equal(tk, "")
 }
@@ -796,18 +852,15 @@ func TestBuildCredentialLookup_NoMatch(t *testing.T) {
 func TestBuildCredentialLookup_CachesResults(t *testing.T) {
 	is := is.New(t)
 	callCount := 0
-	token := "tok"
 	svc := &countingListService{
-		fakeListRegistryService: fakeListRegistryService{registries: []Registry{
-			{URL: "https://registry.example.com", AuthToken: &token},
-		}},
-		onList: func() { callCount++ },
+		fakeListRegistryService: fakeListRegistryService{registries: credRegistries()},
+		onList:                  func() { callCount++ },
 	}
-	lookup := BuildCredentialLookup(svc)
+	lookup := BuildCredentialLookup(svc, sourcesIn("", ""))
 	ctx := context.Background()
 
-	lookup(ctx, "registry.example.com")
-	lookup(ctx, "registry.example.com")
+	lookup(ctx, credRegA, "ghcr.io")
+	lookup(ctx, credRegA, "ghcr.io")
 
 	is.Equal(callCount, 1)
 }
@@ -1108,21 +1161,6 @@ func TestBuildInsecureHostLookup_CachesResults(t *testing.T) {
 	lookup(ctx, "insecure.example.com")
 
 	is.Equal(callCount, 1)
-}
-
-func TestBuildCredentialLookup_NoAuthToken(t *testing.T) {
-	is := is.New(t)
-	svc := &fakeListRegistryService{
-		registries: []Registry{
-			{URL: "https://registry.example.com"}, // no token
-		},
-	}
-	lookup := BuildCredentialLookup(svc)
-
-	u, tk := lookup(context.Background(), "registry.example.com")
-
-	is.Equal(u, "")
-	is.Equal(tk, "")
 }
 
 // ---------------------------------------------------------------------------

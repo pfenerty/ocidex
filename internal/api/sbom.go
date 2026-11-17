@@ -9,6 +9,7 @@ import (
 
 	cdx "github.com/CycloneDX/cyclonedx-go"
 	"github.com/danielgtaylor/huma/v2"
+	"github.com/jackc/pgx/v5/pgtype"
 
 	"github.com/pfenerty/ocidex/internal/authz"
 	"github.com/pfenerty/ocidex/internal/service"
@@ -137,10 +138,37 @@ func (h *Handler) DeleteArtifact(ctx context.Context, input *DeleteArtifactInput
 		return nil, err
 	}
 
-	if err := h.sbomService.DeleteArtifact(ctx, id); err != nil {
-		return nil, mapServiceError(err)
+	user, ok := UserFromContext(ctx)
+	if !ok {
+		return nil, huma.Error401Unauthorized("not authenticated")
 	}
 
+	// An admin removes the artifact everywhere. Anyone else removes it only from
+	// the namespaces where they hold delete_artifact: the artifact is shared by
+	// name, and other namespaces' SBOMs of it are not theirs to delete.
+	if user.Role == roleAdmin && user.KeyAllows(authz.CapDeleteArtifact) {
+		if err := h.sbomService.DeleteArtifact(ctx, id); err != nil {
+			return nil, mapServiceError(err)
+		}
+		return nil, nil
+	}
+
+	all, err := h.sbomService.ListArtifactNamespaceIDs(ctx, id)
+	if err != nil {
+		return nil, mapServiceError(err)
+	}
+	var mine []pgtype.UUID
+	for _, ns := range all {
+		if can(user, uuidToStr(ns), authz.CapDeleteArtifact) {
+			mine = append(mine, ns)
+		}
+	}
+	if len(mine) == 0 {
+		return nil, huma.Error403Forbidden("forbidden")
+	}
+	if err := h.sbomService.DeleteArtifactFromNamespaces(ctx, id, mine); err != nil {
+		return nil, mapServiceError(err)
+	}
 	return nil, nil
 }
 

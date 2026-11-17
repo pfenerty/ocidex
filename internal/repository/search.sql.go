@@ -343,12 +343,19 @@ func (q *Queries) GetSBOM(ctx context.Context, id pgtype.UUID) (GetSBOMRow, erro
 	return i, err
 }
 
-const getSBOMByDigest = `-- name: GetSBOMByDigest :one
-SELECT id FROM sbom WHERE digest = $1
+const getSBOMByNamespaceDigest = `-- name: GetSBOMByNamespaceDigest :one
+SELECT id FROM sbom WHERE namespace_id = $1::uuid AND digest = $2::text
 `
 
-func (q *Queries) GetSBOMByDigest(ctx context.Context, digest pgtype.Text) (pgtype.UUID, error) {
-	row := q.db.QueryRow(ctx, getSBOMByDigest, digest)
+type GetSBOMByNamespaceDigestParams struct {
+	NamespaceID pgtype.UUID `json:"namespace_id"`
+	Digest      string      `json:"digest"`
+}
+
+// Ingest's idempotency check. Scoped to the ingesting namespace: another
+// namespace's SBOM for the same digest is never returned or reused.
+func (q *Queries) GetSBOMByNamespaceDigest(ctx context.Context, arg GetSBOMByNamespaceDigestParams) (pgtype.UUID, error) {
+	row := q.db.QueryRow(ctx, getSBOMByNamespaceDigest, arg.NamespaceID, arg.Digest)
 	var id pgtype.UUID
 	err := row.Scan(&id)
 	return id, err

@@ -62,17 +62,24 @@ type IngestParams struct {
 type SBOMService interface {
 	Ingest(ctx context.Context, bom *cdx.BOM, rawJSON []byte, params IngestParams) (pgtype.UUID, error)
 	DeleteSBOM(ctx context.Context, id pgtype.UUID) error
+	// DeleteArtifact removes an artifact and every SBOM under it, in every
+	// namespace. Only an installation admin may reach it.
 	DeleteArtifact(ctx context.Context, id pgtype.UUID) error
+	// DeleteArtifactFromNamespaces removes the artifact from the given
+	// namespaces only: their SBOMs of it and their links to it. The artifact row
+	// goes too once no namespace holds it. Other namespaces' SBOMs of the same
+	// artifact are untouched. Returns ErrNotFound when namespaceIDs is empty.
+	DeleteArtifactFromNamespaces(ctx context.Context, id pgtype.UUID, namespaceIDs []pgtype.UUID) error
 	ListDigestsBySource(ctx context.Context, sourceID string) (map[string]bool, error)
 	// GetSBOMNamespaceID returns the namespace_id for the given SBOM.
 	// Returns a zero UUID (with Valid=false) when the SBOM has no registry association.
 	// Returns ErrNotFound if no SBOM with that ID exists.
 	GetSBOMNamespaceID(ctx context.Context, id pgtype.UUID) (pgtype.UUID, error)
-	// GetArtifactNamespaceID returns one namespace the artifact hangs from —
-	// the authorization anchor a capability check asks its question of.
-	// Returns a zero UUID (with Valid=false) when the artifact hangs from none.
-	// Returns ErrNotFound if no artifact with that ID exists.
-	GetArtifactNamespaceID(ctx context.Context, id pgtype.UUID) (pgtype.UUID, error)
+	// ListArtifactNamespaceIDs returns every namespace the artifact hangs from,
+	// so a capability check can ask its question of each one. Empty when the
+	// artifact hangs from none. Returns ErrNotFound if no artifact with that ID
+	// exists.
+	ListArtifactNamespaceIDs(ctx context.Context, id pgtype.UUID) ([]pgtype.UUID, error)
 }
 
 // DigestValidator validates that a container image digest points to a single
@@ -144,7 +151,7 @@ func resolveSubjectIdentity(bom *cdx.BOM, params IngestParams) subjectIdentity {
 
 // resolveArtifact extracts artifact identity from the BOM metadata and upserts
 // the artifact row. It returns the artifact ID, subject version, and image digest.
-func resolveArtifact(ctx context.Context, q *repository.Queries, bom *cdx.BOM, params IngestParams) (artifactInfo, error) {
+func resolveArtifact(ctx context.Context, q *repository.Queries, namespaceID pgtype.UUID, bom *cdx.BOM, params IngestParams) (artifactInfo, error) {
 	// A BOM with no subject component and no declared identity yields no
 	// artifact, as before.
 	hasSubjectComponent := bom.Metadata != nil && bom.Metadata.Component != nil
@@ -190,11 +197,12 @@ func resolveArtifact(ctx context.Context, q *repository.Queries, bom *cdx.BOM, p
 	}
 
 	artifactID, err := ensureArtifact(ctx, q, repository.UpsertArtifactParams{
-		Type:      subj.typ,
-		Name:      name,
-		GroupName: textOrNull(subj.group),
-		Purl:      textOrNull(subj.purl),
-		Cpe:       textOrNull(subj.cpe),
+		Type:        subj.typ,
+		Name:        name,
+		GroupName:   textOrNull(subj.group),
+		Purl:        textOrNull(subj.purl),
+		Cpe:         textOrNull(subj.cpe),
+		NamespaceID: namespaceID,
 	})
 	if err != nil {
 		return artifactInfo{}, err
@@ -209,7 +217,10 @@ func resolveArtifact(ctx context.Context, q *repository.Queries, bom *cdx.BOM, p
 }
 
 // ensureArtifact returns the artifact's id, writing only when it is new or the
-// ingest would change its purl or cpe. UpsertArtifact row-locks the artifact
+// ingest would change its purl or cpe. A change is applied only for an ingest
+// into a namespace that already holds the artifact (p.NamespaceID): the row is
+// shared by name, and a namespace that merely shares the name must not rewrite
+// the identity other namespaces match and look up vulnerabilities by. UpsertArtifact row-locks the artifact
 // until the ingest commits even when it changes nothing, so concurrent ingests
 // of one image (a multi-arch push) would queue behind each other on it
 // (ocidex-q1ni). The read takes no lock; the upsert stays the fallback, and
@@ -225,10 +236,24 @@ func ensureArtifact(ctx context.Context, q *repository.Queries, p repository.Ups
 		return pgtype.UUID{}, fmt.Errorf("looking up artifact: %w", err)
 	}
 	id, err := q.UpsertArtifact(ctx, p)
+	if errors.Is(err, pgx.ErrNoRows) {
+		// The artifact exists and this namespace may not change it.
+		return existingArtifactID(ctx, q, p)
+	}
 	if err != nil {
 		return pgtype.UUID{}, fmt.Errorf("upserting artifact: %w", err)
 	}
 	return id, nil
+}
+
+func existingArtifactID(ctx context.Context, q *repository.Queries, p repository.UpsertArtifactParams) (pgtype.UUID, error) {
+	row, err := q.GetArtifactByIdentity(ctx, repository.GetArtifactByIdentityParams{
+		Type: p.Type, Name: p.Name, GroupName: p.GroupName,
+	})
+	if err != nil {
+		return pgtype.UUID{}, fmt.Errorf("looking up artifact: %w", err)
+	}
+	return row.ID, nil
 }
 
 // unchanged reports whether a COALESCE(new, stored) update would leave stored
@@ -247,11 +272,11 @@ func (s *sbomService) Ingest(ctx context.Context, bom *cdx.BOM, rawJSON []byte, 
 
 	// Validate container digests before starting the transaction.
 	// This makes a network call to the registry, so it runs outside the tx.
-	if err := s.validateContainerDigest(ctx, bom); err != nil {
+	if err := s.validateContainerDigest(ctx, bom, params); err != nil {
 		return pgtype.UUID{}, err
 	}
 
-	if existing, ok := s.existingByDigest(ctx, bom, params); ok {
+	if existing, ok := s.existingByDigest(ctx, namespaceID, bom, params); ok {
 		return existing, nil
 	}
 
@@ -269,7 +294,7 @@ func (s *sbomService) Ingest(ctx context.Context, bom *cdx.BOM, rawJSON []byte, 
 
 	q := repository.New(tx)
 
-	info, err := resolveArtifact(ctx, q, bom, params)
+	info, err := resolveArtifact(ctx, q, namespaceID, bom, params)
 	if err != nil {
 		return pgtype.UUID{}, err
 	}
@@ -302,7 +327,7 @@ func (s *sbomService) Ingest(ctx context.Context, bom *cdx.BOM, rawJSON []byte, 
 		IndexDigest:    pgtype.Text{String: params.IndexDigest, Valid: params.IndexDigest != ""},
 	})
 	if err != nil {
-		return pgtype.UUID{}, fmt.Errorf("inserting sbom: %w", err)
+		return pgtype.UUID{}, insertSBOMError(err)
 	}
 
 	slog.InfoContext(ctx, "persisting sbom",
@@ -339,18 +364,33 @@ func (s *sbomService) Ingest(ctx context.Context, bom *cdx.BOM, rawJSON []byte, 
 	return sbomRow.ID, nil
 }
 
-// existingByDigest is ingest's idempotency check: the SBOM already stored for
-// this digest, if any. A declared digest wins — an upload's digest lives nowhere
+// insertSBOMError maps an InsertSBOM failure. A unique violation means the
+// namespace already holds an SBOM with this digest or serial number/version (a
+// concurrent ingest, or the same serial on a different digest): a conflict, not
+// a server error.
+func insertSBOMError(err error) error {
+	if isUniqueViolation(err) {
+		return fmt.Errorf("sbom already stored in this namespace: %w", ErrConflict)
+	}
+	return fmt.Errorf("inserting sbom: %w", err)
+}
+
+// existingByDigest is ingest's idempotency check: the SBOM the ingesting
+// namespace already stored for this digest, if any. Another namespace's SBOM for
+// the same digest is never returned: each namespace keeps its own. A declared
+// digest wins — an upload's digest lives nowhere
 // in the BOM, and missing it here would defer duplicate detection to the UNIQUE
 // index, i.e. until after a full transaction and component decomposition
 // (ADR-040). Lookup errors other than "no rows" are ignored; the UNIQUE index is
 // the backstop.
-func (s *sbomService) existingByDigest(ctx context.Context, bom *cdx.BOM, params IngestParams) (pgtype.UUID, bool) {
+func (s *sbomService) existingByDigest(ctx context.Context, namespaceID pgtype.UUID, bom *cdx.BOM, params IngestParams) (pgtype.UUID, bool) {
 	digest := resolveIngestDigest(bom, params)
-	if digest == "" {
+	if digest == "" || !namespaceID.Valid {
 		return pgtype.UUID{}, false
 	}
-	existing, err := repository.New(s.pool).GetSBOMByDigest(ctx, pgtype.Text{String: digest, Valid: true})
+	existing, err := repository.New(s.pool).GetSBOMByNamespaceDigest(ctx, repository.GetSBOMByNamespaceDigestParams{
+		NamespaceID: namespaceID, Digest: digest,
+	})
 	if err != nil {
 		return pgtype.UUID{}, false
 	}
@@ -552,6 +592,55 @@ func (s *sbomService) DeleteArtifact(ctx context.Context, id pgtype.UUID) error 
 	return nil
 }
 
+func (s *sbomService) DeleteArtifactFromNamespaces(ctx context.Context, id pgtype.UUID, namespaceIDs []pgtype.UUID) error {
+	if len(namespaceIDs) == 0 {
+		return ErrNotFound
+	}
+	tx, err := s.pool.Begin(ctx)
+	if err != nil {
+		return fmt.Errorf("beginning transaction: %w", err)
+	}
+	defer tx.Rollback(ctx) //nolint:errcheck // rollback on committed tx is a no-op
+
+	q := repository.New(tx)
+
+	// Tombstone the scan jobs before their SBOMs go (ADR-0053 S6).
+	if _, err := q.PruneScanJobsForArtifactInNamespaces(ctx, repository.PruneScanJobsForArtifactInNamespacesParams{
+		ArtifactID: id, NamespaceIds: namespaceIDs,
+	}); err != nil {
+		return fmt.Errorf("tombstoning scan jobs: %w", err)
+	}
+	sbomIDs, err := q.DeleteArtifactSBOMsInNamespaces(ctx, repository.DeleteArtifactSBOMsInNamespacesParams{
+		ArtifactID: id, NamespaceIds: namespaceIDs,
+	})
+	if err != nil {
+		return fmt.Errorf("deleting artifact sboms: %w", err)
+	}
+	if err := q.UnlinkArtifactNamespaces(ctx, repository.UnlinkArtifactNamespacesParams{
+		ArtifactID: id, NamespaceIds: namespaceIDs,
+	}); err != nil {
+		return fmt.Errorf("unlinking artifact namespaces: %w", err)
+	}
+	artifactRows, err := q.DeleteArtifactIfUnused(ctx, id)
+	if err != nil {
+		return fmt.Errorf("deleting artifact: %w", err)
+	}
+
+	if err := tx.Commit(ctx); err != nil {
+		return fmt.Errorf("committing transaction: %w", err)
+	}
+
+	if s.publisher != nil {
+		for _, sbomID := range sbomIDs {
+			s.publisher.Publish(ctx, event.SBOMDeleted, event.SBOMDeletedData{SBOMID: sbomID})
+		}
+		if artifactRows > 0 {
+			s.publisher.Publish(ctx, event.ArtifactDeleted, event.ArtifactDeletedData{ArtifactID: id})
+		}
+	}
+	return nil
+}
+
 // ListDigestsBySource returns the set of SBOM digests already ingested through
 // a source, so a rescan can skip them.
 func (s *sbomService) ListDigestsBySource(ctx context.Context, sourceID string) (map[string]bool, error) {
@@ -582,19 +671,16 @@ func (s *sbomService) GetSBOMNamespaceID(ctx context.Context, id pgtype.UUID) (p
 	return row.NamespaceID, nil
 }
 
-func (s *sbomService) GetArtifactNamespaceID(ctx context.Context, id pgtype.UUID) (pgtype.UUID, error) {
+func (s *sbomService) ListArtifactNamespaceIDs(ctx context.Context, id pgtype.UUID) ([]pgtype.UUID, error) {
 	q := repository.New(s.pool)
 	if _, err := q.GetArtifact(ctx, id); err != nil {
-		return pgtype.UUID{}, ErrNotFound
+		return nil, ErrNotFound
 	}
-	namespaceID, err := q.GetArtifactNamespaceID(ctx, id)
-	if errors.Is(err, pgx.ErrNoRows) {
-		return pgtype.UUID{}, nil
-	}
+	ids, err := q.ListArtifactNamespaceIDs(ctx, id)
 	if err != nil {
-		return pgtype.UUID{}, fmt.Errorf("looking up artifact namespace: %w", err)
+		return nil, fmt.Errorf("listing artifact namespaces: %w", err)
 	}
-	return namespaceID, nil
+	return ids, nil
 }
 
 // Ensure *Queries satisfies the SBOMRepository and ArtifactRepository interfaces.

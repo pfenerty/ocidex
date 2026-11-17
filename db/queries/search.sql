@@ -1,5 +1,7 @@
--- name: GetSBOMByDigest :one
-SELECT id FROM sbom WHERE digest = $1;
+-- name: GetSBOMByNamespaceDigest :one
+-- Ingest's idempotency check. Scoped to the ingesting namespace: another
+-- namespace's SBOM for the same digest is never returned or reused.
+SELECT id FROM sbom WHERE namespace_id = @namespace_id::uuid AND digest = @digest::text;
 
 -- name: GetSBOM :one
 -- source_kind comes from the owning source so enrichers can tell an OCI-backed

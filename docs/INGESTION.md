@@ -167,7 +167,7 @@ Each scan re-pulls all image layers — Stereoscope keeps a per-job tmpdir but t
 
 ### Pre-transaction: digest validation
 
-If a `DigestValidator` is configured, container SBOMs are validated against the registry before the transaction begins. Rejects any digest that points to a manifest list (image index) rather than a single image manifest.
+If a `DigestValidator` is configured, container SBOMs are validated against the registry before the transaction begins. A declared `?digest=` wins over the BOM's digest and is the one validated. Rejects a digest the registry does not serve, or one that points to a manifest list (image index) rather than a single image manifest.
 
 ### Idempotency check
 
@@ -175,7 +175,9 @@ If a `DigestValidator` is configured, container SBOMs are validated against the 
 - `metadata.component.name` suffix `@sha256:...`
 - `metadata.component.version` prefix `sha256:`
 
-If a digest is found, `GetSBOMByDigest()` is called. On hit → return the existing SBOM ID. On miss (or error other than `pgx.ErrNoRows`) → proceed. The UNIQUE index on `sbom.digest` is the final backstop.
+If a digest is found, `GetSBOMByNamespaceDigest()` is called with the ingesting namespace. On hit → return the existing SBOM ID. On miss (or error other than `pgx.ErrNoRows`) → proceed. The UNIQUE index on `sbom (namespace_id, digest)` is the final backstop (a violation answers 409).
+
+Dedupe is per namespace (`00093`): two namespaces ingesting the same digest each keep their own SBOM, and ingest never returns another namespace's SBOM ID. Cluster workloads match by digest only against SBOMs in the cluster's own namespace or a public one, preferring the cluster's own (`cluster_sbom_namespace_ids`).
 
 ### `resolveArtifact()`
 

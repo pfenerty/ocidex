@@ -341,6 +341,17 @@ WHERE s.artifact_id = @artifact_id
   AND j.digest = s.digest
   AND j.state = 'succeeded';
 
+-- name: PruneScanJobsForArtifactInNamespaces :execrows
+-- PruneScanJobsForArtifact restricted to the SBOMs in the given namespaces.
+UPDATE scan_jobs j
+SET state = 'pruned', finished_at = now()
+FROM sbom s
+WHERE s.artifact_id = @artifact_id::uuid
+  AND s.namespace_id = ANY (@namespace_ids::uuid[])
+  AND COALESCE(j.cluster_id, j.registry_id) = s.source_id
+  AND j.digest = s.digest
+  AND j.state = 'succeeded';
+
 -- name: CountActiveScanJobs :many
 -- Queue depth for the ocidex.jobs gauge (ADR-0054). Only queued and running
 -- rows, so the partial indexes idx_scan_jobs_queued / idx_scan_jobs_running

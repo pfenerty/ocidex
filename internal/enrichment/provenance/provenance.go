@@ -147,7 +147,7 @@ type Enricher struct {
 	options            []remote.Option
 	insecure           bool
 	insecureResolver   func(ctx context.Context, host string) bool
-	credentialResolver func(ctx context.Context, host string) (username, token string)
+	credentialResolver func(ctx context.Context, sourceID pgtype.UUID, host string) (username, token string)
 	trustResolver      TrustResolver
 	maxLayerBytes      int64
 }
@@ -189,8 +189,9 @@ func WithInsecureResolver(fn func(ctx context.Context, host string) bool) Option
 	return func(e *Enricher) { e.insecureResolver = fn }
 }
 
-// WithCredentialResolver sets a function that resolves registry credentials by hostname.
-func WithCredentialResolver(fn func(ctx context.Context, host string) (username, token string)) Option {
+// WithCredentialResolver sets a function that resolves registry credentials for
+// a host on behalf of the SBOM's source (subject.Ref.RegistryID).
+func WithCredentialResolver(fn func(ctx context.Context, sourceID pgtype.UUID, host string) (username, token string)) Option {
 	return func(e *Enricher) { e.credentialResolver = fn }
 }
 
@@ -280,7 +281,7 @@ func (e *Enricher) Enrich(ctx context.Context, ref subject.Ref) ([]byte, error) 
 		return nil, fmt.Errorf("expected digest reference for %q", imageRef)
 	}
 
-	opts := e.buildRemoteOptions(ctx, host)
+	opts := e.buildRemoteOptions(ctx, ref.RegistryID, host)
 
 	// Confirm the digest still exists before discovering sig/att data. Without
 	// this, a deleted image and a never-signed image are indistinguishable:
@@ -326,13 +327,14 @@ func (e *Enricher) Enrich(ctx context.Context, ref subject.Ref) ([]byte, error) 
 }
 
 // buildRemoteOptions assembles go-containerregistry remote options for host,
-// including per-host credentials (same pattern as internal/enrichment/oci/oci.go).
-func (e *Enricher) buildRemoteOptions(ctx context.Context, host string) []remote.Option {
+// including the source's credentials for it (same pattern as
+// internal/enrichment/oci/oci.go).
+func (e *Enricher) buildRemoteOptions(ctx context.Context, sourceID pgtype.UUID, host string) []remote.Option {
 	opts := make([]remote.Option, 0, len(e.options)+2)
 	opts = append(opts, remote.WithContext(ctx))
 	opts = append(opts, e.options...)
 	if e.credentialResolver != nil {
-		if u, t := e.credentialResolver(ctx, host); u != "" || t != "" {
+		if u, t := e.credentialResolver(ctx, sourceID, host); u != "" || t != "" {
 			opts = append(opts, remote.WithAuth(authn.FromConfig(authn.AuthConfig{
 				Username: u,
 				Password: t,

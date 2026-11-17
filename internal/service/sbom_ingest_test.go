@@ -345,7 +345,7 @@ func TestResolveArtifact_ContainerDigestInName(t *testing.T) {
 		Version: "22.04",
 	}}}
 
-	info, err := resolveArtifact(context.Background(), q, bom, IngestParams{})
+	info, err := resolveArtifact(context.Background(), q, pgtype.UUID{}, bom, IngestParams{})
 	is.NoErr(err)
 	is.Equal(info.artifactID, artifactID)
 	is.Equal(info.digest, pgtype.Text{String: "sha256:abc123", Valid: true})
@@ -373,7 +373,7 @@ func TestResolveArtifact_ContainerDigestInVersion(t *testing.T) {
 		Version: "sha256:deadbeef",
 	}}}
 
-	info, err := resolveArtifact(context.Background(), q, bom, IngestParams{})
+	info, err := resolveArtifact(context.Background(), q, pgtype.UUID{}, bom, IngestParams{})
 	is.NoErr(err)
 	is.Equal(info.digest, pgtype.Text{String: "sha256:deadbeef", Valid: true})
 }
@@ -391,7 +391,7 @@ func TestResolveArtifact_ContainerMissingDigest(t *testing.T) {
 		Version: "22.04",
 	}}}
 
-	_, err := resolveArtifact(context.Background(), q, bom, IngestParams{})
+	_, err := resolveArtifact(context.Background(), q, pgtype.UUID{}, bom, IngestParams{})
 	is.True(err != nil)
 	var ve *ValidationError
 	is.True(errors.As(err, &ve))
@@ -419,7 +419,7 @@ func TestResolveArtifact_NonContainer(t *testing.T) {
 		Version: "1.2.3",
 	}}}
 
-	info, err := resolveArtifact(context.Background(), q, bom, IngestParams{})
+	info, err := resolveArtifact(context.Background(), q, pgtype.UUID{}, bom, IngestParams{})
 	is.NoErr(err)
 	is.Equal(info.artifactID, artifactID)
 	is.True(!info.digest.Valid) // no digest for non-container
@@ -456,7 +456,7 @@ func TestResolveArtifact_ParamsOverrideSubject(t *testing.T) {
 		Name: ".sbom-bins",
 	}}}
 
-	info, err := resolveArtifact(context.Background(), q, bom, IngestParams{
+	info, err := resolveArtifact(context.Background(), q, pgtype.UUID{}, bom, IngestParams{
 		Version:      "v1.2.3",
 		SubjectType:  "application",
 		SubjectName:  "ocidex",
@@ -492,7 +492,7 @@ func TestResolveArtifact_PartialOverrideKeepsBOMFields(t *testing.T) {
 		Version:    "1.2.3",
 	}}}
 
-	_, err := resolveArtifact(context.Background(), q, bom, IngestParams{
+	_, err := resolveArtifact(context.Background(), q, pgtype.UUID{}, bom, IngestParams{
 		SubjectName: "renamed-lib",
 		Digest:      "sha256:feedface",
 	})
@@ -520,7 +520,7 @@ func TestResolveArtifact_ContainerUnaffectedByParams(t *testing.T) {
 		Version: "22.04",
 	}}}
 
-	info, err := resolveArtifact(context.Background(), q, bom, IngestParams{Version: "22.04"})
+	info, err := resolveArtifact(context.Background(), q, pgtype.UUID{}, bom, IngestParams{Version: "22.04"})
 	is.NoErr(err)
 	is.Equal(info.digest, pgtype.Text{String: "sha256:abc123", Valid: true})
 	is.Equal(info.subjectType, "container")
@@ -534,7 +534,7 @@ func TestResolveArtifact_NoSubjectAndNoParams(t *testing.T) {
 	is := is.New(t)
 	q := repository.New(&fakeDB{})
 
-	info, err := resolveArtifact(context.Background(), q, &cdx.BOM{}, IngestParams{})
+	info, err := resolveArtifact(context.Background(), q, pgtype.UUID{}, &cdx.BOM{}, IngestParams{})
 	is.NoErr(err)
 	is.True(!info.artifactID.Valid)
 }
@@ -548,7 +548,7 @@ func TestResolveArtifact_DeclaredIdentityWithoutSubjectComponent(t *testing.T) {
 	var args []any
 	q := repository.New(upsertArtifactRecorder(artifactID, &args))
 
-	info, err := resolveArtifact(context.Background(), q, &cdx.BOM{}, IngestParams{
+	info, err := resolveArtifact(context.Background(), q, pgtype.UUID{}, &cdx.BOM{}, IngestParams{
 		Version:     "v1.2.3",
 		SubjectType: "application",
 		SubjectName: "ocidex",
@@ -1138,7 +1138,7 @@ func TestValidateContainerDigest_NilValidator(t *testing.T) {
 		Type: cdx.ComponentTypeContainer,
 		Name: "docker.io/ubuntu@sha256:abc123",
 	}}}
-	err := svc.validateContainerDigest(context.Background(), bom)
+	err := svc.validateContainerDigest(context.Background(), bom, IngestParams{})
 	is.NoErr(err)
 }
 
@@ -1156,7 +1156,7 @@ func TestValidateContainerDigest_ValidatorSuccess(t *testing.T) {
 		Name:    "docker.io/ubuntu@sha256:abc123",
 		Version: "22.04",
 	}}}
-	err := svc.validateContainerDigest(context.Background(), bom)
+	err := svc.validateContainerDigest(context.Background(), bom, IngestParams{})
 	is.NoErr(err)
 }
 
@@ -1170,9 +1170,42 @@ func TestValidateContainerDigest_ValidatorFailure(t *testing.T) {
 		Type: cdx.ComponentTypeContainer,
 		Name: "docker.io/ubuntu@sha256:abc123",
 	}}}
-	err := svc.validateContainerDigest(context.Background(), bom)
+	err := svc.validateContainerDigest(context.Background(), bom, IngestParams{})
 	var ve *ValidationError
 	is.True(errors.As(err, &ve))
+}
+
+// recordingDigestValidator records the digest it was asked about and fails it
+// when err is set — a registry that lacks the digest.
+type recordingDigestValidator struct {
+	err    error
+	digest string
+}
+
+func (v *recordingDigestValidator) ValidateDigest(_ context.Context, _, digest string) error {
+	v.digest = digest
+	return v.err
+}
+
+// A declared digest is the subject's identity, so it is the one validated
+// against the registry, and one the registry lacks is rejected.
+func TestValidateContainerDigest_DeclaredDigestIsValidated(t *testing.T) {
+	is := is.New(t)
+	v := &recordingDigestValidator{err: errors.New("HEAD: HTTP 404")}
+	svc := &sbomService{digestValidator: v}
+	bom := &cdx.BOM{Metadata: &cdx.Metadata{Component: &cdx.Component{
+		Type: cdx.ComponentTypeContainer,
+		Name: "docker.io/ubuntu",
+	}}}
+	err := svc.validateContainerDigest(context.Background(), bom, IngestParams{Digest: "sha256:declared"})
+	var ve *ValidationError
+	is.True(errors.As(err, &ve))
+	is.Equal(v.digest, "sha256:declared")
+
+	// It also wins over a digest in the BOM.
+	bom.Metadata.Component.Name = "docker.io/ubuntu@sha256:inbom"
+	_ = svc.validateContainerDigest(context.Background(), bom, IngestParams{Digest: "sha256:declared"})
+	is.Equal(v.digest, "sha256:declared")
 }
 
 // TestLinkArtifactNamespace_NilNamespaceID verifies that a nil namespace ID is skipped.

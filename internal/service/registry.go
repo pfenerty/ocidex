@@ -152,9 +152,24 @@ func matchGlob(pattern, s string) bool {
 // over plain HTTP (TLS verification disabled or HTTP-only).
 type HostInsecurityChecker func(ctx context.Context, host string) bool
 
-// HostCredentialLookup returns the (username, token) pair for a hostname, or
-// ("", "") when no credentials are configured for that host.
-type HostCredentialLookup func(ctx context.Context, host string) (username, token string)
+// SourceCredentialLookup returns the (username, token) pair to pull from host on
+// behalf of an SBOM ingested through sourceID, or ("", "") to pull anonymously.
+type SourceCredentialLookup func(ctx context.Context, sourceID pgtype.UUID, host string) (username, token string)
+
+// SourceLookup returns the namespace a source hangs from and its kind
+// (SourceKindOCIRegistry, SourceKindUpload or SourceKindCluster).
+type SourceLookup func(ctx context.Context, sourceID pgtype.UUID) (namespaceID, kind string, err error)
+
+// NewSourceLookup reads a source's namespace and kind from the database.
+func NewSourceLookup(pool dbPool) SourceLookup {
+	return func(ctx context.Context, sourceID pgtype.UUID) (string, string, error) {
+		src, err := repository.New(pool).GetSource(ctx, sourceID)
+		if err != nil {
+			return "", "", err
+		}
+		return uuidToStr(src.NamespaceID), src.Kind, nil
+	}
+}
 
 // registryHost strips the scheme and trailing slash from a registry URL,
 // returning the bare host[:port] used for lookup.
@@ -194,40 +209,76 @@ func BuildInsecureHostLookup(svc RegistryService) HostInsecurityChecker {
 	}
 }
 
-// BuildCredentialLookup returns a HostCredentialLookup that resolves registry
-// credentials by hostname. Results are cached for resolverCacheTTL to avoid a
-// DB round-trip on every OCI pull.
-func BuildCredentialLookup(svc RegistryService) HostCredentialLookup {
-	type creds struct{ username, token string }
+// BuildCredentialLookup returns a SourceCredentialLookup that never crosses a
+// namespace boundary, and lends credentials only to sources that were pulled
+// with them:
+//
+//   - a registry source uses its own registry's credentials, for its own host;
+//   - a cluster source uses the first enabled registry for host in the
+//     cluster's namespace, the registry that pulled it (ADR-0044 K10);
+//   - anything else, an upload above all, pulls anonymously.
+//
+// A registry in another namespace is never consulted, even for the same host:
+// the image name comes from the SBOM, so resolving by host alone would pull
+// with whichever tenant's token matched it.
+//
+// Registries are cached for resolverCacheTTL to avoid a DB round-trip on every
+// OCI pull.
+func BuildCredentialLookup(svc RegistryService, sources SourceLookup) SourceCredentialLookup {
 	var (
 		mu        sync.Mutex
-		cache     map[string]creds
+		cache     []Registry
 		fetchedAt time.Time
 	)
-	return func(ctx context.Context, host string) (string, string) {
+	registries := func(ctx context.Context) []Registry {
 		mu.Lock()
 		defer mu.Unlock()
 		if cache == nil || time.Since(fetchedAt) > resolverCacheTTL {
 			regs, err := svc.List(ctx, VisibilityFilter{IsAdmin: true})
 			if err != nil {
-				return "", ""
+				return nil
 			}
-			cache = make(map[string]creds, len(regs))
-			for _, r := range regs {
-				if r.AuthToken == nil || *r.AuthToken == "" {
-					continue
-				}
-				u := ""
-				if r.AuthUsername != nil {
-					u = *r.AuthUsername
-				}
-				cache[registryHost(r.URL)] = creds{u, *r.AuthToken}
-			}
-			fetchedAt = time.Now()
+			cache, fetchedAt = regs, time.Now()
 		}
-		c := cache[host]
-		return c.username, c.token
+		return cache
 	}
+	return func(ctx context.Context, sourceID pgtype.UUID, host string) (string, string) {
+		if !sourceID.Valid {
+			return "", ""
+		}
+		regs := registries(ctx)
+		src := uuidToStr(sourceID)
+		for _, r := range regs {
+			if r.ID == src {
+				if registryHost(r.URL) != host {
+					return "", ""
+				}
+				return registryCreds(r)
+			}
+		}
+		namespaceID, kind, err := sources(ctx, sourceID)
+		if err != nil || kind != SourceKindCluster || namespaceID == "" {
+			return "", ""
+		}
+		for _, r := range regs {
+			if r.NamespaceID == namespaceID && r.Enabled && registryHost(r.URL) == host {
+				return registryCreds(r)
+			}
+		}
+		return "", ""
+	}
+}
+
+// registryCreds returns a registry's (username, token), empty when it has none.
+func registryCreds(r Registry) (string, string) {
+	if r.AuthToken == nil || *r.AuthToken == "" {
+		return "", ""
+	}
+	u := ""
+	if r.AuthUsername != nil {
+		u = *r.AuthUsername
+	}
+	return u, *r.AuthToken
 }
 
 // BuildTrustLookup returns a resolver that maps a registry ID to its

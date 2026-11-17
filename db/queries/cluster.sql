@@ -127,9 +127,12 @@ WHERE cluster_id = $1 AND last_seen_at < @observed_at;
 -- the column it filters is invisible until someone counts the rows.
 --
 -- Visibility is enforced here, not by the caller: the cluster's namespace must
--- be visible. The matched SBOM is NOT re-filtered — a workload's own cluster
--- being visible is the authorization for seeing what it runs, and hiding the
--- match would report a coverage gap that does not exist.
+-- be visible. The matched SBOM is NOT re-filtered by the viewer — a workload's
+-- own cluster being visible is the authorization for seeing what it runs. It is
+-- filtered by the cluster: every digest match in this file considers only SBOMs
+-- in the cluster's own namespace or a public one
+-- (cluster_sbom_namespace_ids), preferring the cluster's own. Another private
+-- namespace's SBOM for the same digest is never matched.
 SELECT
     sqlc.embed(w),
     s.id            AS sbom_id,
@@ -149,7 +152,8 @@ LEFT JOIN LATERAL (
     FROM sbom s2
     WHERE w.image_digest IS NOT NULL
       AND (s2.digest = w.image_digest OR s2.index_digest = w.image_digest)
-    ORDER BY (s2.digest = w.image_digest) DESC, s2.created_at DESC
+      AND s2.namespace_id IN (SELECT cluster_sbom_namespace_ids(c.namespace_id))
+    ORDER BY (s2.namespace_id = c.namespace_id) DESC, (s2.digest = w.image_digest) DESC, s2.created_at DESC
     LIMIT 1
 ) s ON true
 LEFT JOIN artifact a ON a.id = s.artifact_id
@@ -261,6 +265,7 @@ WITH img AS (
     SELECT
         w.image_ref,
         w.image_digest,
+        c.namespace_id AS cluster_namespace_id,
         COUNT(*)::bigint                      AS workload_count,
         SUM(w.pod_count)::bigint              AS pod_count,
         COUNT(DISTINCT w.k8s_namespace)::bigint AS namespace_count,
@@ -279,7 +284,7 @@ WITH img AS (
             w.workload_name  ILIKE '%' || sqlc.narg('q')::text || '%'
          OR w.container_name ILIKE '%' || sqlc.narg('q')::text || '%'
          OR w.image_ref      ILIKE '%' || sqlc.narg('q')::text || '%'))
-    GROUP BY w.image_ref, w.image_digest
+    GROUP BY w.image_ref, w.image_digest, c.namespace_id
 )
 SELECT
     w.image_ref,
@@ -306,7 +311,8 @@ LEFT JOIN LATERAL (
     FROM sbom s2
     WHERE w.image_digest IS NOT NULL
       AND (s2.digest = w.image_digest OR s2.index_digest = w.image_digest)
-    ORDER BY (s2.digest = w.image_digest) DESC, s2.created_at DESC
+      AND s2.namespace_id IN (SELECT cluster_sbom_namespace_ids(w.cluster_namespace_id))
+    ORDER BY (s2.namespace_id = w.cluster_namespace_id) DESC, (s2.digest = w.image_digest) DESC, s2.created_at DESC
     LIMIT 1
 ) s ON true
 LEFT JOIN artifact a ON a.id = s.artifact_id
@@ -376,7 +382,8 @@ FROM (
         FROM sbom s2
         WHERE w.image_digest IS NOT NULL
           AND (s2.digest = w.image_digest OR s2.index_digest = w.image_digest)
-        ORDER BY (s2.digest = w.image_digest) DESC, s2.created_at DESC
+          AND s2.namespace_id IN (SELECT cluster_sbom_namespace_ids(c.namespace_id))
+        ORDER BY (s2.namespace_id = c.namespace_id) DESC, (s2.digest = w.image_digest) DESC, s2.created_at DESC
         LIMIT 1
     ) s ON true
     CROSS JOIN LATERAL (
@@ -409,7 +416,8 @@ LEFT JOIN LATERAL (
     FROM sbom s2
     WHERE w.image_digest IS NOT NULL
       AND (s2.digest = w.image_digest OR s2.index_digest = w.image_digest)
-    ORDER BY (s2.digest = w.image_digest) DESC, s2.created_at DESC
+      AND s2.namespace_id IN (SELECT cluster_sbom_namespace_ids(c.namespace_id))
+    ORDER BY (s2.namespace_id = c.namespace_id) DESC, (s2.digest = w.image_digest) DESC, s2.created_at DESC
     LIMIT 1
 ) s ON true
 CROSS JOIN LATERAL (
@@ -474,6 +482,7 @@ LEFT JOIN LATERAL (
     SELECT s2.id
     FROM sbom s2
     WHERE (s2.digest = w.image_digest OR s2.index_digest = w.image_digest)
+      AND s2.namespace_id IN (SELECT cluster_sbom_namespace_ids(c.namespace_id))
     LIMIT 1
 ) s ON true
 WHERE w.cluster_id = $1
@@ -505,6 +514,7 @@ LEFT JOIN LATERAL (
     FROM sbom s2
     WHERE w.image_digest IS NOT NULL
       AND (s2.digest = w.image_digest OR s2.index_digest = w.image_digest)
+      AND s2.namespace_id IN (SELECT cluster_sbom_namespace_ids(c.namespace_id))
     LIMIT 1
 ) s ON true
 WHERE w.cluster_id = $1
@@ -536,7 +546,8 @@ WITH running AS (
         FROM sbom s2
         WHERE w.image_digest IS NOT NULL
           AND (s2.digest = w.image_digest OR s2.index_digest = w.image_digest)
-        ORDER BY (s2.digest = w.image_digest) DESC, s2.created_at DESC
+          AND s2.namespace_id IN (SELECT cluster_sbom_namespace_ids(c.namespace_id))
+        ORDER BY (s2.namespace_id = c.namespace_id) DESC, (s2.digest = w.image_digest) DESC, s2.created_at DESC
         LIMIT 1
     ) s ON true
     JOIN component comp ON comp.sbom_id = s.id AND comp.purl IS NOT NULL
@@ -627,7 +638,8 @@ WITH running AS (
         FROM sbom s2
         WHERE w.image_digest IS NOT NULL
           AND (s2.digest = w.image_digest OR s2.index_digest = w.image_digest)
-        ORDER BY (s2.digest = w.image_digest) DESC, s2.created_at DESC
+          AND s2.namespace_id IN (SELECT cluster_sbom_namespace_ids(c.namespace_id))
+        ORDER BY (s2.namespace_id = c.namespace_id) DESC, (s2.digest = w.image_digest) DESC, s2.created_at DESC
         LIMIT 1
     ) s ON true
     JOIN component comp ON comp.sbom_id = s.id AND comp.purl IS NOT NULL
@@ -671,7 +683,8 @@ JOIN LATERAL (
     FROM sbom s2
     WHERE w.image_digest IS NOT NULL
       AND (s2.digest = w.image_digest OR s2.index_digest = w.image_digest)
-    ORDER BY (s2.digest = w.image_digest) DESC, s2.created_at DESC
+      AND s2.namespace_id IN (SELECT cluster_sbom_namespace_ids(c.namespace_id))
+    ORDER BY (s2.namespace_id = c.namespace_id) DESC, (s2.digest = w.image_digest) DESC, s2.created_at DESC
     LIMIT 1
 ) s ON true
 LEFT JOIN artifact a ON a.id = s.artifact_id
@@ -710,7 +723,8 @@ JOIN LATERAL (
     FROM sbom s2
     WHERE w.image_digest IS NOT NULL
       AND (s2.digest = w.image_digest OR s2.index_digest = w.image_digest)
-    ORDER BY (s2.digest = w.image_digest) DESC, s2.created_at DESC
+      AND s2.namespace_id IN (SELECT cluster_sbom_namespace_ids(c.namespace_id))
+    ORDER BY (s2.namespace_id = c.namespace_id) DESC, (s2.digest = w.image_digest) DESC, s2.created_at DESC
     LIMIT 1
 ) s ON true
 LEFT JOIN artifact a ON a.id = s.artifact_id

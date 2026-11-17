@@ -39,24 +39,18 @@ func (h *Handler) sbomNamespace(ctx huma.Context) (pgtype.UUID, error) {
 	return h.sbomService.GetSBOMNamespaceID(ctx.Context(), id)
 }
 
-// artifactNamespace resolves the {id} path param to a namespace the artifact
-// hangs from.
-//
-// An artifact can hang from several namespaces with different members, and this
-// answers with whichever row comes first — which is what the ownership
-// middleware it replaces did with the owner. Asking the question per namespace
-// is ocidex-y0hg.6's job; collapsing it here is carried forward deliberately so
-// that this story changes who is admitted, not how many namespaces are
-// consulted.
-func (h *Handler) artifactNamespace(ctx huma.Context) (pgtype.UUID, error) {
+// artifactNamespaces resolves the {id} path param to every namespace the
+// artifact hangs from. An artifact is shared by name across namespaces with
+// different members, so no single one of them speaks for the others.
+func (h *Handler) artifactNamespaces(ctx huma.Context) ([]pgtype.UUID, error) {
 	if h.sbomService == nil {
-		return pgtype.UUID{}, nil
+		return nil, nil
 	}
 	id, err := parseUUID(ctx.Param("id"))
 	if err != nil {
-		return pgtype.UUID{}, err
+		return nil, err
 	}
-	return h.sbomService.GetArtifactNamespaceID(ctx.Context(), id)
+	return h.sbomService.ListArtifactNamespaceIDs(ctx.Context(), id)
 }
 
 // namespaceParam resolves the {id} path param as a namespace of its own — the
@@ -511,7 +505,7 @@ func registerLicenseOps(api huma.API, h *Handler) {
 // ---------------------------------------------------------------------------
 
 func registerArtifactOps(api huma.API, h *Handler) {
-	deleteArtifactMW := RequireCapability(api, authz.CapDeleteArtifact, h.artifactNamespace)
+	deleteArtifactMW := RequireCapabilityInAny(api, authz.CapDeleteArtifact, h.artifactNamespaces)
 
 	huma.Register(api, huma.Operation{
 		OperationID: "list-artifacts",

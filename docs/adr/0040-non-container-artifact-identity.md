@@ -164,6 +164,14 @@ ADR-019's fallback rule and ADR-041's.
 * Bad, because it splits the ingest path in two: one kind of SBOM that dedups and another
   that does not.
 
+## Amendment — the digest key is per namespace
+
+Migration `00093` replaced the global `sbom.digest` UNIQUE index with
+`UNIQUE (namespace_id, digest)`, and `idx_sbom_serial_version` likewise gained
+`namespace_id`. Everything above still holds within a namespace: re-pushing from CI
+converges on one row. Across namespaces each keeps its own SBOM for a digest, and ingest
+never resolves to another namespace's row.
+
 ## More Information
 
 * ADR-039 — namespace/source model; supplies the owner an uploaded artifact attaches to.

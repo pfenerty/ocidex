@@ -206,6 +206,19 @@ belong to. `authz.Allow(globalRole, memberRole, present, cap)` is the single pla
 two axes meet: an admin short-circuits, a global `viewer` is refused every mutating
 capability regardless of membership, and everyone else is answered by their membership.
 
+### Rule M7 — A shared artifact is acted on per namespace
+
+An `artifact` row is keyed by name and shared by every namespace that ingests under that
+name (`artifact_namespace`), so no single one of those namespaces speaks for the others.
+A capability check on an artifact asks its question of **each** namespace the artifact
+hangs from (`RequireCapabilityInAny`), never of whichever row sorts first, and admission
+only says the caller may act *somewhere* on it. The action is then confined to the
+namespaces where the caller holds the capability: `DELETE /artifacts/{id}` deletes the
+caller's SBOMs of the artifact and the caller's links to it, and removes the artifact row
+only once no namespace holds it. Only an installation admin deletes across every
+namespace. Reads need no rule here: they are row-filtered by `artifact_visible` and the
+SBOM visibility functions (M4).
+
 ### Consequences
 
 * Good, because sharing a namespace is now expressible, and the arrangement most teams
