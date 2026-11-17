@@ -101,6 +101,7 @@ func TestSBOMPush_DeclaredSubject(t *testing.T) {
 		"--subject-purl", "pkg:golang/github.com/pfenerty/ocidex@v1.2.3",
 		"--version", "v1.2.3",
 		"--arch", "amd64",
+		"--build-date", "2026-11-14T09:30:00Z",
 	)
 	is.NoErr(err)
 
@@ -114,6 +115,7 @@ func TestSBOMPush_DeclaredSubject(t *testing.T) {
 	// Architecture is what the sufficiency gate looks for; without it a
 	// non-container SBOM only becomes visible via the relaxed type-aware rule.
 	is.Equal(stub.query.Get("architecture"), "amd64")
+	is.Equal(stub.query.Get("buildDate"), "2026-11-14T09:30:00Z")
 	// The SBOM body goes up untouched.
 	is.Equal(string(stub.body), testSBOM)
 	// The new SBOM's id is printed so CI can capture it.
@@ -133,6 +135,10 @@ func TestSBOMPush_ValueFilesDeclareSubject(t *testing.T) {
 	dir := t.TempDir()
 	versionPath := filepath.Join(dir, ".version")
 	archPath := filepath.Join(dir, ".goarch")
+	buildDatePath := filepath.Join(dir, ".build-date")
+	if err := os.WriteFile(buildDatePath, []byte("2026-11-14T09:30:00Z\n"), 0o600); err != nil {
+		t.Fatal(err)
+	}
 	if err := os.WriteFile(versionPath, []byte("v1.2.3\n"), 0o600); err != nil {
 		t.Fatal(err)
 	}
@@ -148,11 +154,30 @@ func TestSBOMPush_ValueFilesDeclareSubject(t *testing.T) {
 		"--subject-name", "ocidex",
 		"--version-file", versionPath,
 		"--arch-file", archPath,
+		"--build-date-file", buildDatePath,
 	)
 	is.NoErr(err)
 
 	is.Equal(stub.query.Get("version"), "v1.2.3")
 	is.Equal(stub.query.Get("architecture"), "amd64")
+	is.Equal(stub.query.Get("buildDate"), "2026-11-14T09:30:00Z")
+}
+
+// TestSBOMPush_BuildDate covers the build date a container SBOM needs when its
+// image has no org.opencontainers.image.created label (ocidex-tge0). Both an
+// RFC 3339 timestamp and a bare date pass through unchanged.
+func TestSBOMPush_BuildDate(t *testing.T) {
+	sbomPath, _ := writeFiles(t)
+	for _, date := range []string{"2026-11-14T09:30:00Z", "2026-11-14T09:30:00+01:00", "2026-11-14"} {
+		t.Run(date, func(t *testing.T) {
+			is := is.New(t)
+			t.Setenv("OCIDEX_API_KEY", "ocidex_test")
+			stub := newIngestStub(t, 0)
+			_, err := stub.push(sbomPath, "--source", "myorg/ci", "--build-date", date)
+			is.NoErr(err)
+			is.Equal(stub.query.Get("buildDate"), date)
+		})
+	}
 }
 
 // TestSBOMPush_ValidationFailures asserts the CLI exits non-zero rather than
@@ -229,6 +254,23 @@ func TestSBOMPush_ValidationFailures(t *testing.T) {
 			name:   "arch and arch-file together",
 			apiKey: "ocidex_test",
 			args:   []string{sbomPath, "--source", "myorg/ci", "--arch", "amd64", "--arch-file", emptyPath},
+		},
+		{
+			// The server stores the value as text and casts it to a timestamp
+			// later, so a malformed date has to stop here.
+			name:   "build-date not a date",
+			apiKey: "ocidex_test",
+			args:   []string{sbomPath, "--source", "myorg/ci", "--build-date", "last tuesday"},
+		},
+		{
+			name:   "build-date-file blank",
+			apiKey: "ocidex_test",
+			args:   []string{sbomPath, "--source", "myorg/ci", "--build-date-file", emptyPath},
+		},
+		{
+			name:   "build-date and build-date-file together",
+			apiKey: "ocidex_test",
+			args:   []string{sbomPath, "--source", "myorg/ci", "--build-date", "2026-11-14", "--build-date-file", emptyPath},
 		},
 		{
 			name:   "server rejects the request",

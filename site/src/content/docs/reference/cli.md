@@ -667,6 +667,13 @@ Examples:
     --subject-purl pkg:golang/github.com/pfenerty/ocidex@v1.2.3 \
     --version v1.2.3 \
     --arch amd64
+
+  # A container image whose SBOM carries no org.opencontainers.image.created label
+  ocidex-cli sbom push ./image.cdx.json \
+    --source myorg/ci \
+    --version v1.2.3 \
+    --arch amd64 \
+    --build-date 2026-11-14T09:30:00Z
 ```
 
 | Flag | Default | Description |
@@ -674,6 +681,8 @@ Examples:
 | `--arch` |  | architecture the artifact was built for, e.g. amd64 |
 | `--arch-file` |  | read --arch from this file |
 | `--artifact-file` |  | artifact the SBOM describes; its sha256 becomes the digest |
+| `--build-date` |  | when the artifact was built: RFC 3339 or YYYY-MM-DD |
+| `--build-date-file` |  | read --build-date from this file |
 | `--digest` |  | artifact digest, if it is already known (mutually exclusive with --artifact-file) |
 | `--source` |  | ingest source: UUID or &lt;namespace&gt;/&lt;name&gt; (required) |
 | `--subject-group` |  | subject group, e.g. github.com/pfenerty |

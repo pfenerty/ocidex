@@ -31,8 +31,7 @@ type, name and version, and hashes the artifact file for its digest.
 **For a container image**, scan the pushed image by digest, so the SBOM names exactly what's in the
 registry. OCIDex also needs the image's version, architecture and build date. It reads them from
 the image's `org.opencontainers.image.version` and `org.opencontainers.image.created` labels when
-they're set; pass the rest as parameters. The examples below use the API directly for images, so
-they can pass all three.
+they're set; pass the rest with `--version`, `--arch` and `--build-date`.
 
 ## GitHub Actions
 
@@ -86,12 +85,11 @@ jobs:
           image: ghcr.io/acme/myapp@${{ steps.build.outputs.digest }}
           format: cyclonedx-json
           output-file: image.cdx.json
+      - run: go install github.com/pfenerty/ocidex/cmd/ocidex-cli@latest
       - run: |
-          curl -fsS -X POST \
-            "${OCIDEX_URL}/api/v1/sboms?source=acme/ci&version=${GITHUB_REF_NAME}&architecture=amd64&buildDate=$(date -u +%Y-%m-%dT%H:%M:%SZ)" \
-            -H "Authorization: Bearer ${OCIDEX_API_KEY}" \
-            -H "Content-Type: application/octet-stream" \
-            --data-binary @image.cdx.json
+          ocidex-cli sbom push image.cdx.json --source acme/ci \
+            --version "${GITHUB_REF_NAME}" --arch amd64 \
+            --build-date "$(date -u +%Y-%m-%dT%H:%M:%SZ)"
         env:
           OCIDEX_URL: ${{ vars.OCIDEX_URL }}
           OCIDEX_API_KEY: ${{ secrets.OCIDEX_API_KEY }}
