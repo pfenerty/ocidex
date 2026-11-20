@@ -91,7 +91,7 @@ type CreateAPIKeyInput struct {
 		// Capabilities is a ceiling, not a grant: the key can never do more
 		// than its owner's live namespace roles allow. Omitting it asks for
 		// every capability, which resolves to exactly what the owner can do.
-		Capabilities []string `json:"capabilities,omitempty" enum:"read_private,ingest,trigger_scan,push_inventory,delete_artifact,manage_source,manage_cluster,read_secret,manage_member,delete_namespace" doc:"Capabilities this key may exercise, intersected with the owner's live namespace roles. Empty means all of them."`
+		Capabilities []string `json:"capabilities,omitempty" enum:"read_private,ingest,trigger_scan,push_inventory,delete_artifact,manage_source,manage_cluster,read_secret,manage_member,delete_namespace,installation_admin" doc:"Capabilities this key may exercise, intersected with the owner's live namespace roles. Empty means all of them."`
 	}
 }
 

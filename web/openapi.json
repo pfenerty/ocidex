@@ -1546,7 +1546,8 @@
                 "manage_cluster",
                 "read_secret",
                 "manage_member",
-                "delete_namespace"
+                "delete_namespace",
+                "installation_admin"
               ],
               "type": "string"
             },

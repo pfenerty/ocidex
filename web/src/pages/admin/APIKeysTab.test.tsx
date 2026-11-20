@@ -32,6 +32,7 @@ const ALL = [
     "read_secret",
     "manage_member",
     "delete_namespace",
+    "installation_admin",
 ];
 
 function key(name: string, capabilities: string[] | null) {

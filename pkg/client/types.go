@@ -113,16 +113,17 @@ func (e ClusterWorkloadResponseMatchState) Valid() bool {
 
 // Defines values for CreateAPIKeyInputBodyCapabilities.
 const (
-	DeleteArtifact  CreateAPIKeyInputBodyCapabilities = "delete_artifact"
-	DeleteNamespace CreateAPIKeyInputBodyCapabilities = "delete_namespace"
-	Ingest          CreateAPIKeyInputBodyCapabilities = "ingest"
-	ManageCluster   CreateAPIKeyInputBodyCapabilities = "manage_cluster"
-	ManageMember    CreateAPIKeyInputBodyCapabilities = "manage_member"
-	ManageSource    CreateAPIKeyInputBodyCapabilities = "manage_source"
-	PushInventory   CreateAPIKeyInputBodyCapabilities = "push_inventory"
-	ReadPrivate     CreateAPIKeyInputBodyCapabilities = "read_private"
-	ReadSecret      CreateAPIKeyInputBodyCapabilities = "read_secret"
-	TriggerScan     CreateAPIKeyInputBodyCapabilities = "trigger_scan"
+	DeleteArtifact    CreateAPIKeyInputBodyCapabilities = "delete_artifact"
+	DeleteNamespace   CreateAPIKeyInputBodyCapabilities = "delete_namespace"
+	Ingest            CreateAPIKeyInputBodyCapabilities = "ingest"
+	InstallationAdmin CreateAPIKeyInputBodyCapabilities = "installation_admin"
+	ManageCluster     CreateAPIKeyInputBodyCapabilities = "manage_cluster"
+	ManageMember      CreateAPIKeyInputBodyCapabilities = "manage_member"
+	ManageSource      CreateAPIKeyInputBodyCapabilities = "manage_source"
+	PushInventory     CreateAPIKeyInputBodyCapabilities = "push_inventory"
+	ReadPrivate       CreateAPIKeyInputBodyCapabilities = "read_private"
+	ReadSecret        CreateAPIKeyInputBodyCapabilities = "read_secret"
+	TriggerScan       CreateAPIKeyInputBodyCapabilities = "trigger_scan"
 )
 
 // Valid indicates whether the value is a known member of the CreateAPIKeyInputBodyCapabilities enum.
@@ -133,6 +134,8 @@ func (e CreateAPIKeyInputBodyCapabilities) Valid() bool {
 	case DeleteNamespace:
 		return true
 	case Ingest:
+		return true
+	case InstallationAdmin:
 		return true
 	case ManageCluster:
 		return true

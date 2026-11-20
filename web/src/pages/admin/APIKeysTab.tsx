@@ -27,6 +27,7 @@ const CAPABILITIES: Capability[] = [
     "read_secret",
     "manage_member",
     "delete_namespace",
+    "installation_admin",
 ];
 
 /**

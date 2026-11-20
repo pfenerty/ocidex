@@ -18,7 +18,7 @@ type APIKeySpec struct {
 	//
 	// Omitting it asks for every capability, which resolves to exactly what
 	// that user can do.
-	// +kubebuilder:validation:Enum=read_private;ingest;trigger_scan;push_inventory;delete_artifact;manage_source;manage_cluster;read_secret;manage_member;delete_namespace
+	// +kubebuilder:validation:Enum=read_private;ingest;trigger_scan;push_inventory;delete_artifact;manage_source;manage_cluster;read_secret;manage_member;delete_namespace;installation_admin
 	// +optional
 	Capabilities []string `json:"capabilities,omitempty"`
 

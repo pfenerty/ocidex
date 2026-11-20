@@ -176,7 +176,9 @@ func RequireAuthenticated(api huma.API) func(huma.Context, func(huma.Context)) {
 }
 
 // RequireAdmin returns a huma middleware that 401s unauthenticated callers and
-// 403s every caller without the admin role.
+// 403s every caller without the admin role. An admin presenting an API key also
+// needs the key to carry authz.CapInstallationAdmin: the admin role is the owner's, and a
+// key is a ceiling over what its owner may do.
 func RequireAdmin(api huma.API) func(huma.Context, func(huma.Context)) {
 	return func(ctx huma.Context, next func(huma.Context)) {
 		user, ok := UserFromContext(ctx.Context())
@@ -186,6 +188,10 @@ func RequireAdmin(api huma.API) func(huma.Context, func(huma.Context)) {
 		}
 		if user.Role != roleAdmin {
 			_ = huma.WriteErr(api, ctx, http.StatusForbidden, "admin only")
+			return
+		}
+		if !user.KeyAllows(authz.CapInstallationAdmin) {
+			_ = huma.WriteErr(api, ctx, http.StatusForbidden, "API key lacks the installation_admin capability")
 			return
 		}
 		next(ctx)

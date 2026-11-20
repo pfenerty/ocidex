@@ -41,6 +41,7 @@ Generated from `roleCaps` in [`internal/authz/capability.go`](../internal/authz/
 | `read_secret` | ✓ | ✓ |  |  |  |
 | `manage_member` | ✓ |  |  |  |  |
 | `delete_namespace` | ✓ |  |  |  |  |
+| `installation_admin` |  |  |  |  |  |
 
 ## Write scope
 

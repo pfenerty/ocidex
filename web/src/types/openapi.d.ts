@@ -2510,7 +2510,7 @@ export interface components {
              */
             readonly $schema?: string;
             /** @description Capabilities this key may exercise, intersected with the owner's live namespace roles. Empty means all of them. */
-            capabilities?: ("read_private" | "ingest" | "trigger_scan" | "push_inventory" | "delete_artifact" | "manage_source" | "manage_cluster" | "read_secret" | "manage_member" | "delete_namespace")[] | null;
+            capabilities?: ("read_private" | "ingest" | "trigger_scan" | "push_inventory" | "delete_artifact" | "manage_source" | "manage_cluster" | "read_secret" | "manage_member" | "delete_namespace" | "installation_admin")[] | null;
             /** @description Human-readable label for this key */
             name: string;
         };

@@ -46,6 +46,7 @@ Generated from `roleCaps` in [`internal/authz/capability.go`](https://github.com
 | `read_secret` | ✓ | ✓ |  |  |  |
 | `manage_member` | ✓ |  |  |  |  |
 | `delete_namespace` | ✓ |  |  |  |  |
+| `installation_admin` |  |  |  |  |  |
 
 ## Write scope
 

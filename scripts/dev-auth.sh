@@ -124,7 +124,7 @@ PERSONAS=(
 # Postgres array literal. "Everything" is spelled out rather than left empty
 # because api_key.capabilities defaults to '{}', which means a key that can do
 # nothing at all.
-ALL_CAPABILITIES="{read_private,ingest,trigger_scan,push_inventory,delete_artifact,manage_source,manage_cluster,read_secret,manage_member,delete_namespace}"
+ALL_CAPABILITIES="{read_private,ingest,trigger_scan,push_inventory,delete_artifact,manage_source,manage_cluster,read_secret,manage_member,delete_namespace,installation_admin}"
 
 # Mints the five personas, each with a fully-capable and a read-only API key. Keys
 # are hashed exactly as internal/service/auth.go does it — hex(SHA-256(plaintext)),
