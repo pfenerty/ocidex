@@ -73,12 +73,17 @@ rate-limit key. Add `TRUSTED_PROXY_CIDRS` on top when you can.
 
 Registry URLs come from users, so every process that dials them (the API, the scanner and the
 enrichers) checks the resolved address of each connection. By default they refuse private ranges
-(`10/8`, `172.16/12`, `192.168/16`, `100.64/10`, `fc00::/7`), and always refuse loopback,
-link-local (which includes cloud metadata endpoints) and multicast.
+(`10/8`, `172.16/12`, `192.168/16`, `100.64/10`, `198.18/15`, `fc00::/7`, and the NAT64
+local-use prefix `64:ff9b:1::/48`). They always refuse loopback, link-local (which includes cloud
+metadata endpoints), multicast, the reserved and IETF-assigned IPv4 ranges, and Teredo. An IPv6
+address that carries an IPv4 address (IPv4-mapped, NAT64 `64:ff9b::/96`, 6to4 `2002::/16`) is
+judged as that IPv4 address, so a NAT64 gateway on an IPv6-only cluster reaches only what the
+IPv4 rules allow.
 
 To scan a registry inside your cluster or network, allow just its address with
-`egressGuard.allowCidrs`. `egressGuard.allowPrivate: true` opens every private range; pair it with
-`egressGuard.denyCidrs` naming the cluster's service CIDR. The chart sets the same policy on every
+`egressGuard.allowCidrs`. Prefer this to `egressGuard.allowPrivate: true`, which opens every
+private range, including the Kubernetes API, Postgres, NATS and OCIDex's own pods. If you do set
+it, pair it with `egressGuard.denyCidrs` naming the cluster's service and pod CIDRs. The chart sets the same policy on every
 component. `HTTP_PROXY` and `HTTPS_PROXY` are honoured, and then the proxy's address is what's
 checked.
 

@@ -30,12 +30,29 @@ var alwaysDenied = mustPrefixes(
 	"0.0.0.0/8",      // "this network", including the unspecified address
 	"127.0.0.0/8",    // loopback
 	"169.254.0.0/16", // link-local, including cloud metadata at 169.254.169.254
+	"192.0.0.0/24",   // IETF protocol assignments (DS-Lite, NAT64 discovery)
+	"192.88.99.0/24", // deprecated 6to4 relay anycast
 	"224.0.0.0/4",    // multicast
-	"255.255.255.255/32",
+	"240.0.0.0/4",    // reserved, including broadcast
+	// Alibaba Cloud metadata. It sits inside CGNAT, so it is listed here to
+	// stay refused under AllowPrivate.
+	"100.100.100.200/32",
 	"::/128", // unspecified
 	"::1/128",
 	"fe80::/10", // link-local
 	"ff00::/8",  // multicast
+	// Teredo. The client IPv4 it carries is obfuscated and the server address
+	// is arbitrary, so it is refused outright rather than decoded.
+	"2001::/32",
+)
+
+// Translation prefixes whose addresses carry an IPv4 address. Check judges such
+// an address as the IPv4 address it carries, so a NAT64 gateway or 6to4 relay
+// can't be used to reach a refused IPv4 range.
+var (
+	nat64WellKnown = netip.MustParsePrefix("64:ff9b::/96") // RFC 6052: IPv4 in the low 32 bits
+	sixToFour      = netip.MustParsePrefix("2002::/16")    // RFC 3056: IPv4 in bits 16-47
+	v4Compatible   = netip.MustParsePrefix("::/96")        // deprecated IPv4-compatible: low 32 bits
 )
 
 // private are denied unless AllowPrivate is set or an AllowCIDRs entry names
@@ -46,7 +63,13 @@ var private = mustPrefixes(
 	"172.16.0.0/12",
 	"192.168.0.0/16",
 	"100.64.0.0/10", // CGNAT
+	"198.18.0.0/15", // benchmarking, used by some labs as internal space
 	"fc00::/7",      // unique local
+	// NAT64 local-use prefix (RFC 8215). Where the IPv4 sits inside it depends
+	// on the operator's prefix length, so it can't be decoded; it is treated as
+	// private, like the network behind it. Name the operator's prefix in
+	// AllowCIDRs to use it without AllowPrivate.
+	"64:ff9b:1::/48",
 )
 
 // Policy is an egress address policy. The zero value denies loopback,
@@ -62,8 +85,9 @@ type Policy struct {
 }
 
 // Check reports whether ip may be dialed, returning an error wrapping
-// ErrDenied if not. An IPv4-mapped IPv6 address is judged as the IPv4 address
-// it carries.
+// ErrDenied if not. An IPv6 address that carries an IPv4 address (IPv4-mapped,
+// IPv4-compatible, NAT64 well-known prefix, 6to4) is judged as that IPv4
+// address, after the allow and deny lists have had their say on the IPv6 form.
 func (p Policy) Check(ip netip.Addr) error {
 	ip = ip.Unmap()
 	if !ip.IsValid() {
@@ -74,6 +98,12 @@ func (p Policy) Check(ip netip.Addr) error {
 	}
 	if contains(alwaysDenied, ip) || contains(p.DenyCIDRs, ip) {
 		return fmt.Errorf("%w: %s", ErrDenied, ip)
+	}
+	if v4, ok := embeddedIPv4(ip); ok {
+		if err := p.Check(v4); err != nil {
+			return fmt.Errorf("%w (carried by %s)", err, ip)
+		}
+		return nil
 	}
 	if !p.AllowPrivate && contains(private, ip) {
 		return fmt.Errorf("%w: %s is a private address", ErrDenied, ip)
@@ -144,6 +174,21 @@ func ParsePrefixes(cidrs []string) ([]netip.Prefix, error) {
 		out = append(out, pfx.Masked())
 	}
 	return out, nil
+}
+
+// embeddedIPv4 returns the IPv4 address an IPv6 translation address carries.
+func embeddedIPv4(ip netip.Addr) (netip.Addr, bool) {
+	if !ip.Is6() {
+		return netip.Addr{}, false
+	}
+	b := ip.As16()
+	switch {
+	case nat64WellKnown.Contains(ip), v4Compatible.Contains(ip):
+		return netip.AddrFrom4([4]byte(b[12:16])), true
+	case sixToFour.Contains(ip):
+		return netip.AddrFrom4([4]byte(b[2:6])), true
+	}
+	return netip.Addr{}, false
 }
 
 func contains(prefixes []netip.Prefix, ip netip.Addr) bool {
