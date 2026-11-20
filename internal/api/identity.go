@@ -138,6 +138,11 @@ func (h *Handler) StartIdentityLink(ctx context.Context, in *StartIdentityLinkIn
 	if !ok {
 		return nil, huma.Error401Unauthorized("not authenticated")
 	}
+	// Linking adds a way to sign in, and a sign-in is a session with no key
+	// ceiling. A key that could link would hand its holder the whole account.
+	if user.APIKeyAuth {
+		return nil, huma.Error403Forbidden("identities can only be linked from a signed-in session")
+	}
 	r, ok := requestFromContext(ctx)
 	if !ok {
 		return nil, huma.Error500InternalServerError("no request in context")

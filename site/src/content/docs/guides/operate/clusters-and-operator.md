@@ -162,6 +162,11 @@ long-running Deployment, so to run it on a schedule, use the image in your own C
 `OCIRegistry`, `ScanRequest` and `APIKey`. It reconciles them through the OCIDex API. It is
 **alpha**, with no compatibility guarantee.
 
+The operator acts with its own API key, so its capabilities bound what it can do. An
+`APIKey` resource may only ask for capabilities the operator's key holds itself (an empty
+list asks for all of them), and the operator may only delete keys within the same bound.
+Give the operator a key with every capability you want its `APIKey` resources to grant.
+
 ```sh
 kubectl -n ocidex-operator create secret generic ocidex-operator-secrets \
   --from-literal=OCIDEX_API_KEY="$OCIDEX_API_KEY"
