@@ -12,6 +12,7 @@ import { plural, hasText } from "~/utils/format";
 import { groupByArtifact, type ArtifactGroup } from "./grouping";
 import { ArtifactUsageTable } from "./ArtifactUsageTable";
 import { VersionListTable } from "./VersionListTable";
+import { safeHref } from "~/utils/links";
 
 export default function ComponentOverview() {
     const [params] = useSearchParams<{ name: string; group?: string; version?: string }>();
@@ -214,7 +215,7 @@ export default function ComponentOverview() {
                                                 {(registryUrl) => (
                                                     <Button
                                                         as="a"
-                                                        href={registryUrl()}
+                                                        href={safeHref(registryUrl())}
                                                         target="_blank"
                                                         rel="noopener noreferrer"
                                                         size="sm"

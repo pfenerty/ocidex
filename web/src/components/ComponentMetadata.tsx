@@ -10,6 +10,7 @@ import DataTable from "~/components/DataTable";
 import type { Column } from "~/components/DataTable";
 import { SeverityPill, VulnId, SpdxBadgeCell } from "~/components/cells";
 import { hasText } from "~/utils/format";
+import { ExternalAnchor } from "~/components/ui/ExternalAnchor";
 import { noFixLabel } from "~/utils/vuln";
 import { Card, CardHeader, TabBar } from "~/components/ui";
 import type { TabDef } from "~/components/ui";
@@ -76,9 +77,9 @@ const licenseColumns: Column<LicenseSummary>[] = [
         render: (license) => (
             <Show when={license.url} fallback={<span class="text-muted">—</span>}>
                 {(url) => (
-                    <a href={url()} target="_blank" rel="noopener noreferrer" class="text-sm">
+                    <ExternalAnchor url={url()} class="text-sm">
                         {url()}
-                    </a>
+                    </ExternalAnchor>
                 )}
             </Show>
         ),
@@ -106,9 +107,9 @@ const externalRefColumns: Column<ExternalRefEntry>[] = [
     {
         header: "URL",
         render: (ref) => (
-            <a href={ref.url} target="_blank" rel="noopener noreferrer" class="font-mono text-sm">
+            <ExternalAnchor url={ref.url} class="font-mono text-sm">
                 {ref.url}
-            </a>
+            </ExternalAnchor>
         ),
     },
     {

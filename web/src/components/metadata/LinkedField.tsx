@@ -3,6 +3,7 @@ import { Show } from "solid-js";
 import type { JSX } from "solid-js";
 import { ExternalLinkIcon } from "./OciIcons";
 import { friendlyUrlDisplay } from "~/utils/oci";
+import { ExternalAnchor } from "~/components/ui/ExternalAnchor";
 
 export function LinkedField(props: {
     label: string;
@@ -14,16 +15,11 @@ export function LinkedField(props: {
         <div class="detail-field">
             <span class="detail-label">{props.label}</span>
             <span class="detail-value">
-                <a
-                    href={props.url}
-                    target="_blank"
-                    rel="noopener noreferrer"
-                    class="purl-link"
-                >
+                <ExternalAnchor url={props.url} class="purl-link">
                     <Show when={props.icon}>{(icon) => icon()()}</Show>
                     {props.display ?? friendlyUrlDisplay(props.url)}
                     <ExternalLinkIcon />
-                </a>
+                </ExternalAnchor>
             </span>
         </div>
     );

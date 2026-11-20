@@ -6,7 +6,7 @@ import DataTable from "~/components/DataTable";
 import type { Column, SortDir } from "~/components/DataTable";
 import { SigningBadge, TimestampCell } from "~/components/cells";
 import { VulnCountBadges } from "~/components/VulnBadge";
-import { Button, StatusPill } from "~/components/ui";
+import { Button, ExternalAnchor, StatusPill } from "~/components/ui";
 import { StatusChip } from "~/components/ui";
 import { VULN_DATA_STATUS } from "~/utils/status";
 import { buildTime } from "~/utils/format";
@@ -83,13 +83,9 @@ export function VersionsTab(props: {
                             }
                         >
                             {(url) => (
-                                <a
-                                    href={url()}
-                                    target="_blank"
-                                    rel="noopener noreferrer"
-                                >
+                                <ExternalAnchor url={url()}>
                                     <code title={rev()}>{rev().slice(0, 7)}</code>
-                                </a>
+                                </ExternalAnchor>
                             )}
                         </Show>
                     )}

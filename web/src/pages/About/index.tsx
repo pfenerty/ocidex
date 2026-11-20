@@ -5,6 +5,7 @@ import type { Column } from "~/components/DataTable";
 import { DATA_SOURCES, type DataSource } from "./dataSources";
 import { useServerVersion } from "~/api/queries";
 import { formatDateTime } from "~/utils/format";
+import { safeHref } from "~/utils/links";
 
 /**
  * The bundle's license texts. A static file served beside the bundle, not a
@@ -19,7 +20,7 @@ const SOURCE_COLUMNS: Column<DataSource>[] = [
         render: (src) => (
             <Show when={src.url} fallback={src.name}>
                 {(url) => (
-                    <a href={url()} target="_blank" rel="noopener">
+                    <a href={safeHref(url())} target="_blank" rel="noopener">
                         {src.name}
                     </a>
                 )}

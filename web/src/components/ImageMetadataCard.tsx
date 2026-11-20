@@ -17,6 +17,7 @@ import {
 import { LinkedField } from "./metadata/LinkedField";
 import { AnnotationsSection } from "./metadata/AnnotationsSection";
 import { Card, CardHeader } from "~/components/ui";
+import { safeHref } from "~/utils/links";
 
 export default function ImageMetadataCard(props: {
     metadata: OCIMetadata;
@@ -137,7 +138,7 @@ export default function ImageMetadataCard(props: {
                                 >
                                     {(rUrl) => (
                                         <a
-                                            href={rUrl()}
+                                            href={safeHref(rUrl())}
                                             target="_blank"
                                             rel="noopener noreferrer"
                                             class="purl-link"
@@ -194,7 +195,7 @@ export default function ImageMetadataCard(props: {
                                 <Show when={baseImageUrl()} fallback={baseName()}>
                                     {(bUrl) => (
                                         <a
-                                            href={bUrl()}
+                                            href={safeHref(bUrl())}
                                             target="_blank"
                                             rel="noopener noreferrer"
                                             class="purl-link"
