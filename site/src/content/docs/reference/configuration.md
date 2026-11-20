@@ -23,6 +23,7 @@ A variable marked **required** stops the process at startup when it is missing.
 | <code>PORT</code> | `8080` | HTTP listen port. |
 | <code>LOG_<wbr>LEVEL</code> | `info` | Log verbosity: `debug`, `info`, `warn`, `error`. |
 | <code>ENVIRONMENT</code> | `development` | Runtime environment label: `development`, `staging`, `production`. |
+| <code>DEV_<wbr>AUTH_<wbr>ENABLED</code> | `false` | Local development only. `true` registers `POST /api/v1/dev/session`, which mints a session for one of the personas seeded by `scripts/dev-auth.sh` without authentication. Requires `ENVIRONMENT=development`; startup fails with any other value. Never set it on a reachable instance. |
 
 ## Authentication
 

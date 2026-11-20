@@ -24,8 +24,12 @@ import (
 // persona through the ordinary service call and returns the ordinary cookie.
 // Everything downstream of the Set-Cookie is production's path unmodified.
 //
-// It is registered only when ENVIRONMENT is development, and the huma.Register
-// call itself sits behind that check rather than the handler returning 403 —
+// It is registered only when DEV_AUTH_ENABLED=true and ENVIRONMENT is
+// development (config refuses the flag with any other ENVIRONMENT). It is not
+// enough that ENVIRONMENT is development: that is its default, so an instance
+// deployed without setting it would otherwise expose an unauthenticated login.
+// The huma.Register call itself sits behind that check rather than the handler
+// returning 403 —
 // so the operation is absent from the production OpenAPI spec, absent from the
 // router's route table, and absent from docs/AUTH_MATRIX.md. There is nothing
 // to reach in a production build.
@@ -49,6 +53,20 @@ type DevSessionOutput struct {
 	}
 }
 
+// devPersonas is the roster scripts/dev-auth.sh seeds (its PERSONAS array;
+// TestDevPersonasMatchSeedScript keeps the two equal). The mint refuses any
+// other name, so even an instance running with the flag cannot become a user
+// that merely shares a display name — display names come from the identity
+// provider and anyone can register one.
+var devPersonas = map[string]bool{
+	"devadmin":     true,
+	"devowner":     true,
+	"devsecurity":  true,
+	"devviewer":    true,
+	"devoutsider":  true,
+	"devdeveloper": true,
+}
+
 // DevMintSession issues a session cookie for a seeded persona.
 //
 // Lookup goes through ListUsers rather than a dedicated by-username query: the
@@ -56,6 +74,9 @@ type DevSessionOutput struct {
 // the shipped repository layer for a development affordance would put the
 // affordance in the production binary after all.
 func (h *Handler) DevMintSession(ctx context.Context, in *DevSessionInput) (*DevSessionOutput, error) {
+	if !devPersonas[strings.ToLower(in.Body.Username)] {
+		return nil, huma.Error404NotFound("no seeded user named " + in.Body.Username)
+	}
 	users, err := h.authService.ListUsers(ctx)
 	if err != nil {
 		return nil, huma.Error500InternalServerError("listing users")
@@ -98,21 +119,18 @@ func (h *Handler) DevMintSession(ctx context.Context, in *DevSessionInput) (*Dev
 }
 
 // registerDevOps registers the development-only operations, and registers
-// nothing at all outside development. A nil cfg (cmd/specgen, cmd/authmatrix
+// nothing at all unless DEV_AUTH_ENABLED is set in development. A nil cfg (cmd/specgen, cmd/authmatrix
 // and the conformance suite all build the router that way) counts as not
 // development, which is what makes the generated spec and matrix production
 // artifacts by construction.
 func registerDevOps(api huma.API, h *Handler) {
-	if h.cfg == nil || h.cfg.Environment != envDevelopment {
+	if h.cfg == nil || !h.cfg.DevAuthEnabled || h.cfg.Environment != envDevelopment {
 		return
 	}
-	// ENVIRONMENT defaults to development (internal/config/config.go), so an
-	// operator who never set it gets this endpoint. Say so loudly at startup
-	// rather than leaving it to be discovered in the route table.
 	slog.Warn("registering development-only session mint endpoint",
 		"operation", "dev-mint-session",
 		"path", devSessionPath,
-		"reason", "ENVIRONMENT="+h.cfg.Environment)
+		"reason", "DEV_AUTH_ENABLED=true")
 
 	huma.Register(api, huma.Operation{
 		OperationID: "dev-mint-session",

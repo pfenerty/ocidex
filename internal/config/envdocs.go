@@ -27,6 +27,7 @@ var EnvDocs = []EnvDoc{
 	{"PORT", "Core", "HTTP listen port."},
 	{"LOG_LEVEL", "Core", "Log verbosity: `debug`, `info`, `warn`, `error`."},
 	{"ENVIRONMENT", "Core", "Runtime environment label: `development`, `staging`, `production`."},
+	{"DEV_AUTH_ENABLED", "Core", "Local development only. `true` registers `POST /api/v1/dev/session`, which mints a session for one of the personas seeded by `scripts/dev-auth.sh` without authentication. Requires `ENVIRONMENT=development`; startup fails with any other value. Never set it on a reachable instance."},
 	{"SESSION_SECRET", "Authentication", "Cookie signing key. Required. Min 32 bytes. Generate with: `openssl rand -hex 32`"},
 	{"SESSION_MAX_AGE_DAYS", "Authentication", "How long login sessions last."},
 	{"AUTH_RATE_LIMIT", "Authentication", "Requests per minute one client IP may make to `/auth/login*`, `/auth/callback*` and `POST /api/v1/auth/identities`. Over the limit: `429` with `Retry-After`. `0` disables. Counters are per API replica."},

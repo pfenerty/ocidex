@@ -50,6 +50,38 @@ func TestLoad(t *testing.T) {
 			},
 		},
 		{
+			name: "dev auth is off by default",
+			env: map[string]string{
+				"DATABASE_URL": "postgres://localhost/test",
+				"NATS_URL":     "nats://localhost:4222",
+			},
+			check: func(is *is.I, cfg *config.Config) {
+				is.True(!cfg.DevAuthEnabled)
+			},
+		},
+		{
+			name: "dev auth enabled in development",
+			env: map[string]string{
+				"DATABASE_URL":     "postgres://localhost/test",
+				"NATS_URL":         "nats://localhost:4222",
+				"ENVIRONMENT":      "development",
+				"DEV_AUTH_ENABLED": "true",
+			},
+			check: func(is *is.I, cfg *config.Config) {
+				is.True(cfg.DevAuthEnabled)
+			},
+		},
+		{
+			name: "dev auth refused outside development",
+			env: map[string]string{
+				"DATABASE_URL":     "postgres://localhost/test",
+				"NATS_URL":         "nats://localhost:4222",
+				"ENVIRONMENT":      "staging",
+				"DEV_AUTH_ENABLED": "true",
+			},
+			wantErr: true,
+		},
+		{
 			name: "retention defaults: off, keep 20, window on",
 			env: map[string]string{
 				"DATABASE_URL": "postgres://localhost/test",

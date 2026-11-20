@@ -35,9 +35,15 @@ type Config struct {
 	Port int `env:"PORT"            envDefault:"8080"`
 	// MetricsAddr is the private /metrics listener (ADR-0054 M2), never the
 	// public port. Empty turns the listener off; OTLP push still works.
-	MetricsAddr        string `env:"METRICS_ADDR" envDefault:":9090"`
-	LogLevel           string `env:"LOG_LEVEL"       envDefault:"info"`
-	Environment        string `env:"ENVIRONMENT"     envDefault:"development"`
+	MetricsAddr string `env:"METRICS_ADDR" envDefault:":9090"`
+	LogLevel    string `env:"LOG_LEVEL"       envDefault:"info"`
+	Environment string `env:"ENVIRONMENT"     envDefault:"development"`
+	// DevAuthEnabled registers the unauthenticated dev persona session mint
+	// (POST /api/v1/dev/session). It is opt-in on top of
+	// ENVIRONMENT=development, so an instance that merely never set
+	// ENVIRONMENT does not expose it, and it refuses to start with any other
+	// ENVIRONMENT.
+	DevAuthEnabled     bool   `env:"DEV_AUTH_ENABLED" envDefault:"false"`
 	DatabaseURL        string `env:"DATABASE_URL,required"`
 	CORSAllowedOrigins string `env:"CORS_ALLOWED_ORIGINS" envDefault:""`
 
@@ -516,6 +522,9 @@ const (
 // envProduction is the ENVIRONMENT value that turns on production-only checks.
 const envProduction = "production"
 
+// envDevelopment is the only ENVIRONMENT value DEV_AUTH_ENABLED is allowed with.
+const envDevelopment = "development"
+
 // SameSite values for SESSION_COOKIE_SAMESITE.
 const (
 	SameSiteLax    = "lax"
@@ -592,6 +601,9 @@ func (c *Config) validate() error {
 	}
 	if c.SecretBox == nil && c.Environment == envProduction {
 		return fmt.Errorf("DATA_ENCRYPTION_KEYS is required when ENVIRONMENT=production (ADR-051)")
+	}
+	if c.DevAuthEnabled && c.Environment != envDevelopment {
+		return fmt.Errorf("DEV_AUTH_ENABLED=true requires ENVIRONMENT=development, got %q: it exposes an unauthenticated session mint", c.Environment)
 	}
 	if err := c.validatePerimeter(); err != nil {
 		return err

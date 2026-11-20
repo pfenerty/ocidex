@@ -85,6 +85,7 @@ func newDevAuthService() *sessionAuthService {
 func devConfig(env string) *config.Config {
 	return &config.Config{
 		Environment:       env,
+		DevAuthEnabled:    env == "development",
 		SessionSecret:     strings.Repeat("k", 32),
 		SessionMaxAgeDays: 7,
 	}
@@ -195,4 +196,39 @@ func TestDevSessionUnknownPersona(t *testing.T) {
 	router.ServeHTTP(rec, req)
 	is.Equal(rec.Code, http.StatusNotFound) // unknown persona was minted a session
 	is.Equal(authSvc.minted, 0)             // session created for a persona that does not exist
+}
+
+// TestDevSessionAbsentWithoutFlag: ENVIRONMENT=development is the default, so
+// it alone must not expose the mint. Only DEV_AUTH_ENABLED does.
+func TestDevSessionAbsentWithoutFlag(t *testing.T) {
+	is := is.New(t)
+
+	cfg := devConfig("development")
+	cfg.DevAuthEnabled = false
+	h := api.NewHandler(nil, nil, newDevAuthService(), nil, &fakeNamespaceService{}, &fakeSourceService{},
+		nil, nil, nil, nil, &fakePinger{}, nil, cfg)
+	router := api.NewRouter(h, "*", "", "")
+
+	rec := httptest.NewRecorder()
+	router.ServeHTTP(rec, newConformanceRequest(http.MethodPost, "/api/v1/dev/session"))
+	is.Equal(rec.Code, http.StatusNotFound) // dev session mint reachable without DEV_AUTH_ENABLED
+}
+
+// TestDevSessionRefusesNonSeededUser: a real user whose display name is
+// requested is not a persona, even when the endpoint is on.
+func TestDevSessionRefusesNonSeededUser(t *testing.T) {
+	is := is.New(t)
+
+	authSvc := newDevAuthService()
+	authSvc.roster = append(authSvc.roster,
+		service.AuthUser{ID: personaID(0x33), DisplayName: "octocat", Role: "admin"})
+	router := newDevRouter(authSvc, "development")
+
+	req := httptest.NewRequest(http.MethodPost, "/api/v1/dev/session",
+		strings.NewReader(`{"username":"octocat"}`))
+	req.Header.Set("Content-Type", "application/json")
+	rec := httptest.NewRecorder()
+	router.ServeHTTP(rec, req)
+	is.Equal(rec.Code, http.StatusNotFound) // session minted for a user who is not a seeded persona
+	is.Equal(authSvc.minted, 0)
 }
