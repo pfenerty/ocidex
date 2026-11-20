@@ -615,6 +615,27 @@ func (c *Config) validate() error {
 }
 
 // validateOIDC checks the generic OIDC provider settings.
+// minSessionSecretBytes is the shortest SESSION_SECRET accepted in production.
+// The secret is an HMAC key for the session and OAuth state cookies; a short one
+// can be brute-forced offline from any cookie, which forges the state.
+const minSessionSecretBytes = 32
+
+// validateSessionSecret refuses a short SESSION_SECRET in production and warns
+// about one elsewhere. An empty one is left to the API's startup check, since
+// the workers share this config and never sign a cookie.
+func validateSessionSecret(secret, environment string) error {
+	if secret == "" || len(secret) >= minSessionSecretBytes {
+		return nil
+	}
+	if environment == envProduction {
+		return fmt.Errorf("SESSION_SECRET must be at least %d bytes when ENVIRONMENT=production, got %d: generate one with openssl rand -hex 32",
+			minSessionSecretBytes, len(secret))
+	}
+	slog.Warn("SESSION_SECRET is shorter than the production minimum",
+		"bytes", len(secret), "minimum", minSessionSecretBytes)
+	return nil
+}
+
 func (c *Config) validateOIDC() error {
 	// Half-configured OIDC is worse than none: the login button would exist
 	// and fail. Discovery itself is validated at startup in cmd/ocidex.
@@ -665,6 +686,9 @@ func (c *Config) validateRetention() error {
 // how: the session cookie's SameSite, the CORS allow-list, and rate limiting.
 func (c *Config) validatePerimeter() error {
 	var err error
+	if err := validateSessionSecret(c.SessionSecret, c.Environment); err != nil {
+		return err
+	}
 	if c.SessionCookieSameSite, err = sessionCookieSameSite(c.SessionCookieSameSite, c.Environment); err != nil {
 		return err
 	}

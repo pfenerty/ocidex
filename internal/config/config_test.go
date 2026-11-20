@@ -4,6 +4,7 @@ import (
 	"log/slog"
 	"net/netip"
 	"os"
+	"strings"
 	"testing"
 	"time"
 
@@ -47,6 +48,43 @@ func TestLoad(t *testing.T) {
 				is.Equal(cfg.DatabaseMaxConns, 10)
 				is.Equal(cfg.NATSStreamReplicas, 1)
 				is.Equal(cfg.NATSURL, "nats://localhost:4222")
+			},
+		},
+		{
+			name: "short SESSION_SECRET refused in production",
+			env: map[string]string{
+				"DATABASE_URL":               "postgres://localhost/test",
+				"NATS_URL":                   "nats://localhost:4222",
+				"ENVIRONMENT":                "production",
+				"DATA_ENCRYPTION_KEYS":       "k1:" + testKey,
+				"DATA_ENCRYPTION_ACTIVE_KEY": "k1",
+				"SESSION_SECRET":             strings.Repeat("s", 31),
+			},
+			wantErr: true,
+		},
+		{
+			name: "32-byte SESSION_SECRET accepted in production",
+			env: map[string]string{
+				"DATABASE_URL":               "postgres://localhost/test",
+				"NATS_URL":                   "nats://localhost:4222",
+				"ENVIRONMENT":                "production",
+				"DATA_ENCRYPTION_KEYS":       "k1:" + testKey,
+				"DATA_ENCRYPTION_ACTIVE_KEY": "k1",
+				"SESSION_SECRET":             strings.Repeat("s", 32),
+			},
+			check: func(is *is.I, cfg *config.Config) {
+				is.Equal(len(cfg.SessionSecret), 32)
+			},
+		},
+		{
+			name: "short SESSION_SECRET only warns in development",
+			env: map[string]string{
+				"DATABASE_URL":   "postgres://localhost/test",
+				"NATS_URL":       "nats://localhost:4222",
+				"SESSION_SECRET": "short",
+			},
+			check: func(is *is.I, cfg *config.Config) {
+				is.Equal(cfg.SessionSecret, "short")
 			},
 		},
 		{
