@@ -21,10 +21,16 @@ type pushRecorder interface {
 
 var inventoryPath = regexp.MustCompile(`^/api/v1/clusters/([0-9a-fA-F-]{36})/inventory$`)
 
-// pushNote is how authentication tells the recorder that a cluster-bound
-// credential was refused: that refusal happens before any route runs, and the
-// cluster the credential belongs to is the one that needs to hear about it.
-type pushNote struct{ boundClusterID string }
+// pushNote is how authentication tells the recorder about the caller. A
+// refused cluster-bound credential is named, because that refusal happens
+// before any route runs and the cluster the credential belongs to is the one
+// that needs to hear about it. authenticated says whether any credential
+// resolved to a key or session: a rejection without one could come from
+// anyone who knows the cluster id.
+type pushNote struct {
+	boundClusterID string
+	authenticated  bool
+}
 
 type ctxKeyPushNote struct{}
 
@@ -44,7 +50,9 @@ const maxRecordedBody = 4096
 // and a schema failure are all refused before the handler, and those are the
 // failures an operator most needs explained. Accepted pushes are recorded by
 // the handler, which knows the workload count. Recording is capped per
-// cluster, which is what bounds an unauthenticated caller's writes.
+// cluster, and a run of identical unauthenticated rejections is kept as one
+// row, so an anonymous caller can neither grow the history nor push genuine
+// attempts out of it.
 func RecordInventoryPushes(rec pushRecorder) func(http.Handler) http.Handler {
 	return func(next http.Handler) http.Handler {
 		if rec == nil {
@@ -68,7 +76,8 @@ func RecordInventoryPushes(rec pushRecorder) func(http.Handler) http.Handler {
 			target := strings.ToLower(m[1])
 			reason := pushRejectionReason(cw.status, cw.body.Bytes())
 			record := func(clusterID, why string) {
-				if err := rec.RecordPush(ctx, clusterID, service.PushAttempt{Status: cw.status, Reason: why}); err != nil {
+				attempt := service.PushAttempt{Status: cw.status, Reason: why, Unauthenticated: !note.authenticated}
+				if err := rec.RecordPush(ctx, clusterID, attempt); err != nil {
 					slog.WarnContext(ctx, "recording rejected push", "cluster_id", clusterID, "err", err)
 				}
 			}

@@ -778,6 +778,21 @@ SELECT c.id, sqlc.arg('accepted'), sqlc.arg('status'), sqlc.arg('reason'),
        sqlc.narg('workloads'), sqlc.narg('agent_version')
 FROM cluster c WHERE c.id = sqlc.arg('cluster_id');
 
+-- name: RefreshRepeatedClusterPush :execrows
+-- Folds a repeated rejection into the cluster's newest history row instead of
+-- adding one: if that row is a rejection with the same status and reason, only
+-- its time moves. Used for unauthenticated callers, so a flood of them cannot
+-- push genuine attempts out of the capped history.
+UPDATE cluster_push SET at = now()
+WHERE cluster_push.id = (
+    SELECT p.id FROM cluster_push p
+    WHERE p.cluster_id = sqlc.arg('cluster_id')
+    ORDER BY p.id DESC LIMIT 1
+  )
+  AND NOT cluster_push.accepted
+  AND cluster_push.status = sqlc.arg('status')
+  AND cluster_push.reason = sqlc.arg('reason');
+
 -- name: PruneClusterPushes :exec
 -- Keeps the newest @keep rows for the cluster. Rejections are unauthenticated
 -- by nature, so the cap is what bounds what an anonymous caller can write.

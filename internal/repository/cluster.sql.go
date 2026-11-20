@@ -1645,6 +1645,36 @@ func (q *Queries) RecordClusterPush(ctx context.Context, arg RecordClusterPushPa
 	return result.RowsAffected(), nil
 }
 
+const refreshRepeatedClusterPush = `-- name: RefreshRepeatedClusterPush :execrows
+UPDATE cluster_push SET at = now()
+WHERE cluster_push.id = (
+    SELECT p.id FROM cluster_push p
+    WHERE p.cluster_id = $1
+    ORDER BY p.id DESC LIMIT 1
+  )
+  AND NOT cluster_push.accepted
+  AND cluster_push.status = $2
+  AND cluster_push.reason = $3
+`
+
+type RefreshRepeatedClusterPushParams struct {
+	ClusterID pgtype.UUID `json:"cluster_id"`
+	Status    int32       `json:"status"`
+	Reason    string      `json:"reason"`
+}
+
+// Folds a repeated rejection into the cluster's newest history row instead of
+// adding one: if that row is a rejection with the same status and reason, only
+// its time moves. Used for unauthenticated callers, so a flood of them cannot
+// push genuine attempts out of the capped history.
+func (q *Queries) RefreshRepeatedClusterPush(ctx context.Context, arg RefreshRepeatedClusterPushParams) (int64, error) {
+	result, err := q.db.Exec(ctx, refreshRepeatedClusterPush, arg.ClusterID, arg.Status, arg.Reason)
+	if err != nil {
+		return 0, err
+	}
+	return result.RowsAffected(), nil
+}
+
 const rotateClusterCredential = `-- name: RotateClusterCredential :one
 WITH old AS (
     DELETE FROM api_key

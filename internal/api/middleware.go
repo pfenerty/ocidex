@@ -85,6 +85,9 @@ func OptionalAuthenticate(authSvc service.AuthService) func(http.Handler) http.H
 				next.ServeHTTP(w, r)
 				return
 			}
+			if note := notePushFromContext(r.Context()); note != nil {
+				note.authenticated = true
+			}
 
 			// Namespace grants are resolved here, once, and attached to the
 			// principal for the life of the request (ocidex-y0hg.5). Once,
@@ -106,7 +109,7 @@ func OptionalAuthenticate(authSvc service.AuthService) func(http.Handler) http.H
 			// public data.
 			if user.APIKeyClusterID != "" && !clusterCredentialRoute(r, user.APIKeyClusterID) {
 				if note := notePushFromContext(r.Context()); note != nil {
-					note.boundClusterID = user.APIKeyClusterID
+					note.boundClusterID = user.APIKeyClusterID // authenticated is already set
 				}
 				writeClusterCredentialForbidden(w)
 				return
