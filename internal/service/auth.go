@@ -68,6 +68,8 @@ type APIKeyMeta struct {
 	Capabilities []authz.Capability
 	CreatedAt    time.Time
 	LastUsedAt   *time.Time
+	// ExpiresAt is when the key stops working; nil means never.
+	ExpiresAt *time.Time
 	// ClusterID is set for a cluster agent credential.
 	ClusterID string
 }
@@ -125,6 +127,9 @@ type AuthService interface {
 	ValidateSession(ctx context.Context, token string) (AuthUser, error)
 	DeleteSession(ctx context.Context, token string) error
 	CreateAPIKey(ctx context.Context, userID pgtype.UUID, name string, caps []authz.Capability) (plaintext string, err error)
+	// CreateExpiringAPIKey is CreateAPIKey for a key refused after expiresAt.
+	// A zero expiresAt means never, which is what CreateAPIKey gives.
+	CreateExpiringAPIKey(ctx context.Context, userID pgtype.UUID, name string, caps []authz.Capability, expiresAt time.Time) (plaintext string, err error)
 	ValidateAPIKey(ctx context.Context, rawKey string) (AuthUser, error)
 	ListAPIKeys(ctx context.Context, userID pgtype.UUID) ([]APIKeyMeta, error)
 	DeleteAPIKey(ctx context.Context, userID pgtype.UUID, keyID pgtype.UUID) error
@@ -501,6 +506,16 @@ func (s *authService) DeleteSession(ctx context.Context, token string) error {
 // capability is a key that simply tracks its owner. A caller who wants a
 // narrow key says so explicitly.
 func (s *authService) CreateAPIKey(ctx context.Context, userID pgtype.UUID, name string, caps []authz.Capability) (string, error) {
+	return s.CreateExpiringAPIKey(ctx, userID, name, caps, time.Time{})
+}
+
+// CreateExpiringAPIKey mints a key that is refused once expiresAt has passed;
+// a zero expiresAt never expires. An expiry in the past is rejected rather than
+// minting a key that is dead on arrival.
+func (s *authService) CreateExpiringAPIKey(ctx context.Context, userID pgtype.UUID, name string, caps []authz.Capability, expiresAt time.Time) (string, error) {
+	if !expiresAt.IsZero() && !expiresAt.After(time.Now()) {
+		return "", &ValidationError{Message: "expiresAt must be in the future"}
+	}
 	if len(caps) == 0 {
 		caps = authz.AllCapabilities()
 	}
@@ -521,11 +536,32 @@ func (s *authService) CreateAPIKey(ctx context.Context, userID pgtype.UUID, name
 		Prefix:  prefix,
 
 		Capabilities: authz.Strings(caps),
+		ExpiresAt:    pgtype.Timestamptz{Time: expiresAt, Valid: !expiresAt.IsZero()},
 	})
 	if err != nil {
 		return "", fmt.Errorf("creating api key: %w", err)
 	}
 	return plaintext, nil
+}
+
+// lastUsedResolution is how stale api_key.last_used_at may get before a
+// request writes it again. TouchAPIKeyLastUsed enforces the same interval in
+// SQL, which also collapses a burst of concurrent requests to one write.
+const lastUsedResolution = time.Minute
+
+// touchLastUsed records that a key was used, at most once per
+// lastUsedResolution. It runs inline rather than in a detached goroutine, so it
+// is bounded by the request and adds no unbounded work under a flood of
+// requests; a failure is logged and never fails the request.
+func (s *authService) touchLastUsed(ctx context.Context, id pgtype.UUID, last pgtype.Timestamptz) {
+	if last.Valid && time.Since(last.Time) < lastUsedResolution {
+		return
+	}
+	ctx, cancel := context.WithTimeout(context.WithoutCancel(ctx), 2*time.Second)
+	defer cancel()
+	if err := s.repo.TouchAPIKeyLastUsed(ctx, id); err != nil {
+		slog.WarnContext(ctx, "touch api key last used", "err", err)
+	}
 }
 
 // newAPIKeyMaterial generates a key's plaintext with the hash stored for it
@@ -549,11 +585,7 @@ func (s *authService) ValidateAPIKey(ctx context.Context, rawKey string) (AuthUs
 	if err != nil {
 		return AuthUser{}, fmt.Errorf("api key not found: %w", err)
 	}
-	go func() { //nolint:gosec
-		if err := s.repo.TouchAPIKeyLastUsed(context.Background(), row.ID); err != nil {
-			slog.Warn("touch api key last used", "err", err)
-		}
-	}()
+	s.touchLastUsed(ctx, row.ID, row.LastUsedAt)
 	// An unknown capability string on the row is dropped rather than rejected:
 	// it can only come from a version that knew about a capability this build
 	// does not, and a key must narrow — never fail open — across a downgrade.
@@ -604,6 +636,10 @@ func (s *authService) ListAPIKeys(ctx context.Context, userID pgtype.UUID) ([]AP
 		if r.LastUsedAt.Valid {
 			t := r.LastUsedAt.Time
 			m.LastUsedAt = &t
+		}
+		if r.ExpiresAt.Valid {
+			t := r.ExpiresAt.Time
+			m.ExpiresAt = &t
 		}
 		out[i] = m
 	}

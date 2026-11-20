@@ -1556,6 +1556,11 @@
               "null"
             ]
           },
+          "expiresAt": {
+            "description": "When the key stops working. Must be in the future. Omit for a key that never expires.",
+            "format": "date-time",
+            "type": "string"
+          },
           "name": {
             "description": "Human-readable label for this key",
             "maxLength": 100,
@@ -3543,6 +3548,11 @@
             "type": "string"
           },
           "createdAt": {
+            "format": "date-time",
+            "type": "string"
+          },
+          "expiresAt": {
+            "description": "When the key stops working; absent means never",
             "format": "date-time",
             "type": "string"
           },

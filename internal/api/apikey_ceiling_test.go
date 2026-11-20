@@ -5,6 +5,7 @@ import (
 	"net/http"
 	"strings"
 	"testing"
+	"time"
 
 	"github.com/jackc/pgx/v5/pgtype"
 	"github.com/matryer/is"
@@ -34,7 +35,7 @@ type keyMgmtAuthService struct {
 	deleted []pgtype.UUID
 }
 
-func (f *keyMgmtAuthService) CreateAPIKey(_ context.Context, _ pgtype.UUID, _ string, caps []authz.Capability) (string, error) {
+func (f *keyMgmtAuthService) CreateExpiringAPIKey(_ context.Context, _ pgtype.UUID, _ string, caps []authz.Capability, _ time.Time) (string, error) {
 	f.created = append(f.created, caps)
 	return "ocidex_new", nil
 }

@@ -249,6 +249,9 @@ key change. Omitting --capability asks for all of them, which resolves to
 exactly what you can do. Name them where something narrower will do: a key that
 only ingests cannot delete an SBOM even where you can.
 
+--expires-in makes the key stop working after that long (for example 720h).
+Without it the key works until revoked.
+
 ```
 ocidex-cli key create [flags]
 ```
@@ -256,6 +259,7 @@ ocidex-cli key create [flags]
 | Flag | Default | Description |
 | --- | --- | --- |
 | `--capability` |  | capability this key may exercise, repeatable (default: all of them) |
+| `--expires-in` | `0s` | stop the key working after this long, e.g. 720h (default: never) |
 | `--name` |  | human-readable label for the key (required) |
 
 ### ocidex-cli key delete

@@ -5,6 +5,7 @@ import (
 	"errors"
 	"strings"
 	"testing"
+	"time"
 
 	"github.com/jackc/pgx/v5"
 	"github.com/jackc/pgx/v5/pgtype"
@@ -707,6 +708,66 @@ func TestValidateAPIKey_CapabilitiesNarrowOnly(t *testing.T) {
 			is.NoErr(err)
 			is.True(user.APIKeyAuth) // the ceiling only means anything on a key
 			is.Equal(user.APIKeyCaps, tt.want)
+		})
+	}
+}
+
+func TestCreateExpiringAPIKey(t *testing.T) {
+	is := is.New(t)
+	var stored repository.CreateAPIKeyParams
+	repo := &fakeAuthRepo{
+		createAPIKeyFn: func(_ context.Context, arg repository.CreateAPIKeyParams) (repository.ApiKey, error) {
+			stored = arg
+			return repository.ApiKey{}, nil
+		},
+	}
+	svc := newTestAuthService(repo)
+	ctx := context.Background()
+
+	at := time.Now().Add(24 * time.Hour)
+	_, err := svc.CreateExpiringAPIKey(ctx, pgtype.UUID{Valid: true}, "ci", nil, at)
+	is.NoErr(err)
+	is.True(stored.ExpiresAt.Valid)
+	is.True(stored.ExpiresAt.Time.Equal(at))
+
+	_, err = svc.CreateAPIKey(ctx, pgtype.UUID{Valid: true}, "ci", nil)
+	is.NoErr(err)
+	is.True(!stored.ExpiresAt.Valid) // no expiry means never
+
+	_, err = svc.CreateExpiringAPIKey(ctx, pgtype.UUID{Valid: true}, "ci", nil, time.Now().Add(-time.Minute))
+	var ve *ValidationError
+	is.True(errors.As(err, &ve)) // an expiry in the past is refused
+}
+
+// last_used is written at most once per lastUsedResolution, and inline rather
+// than in a goroutine per request.
+func TestValidateAPIKey_ThrottlesLastUsed(t *testing.T) {
+	tests := []struct {
+		name      string
+		lastUsed  pgtype.Timestamptz
+		wantTouch bool
+	}{
+		{"never used", pgtype.Timestamptz{}, true},
+		{"used just now", pgtype.Timestamptz{Time: time.Now().Add(-10 * time.Second), Valid: true}, false},
+		{"used a while ago", pgtype.Timestamptz{Time: time.Now().Add(-2 * time.Minute), Valid: true}, true},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			is := is.New(t)
+			touched := 0
+			repo := &fakeAuthRepo{
+				getAPIKeyByHashFn: func(_ context.Context, _ string) (repository.GetAPIKeyByHashRow, error) {
+					return repository.GetAPIKeyByHashRow{ID: pgtype.UUID{Valid: true}, LastUsedAt: tt.lastUsed}, nil
+				},
+				touchAPIKeyFn: func(_ context.Context, _ pgtype.UUID) error {
+					touched++
+					return nil
+				},
+			}
+			_, err := newTestAuthService(repo).ValidateAPIKey(context.Background(), "ocidex_k")
+			is.NoErr(err)
+			// Synchronous: the count is already final when ValidateAPIKey returns.
+			is.Equal(touched == 1, tt.wantTouch)
 		})
 	}
 }

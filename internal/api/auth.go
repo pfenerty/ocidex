@@ -732,7 +732,11 @@ func (h *Handler) CreateAPIKey(ctx context.Context, in *CreateAPIKeyInput) (*Cre
 	if !keyCovers(user, caps) {
 		return nil, huma.Error403Forbidden("an API key can only create keys whose capabilities it holds itself")
 	}
-	plaintext, err := h.authService.CreateAPIKey(ctx, user.ID, in.Body.Name, caps)
+	var expiresAt time.Time
+	if in.Body.ExpiresAt != nil {
+		expiresAt = *in.Body.ExpiresAt
+	}
+	plaintext, err := h.authService.CreateExpiringAPIKey(ctx, user.ID, in.Body.Name, caps, expiresAt)
 	if err != nil {
 		return nil, mapServiceError(err)
 	}
@@ -760,6 +764,7 @@ func (h *Handler) ListAPIKeys(ctx context.Context, _ *struct{}) (*ListAPIKeysOut
 			Capabilities: authz.Strings(k.Capabilities),
 			CreatedAt:    k.CreatedAt,
 			LastUsedAt:   k.LastUsedAt,
+			ExpiresAt:    k.ExpiresAt,
 			ClusterID:    k.ClusterID,
 		}
 	}

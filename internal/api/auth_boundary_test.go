@@ -6,6 +6,7 @@ import (
 	"net/http"
 	"net/http/httptest"
 	"testing"
+	"time"
 
 	"github.com/jackc/pgx/v5/pgtype"
 	"github.com/matryer/is"
@@ -60,6 +61,10 @@ func (f *configFakeAuthService) UpdateUserRole(_ context.Context, _ pgtype.UUID,
 }
 
 func (f *configFakeAuthService) CreateAPIKey(_ context.Context, _ pgtype.UUID, _ string, _ []authz.Capability) (string, error) {
+	return f.createKeyOut, nil
+}
+
+func (f *configFakeAuthService) CreateExpiringAPIKey(_ context.Context, _ pgtype.UUID, _ string, _ []authz.Capability, _ time.Time) (string, error) {
 	return f.createKeyOut, nil
 }
 

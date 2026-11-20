@@ -92,6 +92,8 @@ type CreateAPIKeyInput struct {
 		// than its owner's live namespace roles allow. Omitting it asks for
 		// every capability, which resolves to exactly what the owner can do.
 		Capabilities []string `json:"capabilities,omitempty" enum:"read_private,ingest,trigger_scan,push_inventory,delete_artifact,manage_source,manage_cluster,read_secret,manage_member,delete_namespace,installation_admin" doc:"Capabilities this key may exercise, intersected with the owner's live namespace roles. Empty means all of them."`
+		// ExpiresAt is optional; a key without one never expires.
+		ExpiresAt *time.Time `json:"expiresAt,omitempty" doc:"When the key stops working. Must be in the future. Omit for a key that never expires."`
 	}
 }
 
@@ -110,6 +112,7 @@ type KeyMetaResponse struct {
 	Capabilities []string   `json:"capabilities" doc:"Capabilities this key may exercise, before intersection with the owner's live namespace roles"`
 	CreatedAt    time.Time  `json:"createdAt"`
 	LastUsedAt   *time.Time `json:"lastUsedAt,omitempty"`
+	ExpiresAt    *time.Time `json:"expiresAt,omitempty" doc:"When the key stops working; absent means never"`
 	ClusterID    string     `json:"clusterId,omitempty" doc:"Set for a cluster agent credential, which may only push this cluster's inventory"`
 }
 

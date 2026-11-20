@@ -33,6 +33,9 @@ carries the `installation_admin` capability. Keys created before that capability
 have it; create a new key if you need one for those routes. A key can only create or delete
 keys within its own capabilities.
 
+A key can be given an expiry when it is created (`expiresAt`, or `ocidex-cli key create --expires-in
+720h`); after it, the key is refused like an unknown one. Keys without one work until revoked.
+
 The UI uses a session cookie instead. A write authenticated by cookie must come from an allowed
 origin, so scripts should always use a key.
 
