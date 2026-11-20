@@ -71,6 +71,11 @@ server also serves its own:</p>
 <p>Keys look like <code dir="auto">ocidex_…</code>. A key acts for the user who created it, limited to the capabilities it
 was given, and is never stronger than that user’s roles. Requests without a key are anonymous:
 they see public namespaces only, and get a narrower answer rather than an error.</p>
+<p>An admin’s key reaches the admin-only routes (user roles, job retries, system status) only if it
+carries the <code dir="auto">installation_admin</code> capability. Keys created before that capability existed don’t
+have it; create a new key if you need one for those routes. A key can only create or delete
+keys within its own capabilities.</p>
+<p>A key can be given an expiry when it is created (<code dir="auto">expiresAt</code>, or <code dir="auto">ocidex-cli key create --expires-in 720h</code>); after it, the key is refused like an unknown one. Keys without one work until revoked.</p>
 <p>The UI uses a session cookie instead. A write authenticated by cookie must come from an allowed
 origin, so scripts should always use a key.</p>
 <div class="sl-heading-wrapper level-h2"><h2 id="names-and-shapes">Names and shapes</h2><a class="sl-anchor-link" href="#names-and-shapes"><span aria-hidden="true" class="sl-anchor-icon"><svg width="16" height="16" viewBox="0 0 24 24" fill="currentColor"><path d="m12.11 15.39-3.88 3.88a2.52 2.52 0 0 1-3.5 0 2.47 2.47 0 0 1 0-3.5l3.88-3.88a1 1 0 1 0-1.42-1.42l-3.88 3.89a4.48 4.48 0 0 0 6.33 6.33l3.89-3.88a1 1 0 0 0-1.42-1.42m8.58-12.08a4.49 4.49 0 0 0-6.33 0l-3.89 3.88a1 1 0 1 0 1.42 1.42l3.88-3.88a2.52 2.52 0 0 1 3.5 0 2.47 2.47 0 0 1 0 3.5l-3.88 3.88a1 1 0 0 0 0 1.42 1 1 0 0 0 1.42 0l3.88-3.89a4.49 4.49 0 0 0 0-6.33M8.83 15.17a1 1 0 0 0 .71.29 1 1 0 0 0 .71-.29l4.92-4.92a1 1 0 1 0-1.42-1.42l-4.92 4.92a1 1 0 0 0 0 1.42"></path></svg></span><span class="sr-only" data-pagefind-ignore>Section titled “Names and shapes”</span></a></div>

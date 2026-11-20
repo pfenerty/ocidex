@@ -196,6 +196,14 @@ whatever role a namespace gave them; a non-member holds nothing (ADR-046).</p>
 <td></td>
 <td></td>
 </tr>
+<tr>
+<td><code dir="auto">installation_admin</code></td>
+<td></td>
+<td></td>
+<td></td>
+<td></td>
+<td></td>
+</tr>
 </tbody>
 </table>
 <div class="sl-heading-wrapper level-h2"><h2 id="write-scope">Write scope</h2><a class="sl-anchor-link" href="#write-scope"><span aria-hidden="true" class="sl-anchor-icon"><svg width="16" height="16" viewBox="0 0 24 24" fill="currentColor"><path d="m12.11 15.39-3.88 3.88a2.52 2.52 0 0 1-3.5 0 2.47 2.47 0 0 1 0-3.5l3.88-3.88a1 1 0 1 0-1.42-1.42l-3.88 3.89a4.48 4.48 0 0 0 6.33 6.33l3.89-3.88a1 1 0 0 0-1.42-1.42m8.58-12.08a4.49 4.49 0 0 0-6.33 0l-3.89 3.88a1 1 0 1 0 1.42 1.42l3.88-3.88a2.52 2.52 0 0 1 3.5 0 2.47 2.47 0 0 1 0 3.5l-3.88 3.88a1 1 0 0 0 0 1.42 1 1 0 0 0 1.42 0l3.88-3.89a4.49 4.49 0 0 0 0-6.33M8.83 15.17a1 1 0 0 0 .71.29 1 1 0 0 0 .71-.29l4.92-4.92a1 1 0 1 0-1.42-1.42l-4.92 4.92a1 1 0 0 0 0 1.42"></path></svg></span><span class="sr-only" data-pagefind-ignore>Section titled “Write scope”</span></a></div>
@@ -385,7 +393,7 @@ cookies carry no ceiling and are unaffected.</p>
 <td><code dir="auto">authenticated</code></td>
 <td>—</td>
 <td>✓</td>
-<td>Links onto the calling account. An identity already held by another account is refused, never merged.</td>
+<td>Links onto the calling account. An identity already held by another account is refused, never merged. Session only: an API key gets 403.</td>
 </tr>
 <tr>
 <td>DELETE</td>
@@ -412,7 +420,7 @@ cookies carry no ceiling and are unaffected.</p>
 <td><code dir="auto">member</code></td>
 <td>—</td>
 <td>✓</td>
-<td>Key is scoped to the calling user.</td>
+<td>Key is scoped to the calling user. An API-key caller may only request capabilities its own key holds (403 otherwise).</td>
 </tr>
 <tr>
 <td>DELETE</td>
@@ -421,7 +429,7 @@ cookies carry no ceiling and are unaffected.</p>
 <td><code dir="auto">member</code></td>
 <td>—</td>
 <td>✓</td>
-<td>Own keys only.</td>
+<td>Own keys only. An API-key caller may only delete keys whose capabilities its own key holds.</td>
 </tr>
 <tr>
 <td>GET</td>
