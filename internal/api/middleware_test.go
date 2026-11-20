@@ -6,6 +6,7 @@ import (
 	"net/http"
 	"net/http/httptest"
 	"testing"
+	"time"
 
 	"github.com/jackc/pgx/v5/pgtype"
 	"github.com/matryer/is"
@@ -184,6 +185,10 @@ func (f *fakeAuthService) DeleteSession(_ context.Context, _ string) error {
 }
 
 func (f *fakeAuthService) CreateAPIKey(_ context.Context, _ pgtype.UUID, _ string, _ []authz.Capability) (string, error) {
+	return "", errors.New("not implemented")
+}
+
+func (f *fakeAuthService) CreateExpiringAPIKey(_ context.Context, _ pgtype.UUID, _ string, _ []authz.Capability, _ time.Time) (string, error) {
 	return "", errors.New("not implemented")
 }
 

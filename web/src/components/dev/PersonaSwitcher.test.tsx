@@ -92,7 +92,7 @@ describe("PersonaSwitcher", () => {
         await waitFor(() => expect(window.location.reload).toHaveBeenCalled());
     });
 
-    // A 404 means the API is not running with ENVIRONMENT=development. Every
+    // A 404 means the API is not running with DEV_AUTH_ENABLED=true. Every
     // other part of the rig looks healthy in that state, so the switcher has to
     // say so rather than fail silently.
     it("names the missing mint endpoint rather than reloading", async () => {

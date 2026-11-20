@@ -23,17 +23,18 @@ func (q *Queries) CountIdentitiesByUser(ctx context.Context, userID pgtype.UUID)
 }
 
 const createAPIKey = `-- name: CreateAPIKey :one
-INSERT INTO api_key (user_id, name, key_hash, prefix, capabilities)
-VALUES ($1, $2, $3, $4, $5)
-RETURNING id, user_id, name, key_hash, prefix, created_at, last_used_at, capabilities, cluster_id
+INSERT INTO api_key (user_id, name, key_hash, prefix, capabilities, expires_at)
+VALUES ($1, $2, $3, $4, $5, $6)
+RETURNING id, user_id, name, key_hash, prefix, created_at, last_used_at, capabilities, cluster_id, expires_at
 `
 
 type CreateAPIKeyParams struct {
-	UserID       pgtype.UUID `json:"user_id"`
-	Name         string      `json:"name"`
-	KeyHash      string      `json:"key_hash"`
-	Prefix       string      `json:"prefix"`
-	Capabilities []string    `json:"capabilities"`
+	UserID       pgtype.UUID        `json:"user_id"`
+	Name         string             `json:"name"`
+	KeyHash      string             `json:"key_hash"`
+	Prefix       string             `json:"prefix"`
+	Capabilities []string           `json:"capabilities"`
+	ExpiresAt    pgtype.Timestamptz `json:"expires_at"`
 }
 
 func (q *Queries) CreateAPIKey(ctx context.Context, arg CreateAPIKeyParams) (ApiKey, error) {
@@ -43,6 +44,7 @@ func (q *Queries) CreateAPIKey(ctx context.Context, arg CreateAPIKeyParams) (Api
 		arg.KeyHash,
 		arg.Prefix,
 		arg.Capabilities,
+		arg.ExpiresAt,
 	)
 	var i ApiKey
 	err := row.Scan(
@@ -55,6 +57,7 @@ func (q *Queries) CreateAPIKey(ctx context.Context, arg CreateAPIKeyParams) (Api
 		&i.LastUsedAt,
 		&i.Capabilities,
 		&i.ClusterID,
+		&i.ExpiresAt,
 	)
 	return i, err
 }
@@ -230,6 +233,7 @@ SELECT k.id, k.user_id, k.name, k.key_hash, k.prefix, k.capabilities, k.created_
 FROM api_key k
 JOIN ocidex_user u ON u.id = k.user_id
 WHERE k.key_hash = $1
+  AND (k.expires_at IS NULL OR k.expires_at > now())
 `
 
 type GetAPIKeyByHashRow struct {
@@ -368,7 +372,7 @@ func (q *Queries) GetUserByIdentity(ctx context.Context, arg GetUserByIdentityPa
 }
 
 const listAPIKeysByUser = `-- name: ListAPIKeysByUser :many
-SELECT id, name, prefix, capabilities, created_at, last_used_at, cluster_id
+SELECT id, name, prefix, capabilities, created_at, last_used_at, cluster_id, expires_at
 FROM api_key
 WHERE user_id = $1
 ORDER BY created_at ASC
@@ -382,6 +386,7 @@ type ListAPIKeysByUserRow struct {
 	CreatedAt    pgtype.Timestamptz `json:"created_at"`
 	LastUsedAt   pgtype.Timestamptz `json:"last_used_at"`
 	ClusterID    pgtype.UUID        `json:"cluster_id"`
+	ExpiresAt    pgtype.Timestamptz `json:"expires_at"`
 }
 
 func (q *Queries) ListAPIKeysByUser(ctx context.Context, userID pgtype.UUID) ([]ListAPIKeysByUserRow, error) {
@@ -401,6 +406,7 @@ func (q *Queries) ListAPIKeysByUser(ctx context.Context, userID pgtype.UUID) ([]
 			&i.CreatedAt,
 			&i.LastUsedAt,
 			&i.ClusterID,
+			&i.ExpiresAt,
 		); err != nil {
 			return nil, err
 		}
@@ -489,9 +495,14 @@ func (q *Queries) ListUsers(ctx context.Context) ([]OcidexUser, error) {
 }
 
 const touchAPIKeyLastUsed = `-- name: TouchAPIKeyLastUsed :exec
-UPDATE api_key SET last_used_at = now() WHERE id = $1
+UPDATE api_key SET last_used_at = now()
+WHERE id = $1
+  AND (last_used_at IS NULL OR last_used_at < now() - interval '1 minute')
 `
 
+// At most one write per key per minute, however many requests the key makes:
+// the condition is re-checked under the row lock, so a burst of concurrent
+// requests updates once.
 func (q *Queries) TouchAPIKeyLastUsed(ctx context.Context, id pgtype.UUID) error {
 	_, err := q.db.Exec(ctx, touchAPIKeyLastUsed, id)
 	return err

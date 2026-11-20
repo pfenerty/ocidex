@@ -124,7 +124,7 @@ PERSONAS=(
 # Postgres array literal. "Everything" is spelled out rather than left empty
 # because api_key.capabilities defaults to '{}', which means a key that can do
 # nothing at all.
-ALL_CAPABILITIES="{read_private,ingest,trigger_scan,push_inventory,delete_artifact,manage_source,manage_cluster,read_secret,manage_member,delete_namespace}"
+ALL_CAPABILITIES="{read_private,ingest,trigger_scan,push_inventory,delete_artifact,manage_source,manage_cluster,read_secret,manage_member,delete_namespace,installation_admin}"
 
 # Mints the five personas, each with a fully-capable and a read-only API key. Keys
 # are hashed exactly as internal/service/auth.go does it — hex(SHA-256(plaintext)),
@@ -306,6 +306,7 @@ start_api() {
         NATS_URL="nats://127.0.0.1:$NATS_PORT" \
         PORT="$API_PORT" \
         ENVIRONMENT=development \
+        DEV_AUTH_ENABLED=true \
         LOG_LEVEL=info \
         SESSION_SECRET="$(openssl rand -hex 32)" \
         GITHUB_CLIENT_ID= GITHUB_CLIENT_SECRET= \

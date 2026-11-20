@@ -384,3 +384,40 @@ func TestCapabilityIsDeclaredExactlyWhereItIsUsed(t *testing.T) {
 		}
 	}
 }
+
+// TestAdminRoutesRequireTheKeysInstallationAdminCapability: the admin role is
+// the owner's, and a key is a ceiling over it. devadmin's key holding every
+// capability except installation_admin is refused on every admin-class route,
+// and the same key with it is admitted.
+func TestAdminRoutesRequireTheKeysInstallationAdminCapability(t *testing.T) {
+	var withoutAdmin []authz.Capability
+	for _, c := range authz.AllCapabilities() {
+		if c != authz.CapInstallationAdmin {
+			withoutAdmin = append(withoutAdmin, c)
+		}
+	}
+	const narrowToken, fullToken = "tok-admin-noadmincap", "tok-admin-full"
+	svc := personaAuthService()
+	svc.users[narrowToken] = service.AuthUser{ID: personaID(0xa1), DisplayName: "devadmin", Role: "admin",
+		APIKeyAuth: true, APIKeyCaps: withoutAdmin}
+	svc.users[fullToken] = service.AuthUser{ID: personaID(0xa1), DisplayName: "devadmin", Role: "admin",
+		APIKeyAuth: true, APIKeyCaps: authz.AllCapabilities()}
+	router := newConformanceRouter(svc)
+
+	n := 0
+	for _, r := range conformanceSpec() {
+		if r.Rule.Class != api.ClassAdmin {
+			continue
+		}
+		n++
+		if got := probe(router, r, narrowToken); got != forbidden {
+			t.Errorf("%s %s: admin key without installation_admin got %s, want 403", r.Method, r.Path, got)
+		}
+		if got := probe(router, r, fullToken); got != admitted {
+			t.Errorf("%s %s: admin key with installation_admin got %s, want admitted", r.Method, r.Path, got)
+		}
+	}
+	if n == 0 {
+		t.Fatal("no admin-class operations found")
+	}
+}

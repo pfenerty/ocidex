@@ -28,6 +28,14 @@ Keys look like `ocidex_…`. A key acts for the user who created it, limited to 
 was given, and is never stronger than that user's roles. Requests without a key are anonymous:
 they see public namespaces only, and get a narrower answer rather than an error.
 
+An admin's key reaches the admin-only routes (user roles, job retries, system status) only if it
+carries the `installation_admin` capability. Keys created before that capability existed don't
+have it; create a new key if you need one for those routes. A key can only create or delete
+keys within its own capabilities.
+
+A key can be given an expiry when it is created (`expiresAt`, or `ocidex-cli key create --expires-in
+720h`); after it, the key is refused like an unknown one. Keys without one work until revoked.
+
 The UI uses a session cookie instead. A write authenticated by cookie must come from an allowed
 origin, so scripts should always use a key.
 

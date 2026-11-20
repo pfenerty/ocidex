@@ -198,6 +198,19 @@ A capability string the running build does not recognise is **dropped** when a k
 validated, never honoured and never fatal. It can only come from a build that knew a
 capability this one does not, and a key must narrow, never fail open, across a downgrade.
 
+**Amendment — the key ceiling also covers key management and admin routes.**
+
+* Creating or deleting a key with an API key is bounded by that key: it may only create a
+  key whose capabilities it holds itself (an empty list, "every capability", needs a key
+  holding them all), and only delete keys within the same bound. Otherwise a narrow CI
+  key could mint a wide one, which the "no separate authorization" bullet above assumed
+  away. Linking a sign-in identity is session only, since a sign-in carries no ceiling.
+* `installation_admin` (migration 00094) is the one capability that is not about a
+  namespace. No namespace role grants it. `RequireAdmin` asks an admin's key for it, so
+  `Allow`'s admin short-circuit no longer reaches the admin-only routes through a key
+  issued for something narrower. Keys minted before 00094 do not carry it and lose those
+  routes; an admin who needs one mints a new key.
+
 ### Rule M6 — The global role is a separate axis
 
 `ocidex_user.role` (`admin` / `member` / `viewer`) decides whether you may use the

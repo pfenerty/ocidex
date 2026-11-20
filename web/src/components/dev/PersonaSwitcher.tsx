@@ -58,7 +58,7 @@ export default function PersonaSwitcher() {
             });
             if (!res.ok) {
                 // A 404 here means the API is not running with
-                // ENVIRONMENT=development, which is the one failure worth
+                // DEV_AUTH_ENABLED=true, which is the one failure worth
                 // naming: everything else about the rig would still look fine.
                 setError(res.status === 404 ? "mint endpoint not registered" : `HTTP ${res.status}`);
                 setBusy(false);

@@ -25,6 +25,7 @@ var keyCapabilities = []string{
 	"read_secret",
 	"manage_member",
 	"delete_namespace",
+	"installation_admin",
 }
 
 func newKeyCmd(cfg *rootConfig) *cobra.Command {
@@ -68,6 +69,12 @@ func keyColumns() []output.Column[client.KeyMetaResponse] {
 			}
 			return k.LastUsedAt.Format(time.RFC3339)
 		}},
+		{Header: "EXPIRES", Value: func(k client.KeyMetaResponse) string {
+			if k.ExpiresAt == nil {
+				return "never"
+			}
+			return k.ExpiresAt.Format(time.RFC3339)
+		}},
 		{Header: colCreated, Value: func(k client.KeyMetaResponse) string { return k.CreatedAt.Format(time.RFC3339) }},
 	}
 }
@@ -98,6 +105,7 @@ is what identifies a key in the audit log.`,
 func newKeyCreateCmd(cfg *rootConfig) *cobra.Command {
 	var name string
 	var caps []string
+	var expiresIn time.Duration
 
 	cmd := &cobra.Command{
 		Use:   verbCreate,
@@ -112,11 +120,17 @@ Capabilities are a ceiling, not a grant: the key can never do more than your
 namespace roles allow, and a role change narrows every key you hold without any
 key change. Omitting --capability asks for all of them, which resolves to
 exactly what you can do. Name them where something narrower will do: a key that
-only ingests cannot delete an SBOM even where you can.`,
+only ingests cannot delete an SBOM even where you can.
+
+--expires-in makes the key stop working after that long (for example 720h).
+Without it the key works until revoked.`,
 		Args: cobra.NoArgs,
 		RunE: func(cmd *cobra.Command, _ []string) error {
 			if err := validateKeyCapabilities(caps); err != nil {
 				return err
+			}
+			if expiresIn < 0 {
+				return usagef("--expires-in must be positive (got %s)", expiresIn)
 			}
 			api, err := cfg.authed()
 			if err != nil {
@@ -130,6 +144,10 @@ only ingests cannot delete an SBOM even where you can.`,
 					typed[i] = client.CreateAPIKeyInputBodyCapabilities(c)
 				}
 				body.Capabilities = &typed
+			}
+			if expiresIn > 0 {
+				at := time.Now().Add(expiresIn).UTC()
+				body.ExpiresAt = &at
 			}
 			out, err := api.CreateAPIKey(cmd.Context(), body)
 			if err != nil {
@@ -149,6 +167,7 @@ only ingests cannot delete an SBOM even where you can.`,
 	f.StringVar(&name, "name", "", "human-readable label for the key (required)")
 	f.StringSliceVar(&caps, "capability", nil,
 		"capability this key may exercise, repeatable (default: all of them)")
+	f.DurationVar(&expiresIn, "expires-in", 0, "stop the key working after this long, e.g. 720h (default: never)")
 	_ = cmd.MarkFlagRequired("name")
 	return cmd
 }

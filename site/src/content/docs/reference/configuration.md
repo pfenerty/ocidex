@@ -23,12 +23,13 @@ A variable marked **required** stops the process at startup when it is missing.
 | <code>PORT</code> | `8080` | HTTP listen port. |
 | <code>LOG_<wbr>LEVEL</code> | `info` | Log verbosity: `debug`, `info`, `warn`, `error`. |
 | <code>ENVIRONMENT</code> | `development` | Runtime environment label: `development`, `staging`, `production`. |
+| <code>DEV_<wbr>AUTH_<wbr>ENABLED</code> | `false` | Local development only. `true` registers `POST /api/v1/dev/session`, which mints a session for one of the personas seeded by `scripts/dev-auth.sh` without authentication. Requires `ENVIRONMENT=development`; startup fails with any other value. Never set it on a reachable instance. |
 
 ## Authentication
 
 | Variable | Default | Description |
 | --- | --- | --- |
-| <code>SESSION_<wbr>SECRET</code> | — | Cookie signing key. Required. Min 32 bytes. Generate with: `openssl rand -hex 32` |
+| <code>SESSION_<wbr>SECRET</code> | — | Cookie signing key. Required by the API. At least 32 bytes: shorter fails startup with `ENVIRONMENT=production` and logs a warning otherwise. Generate with: `openssl rand -hex 32` |
 | <code>SESSION_<wbr>MAX_<wbr>AGE_<wbr>DAYS</code> | `7` | How long login sessions last. |
 | <code>AUTH_<wbr>RATE_<wbr>LIMIT</code> | `30` | Requests per minute one client IP may make to `/auth/login*`, `/auth/callback*` and `POST /api/v1/auth/identities`. Over the limit: `429` with `Retry-After`. `0` disables. Counters are per API replica. |
 | <code>API_<wbr>RATE_<wbr>LIMIT_<wbr>INGEST</code> | `120` | Requests per minute per principal to `POST /api/v1/sboms`. A principal is the user for an authenticated request (any of their sessions or API keys) and the client IP otherwise. Over the limit: `429` problem document with `Retry-After`. `0` disables. No role is exempt — raise this for an operator or CI key that pushes harder. Per API replica. |

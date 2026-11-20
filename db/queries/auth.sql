@@ -101,8 +101,8 @@ DELETE FROM session WHERE token_hash = $1;
 DELETE FROM session WHERE expires_at <= now();
 
 -- name: CreateAPIKey :one
-INSERT INTO api_key (user_id, name, key_hash, prefix, capabilities)
-VALUES ($1, $2, $3, $4, $5)
+INSERT INTO api_key (user_id, name, key_hash, prefix, capabilities, expires_at)
+VALUES ($1, $2, $3, $4, $5, $6)
 RETURNING *;
 
 -- name: GetAPIKeyByHash :one
@@ -110,13 +110,19 @@ SELECT k.id, k.user_id, k.name, k.key_hash, k.prefix, k.capabilities, k.created_
        k.cluster_id, u.display_name, u.role
 FROM api_key k
 JOIN ocidex_user u ON u.id = k.user_id
-WHERE k.key_hash = $1;
+WHERE k.key_hash = $1
+  AND (k.expires_at IS NULL OR k.expires_at > now());
 
 -- name: TouchAPIKeyLastUsed :exec
-UPDATE api_key SET last_used_at = now() WHERE id = $1;
+-- At most one write per key per minute, however many requests the key makes:
+-- the condition is re-checked under the row lock, so a burst of concurrent
+-- requests updates once.
+UPDATE api_key SET last_used_at = now()
+WHERE id = $1
+  AND (last_used_at IS NULL OR last_used_at < now() - interval '1 minute');
 
 -- name: ListAPIKeysByUser :many
-SELECT id, name, prefix, capabilities, created_at, last_used_at, cluster_id
+SELECT id, name, prefix, capabilities, created_at, last_used_at, cluster_id, expires_at
 FROM api_key
 WHERE user_id = $1
 ORDER BY created_at ASC;

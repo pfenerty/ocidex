@@ -35,9 +35,15 @@ type Config struct {
 	Port int `env:"PORT"            envDefault:"8080"`
 	// MetricsAddr is the private /metrics listener (ADR-0054 M2), never the
 	// public port. Empty turns the listener off; OTLP push still works.
-	MetricsAddr        string `env:"METRICS_ADDR" envDefault:":9090"`
-	LogLevel           string `env:"LOG_LEVEL"       envDefault:"info"`
-	Environment        string `env:"ENVIRONMENT"     envDefault:"development"`
+	MetricsAddr string `env:"METRICS_ADDR" envDefault:":9090"`
+	LogLevel    string `env:"LOG_LEVEL"       envDefault:"info"`
+	Environment string `env:"ENVIRONMENT"     envDefault:"development"`
+	// DevAuthEnabled registers the unauthenticated dev persona session mint
+	// (POST /api/v1/dev/session). It is opt-in on top of
+	// ENVIRONMENT=development, so an instance that merely never set
+	// ENVIRONMENT does not expose it, and it refuses to start with any other
+	// ENVIRONMENT.
+	DevAuthEnabled     bool   `env:"DEV_AUTH_ENABLED" envDefault:"false"`
 	DatabaseURL        string `env:"DATABASE_URL,required"`
 	CORSAllowedOrigins string `env:"CORS_ALLOWED_ORIGINS" envDefault:""`
 
@@ -516,6 +522,9 @@ const (
 // envProduction is the ENVIRONMENT value that turns on production-only checks.
 const envProduction = "production"
 
+// envDevelopment is the only ENVIRONMENT value DEV_AUTH_ENABLED is allowed with.
+const envDevelopment = "development"
+
 // SameSite values for SESSION_COOKIE_SAMESITE.
 const (
 	SameSiteLax    = "lax"
@@ -593,6 +602,9 @@ func (c *Config) validate() error {
 	if c.SecretBox == nil && c.Environment == envProduction {
 		return fmt.Errorf("DATA_ENCRYPTION_KEYS is required when ENVIRONMENT=production (ADR-051)")
 	}
+	if c.DevAuthEnabled && c.Environment != envDevelopment {
+		return fmt.Errorf("DEV_AUTH_ENABLED=true requires ENVIRONMENT=development, got %q: it exposes an unauthenticated session mint", c.Environment)
+	}
 	if err := c.validatePerimeter(); err != nil {
 		return err
 	}
@@ -603,6 +615,27 @@ func (c *Config) validate() error {
 }
 
 // validateOIDC checks the generic OIDC provider settings.
+// minSessionSecretBytes is the shortest SESSION_SECRET accepted in production.
+// The secret is an HMAC key for the session and OAuth state cookies; a short one
+// can be brute-forced offline from any cookie, which forges the state.
+const minSessionSecretBytes = 32
+
+// validateSessionSecret refuses a short SESSION_SECRET in production and warns
+// about one elsewhere. An empty one is left to the API's startup check, since
+// the workers share this config and never sign a cookie.
+func validateSessionSecret(secret, environment string) error {
+	if secret == "" || len(secret) >= minSessionSecretBytes {
+		return nil
+	}
+	if environment == envProduction {
+		return fmt.Errorf("SESSION_SECRET must be at least %d bytes when ENVIRONMENT=production, got %d: generate one with openssl rand -hex 32",
+			minSessionSecretBytes, len(secret))
+	}
+	slog.Warn("SESSION_SECRET is shorter than the production minimum",
+		"bytes", len(secret), "minimum", minSessionSecretBytes)
+	return nil
+}
+
 func (c *Config) validateOIDC() error {
 	// Half-configured OIDC is worse than none: the login button would exist
 	// and fail. Discovery itself is validated at startup in cmd/ocidex.
@@ -653,6 +686,9 @@ func (c *Config) validateRetention() error {
 // how: the session cookie's SameSite, the CORS allow-list, and rate limiting.
 func (c *Config) validatePerimeter() error {
 	var err error
+	if err := validateSessionSecret(c.SessionSecret, c.Environment); err != nil {
+		return err
+	}
 	if c.SessionCookieSameSite, err = sessionCookieSameSite(c.SessionCookieSameSite, c.Environment); err != nil {
 		return err
 	}

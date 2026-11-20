@@ -64,6 +64,13 @@ const (
 	// CapDeleteNamespace destroys the namespace and everything under it. Owner
 	// only, for the same reason.
 	CapDeleteNamespace Capability = "delete_namespace"
+
+	// CapInstallationAdmin lets an API key act with its owner's installation-wide admin
+	// role on the admin-only routes (RequireAdmin). It is not a namespace
+	// capability: no namespace role grants it, and it confers nothing on a
+	// non-admin. It exists so that an admin's key is bounded like every other
+	// key: one issued for ingest cannot re-role users or retry every job.
+	CapInstallationAdmin Capability = "installation_admin"
 )
 
 // Role is a member's role within one namespace. It is not the installation-wide
@@ -78,8 +85,9 @@ const (
 type Role string
 
 const (
-	// RoleOwner holds every capability. Exactly one per namespace, enforced by
-	// the namespace_one_owner index rather than by convention.
+	// RoleOwner holds every namespace capability (all but CapInstallationAdmin, which no
+	// namespace role grants). Exactly one per namespace, enforced by the
+	// namespace_one_owner index rather than by convention.
 	RoleOwner Role = "owner"
 
 	// RoleMaintainer runs the namespace day to day — everything except
@@ -124,6 +132,7 @@ var allCapabilities = []Capability{
 	CapReadSecret,
 	CapManageMember,
 	CapDeleteNamespace,
+	CapInstallationAdmin,
 }
 
 // roleCaps is the authorization table. Every role names every capability
@@ -137,64 +146,69 @@ var allCapabilities = []Capability{
 // authorization model drift apart.
 var roleCaps = map[Role]map[Capability]bool{
 	RoleOwner: {
-		CapReadPrivate:     true,
-		CapIngest:          true,
-		CapTriggerScan:     true,
-		CapPushInventory:   true,
-		CapDeleteArtifact:  true,
-		CapManageSource:    true,
-		CapManageCluster:   true,
-		CapReadSecret:      true,
-		CapManageMember:    true,
-		CapDeleteNamespace: true,
+		CapReadPrivate:       true,
+		CapIngest:            true,
+		CapTriggerScan:       true,
+		CapPushInventory:     true,
+		CapDeleteArtifact:    true,
+		CapManageSource:      true,
+		CapManageCluster:     true,
+		CapReadSecret:        true,
+		CapManageMember:      true,
+		CapDeleteNamespace:   true,
+		CapInstallationAdmin: false,
 	},
 	RoleMaintainer: {
-		CapReadPrivate:     true,
-		CapIngest:          true,
-		CapTriggerScan:     true,
-		CapPushInventory:   true,
-		CapDeleteArtifact:  true,
-		CapManageSource:    true,
-		CapManageCluster:   true,
-		CapReadSecret:      true,
-		CapManageMember:    false,
-		CapDeleteNamespace: false,
+		CapReadPrivate:       true,
+		CapIngest:            true,
+		CapTriggerScan:       true,
+		CapPushInventory:     true,
+		CapDeleteArtifact:    true,
+		CapManageSource:      true,
+		CapManageCluster:     true,
+		CapReadSecret:        true,
+		CapManageMember:      false,
+		CapDeleteNamespace:   false,
+		CapInstallationAdmin: false,
 	},
 	RoleSecurity: {
-		CapReadPrivate:     true,
-		CapIngest:          false,
-		CapTriggerScan:     true,
-		CapPushInventory:   false,
-		CapDeleteArtifact:  false,
-		CapManageSource:    false,
-		CapManageCluster:   false,
-		CapReadSecret:      false,
-		CapManageMember:    false,
-		CapDeleteNamespace: false,
+		CapReadPrivate:       true,
+		CapIngest:            false,
+		CapTriggerScan:       true,
+		CapPushInventory:     false,
+		CapDeleteArtifact:    false,
+		CapManageSource:      false,
+		CapManageCluster:     false,
+		CapReadSecret:        false,
+		CapManageMember:      false,
+		CapDeleteNamespace:   false,
+		CapInstallationAdmin: false,
 	},
 	RoleDeveloper: {
-		CapReadPrivate:     true,
-		CapIngest:          true,
-		CapTriggerScan:     true,
-		CapPushInventory:   true,
-		CapDeleteArtifact:  false,
-		CapManageSource:    false,
-		CapManageCluster:   false,
-		CapReadSecret:      false,
-		CapManageMember:    false,
-		CapDeleteNamespace: false,
+		CapReadPrivate:       true,
+		CapIngest:            true,
+		CapTriggerScan:       true,
+		CapPushInventory:     true,
+		CapDeleteArtifact:    false,
+		CapManageSource:      false,
+		CapManageCluster:     false,
+		CapReadSecret:        false,
+		CapManageMember:      false,
+		CapDeleteNamespace:   false,
+		CapInstallationAdmin: false,
 	},
 	RoleViewer: {
-		CapReadPrivate:     true,
-		CapIngest:          false,
-		CapTriggerScan:     false,
-		CapPushInventory:   false,
-		CapDeleteArtifact:  false,
-		CapManageSource:    false,
-		CapManageCluster:   false,
-		CapReadSecret:      false,
-		CapManageMember:    false,
-		CapDeleteNamespace: false,
+		CapReadPrivate:       true,
+		CapIngest:            false,
+		CapTriggerScan:       false,
+		CapPushInventory:     false,
+		CapDeleteArtifact:    false,
+		CapManageSource:      false,
+		CapManageCluster:     false,
+		CapReadSecret:        false,
+		CapManageMember:      false,
+		CapDeleteNamespace:   false,
+		CapInstallationAdmin: false,
 	},
 }
 

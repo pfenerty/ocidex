@@ -1546,7 +1546,8 @@
                 "manage_cluster",
                 "read_secret",
                 "manage_member",
-                "delete_namespace"
+                "delete_namespace",
+                "installation_admin"
               ],
               "type": "string"
             },
@@ -1554,6 +1555,11 @@
               "array",
               "null"
             ]
+          },
+          "expiresAt": {
+            "description": "When the key stops working. Must be in the future. Omit for a key that never expires.",
+            "format": "date-time",
+            "type": "string"
           },
           "name": {
             "description": "Human-readable label for this key",
@@ -3542,6 +3548,11 @@
             "type": "string"
           },
           "createdAt": {
+            "format": "date-time",
+            "type": "string"
+          },
+          "expiresAt": {
+            "description": "When the key stops working; absent means never",
             "format": "date-time",
             "type": "string"
           },

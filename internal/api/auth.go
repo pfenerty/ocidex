@@ -729,7 +729,14 @@ func (h *Handler) CreateAPIKey(ctx context.Context, in *CreateAPIKeyInput) (*Cre
 	if err != nil {
 		return nil, huma.Error422UnprocessableEntity(err.Error())
 	}
-	plaintext, err := h.authService.CreateAPIKey(ctx, user.ID, in.Body.Name, caps)
+	if !keyCovers(user, caps) {
+		return nil, huma.Error403Forbidden("an API key can only create keys whose capabilities it holds itself")
+	}
+	var expiresAt time.Time
+	if in.Body.ExpiresAt != nil {
+		expiresAt = *in.Body.ExpiresAt
+	}
+	plaintext, err := h.authService.CreateExpiringAPIKey(ctx, user.ID, in.Body.Name, caps, expiresAt)
 	if err != nil {
 		return nil, mapServiceError(err)
 	}
@@ -757,6 +764,7 @@ func (h *Handler) ListAPIKeys(ctx context.Context, _ *struct{}) (*ListAPIKeysOut
 			Capabilities: authz.Strings(k.Capabilities),
 			CreatedAt:    k.CreatedAt,
 			LastUsedAt:   k.LastUsedAt,
+			ExpiresAt:    k.ExpiresAt,
 			ClusterID:    k.ClusterID,
 		}
 	}
@@ -772,10 +780,54 @@ func (h *Handler) DeleteAPIKey(ctx context.Context, in *DeleteAPIKeyInput) (*str
 	if err != nil {
 		return nil, huma.Error400BadRequest("invalid key id")
 	}
+	if user.APIKeyAuth {
+		target, err := h.ownAPIKey(ctx, user, keyID)
+		if err != nil {
+			return nil, err
+		}
+		if !keyCovers(user, target.Capabilities) {
+			return nil, huma.Error403Forbidden("an API key can only delete keys whose capabilities it holds itself")
+		}
+	}
 	if err := h.authService.DeleteAPIKey(ctx, user.ID, keyID); err != nil {
 		return nil, huma.Error404NotFound("key not found")
 	}
 	return nil, nil
+}
+
+// keyCovers reports whether the caller's credential may create or delete a key
+// holding caps. A session may manage any of its user's keys. An API key may
+// only manage keys whose capabilities it holds itself: its capabilities are a
+// ceiling, and minting (or revoking) a wider key would step over it. An empty
+// caps is the service's "every capability" default, so it is covered only by a
+// key that holds every capability.
+func keyCovers(user service.AuthUser, caps []authz.Capability) bool {
+	if !user.APIKeyAuth {
+		return true
+	}
+	if len(caps) == 0 {
+		caps = authz.AllCapabilities()
+	}
+	for _, c := range caps {
+		if !user.KeyAllows(c) {
+			return false
+		}
+	}
+	return true
+}
+
+// ownAPIKey returns one of the caller's keys, or 404.
+func (h *Handler) ownAPIKey(ctx context.Context, user service.AuthUser, keyID pgtype.UUID) (service.APIKeyMeta, error) {
+	keys, err := h.authService.ListAPIKeys(ctx, user.ID)
+	if err != nil {
+		return service.APIKeyMeta{}, mapServiceError(err)
+	}
+	for _, k := range keys {
+		if k.ID == keyID {
+			return k, nil
+		}
+	}
+	return service.APIKeyMeta{}, huma.Error404NotFound("key not found")
 }
 
 func (h *Handler) ListUsers(ctx context.Context, _ *struct{}) (*ListUsersOutput, error) {

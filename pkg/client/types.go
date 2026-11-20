@@ -113,16 +113,17 @@ func (e ClusterWorkloadResponseMatchState) Valid() bool {
 
 // Defines values for CreateAPIKeyInputBodyCapabilities.
 const (
-	DeleteArtifact  CreateAPIKeyInputBodyCapabilities = "delete_artifact"
-	DeleteNamespace CreateAPIKeyInputBodyCapabilities = "delete_namespace"
-	Ingest          CreateAPIKeyInputBodyCapabilities = "ingest"
-	ManageCluster   CreateAPIKeyInputBodyCapabilities = "manage_cluster"
-	ManageMember    CreateAPIKeyInputBodyCapabilities = "manage_member"
-	ManageSource    CreateAPIKeyInputBodyCapabilities = "manage_source"
-	PushInventory   CreateAPIKeyInputBodyCapabilities = "push_inventory"
-	ReadPrivate     CreateAPIKeyInputBodyCapabilities = "read_private"
-	ReadSecret      CreateAPIKeyInputBodyCapabilities = "read_secret"
-	TriggerScan     CreateAPIKeyInputBodyCapabilities = "trigger_scan"
+	DeleteArtifact    CreateAPIKeyInputBodyCapabilities = "delete_artifact"
+	DeleteNamespace   CreateAPIKeyInputBodyCapabilities = "delete_namespace"
+	Ingest            CreateAPIKeyInputBodyCapabilities = "ingest"
+	InstallationAdmin CreateAPIKeyInputBodyCapabilities = "installation_admin"
+	ManageCluster     CreateAPIKeyInputBodyCapabilities = "manage_cluster"
+	ManageMember      CreateAPIKeyInputBodyCapabilities = "manage_member"
+	ManageSource      CreateAPIKeyInputBodyCapabilities = "manage_source"
+	PushInventory     CreateAPIKeyInputBodyCapabilities = "push_inventory"
+	ReadPrivate       CreateAPIKeyInputBodyCapabilities = "read_private"
+	ReadSecret        CreateAPIKeyInputBodyCapabilities = "read_secret"
+	TriggerScan       CreateAPIKeyInputBodyCapabilities = "trigger_scan"
 )
 
 // Valid indicates whether the value is a known member of the CreateAPIKeyInputBodyCapabilities enum.
@@ -133,6 +134,8 @@ func (e CreateAPIKeyInputBodyCapabilities) Valid() bool {
 	case DeleteNamespace:
 		return true
 	case Ingest:
+		return true
+	case InstallationAdmin:
 		return true
 	case ManageCluster:
 		return true
@@ -2154,6 +2157,9 @@ type CreateAPIKeyInputBody struct {
 	// Capabilities Capabilities this key may exercise, intersected with the owner's live namespace roles. Empty means all of them.
 	Capabilities *[]CreateAPIKeyInputBodyCapabilities `json:"capabilities,omitempty"`
 
+	// ExpiresAt When the key stops working. Must be in the future. Omit for a key that never expires.
+	ExpiresAt *time.Time `json:"expiresAt,omitempty"`
+
 	// Name Human-readable label for this key
 	Name string `json:"name"`
 }
@@ -2896,6 +2902,9 @@ type KeyMetaResponse struct {
 	// ClusterId Set for a cluster agent credential, which may only push this cluster's inventory
 	ClusterId *string   `json:"clusterId,omitempty"`
 	CreatedAt time.Time `json:"createdAt"`
+
+	// ExpiresAt When the key stops working; absent means never
+	ExpiresAt *time.Time `json:"expiresAt,omitempty"`
 
 	// Id Key UUID
 	Id         string     `json:"id"`
