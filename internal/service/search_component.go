@@ -24,7 +24,7 @@ func (s *searchService) SearchComponents(ctx context.Context, filter ComponentFi
 		Purl:      textOrNull(filter.Purl),
 		GroupName: textOrNull(filter.Group),
 		Version:   textOrNull(filter.Version),
-		UserID:    filter.Visibility.UserID,
+		UserID:    uuidOrNull(filter.Visibility.UserID),
 		IsAdmin:   visAdminBool(filter.Visibility),
 		RowLimit:  filter.Limit,
 		RowOffset: filter.Offset,
@@ -74,7 +74,7 @@ func (s *searchService) SearchDistinctComponents(ctx context.Context, filter Com
 		GroupName: textOrNull(filter.Group),
 		Type:      textOrNull(filter.Type),
 		PurlType:  textOrNull(filter.PurlType),
-		UserID:    filter.Visibility.UserID,
+		UserID:    uuidOrNull(filter.Visibility.UserID),
 		IsAdmin:   visAdminBool(filter.Visibility),
 		SortBy:    sortBy,
 		SortDir:   sortDir,
@@ -130,7 +130,7 @@ func (s *searchService) GetComponentVersions(ctx context.Context, filter Compone
 		GroupName: textOrNull(filter.Group),
 		Version:   textOrNull(filter.Version),
 		Type:      textOrNull(filter.Type),
-		UserID:    filter.Visibility.UserID,
+		UserID:    uuidOrNull(filter.Visibility.UserID),
 		IsAdmin:   visAdminBool(filter.Visibility),
 	})
 	if err != nil {
@@ -142,7 +142,7 @@ func (s *searchService) GetComponentVersions(ctx context.Context, filter Compone
 		GroupName: textOrNull(filter.Group),
 		Version:   textOrNull(filter.Version),
 		Type:      textOrNull(filter.Type),
-		UserID:    filter.Visibility.UserID,
+		UserID:    uuidOrNull(filter.Visibility.UserID),
 		IsAdmin:   visAdminBool(filter.Visibility),
 		RowLimit:  filter.Limit,
 		RowOffset: filter.Offset,
@@ -209,7 +209,7 @@ func (s *searchService) ListComponentVersionSummaries(ctx context.Context, filte
 		Name:      filter.Name,
 		GroupName: textOrNull(filter.Group),
 		Type:      textOrNull(filter.Type),
-		UserID:    filter.Visibility.UserID,
+		UserID:    uuidOrNull(filter.Visibility.UserID),
 		IsAdmin:   visAdminBool(filter.Visibility),
 	})
 	if err != nil {
@@ -220,7 +220,7 @@ func (s *searchService) ListComponentVersionSummaries(ctx context.Context, filte
 		Name:      filter.Name,
 		GroupName: textOrNull(filter.Group),
 		Type:      textOrNull(filter.Type),
-		UserID:    filter.Visibility.UserID,
+		UserID:    uuidOrNull(filter.Visibility.UserID),
 		IsAdmin:   visAdminBool(filter.Visibility),
 		RowLimit:  filter.Limit,
 		RowOffset: filter.Offset,
@@ -366,7 +366,7 @@ func (s *searchService) GetComponent(ctx context.Context, idStr string, vis Visi
 	// Access check: verify the SBOM this component belongs to is visible.
 	visible, err := q.IsSBOMVisible(ctx, repository.IsSBOMVisibleParams{
 		ID:      row.SbomID,
-		UserID:  vis.UserID,
+		UserID:  uuidOrNull(vis.UserID),
 		IsAdmin: visAdminBool(vis),
 	})
 	if err != nil {
@@ -558,7 +558,7 @@ func (s *searchService) GetComponentVulns(ctx context.Context, idStr string, vis
 func (s *searchService) ListComponentPurlTypes(ctx context.Context, vis VisibilityFilter) ([]string, error) {
 	q := repository.New(s.db)
 	return q.ListComponentPurlTypes(ctx, repository.ListComponentPurlTypesParams{
-		UserID:  vis.UserID,
+		UserID:  uuidOrNull(vis.UserID),
 		IsAdmin: visAdminBool(vis),
 	})
 }

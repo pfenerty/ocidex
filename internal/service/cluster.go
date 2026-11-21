@@ -482,7 +482,7 @@ func (s *clusterService) ListByNamespace(ctx context.Context, namespaceID string
 func (s *clusterService) List(ctx context.Context, filter VisibilityFilter) ([]Cluster, error) {
 	rows, err := s.repo.ListClusters(ctx, repository.ListClustersParams{
 		IsAdmin:   filter.adminFlag(),
-		UserID:    filter.UserID,
+		UserID:    uuidOrNull(filter.UserID),
 		OwnedOnly: filter.ownedFlag(),
 	})
 	if err != nil {
@@ -637,7 +637,7 @@ func (s *clusterService) ListWorkloads(ctx context.Context, clusterID string, pa
 				K8sNamespace: optionalText(params.K8sNamespace),
 				MatchState:   optionalText(params.MatchState),
 				Q:            optionalText(params.Query),
-				UserID:       filter.UserID,
+				UserID:       uuidOrNull(filter.UserID),
 				IsAdmin:      filter.adminFlag(),
 			})
 		},
@@ -651,7 +651,7 @@ func (s *clusterService) ListWorkloads(ctx context.Context, clusterID string, pa
 				SortDir:      sortDir,
 				Limit:        pgtype.Int4{Int32: limit, Valid: true},
 				Offset:       pgtype.Int4{Int32: offset, Valid: true},
-				UserID:       filter.UserID,
+				UserID:       uuidOrNull(filter.UserID),
 				IsAdmin:      filter.adminFlag(),
 			})
 		}, workloadFromRepo)
@@ -677,7 +677,7 @@ func (s *clusterService) ListImages(ctx context.Context, clusterID string, param
 				K8sNamespace: optionalText(params.K8sNamespace),
 				MatchState:   optionalText(params.MatchState),
 				Q:            optionalText(params.Query),
-				UserID:       filter.UserID,
+				UserID:       uuidOrNull(filter.UserID),
 				IsAdmin:      filter.adminFlag(),
 			})
 		},
@@ -691,7 +691,7 @@ func (s *clusterService) ListImages(ctx context.Context, clusterID string, param
 				SortDir:      sortDir,
 				Limit:        pgtype.Int4{Int32: limit, Valid: true},
 				Offset:       pgtype.Int4{Int32: offset, Valid: true},
-				UserID:       filter.UserID,
+				UserID:       uuidOrNull(filter.UserID),
 				IsAdmin:      filter.adminFlag(),
 			})
 		}, imageFromRepo)
@@ -737,7 +737,7 @@ func (s *clusterService) NamespaceFacets(ctx context.Context, clusterID string, 
 	}
 	rows, err := s.repo.ListClusterK8sNamespaces(ctx, repository.ListClusterK8sNamespacesParams{
 		ClusterID: cid,
-		UserID:    filter.UserID,
+		UserID:    uuidOrNull(filter.UserID),
 		IsAdmin:   filter.adminFlag(),
 	})
 	if err != nil {
@@ -757,7 +757,7 @@ func (s *clusterService) Coverage(ctx context.Context, clusterID string, filter 
 	}
 	row, err := s.repo.GetClusterWorkloadCoverage(ctx, repository.GetClusterWorkloadCoverageParams{
 		ClusterID: cid,
-		UserID:    filter.UserID,
+		UserID:    uuidOrNull(filter.UserID),
 		IsAdmin:   filter.adminFlag(),
 	})
 	if err != nil {
@@ -785,7 +785,7 @@ func (s *clusterService) RunningVulns(ctx context.Context, clusterID string, par
 	total, err := s.repo.CountClusterRunningVulns(ctx, repository.CountClusterRunningVulnsParams{
 		ClusterID: cid,
 		Severity:  severity,
-		UserID:    filter.UserID,
+		UserID:    uuidOrNull(filter.UserID),
 		IsAdmin:   filter.adminFlag(),
 	})
 	if err != nil {
@@ -800,7 +800,7 @@ func (s *clusterService) RunningVulns(ctx context.Context, clusterID string, par
 		SortDir:   sortDir,
 		Limit:     pgtype.Int4{Int32: limit, Valid: true},
 		Offset:    pgtype.Int4{Int32: offset, Valid: true},
-		UserID:    filter.UserID,
+		UserID:    uuidOrNull(filter.UserID),
 		IsAdmin:   filter.adminFlag(),
 	})
 	if err != nil {
@@ -833,7 +833,7 @@ func (s *clusterService) WorkloadsForVulnerability(ctx context.Context, canonica
 	}
 	params := repository.ListWorkloadsForVulnerabilityParams{
 		CanonicalID: canonicalID,
-		UserID:      filter.UserID,
+		UserID:      uuidOrNull(filter.UserID),
 		IsAdmin:     filter.adminFlag(),
 	}
 	// An unparseable cluster id is not silently widened to every cluster: that
@@ -1088,7 +1088,7 @@ func (s *clusterService) WorkloadsForArtifact(ctx context.Context, artifactID st
 	lim, _ := clampPage(limit, 0)
 	rows, err := s.repo.ListWorkloadsForArtifact(ctx, repository.ListWorkloadsForArtifactParams{
 		ArtifactID: aid,
-		UserID:     filter.UserID,
+		UserID:     uuidOrNull(filter.UserID),
 		IsAdmin:    filter.adminFlag(),
 		Limit:      pgtype.Int4{Int32: lim, Valid: true},
 	})

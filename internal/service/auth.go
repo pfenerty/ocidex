@@ -25,7 +25,7 @@ import (
 
 // AuthUser is the authenticated principal attached to a request context.
 type AuthUser struct {
-	ID pgtype.UUID
+	ID string
 	// DisplayName is what to call this person in the UI. It is deliberately not
 	// an identifier: it comes from whichever issuer last signed them in, and two
 	// accounts may carry the same one.
@@ -66,7 +66,7 @@ type AuthUser struct {
 
 // APIKeyMeta is the display-safe representation of an API key (no hash).
 type APIKeyMeta struct {
-	ID           pgtype.UUID
+	ID           string
 	Name         string
 	Prefix       string
 	Capabilities []authz.Capability
@@ -236,7 +236,7 @@ func (s *authService) promoteBootstrapAdmin(ctx context.Context, id auth.Identit
 	if u.Role == roleAdmin || !s.isBootstrapAdmin(id) {
 		return u, nil
 	}
-	row, err := s.repo.UpdateUserRole(ctx, repository.UpdateUserRoleParams{ID: u.ID, Role: roleAdmin})
+	row, err := s.repo.UpdateUserRole(ctx, repository.UpdateUserRoleParams{ID: uuidOrNull(u.ID), Role: roleAdmin})
 	if err != nil {
 		return AuthUser{}, fmt.Errorf("promoting bootstrap admin: %w", err)
 	}
@@ -295,7 +295,7 @@ func (s *authService) resolveIdentity(ctx context.Context, id auth.Identity) (Au
 		if err != nil {
 			return AuthUser{}, fmt.Errorf("updating user profile: %w", err)
 		}
-		return AuthUser{ID: u.ID, DisplayName: displayName(u.DisplayName), Role: u.Role}, nil
+		return AuthUser{ID: u.ID.String(), DisplayName: displayName(u.DisplayName), Role: u.Role}, nil
 
 	case errors.Is(err, pgx.ErrNoRows):
 		if !s.signupOpen() && !s.isBootstrapAdmin(id) {
@@ -303,7 +303,7 @@ func (s *authService) resolveIdentity(ctx context.Context, id auth.Identity) (Au
 		}
 		row, createErr := s.repo.CreateUserWithIdentity(ctx, newUserParams(id))
 		if createErr == nil {
-			return AuthUser{ID: row.ID, DisplayName: displayName(row.DisplayName), Role: row.Role}, nil
+			return AuthUser{ID: row.ID.String(), DisplayName: displayName(row.DisplayName), Role: row.Role}, nil
 		}
 		// Two tabs can finish a first sign-in at the same time; the loser hits
 		// user_identity's UNIQUE (provider, subject). The account it wanted now
@@ -315,7 +315,7 @@ func (s *authService) resolveIdentity(ctx context.Context, id auth.Identity) (Au
 		if lookupErr != nil {
 			return AuthUser{}, fmt.Errorf("creating user: %w", createErr)
 		}
-		return AuthUser{ID: u.ID, DisplayName: displayName(u.DisplayName), Role: u.Role}, nil
+		return AuthUser{ID: u.ID.String(), DisplayName: displayName(u.DisplayName), Role: u.Role}, nil
 
 	default:
 		return AuthUser{}, fmt.Errorf("looking up identity: %w", err)
@@ -341,7 +341,7 @@ func newUserParams(id auth.Identity) repository.CreateUserWithIdentityParams {
 // be able to. It is never shown to anybody else: the set of issuers a person
 // signs in with, and their key at each, is a fingerprint they did not offer.
 type LinkedIdentity struct {
-	ID        pgtype.UUID
+	ID        string
 	Provider  string
 	Subject   string
 	Email     string
@@ -360,7 +360,7 @@ func (s *authService) ListIdentities(ctx context.Context, userIDStr string) ([]L
 	out := make([]LinkedIdentity, len(rows))
 	for i, r := range rows {
 		out[i] = LinkedIdentity{
-			ID:        r.ID,
+			ID:        r.ID.String(),
 			Provider:  r.Provider,
 			Subject:   r.Subject,
 			Email:     r.Email.String,
@@ -463,7 +463,7 @@ func (s *authService) UnlinkIdentity(ctx context.Context, userIDStr string, iden
 
 func identityFromRow(r repository.UserIdentity) LinkedIdentity {
 	return LinkedIdentity{
-		ID:        r.ID,
+		ID:        r.ID.String(),
 		Provider:  r.Provider,
 		Subject:   r.Subject,
 		Email:     r.Email.String,
@@ -502,7 +502,7 @@ func (s *authService) ValidateSession(ctx context.Context, token string) (AuthUs
 		return AuthUser{}, credentialLookupError("session", err)
 	}
 	return AuthUser{
-		ID:          row.UserID,
+		ID:          row.UserID.String(),
 		DisplayName: displayName(row.DisplayName),
 		Role:        row.Role,
 	}, nil
@@ -515,7 +515,7 @@ func (s *authService) DeleteSession(ctx context.Context, token string) error {
 		return err
 	}
 	if userErr == nil {
-		s.publisher.Publish(ctx, event.UserLoggedOut, event.UserLoggedOutData{UserID: user.ID})
+		s.publisher.Publish(ctx, event.UserLoggedOut, event.UserLoggedOutData{UserID: uuidOrNull(user.ID)})
 	}
 	return nil
 }
@@ -633,7 +633,7 @@ func (s *authService) ValidateAPIKey(ctx context.Context, rawKey string) (AuthUs
 		}
 	}
 	return AuthUser{
-		ID:          row.UserID,
+		ID:          row.UserID.String(),
 		DisplayName: displayName(row.DisplayName),
 		Role:        row.Role,
 		APIKeyAuth:  true,
@@ -668,7 +668,7 @@ func (s *authService) ListAPIKeys(ctx context.Context, userIDStr string) ([]APIK
 			}
 		}
 		m := APIKeyMeta{
-			ID:           r.ID,
+			ID:           r.ID.String(),
 			Name:         r.Name,
 			Prefix:       r.Prefix,
 			Capabilities: caps,
@@ -720,7 +720,7 @@ func (s *authService) GetUser(ctx context.Context, userIDStr string) (AuthUser, 
 		return AuthUser{}, fmt.Errorf("getting user: %w", err)
 	}
 	return AuthUser{
-		ID:          u.ID,
+		ID:          u.ID.String(),
 		DisplayName: displayName(u.DisplayName),
 		Role:        u.Role,
 	}, nil
@@ -734,7 +734,7 @@ func (s *authService) ListUsers(ctx context.Context) ([]AuthUser, error) {
 	out := make([]AuthUser, len(users))
 	for i, u := range users {
 		out[i] = AuthUser{
-			ID:          u.ID,
+			ID:          u.ID.String(),
 			DisplayName: displayName(u.DisplayName),
 			Role:        u.Role,
 		}
@@ -767,7 +767,7 @@ func (s *authService) UpdateUserRole(ctx context.Context, targetIDStr string, ro
 		return AuthUser{}, fmt.Errorf("updating user role: %w", err)
 	}
 	return AuthUser{
-		ID:          u.ID,
+		ID:          u.ID.String(),
 		DisplayName: displayName(u.DisplayName),
 		Role:        u.Role,
 	}, nil

@@ -42,8 +42,8 @@ func (f *keyMgmtAuthService) CreateExpiringAPIKey(_ context.Context, _ string, _
 
 func (f *keyMgmtAuthService) ListAPIKeys(_ context.Context, _ string) ([]service.APIKeyMeta, error) {
 	return []service.APIKeyMeta{
-		{ID: wideKeyID, Capabilities: authz.AllCapabilities()},
-		{ID: scanKeyID, Capabilities: []authz.Capability{authz.CapTriggerScan}},
+		{ID: wideKeyID.String(), Capabilities: authz.AllCapabilities()},
+		{ID: scanKeyID.String(), Capabilities: []authz.Capability{authz.CapTriggerScan}},
 	}, nil
 }
 
@@ -54,9 +54,9 @@ func (f *keyMgmtAuthService) DeleteAPIKey(_ context.Context, _ string, id string
 
 func newKeyMgmtAuthService() *keyMgmtAuthService {
 	return &keyMgmtAuthService{fakeAuthService: fakeAuthService{users: map[string]service.AuthUser{
-		tokenScanKey: {ID: ceilingUser, DisplayName: "ci", Role: "member", APIKeyAuth: true,
+		tokenScanKey: {ID: ceilingUser.String(), DisplayName: "ci", Role: "member", APIKeyAuth: true,
 			APIKeyCaps: []authz.Capability{authz.CapTriggerScan}},
-		tokenFullKey: {ID: ceilingUser, DisplayName: "ci", Role: "member", APIKeyAuth: true,
+		tokenFullKey: {ID: ceilingUser.String(), DisplayName: "ci", Role: "member", APIKeyAuth: true,
 			APIKeyCaps: authz.AllCapabilities()},
 	}}}
 }
@@ -114,7 +114,7 @@ func TestLinkIdentityRefusesAPIKeys(t *testing.T) {
 	is := is.New(t)
 	svc := newLinkAuthService()
 	svc.users = map[string]service.AuthUser{
-		tokenFullKey: {ID: ceilingUser, DisplayName: "ci", Role: "member", APIKeyAuth: true,
+		tokenFullKey: {ID: ceilingUser.String(), DisplayName: "ci", Role: "member", APIKeyAuth: true,
 			APIKeyCaps: authz.AllCapabilities()},
 	}
 	req := doAuthRequest(newIdentityTestRouter(svc), http.MethodPost, "/api/v1/auth/identities",

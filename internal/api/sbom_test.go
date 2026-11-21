@@ -21,7 +21,7 @@ import (
 func memberAuthSvc() *fakeAuthService {
 	return &fakeAuthService{
 		users: map[string]service.AuthUser{
-			"member-token": {ID: ownerUUID, Role: "member"},
+			"member-token": {ID: ownerUUID.String(), Role: "member"},
 		},
 		grants: map[string]map[string]authz.Role{
 			ownerUUID.String(): {testNamespaceID: authz.RoleMaintainer},

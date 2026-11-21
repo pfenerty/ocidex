@@ -54,7 +54,7 @@ func (h *Handler) CreateClusterCredential(ctx context.Context, in *CreateCluster
 	if name == "" {
 		name = cluster.Name + "-agent"
 	}
-	cred, err := h.clusterAgents.CreateCredential(ctx, in.ID, user.ID.String(), name)
+	cred, err := h.clusterAgents.CreateCredential(ctx, in.ID, user.ID, name)
 	if err != nil {
 		return nil, mapServiceError(err)
 	}
@@ -80,7 +80,7 @@ func (h *Handler) RotateClusterCredential(ctx context.Context, in *ClusterCreden
 	if err := h.requireNamespaceCapability(ctx, user, cluster.NamespaceID, authz.CapPushInventory); err != nil {
 		return nil, err
 	}
-	cred, err := h.clusterAgents.RotateCredential(ctx, in.ID, in.CredentialID, user.ID.String())
+	cred, err := h.clusterAgents.RotateCredential(ctx, in.ID, in.CredentialID, user.ID)
 	if err != nil {
 		return nil, mapServiceError(err)
 	}

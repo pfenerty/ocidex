@@ -115,7 +115,7 @@ func (s *watchService) Watch(ctx context.Context, userIDStr string, artifactID s
 	// missing one are indistinguishable from outside — which is the point.
 	visible, err := s.repo.IsArtifactVisible(ctx, repository.IsArtifactVisibleParams{
 		AID:     id,
-		UserID:  vis.UserID,
+		UserID:  uuidOrNull(vis.UserID),
 		IsAdmin: visAdminBool(vis),
 	})
 	if err != nil {
@@ -207,7 +207,7 @@ func (s *watchService) Feed(ctx context.Context, userIDStr string, vis Visibilit
 	// One extra row, same as List, to detect a further page.
 	rows, err := s.repo.ListWatchedArtifactEvents(ctx, repository.ListWatchedArtifactEventsParams{
 		WatcherID:        userID,
-		UserID:           vis.UserID,
+		UserID:           uuidOrNull(vis.UserID),
 		IsAdmin:          visAdminBool(vis),
 		HasCursor:        pgtype.Bool{Bool: page.HasCursor, Valid: true},
 		CursorOccurredAt: pgtype.Timestamptz{Time: page.CursorCreatedAt, Valid: page.HasCursor},

@@ -167,7 +167,7 @@ type ConnectClusterParams struct {
 	Description string
 	AutoIngest  bool
 	// Owner mints the credential; it acts with their roles.
-	Owner pgtype.UUID
+	Owner string
 }
 
 // Connect registers a cluster and mints its first agent credential in one
@@ -207,7 +207,7 @@ func (s *clusterService) Connect(ctx context.Context, p ConnectClusterParams) (C
 		}
 	}
 	cred, err := q.CreateClusterCredential(ctx, repository.CreateClusterCredentialParams{
-		UserID: p.Owner, Name: p.Name + "-agent", KeyHash: hash, Prefix: prefix, ClusterID: row.ID,
+		UserID: uuidOrNull(p.Owner), Name: p.Name + "-agent", KeyHash: hash, Prefix: prefix, ClusterID: row.ID,
 	})
 	if err != nil {
 		return Cluster{}, ClusterCredential{}, fmt.Errorf("creating cluster credential: %w", err)
@@ -220,7 +220,7 @@ func (s *clusterService) Connect(ctx context.Context, p ConnectClusterParams) (C
 		Name:      cred.Name,
 		Prefix:    cred.Prefix,
 		CreatedAt: cred.CreatedAt.Time,
-		OwnerID:   p.Owner.String(),
+		OwnerID:   p.Owner,
 		Plaintext: plaintext,
 	}, nil
 }

@@ -36,7 +36,7 @@ func TestStatsCacheKeyByScope(t *testing.T) {
 	uid := pgtype.UUID{Bytes: [16]byte{1, 2, 3}, Valid: true}
 
 	is.Equal(statsCacheKey(VisibilityFilter{IsAdmin: true}), "admin")
-	is.Equal(statsCacheKey(VisibilityFilter{IsAdmin: true, UserID: uid}), "admin")
-	is.Equal(statsCacheKey(VisibilityFilter{UserID: uid}), "u:"+uid.String())
+	is.Equal(statsCacheKey(VisibilityFilter{IsAdmin: true, UserID: uid.String()}), "admin")
+	is.Equal(statsCacheKey(VisibilityFilter{UserID: uid.String()}), "u:"+uid.String())
 	is.Equal(statsCacheKey(VisibilityFilter{}), "anon")
 }

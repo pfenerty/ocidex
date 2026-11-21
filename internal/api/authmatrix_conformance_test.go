@@ -51,15 +51,15 @@ type persona struct {
 // whatever the namespace grants it, and devoutsider is a member of nothing.
 var personas = []persona{
 	{name: "devadmin", token: "tok-devadmin",
-		user: service.AuthUser{ID: personaID(0xa1), DisplayName: "devadmin", Role: "admin", APIKeyAuth: true, APIKeyCaps: authz.AllCapabilities()}},
+		user: service.AuthUser{ID: personaID(0xa1).String(), DisplayName: "devadmin", Role: "admin", APIKeyAuth: true, APIKeyCaps: authz.AllCapabilities()}},
 	{name: "devowner", token: "tok-devowner",
-		user: service.AuthUser{ID: ownerUUID, DisplayName: "devowner", Role: "member", APIKeyAuth: true, APIKeyCaps: authz.AllCapabilities()}},
+		user: service.AuthUser{ID: ownerUUID.String(), DisplayName: "devowner", Role: "member", APIKeyAuth: true, APIKeyCaps: authz.AllCapabilities()}},
 	{name: "devsecurity", token: "tok-devsecurity",
-		user: service.AuthUser{ID: personaID(0xa3), DisplayName: "devsecurity", Role: "member", APIKeyAuth: true, APIKeyCaps: authz.AllCapabilities()}},
+		user: service.AuthUser{ID: personaID(0xa3).String(), DisplayName: "devsecurity", Role: "member", APIKeyAuth: true, APIKeyCaps: authz.AllCapabilities()}},
 	{name: "devviewer", token: "tok-devviewer",
-		user: service.AuthUser{ID: personaID(0xa4), DisplayName: "devviewer", Role: "viewer", APIKeyAuth: true, APIKeyCaps: authz.AllCapabilities()}},
+		user: service.AuthUser{ID: personaID(0xa4).String(), DisplayName: "devviewer", Role: "viewer", APIKeyAuth: true, APIKeyCaps: authz.AllCapabilities()}},
 	{name: "devoutsider", token: "tok-devoutsider",
-		user: service.AuthUser{ID: personaID(0xa5), DisplayName: "devoutsider", Role: "member", APIKeyAuth: true, APIKeyCaps: authz.AllCapabilities()}},
+		user: service.AuthUser{ID: personaID(0xa5).String(), DisplayName: "devoutsider", Role: "member", APIKeyAuth: true, APIKeyCaps: authz.AllCapabilities()}},
 }
 
 // readOnlyToken authenticates devadmin — the persona no class can refuse — with
@@ -95,7 +95,7 @@ func personaGrants() map[string]map[string]authz.Role {
 		if !ok {
 			continue
 		}
-		grants[p.user.ID.String()] = map[string]authz.Role{
+		grants[p.user.ID] = map[string]authz.Role{
 			testNamespaceID: role,
 			mwNamespaceID:   role,
 		}
@@ -105,7 +105,7 @@ func personaGrants() map[string]map[string]authz.Role {
 
 func personaAuthService() *fakeAuthService {
 	users := map[string]service.AuthUser{
-		readOnlyToken: {ID: personaID(0xa1), DisplayName: "devadmin", Role: "admin", APIKeyAuth: true, APIKeyCaps: []authz.Capability{authz.CapReadPrivate}},
+		readOnlyToken: {ID: personaID(0xa1).String(), DisplayName: "devadmin", Role: "admin", APIKeyAuth: true, APIKeyCaps: []authz.Capability{authz.CapReadPrivate}},
 	}
 	for _, p := range personas {
 		users[p.token] = p.user
@@ -398,9 +398,9 @@ func TestAdminRoutesRequireTheKeysInstallationAdminCapability(t *testing.T) {
 	}
 	const narrowToken, fullToken = "tok-admin-noadmincap", "tok-admin-full"
 	svc := personaAuthService()
-	svc.users[narrowToken] = service.AuthUser{ID: personaID(0xa1), DisplayName: "devadmin", Role: "admin",
+	svc.users[narrowToken] = service.AuthUser{ID: personaID(0xa1).String(), DisplayName: "devadmin", Role: "admin",
 		APIKeyAuth: true, APIKeyCaps: withoutAdmin}
-	svc.users[fullToken] = service.AuthUser{ID: personaID(0xa1), DisplayName: "devadmin", Role: "admin",
+	svc.users[fullToken] = service.AuthUser{ID: personaID(0xa1).String(), DisplayName: "devadmin", Role: "admin",
 		APIKeyAuth: true, APIKeyCaps: authz.AllCapabilities()}
 	router := newConformanceRouter(svc)
 

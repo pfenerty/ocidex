@@ -9,7 +9,6 @@ import (
 	"testing"
 
 	cdx "github.com/CycloneDX/cyclonedx-go"
-	"github.com/jackc/pgx/v5/pgtype"
 	"github.com/matryer/is"
 
 	"github.com/pfenerty/ocidex/internal/service"
@@ -22,8 +21,8 @@ type timeoutSBOMService struct {
 	failSBOMService
 }
 
-func (t *timeoutSBOMService) Ingest(_ context.Context, _ *cdx.BOM, _ []byte, _ service.IngestParams) (pgtype.UUID, error) {
-	return pgtype.UUID{}, fmt.Errorf("querying components: %w", context.DeadlineExceeded)
+func (t *timeoutSBOMService) Ingest(_ context.Context, _ *cdx.BOM, _ []byte, _ service.IngestParams) (string, error) {
+	return "", fmt.Errorf("querying components: %w", context.DeadlineExceeded)
 }
 
 func TestMapServiceError_NotFound(t *testing.T) {

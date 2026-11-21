@@ -27,7 +27,7 @@ type Namespace struct {
 // CreateNamespaceParams holds the parameters for creating a namespace.
 type CreateNamespaceParams struct {
 	Name       string
-	OwnerID    pgtype.UUID
+	OwnerID    string
 	Visibility string // defaults to "private" when empty
 }
 
@@ -78,7 +78,7 @@ func (s *namespaceService) Create(ctx context.Context, params CreateNamespacePar
 	}
 	ns, err := s.repo.CreateNamespace(ctx, repository.CreateNamespaceParams{
 		Name:        params.Name,
-		OwnerUserID: params.OwnerID,
+		OwnerUserID: uuidOrNull(params.OwnerID),
 		Visibility:  visibility,
 	})
 	if err != nil {
@@ -119,7 +119,7 @@ func (s *namespaceService) GetByName(ctx context.Context, name string) (Namespac
 func (s *namespaceService) List(ctx context.Context, filter VisibilityFilter) ([]Namespace, error) {
 	rows, err := s.repo.ListNamespaces(ctx, repository.ListNamespacesParams{
 		IsAdmin:   filter.adminFlag(),
-		UserID:    filter.UserID,
+		UserID:    uuidOrNull(filter.UserID),
 		OwnedOnly: filter.ownedFlag(),
 	})
 	if err != nil {

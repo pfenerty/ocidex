@@ -122,7 +122,7 @@ func OptionalAuthenticate(authSvc Authenticator) func(http.Handler) http.Handler
 				return
 			}
 
-			grants, gerr := authSvc.LoadGrants(r.Context(), user.ID.String())
+			grants, gerr := authSvc.LoadGrants(r.Context(), user.ID)
 			if gerr != nil {
 				slog.WarnContext(r.Context(), "loading namespace grants", "error", gerr)
 			}
@@ -138,7 +138,7 @@ func OptionalAuthenticate(authSvc Authenticator) func(http.Handler) http.Handler
 // actorFor is the audit actor for an authenticated caller: the user, and the
 // key when the request came in on one (ocidex-n9na).
 func actorFor(user service.AuthUser) event.Actor {
-	return event.Actor{Kind: event.ActorUser, ID: user.ID.String(), APIKeyID: user.APIKeyID}
+	return event.Actor{Kind: event.ActorUser, ID: user.ID, APIKeyID: user.APIKeyID}
 }
 
 // clusterCredentialRoute reports whether r is the one request a credential

@@ -87,7 +87,7 @@ func (h *Handler) usernamesByID(ctx context.Context) map[string]string {
 		return names
 	}
 	for _, u := range users {
-		names[u.ID.String()] = u.DisplayName
+		names[u.ID] = u.DisplayName
 	}
 	return names
 }

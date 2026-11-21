@@ -343,9 +343,9 @@ func BuildTrustLookup(svc RegistryService) func(ctx context.Context, registryID 
 // A zero UserID on the ownership path matches nothing rather than everything,
 // because `owner_id = NULL` is NULL in SQL, not true.
 type VisibilityFilter struct {
-	IsAdmin   bool        // admin sees everything (ignored when OwnedOnly)
-	UserID    pgtype.UUID // authenticated user's ID (zero-value if unauthenticated)
-	OwnedOnly bool        // restrict to rows this user owns, excluding others' public rows
+	IsAdmin   bool   // admin sees everything (ignored when OwnedOnly)
+	UserID    string // authenticated user's ID (zero-value if unauthenticated)
+	OwnedOnly bool   // restrict to rows this user owns, excluding others' public rows
 }
 
 // adminFlag renders IsAdmin as the pgtype.Bool that every visible_namespace_ids()
@@ -379,7 +379,7 @@ type CreateRegistryParams struct {
 	// registry. It has no effect when the registry joins an existing
 	// namespace. Invalid (the operator's unattributed imports) leaves a minted
 	// namespace without an owner.
-	CreatorID        pgtype.UUID
+	CreatorID        string
 	Visibility       string
 	IncludeUntagged  bool
 	VerificationMode string
@@ -558,7 +558,7 @@ func (s *registryService) Create(ctx context.Context, params CreateRegistryParam
 		PollIntervalMinutes: int32(params.PollIntervalMinutes), //nolint:gosec // G115: poll interval is validated to fit int32
 		AuthUsername:        toNullText(params.AuthUsername),
 		AuthToken:           authToken,
-		OwnerUserID:         params.CreatorID,
+		OwnerUserID:         uuidOrNull(params.CreatorID),
 		Visibility:          visibility,
 		IncludeUntagged:     params.IncludeUntagged,
 		VerificationMode:    verificationMode,
@@ -612,7 +612,7 @@ func (s *registryService) resolveNamespace(ctx context.Context, params CreateReg
 	}
 	created, err := s.repo.CreateNamespace(ctx, repository.CreateNamespaceParams{
 		Name:        params.Namespace,
-		OwnerUserID: params.CreatorID,
+		OwnerUserID: uuidOrNull(params.CreatorID),
 		Visibility:  visibility,
 	})
 	if err != nil {
@@ -651,7 +651,7 @@ func (s *registryService) Get(ctx context.Context, id string) (Registry, error) 
 func (s *registryService) List(ctx context.Context, filter VisibilityFilter) ([]Registry, error) {
 	rows, err := s.repo.ListRegistries(ctx, repository.ListRegistriesParams{
 		IsAdmin: pgtype.Bool{Bool: filter.IsAdmin, Valid: true},
-		UserID:  filter.UserID,
+		UserID:  uuidOrNull(filter.UserID),
 	})
 	if err != nil {
 		return nil, fmt.Errorf("listing registries: %w", err)
@@ -668,7 +668,7 @@ func (s *registryService) List(ctx context.Context, filter VisibilityFilter) ([]
 func (s *registryService) ListPaged(ctx context.Context, filter VisibilityFilter, limit, offset int32) (PagedResult[Registry], error) {
 	rows, err := s.repo.ListRegistriesPaged(ctx, repository.ListRegistriesPagedParams{
 		IsAdmin:   filter.adminFlag(),
-		UserID:    filter.UserID,
+		UserID:    uuidOrNull(filter.UserID),
 		OwnedOnly: filter.ownedFlag(),
 		RowLimit:  limit,
 		RowOffset: offset,
@@ -918,7 +918,7 @@ func (s *registryService) Delete(ctx context.Context, id string) error {
 func (s *registryService) TrustSummary(ctx context.Context, vis VisibilityFilter) ([]RegistryTrustCount, error) {
 	rows, err := s.repo.ListRegistryTrustSummary(ctx, repository.ListRegistryTrustSummaryParams{
 		IsAdmin: vis.adminFlag(),
-		UserID:  vis.UserID,
+		UserID:  uuidOrNull(vis.UserID),
 	})
 	if err != nil {
 		return nil, fmt.Errorf("listing registry trust summary: %w", err)

@@ -135,7 +135,7 @@ func (s *searchService) DiffSBOMs(ctx context.Context, fromIDStr string, toIDStr
 	for _, id := range []pgtype.UUID{fromID, toID} {
 		visible, err := q.IsSBOMVisible(ctx, repository.IsSBOMVisibleParams{
 			ID:      id,
-			UserID:  vis.UserID,
+			UserID:  uuidOrNull(vis.UserID),
 			IsAdmin: visAdminBool(vis),
 		})
 		if err != nil {
@@ -199,7 +199,7 @@ func (s *searchService) DiffSBOMsWithTree(ctx context.Context, fromIDStr string,
 	for _, id := range []pgtype.UUID{fromID, toID} {
 		visible, err := q.IsSBOMVisible(ctx, repository.IsSBOMVisibleParams{
 			ID:      id,
-			UserID:  vis.UserID,
+			UserID:  uuidOrNull(vis.UserID),
 			IsAdmin: visAdminBool(vis),
 		})
 		if err != nil {
@@ -332,7 +332,7 @@ func (s *searchService) GetArtifactChangelog(ctx context.Context, artifactIDStr 
 	// Access check.
 	visible, err := q.IsArtifactVisible(ctx, repository.IsArtifactVisibleParams{
 		AID:     artifactID,
-		UserID:  vis.UserID,
+		UserID:  uuidOrNull(vis.UserID),
 		IsAdmin: visAdminBool(vis),
 	})
 	if err != nil {
@@ -346,7 +346,7 @@ func (s *searchService) GetArtifactChangelog(ctx context.Context, artifactIDStr 
 	sboms, err := q.ListSBOMCandidatesByArtifact(ctx, repository.ListSBOMCandidatesByArtifactParams{
 		ArtifactID:     artifactID,
 		SubjectVersion: textOrNull(query.SubjectVersion),
-		UserID:         vis.UserID,
+		UserID:         uuidOrNull(vis.UserID),
 		IsAdmin:        visAdminBool(vis),
 		RowLimit:       10000,
 	})

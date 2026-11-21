@@ -108,7 +108,7 @@ func (h *Handler) IngestSBOM(ctx context.Context, input *IngestSBOMInput) (*Inge
 	}
 
 	out := &IngestSBOMOutput{}
-	out.Body.ID = sbomID.String()
+	out.Body.ID = sbomID
 	out.Body.Status = "accepted"
 	out.Body.SpecVersion = bom.SpecVersion.String()
 	out.Body.SerialNumber = bom.SerialNumber

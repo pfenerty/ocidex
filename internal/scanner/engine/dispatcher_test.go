@@ -13,7 +13,6 @@ import (
 	"testing"
 
 	cdx "github.com/CycloneDX/cyclonedx-go"
-	"github.com/jackc/pgx/v5/pgtype"
 	"github.com/matryer/is"
 
 	"github.com/pfenerty/ocidex/internal/jobqueue"
@@ -38,11 +37,11 @@ func (f *fakeScanner) Scan(_ context.Context, _ scanner.ScanRequest) (scanner.Re
 // fakeSBOMSvc implements service.SBOMService for dispatcher tests.
 type fakeSBOMSvc struct{ ingestErr error }
 
-func (f *fakeSBOMSvc) Ingest(_ context.Context, _ *cdx.BOM, _ []byte, _ service.IngestParams) (pgtype.UUID, error) {
+func (f *fakeSBOMSvc) Ingest(_ context.Context, _ *cdx.BOM, _ []byte, _ service.IngestParams) (string, error) {
 	if f.ingestErr != nil {
-		return pgtype.UUID{}, f.ingestErr
+		return "", f.ingestErr
 	}
-	return pgtype.UUID{Bytes: [16]byte{1}, Valid: true}, nil
+	return "01000000-0000-0000-0000-000000000000", nil
 }
 
 func (f *fakeSBOMSvc) DeleteSBOM(_ context.Context, _ string) error     { return nil }
@@ -93,10 +92,10 @@ func TestDispatcher_ProcessOne(t *testing.T) {
 
 			if tt.wantErr {
 				is.True(err != nil)
-				is.True(!sbomID.Valid)
+				is.Equal(sbomID, "")
 			} else {
 				is.NoErr(err)
-				is.True(sbomID.Valid)
+				is.True(sbomID != "")
 			}
 		})
 	}
@@ -238,7 +237,7 @@ type recordingSBOMSvc struct {
 	versions []string
 }
 
-func (r *recordingSBOMSvc) Ingest(ctx context.Context, bom *cdx.BOM, raw []byte, p service.IngestParams) (pgtype.UUID, error) {
+func (r *recordingSBOMSvc) Ingest(ctx context.Context, bom *cdx.BOM, raw []byte, p service.IngestParams) (string, error) {
 	r.versions = append(r.versions, p.Version)
 	return r.fakeSBOMSvc.Ingest(ctx, bom, raw, p)
 }

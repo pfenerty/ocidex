@@ -50,3 +50,12 @@ func TestParseInvalid(t *testing.T) {
 		})
 	}
 }
+
+func TestOrNull(t *testing.T) {
+	is := is.New(t)
+	is.True(!uuidx.OrNull("").Valid)
+	is.True(!uuidx.OrNull("nope").Valid)
+	id := uuidx.OrNull("0b7e3c1a-9f20-4d5e-8a6b-1c2d3e4f5a6b")
+	is.True(id.Valid)
+	is.Equal(id.String(), "0b7e3c1a-9f20-4d5e-8a6b-1c2d3e4f5a6b")
+}

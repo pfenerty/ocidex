@@ -61,7 +61,7 @@ type IngestParams struct {
 
 // SBOMService defines the business logic for SBOM ingestion and management.
 type SBOMService interface {
-	Ingest(ctx context.Context, bom *cdx.BOM, rawJSON []byte, params IngestParams) (pgtype.UUID, error)
+	Ingest(ctx context.Context, bom *cdx.BOM, rawJSON []byte, params IngestParams) (string, error)
 	DeleteSBOM(ctx context.Context, id string) error
 	// DeleteArtifact removes an artifact and every SBOM under it, in every
 	// namespace. Only an installation admin may reach it.
@@ -287,7 +287,15 @@ func unchanged(next, stored pgtype.Text) bool {
 }
 
 // Ingest decomposes a CycloneDX BOM and persists it in a single transaction.
-func (s *sbomService) Ingest(ctx context.Context, bom *cdx.BOM, rawJSON []byte, params IngestParams) (pgtype.UUID, error) {
+func (s *sbomService) Ingest(ctx context.Context, bom *cdx.BOM, rawJSON []byte, params IngestParams) (string, error) {
+	id, err := s.ingest(ctx, bom, rawJSON, params)
+	if err != nil {
+		return "", err
+	}
+	return id.String(), nil
+}
+
+func (s *sbomService) ingest(ctx context.Context, bom *cdx.BOM, rawJSON []byte, params IngestParams) (pgtype.UUID, error) {
 	// An SBOM cannot exist unowned, so resolve the owner before doing any work.
 	sourceID, namespaceID, err := s.resolveIngestNamespace(ctx, params.SourceID)
 	if err != nil {

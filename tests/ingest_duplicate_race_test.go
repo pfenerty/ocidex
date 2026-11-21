@@ -31,7 +31,7 @@ func TestConcurrentDuplicateIngestIsIdempotent(t *testing.T) {
 	const rounds, perRound = 5, 6
 	for r := range rounds {
 		var wg sync.WaitGroup
-		ids := make(chan pgtype.UUID, perRound)
+		ids := make(chan string, perRound)
 		errs := make(chan error, perRound)
 		for range perRound {
 			// The same SBOM each time, decoded afresh: ingest may mutate it.
@@ -53,9 +53,9 @@ func TestConcurrentDuplicateIngestIsIdempotent(t *testing.T) {
 		for err := range errs {
 			t.Fatalf("round %d: concurrent duplicate ingest failed: %v", r, err)
 		}
-		var first pgtype.UUID
+		var first string
 		for id := range ids {
-			if !first.Valid {
+			if first == "" {
 				first = id
 			}
 			is.Equal(id, first) // every ingest answers with the one stored SBOM

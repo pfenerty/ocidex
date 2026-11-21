@@ -106,7 +106,7 @@ type JobService interface {
 	// EnqueueJob upserts the job for params.MsgID.
 	EnqueueJob(ctx context.Context, params EnqueueParams) (ScanJob, error)
 	Start(ctx context.Context, msgID, workerID string) error
-	Finish(ctx context.Context, msgID string, sbomID pgtype.UUID) error
+	Finish(ctx context.Context, msgID string, sbomID string) error
 	Fail(ctx context.Context, msgID, lastError string) error
 	// List and Get are visibility-filtered: a scan job inherits the visibility
 	// of the namespace above its registry (ADR-039), so a namespace owner sees
@@ -126,7 +126,7 @@ type JobService interface {
 	// LOCKED). False when the queue is empty.
 	ClaimNext(ctx context.Context, workerID string) (ScanJobClaim, bool, error)
 	// FinishByID transitions running → succeeded with an SBOM id.
-	FinishByID(ctx context.Context, id string, sbomID pgtype.UUID) error
+	FinishByID(ctx context.Context, id string, sbomID string) error
 	// FailOrRequeue either resets state to 'queued' for retry (when
 	// attempts < maxAttempts) or marks 'failed' (when attempts >= maxAttempts).
 	// Returns the resulting state string. Satisfies jobqueue.Queue[ScanJobClaim].
@@ -192,10 +192,10 @@ func (s *jobService) Start(ctx context.Context, msgID, workerID string) error {
 	})
 }
 
-func (s *jobService) Finish(ctx context.Context, msgID string, sbomID pgtype.UUID) error {
+func (s *jobService) Finish(ctx context.Context, msgID string, sbomID string) error {
 	return s.repo.FinishScanJob(ctx, repository.FinishScanJobParams{
 		NatsMsgID: pgtype.Text{String: msgID, Valid: msgID != ""},
-		SbomID:    sbomID,
+		SbomID:    uuidOrNull(sbomID),
 	})
 }
 
@@ -211,7 +211,7 @@ func (s *jobService) List(ctx context.Context, state string, vis VisibilityFilte
 	rows, err := s.repo.ListScanJobs(ctx, repository.ListScanJobsParams{
 		State:   stateFilter,
 		IsAdmin: vis.adminFlag(),
-		UserID:  vis.UserID,
+		UserID:  uuidOrNull(vis.UserID),
 		Limit:   limit,
 		Offset:  offset,
 	})
@@ -221,7 +221,7 @@ func (s *jobService) List(ctx context.Context, state string, vis VisibilityFilte
 	total, err := s.repo.CountScanJobs(ctx, repository.CountScanJobsParams{
 		State:   stateFilter,
 		IsAdmin: vis.adminFlag(),
-		UserID:  vis.UserID,
+		UserID:  uuidOrNull(vis.UserID),
 	})
 	if err != nil {
 		return nil, 0, fmt.Errorf("counting scan jobs: %w", err)
@@ -241,7 +241,7 @@ func (s *jobService) Get(ctx context.Context, id string, vis VisibilityFilter) (
 	row, err := s.repo.GetScanJob(ctx, repository.GetScanJobParams{
 		ID:      uid,
 		IsAdmin: vis.adminFlag(),
-		UserID:  vis.UserID,
+		UserID:  uuidOrNull(vis.UserID),
 	})
 	if err != nil {
 		return ScanJob{}, ErrNotFound
@@ -369,14 +369,14 @@ func (s *jobService) ClaimNext(ctx context.Context, workerID string) (ScanJobCla
 		row.Tag, row.RegistryUrl, row.Insecure, row.AuthUsername, authToken, row.Attempts, row.TraceContext), true, nil
 }
 
-func (s *jobService) FinishByID(ctx context.Context, id string, sbomID pgtype.UUID) error {
+func (s *jobService) FinishByID(ctx context.Context, id string, sbomID string) error {
 	uid, err := uuidx.Parse(id)
 	if err != nil {
 		return fmt.Errorf("invalid job id: %w", err)
 	}
 	return s.repo.FinishScanJobByID(ctx, repository.FinishScanJobByIDParams{
 		ID:     uid,
-		SbomID: sbomID,
+		SbomID: uuidOrNull(sbomID),
 	})
 }
 

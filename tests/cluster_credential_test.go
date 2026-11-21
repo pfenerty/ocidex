@@ -107,7 +107,7 @@ func TestClusterConnect(t *testing.T) {
 	nsID := seedNamespace(t, pool, "connect-ns", owner, "private")
 
 	c, cred, err := clusters.Connect(ctx, service.ConnectClusterParams{
-		NamespaceID: nsID, Name: "prod", Owner: owner, AutoIngest: false,
+		NamespaceID: nsID, Name: "prod", Owner: owner.String(), AutoIngest: false,
 	})
 	is.NoErr(err)
 	is.Equal(c.AutoIngest, false)
@@ -120,7 +120,7 @@ func TestClusterConnect(t *testing.T) {
 	var before int
 	is.NoErr(pool.QueryRow(ctx, `SELECT count(*) FROM api_key`).Scan(&before))
 	_, _, err = clusters.Connect(ctx, service.ConnectClusterParams{
-		NamespaceID: nsID, Name: "prod", Owner: owner, AutoIngest: true,
+		NamespaceID: nsID, Name: "prod", Owner: owner.String(), AutoIngest: true,
 	})
 	is.Equal(err, service.ErrConflict)
 	var after int

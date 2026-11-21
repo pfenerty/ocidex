@@ -14,7 +14,6 @@ import (
 
 	"github.com/danielgtaylor/huma/v2"
 	"github.com/go-chi/chi/v5"
-	"github.com/google/uuid"
 
 	"github.com/pfenerty/ocidex/internal/auth"
 	"github.com/pfenerty/ocidex/internal/authz"
@@ -238,7 +237,7 @@ func (h *Handler) HandleCallback(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	token, err := h.logins.CreateSession(r.Context(), user.ID.String())
+	token, err := h.logins.CreateSession(r.Context(), user.ID)
 	if err != nil {
 		http.Error(w, "internal error", http.StatusInternalServerError)
 		return
@@ -579,7 +578,7 @@ func (h *Handler) GetMe(ctx context.Context, _ *struct{}) (*MeOutput, error) {
 		return nil, huma.Error401Unauthorized("not authenticated")
 	}
 	out := &MeOutput{}
-	out.Body.ID = uuid.UUID(user.ID.Bytes).String()
+	out.Body.ID = user.ID
 	out.Body.DisplayName = user.DisplayName
 	out.Body.Role = user.Role
 	// Grants is already on the request — the authenticate middleware loads it
@@ -641,7 +640,7 @@ func meCursorList[T any](
 func (h *Handler) ListMyActivity(ctx context.Context, in *ListMyActivityInput) (*ListMyActivityOutput, error) {
 	data, meta, err := meCursorList(ctx, in.CursorParams,
 		func(u service.AuthUser, page service.FeedPage) (service.CursorPage[service.ActivityEntry], error) {
-			return h.insights.ListOwnedActivity(ctx, u.ID.String(), page)
+			return h.insights.ListOwnedActivity(ctx, u.ID, page)
 		},
 		func(a service.ActivityEntry) string { return encodeTimeIDCursor(a.CreatedAt, a.SBOMID) },
 	)
@@ -658,7 +657,7 @@ func (h *Handler) ListMyActivity(ctx context.Context, in *ListMyActivityInput) (
 func (h *Handler) ListMyWatches(ctx context.Context, in *ListMyWatchesInput) (*ListMyWatchesOutput, error) {
 	data, meta, err := meCursorList(ctx, in.CursorParams,
 		func(u service.AuthUser, page service.FeedPage) (service.CursorPage[service.WatchEntry], error) {
-			return h.watchService.List(ctx, u.ID.String(), page)
+			return h.watchService.List(ctx, u.ID, page)
 		},
 		func(w service.WatchEntry) string { return encodeTimeIDCursor(w.WatchedAt, w.ArtifactID) },
 	)
@@ -679,7 +678,7 @@ func (h *Handler) ListMyWatchFeed(ctx context.Context, in *ListMyWatchFeedInput)
 	vis := visibilityFilterFromContext(ctx)
 	data, meta, err := meCursorList(ctx, in.CursorParams,
 		func(u service.AuthUser, page service.FeedPage) (service.CursorPage[service.WatchEvent], error) {
-			return h.watchService.Feed(ctx, u.ID.String(), vis, page)
+			return h.watchService.Feed(ctx, u.ID, vis, page)
 		},
 		func(e service.WatchEvent) string { return encodeTimeIDCursor(e.OccurredAt, e.ID) },
 	)
@@ -701,7 +700,7 @@ func (h *Handler) WatchArtifact(ctx context.Context, in *WatchArtifactInput) (*s
 	if !ok {
 		return nil, huma.Error401Unauthorized("not authenticated")
 	}
-	if err := h.watchService.Watch(ctx, user.ID.String(), in.ArtifactID, visibilityFilterFromContext(ctx)); err != nil {
+	if err := h.watchService.Watch(ctx, user.ID, in.ArtifactID, visibilityFilterFromContext(ctx)); err != nil {
 		return nil, mapServiceError(err)
 	}
 	return nil, nil
@@ -713,7 +712,7 @@ func (h *Handler) UnwatchArtifact(ctx context.Context, in *WatchArtifactInput) (
 	if !ok {
 		return nil, huma.Error401Unauthorized("not authenticated")
 	}
-	if err := h.watchService.Unwatch(ctx, user.ID.String(), in.ArtifactID); err != nil {
+	if err := h.watchService.Unwatch(ctx, user.ID, in.ArtifactID); err != nil {
 		return nil, mapServiceError(err)
 	}
 	return nil, nil
@@ -735,7 +734,7 @@ func (h *Handler) CreateAPIKey(ctx context.Context, in *CreateAPIKeyInput) (*Cre
 	if in.Body.ExpiresAt != nil {
 		expiresAt = *in.Body.ExpiresAt
 	}
-	plaintext, err := h.accounts.CreateExpiringAPIKey(ctx, user.ID.String(), in.Body.Name, caps, expiresAt)
+	plaintext, err := h.accounts.CreateExpiringAPIKey(ctx, user.ID, in.Body.Name, caps, expiresAt)
 	if err != nil {
 		return nil, mapServiceError(err)
 	}
@@ -749,7 +748,7 @@ func (h *Handler) ListAPIKeys(ctx context.Context, _ *struct{}) (*ListAPIKeysOut
 	if !ok {
 		return nil, huma.Error401Unauthorized("not authenticated")
 	}
-	keys, err := h.accounts.ListAPIKeys(ctx, user.ID.String())
+	keys, err := h.accounts.ListAPIKeys(ctx, user.ID)
 	if err != nil {
 		return nil, huma.Error500InternalServerError(fmt.Sprintf("listing keys: %v", err))
 	}
@@ -757,7 +756,7 @@ func (h *Handler) ListAPIKeys(ctx context.Context, _ *struct{}) (*ListAPIKeysOut
 	out.Body.Keys = make([]KeyMetaResponse, len(keys))
 	for i, k := range keys {
 		out.Body.Keys[i] = KeyMetaResponse{
-			ID:           uuid.UUID(k.ID.Bytes).String(),
+			ID:           k.ID,
 			Name:         k.Name,
 			Prefix:       k.Prefix,
 			Capabilities: authz.Strings(k.Capabilities),
@@ -788,7 +787,7 @@ func (h *Handler) DeleteAPIKey(ctx context.Context, in *DeleteAPIKeyInput) (*str
 			return nil, huma.Error403Forbidden("an API key can only delete keys whose capabilities it holds itself")
 		}
 	}
-	if err := h.accounts.DeleteAPIKey(ctx, user.ID.String(), keyID); err != nil {
+	if err := h.accounts.DeleteAPIKey(ctx, user.ID, keyID); err != nil {
 		return nil, huma.Error404NotFound("key not found")
 	}
 	return nil, nil
@@ -817,12 +816,12 @@ func keyCovers(user service.AuthUser, caps []authz.Capability) bool {
 
 // ownAPIKey returns one of the caller's keys, or 404.
 func (h *Handler) ownAPIKey(ctx context.Context, user service.AuthUser, keyID string) (service.APIKeyMeta, error) {
-	keys, err := h.accounts.ListAPIKeys(ctx, user.ID.String())
+	keys, err := h.accounts.ListAPIKeys(ctx, user.ID)
 	if err != nil {
 		return service.APIKeyMeta{}, mapServiceError(err)
 	}
 	for _, k := range keys {
-		if k.ID.String() == keyID {
+		if k.ID == keyID {
 			return k, nil
 		}
 	}
@@ -838,7 +837,7 @@ func (h *Handler) ListUsers(ctx context.Context, _ *struct{}) (*ListUsersOutput,
 	out.Body.Users = make([]UserResponse, len(users))
 	for i, u := range users {
 		out.Body.Users[i] = UserResponse{
-			ID:          uuid.UUID(u.ID.Bytes).String(),
+			ID:          u.ID,
 			DisplayName: u.DisplayName,
 			Role:        u.Role,
 		}
@@ -856,7 +855,7 @@ func (h *Handler) UpdateUserRole(ctx context.Context, in *UpdateUserRoleInput) (
 		return nil, huma.Error400BadRequest(fmt.Sprintf("updating role: %v", err))
 	}
 	return &UpdateUserRoleOutput{Body: UserResponse{
-		ID:          uuid.UUID(u.ID.Bytes).String(),
+		ID:          u.ID,
 		DisplayName: u.DisplayName,
 		Role:        u.Role,
 	}}, nil

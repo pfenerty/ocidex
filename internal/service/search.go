@@ -6,9 +6,9 @@ import (
 	"strings"
 	"time"
 
-	"github.com/google/uuid"
 	"github.com/jackc/pgx/v5/pgtype"
 	"github.com/pfenerty/ocidex/internal/repository"
+	"github.com/pfenerty/ocidex/internal/uuidx"
 )
 
 // SearchService defines read-only operations for SBOM search and retrieval.
@@ -971,14 +971,7 @@ func uuidToPtr(u pgtype.UUID) *string {
 // uuidOrNull parses a UUID string into a pgtype.UUID, yielding an invalid
 // (NULL) value for an empty or unparseable string.
 func uuidOrNull(s string) pgtype.UUID {
-	if s == "" {
-		return pgtype.UUID{}
-	}
-	parsed, err := uuid.Parse(s)
-	if err != nil {
-		return pgtype.UUID{}
-	}
-	return pgtype.UUID{Bytes: parsed, Valid: true}
+	return uuidx.OrNull(s)
 }
 
 func toComponentSummary(id, sbomID pgtype.UUID, bomRef pgtype.Text, typ, name string, group, version, purl pgtype.Text) ComponentSummary {

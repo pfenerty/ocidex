@@ -20,7 +20,7 @@ func (s *searchService) ListLicenses(ctx context.Context, filter LicenseFilter) 
 		SpdxID:    textOrNull(strings.TrimSpace(filter.SpdxID)),
 		Name:      textOrNull(strings.TrimSpace(filter.Name)),
 		Category:  textOrNull(filter.Category),
-		UserID:    filter.Visibility.UserID,
+		UserID:    uuidOrNull(filter.Visibility.UserID),
 		IsAdmin:   visAdminBool(filter.Visibility),
 		RowLimit:  filter.Limit,
 		RowOffset: filter.Offset,
@@ -61,7 +61,7 @@ func (s *searchService) ListComponentsByLicense(ctx context.Context, licenseIDSt
 
 	rows, err := q.ListComponentsByLicense(ctx, repository.ListComponentsByLicenseParams{
 		LicenseID: licenseID,
-		UserID:    vis.UserID,
+		UserID:    uuidOrNull(vis.UserID),
 		IsAdmin:   visAdminBool(vis),
 		RowLimit:  limit,
 		RowOffset: offset,

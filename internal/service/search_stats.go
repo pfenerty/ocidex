@@ -25,10 +25,10 @@ const statsWarmConcurrency = 2
 // cache, always took the multi-minute path, and always died at the HTTP
 // timeout before it could write the entry back.
 func (s *searchService) normalizeStatsScope(ctx context.Context, vis VisibilityFilter) VisibilityFilter {
-	if vis.IsAdmin || !vis.UserID.Valid {
+	if vis.IsAdmin || vis.UserID == "" {
 		return vis
 	}
-	n, err := repository.New(s.db).CountOwnedPrivateNamespaces(ctx, vis.UserID)
+	n, err := repository.New(s.db).CountOwnedPrivateNamespaces(ctx, uuidOrNull(vis.UserID))
 	if err != nil || n > 0 {
 		// On error keep the viewer's own scope: over-narrowing the cache key is
 		// a performance loss, but widening it on a failed check could serve
@@ -65,14 +65,14 @@ func (s *searchService) WarmDashboardStats(ctx context.Context, vis VisibilityFi
 	q := repository.New(s.warmHandle())
 	isAdmin := visAdminBool(vis)
 
-	summaryP := repository.GetSummaryCountsParams{UserID: vis.UserID, IsAdmin: isAdmin}
-	typeP := repository.GetArtifactTypeCountsParams{UserID: vis.UserID, IsAdmin: isAdmin}
-	catP := repository.GetLicenseCategoryCountsParams{UserID: vis.UserID, IsAdmin: isAdmin}
-	timelineP := repository.GetSBOMIngestionTimelineParams{NumDays: 30, UserID: vis.UserID, IsAdmin: isAdmin}
-	pkgP := repository.GetPackageGrowthTimelineParams{UserID: vis.UserID, IsAdmin: isAdmin}
-	verP := repository.GetVersionGrowthTimelineParams{UserID: vis.UserID, IsAdmin: isAdmin}
-	topP := repository.GetTopPackagesByVersionCountParams{TopN: 10, UserID: vis.UserID, IsAdmin: isAdmin}
-	vulnP := repository.GetVulnStatsParams{UserID: vis.UserID, IsAdmin: isAdmin}
+	summaryP := repository.GetSummaryCountsParams{UserID: uuidOrNull(vis.UserID), IsAdmin: isAdmin}
+	typeP := repository.GetArtifactTypeCountsParams{UserID: uuidOrNull(vis.UserID), IsAdmin: isAdmin}
+	catP := repository.GetLicenseCategoryCountsParams{UserID: uuidOrNull(vis.UserID), IsAdmin: isAdmin}
+	timelineP := repository.GetSBOMIngestionTimelineParams{NumDays: 30, UserID: uuidOrNull(vis.UserID), IsAdmin: isAdmin}
+	pkgP := repository.GetPackageGrowthTimelineParams{UserID: uuidOrNull(vis.UserID), IsAdmin: isAdmin}
+	verP := repository.GetVersionGrowthTimelineParams{UserID: uuidOrNull(vis.UserID), IsAdmin: isAdmin}
+	topP := repository.GetTopPackagesByVersionCountParams{TopN: 10, UserID: uuidOrNull(vis.UserID), IsAdmin: isAdmin}
+	vulnP := repository.GetVulnStatsParams{UserID: uuidOrNull(vis.UserID), IsAdmin: isAdmin}
 
 	var (
 		counts    repository.GetSummaryCountsRow

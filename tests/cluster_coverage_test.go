@@ -83,7 +83,7 @@ func TestClusterCoveragePatternExcluded(t *testing.T) {
 	}
 
 	sub := &queueingSubmitter{jobs: jobs}
-	res, err := svc.IngestUnknown(ctx, clusterID, sub, service.IngestUnknownParams{}, service.VisibilityFilter{UserID: owner})
+	res, err := svc.IngestUnknown(ctx, clusterID, sub, service.IngestUnknownParams{}, service.VisibilityFilter{UserID: owner.String()})
 	is.NoErr(err)
 	is.Equal(res.Queued, 2)
 
@@ -132,7 +132,7 @@ func TestClusterCoverageAnonymous(t *testing.T) {
 	nsID := seedNamespace(t, pool, "coverage-ns", owner, "private")
 	clusterID := seedCluster(t, pool, nsID, "coverage-prod")
 	cid := mustUUID(t, clusterID)
-	vis := service.VisibilityFilter{UserID: owner}
+	vis := service.VisibilityFilter{UserID: owner.String()}
 
 	// Every cluster has a source of its own, in its namespace (migration 00088).
 	var srcNS, srcKind string

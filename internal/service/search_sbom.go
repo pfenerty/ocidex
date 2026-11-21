@@ -37,7 +37,7 @@ func (s *searchService) getSBOM(ctx context.Context, id pgtype.UUID, includeRaw 
 	// Access check.
 	visible, err := q.IsSBOMVisible(ctx, repository.IsSBOMVisibleParams{
 		ID:      id,
-		UserID:  vis.UserID,
+		UserID:  uuidOrNull(vis.UserID),
 		IsAdmin: visAdminBool(vis),
 	})
 	if err != nil {
@@ -189,7 +189,7 @@ func (s *searchService) ListSBOMDriftHistory(ctx context.Context, sbomIDStr stri
 
 	visible, err := q.IsSBOMVisible(ctx, repository.IsSBOMVisibleParams{
 		ID:      sbomID,
-		UserID:  vis.UserID,
+		UserID:  uuidOrNull(vis.UserID),
 		IsAdmin: visAdminBool(vis),
 	})
 	if err != nil {
@@ -245,7 +245,7 @@ func (s *searchService) ListRecentProvenanceDrift(ctx context.Context, page Drif
 		CursorDetectedAt: pgtype.Timestamptz{Time: page.CursorDetectedAt, Valid: page.HasCursor},
 		CursorID:         uuidOrNull(page.CursorID),
 		IsAdmin:          vis.adminFlag(),
-		UserID:           vis.UserID,
+		UserID:           uuidOrNull(vis.UserID),
 		OwnedOnly:        vis.ownedFlag(),
 		RowLimit:         page.Limit + 1,
 	})
@@ -440,7 +440,7 @@ func (s *searchService) ListSBOMVulns(ctx context.Context, sbomIDStr string, par
 	// Access check.
 	visible, err := q.IsSBOMVisible(ctx, repository.IsSBOMVisibleParams{
 		ID:      sbomID,
-		UserID:  vis.UserID,
+		UserID:  uuidOrNull(vis.UserID),
 		IsAdmin: visAdminBool(vis),
 	})
 	if err != nil {
@@ -569,7 +569,7 @@ func (s *searchService) ListSBOMs(ctx context.Context, filter SBOMFilter) (Curso
 	rows, err := q.ListSBOMs(ctx, repository.ListSBOMsParams{
 		SerialNumber:    textOrNull(filter.SerialNumber),
 		Digest:          textOrNull(filter.Digest),
-		UserID:          filter.Visibility.UserID,
+		UserID:          uuidOrNull(filter.Visibility.UserID),
 		IsAdmin:         visAdminBool(filter.Visibility),
 		HasCursor:       pgtype.Bool{Bool: filter.HasCursor, Valid: true},
 		CursorCreatedAt: pgtype.Timestamptz{Time: filter.CursorCreatedAt, Valid: filter.HasCursor},
@@ -618,7 +618,7 @@ func (s *searchService) listSBOMsByArtifact(ctx context.Context, artifactID pgty
 		ArtifactID:      artifactID,
 		SubjectVersion:  textOrNull(subjectVersion),
 		ImageVersion:    textOrNull(imageVersion),
-		UserID:          vis.UserID,
+		UserID:          uuidOrNull(vis.UserID),
 		IsAdmin:         visAdminBool(vis),
 		HasCursor:       pgtype.Bool{Bool: page.HasCursor, Valid: true},
 		CursorCreatedAt: pgtype.Timestamptz{Time: page.CursorCreatedAt, Valid: page.HasCursor},
@@ -680,7 +680,7 @@ func (s *searchService) ListSBOMsByDigest(ctx context.Context, digest string, li
 
 	rows, err := q.ListSBOMsByDigest(ctx, repository.ListSBOMsByDigestParams{
 		Digest:    textOrNull(digest),
-		UserID:    vis.UserID,
+		UserID:    uuidOrNull(vis.UserID),
 		IsAdmin:   visAdminBool(vis),
 		RowLimit:  limit,
 		RowOffset: offset,
@@ -724,7 +724,7 @@ func (s *searchService) GetSBOMDependencies(ctx context.Context, sbomIDStr strin
 	// Access check.
 	visible, err := q.IsSBOMVisible(ctx, repository.IsSBOMVisibleParams{
 		ID:      sbomID,
-		UserID:  vis.UserID,
+		UserID:  uuidOrNull(vis.UserID),
 		IsAdmin: visAdminBool(vis),
 	})
 	if err != nil {
@@ -828,7 +828,7 @@ func (s *searchService) ListSBOMComponents(ctx context.Context, sbomIDStr string
 	// Access check.
 	visible, err := q.IsSBOMVisible(ctx, repository.IsSBOMVisibleParams{
 		ID:      sbomID,
-		UserID:  vis.UserID,
+		UserID:  uuidOrNull(vis.UserID),
 		IsAdmin: visAdminBool(vis),
 	})
 	if err != nil {
@@ -873,7 +873,7 @@ func (s *searchService) ListSBOMComponentsPage(ctx context.Context, sbomIDStr st
 	// Access check.
 	visible, err := q.IsSBOMVisible(ctx, repository.IsSBOMVisibleParams{
 		ID:      sbomID,
-		UserID:  vis.UserID,
+		UserID:  uuidOrNull(vis.UserID),
 		IsAdmin: visAdminBool(vis),
 	})
 	if err != nil {

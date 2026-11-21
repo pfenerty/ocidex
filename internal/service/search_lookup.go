@@ -52,7 +52,7 @@ func (s *searchService) LookupArtifact(ctx context.Context, query ArtifactLookup
 		Name:      query.Name,
 		Type:      textOrNull(query.Type),
 		GroupName: textOrNull(query.Group),
-		UserID:    vis.UserID,
+		UserID:    uuidOrNull(vis.UserID),
 		IsAdmin:   visAdminBool(vis),
 	})
 	if err != nil {
@@ -115,7 +115,7 @@ func (s *searchService) LookupSBOM(ctx context.Context, query SBOMLookupQuery, v
 		Version:  textOrNull(query.Version),
 		Arch:     textOrNull(query.Arch),
 		Flavor:   textOrNull(query.Flavor),
-		UserID:   vis.UserID,
+		UserID:   uuidOrNull(vis.UserID),
 		IsAdmin:  visAdminBool(vis),
 	})
 	if err != nil {

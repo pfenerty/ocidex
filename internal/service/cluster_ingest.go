@@ -392,7 +392,7 @@ func (s *clusterService) resolveUnknownImages(ctx context.Context, clusterID str
 	}
 	rows, err := s.repo.ListClusterUnknownImages(ctx, repository.ListClusterUnknownImagesParams{
 		ClusterID: cid,
-		UserID:    filter.UserID,
+		UserID:    uuidOrNull(filter.UserID),
 		IsAdmin:   filter.adminFlag(),
 	})
 	if err != nil {

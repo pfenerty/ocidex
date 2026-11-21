@@ -25,3 +25,14 @@ func Parse(s string) (pgtype.UUID, error) {
 	}
 	return id, nil
 }
+
+// OrNull is Parse for an optional ID: "" or anything that isn't a UUID becomes
+// a NULL pgtype.UUID. It's for IDs the caller already trusts, such as an
+// authenticated user's or a visibility filter's, on their way into a query.
+func OrNull(s string) pgtype.UUID {
+	id, err := Parse(s)
+	if err != nil {
+		return pgtype.UUID{}
+	}
+	return id
+}
