@@ -47,7 +47,7 @@ func (h *Handler) SetNamespaceMember(ctx context.Context, in *SetNamespaceMember
 	if err != nil {
 		return nil, err
 	}
-	targetUser, err := h.authService.GetUser(ctx, target)
+	targetUser, err := h.accounts.GetUser(ctx, target)
 	if err != nil {
 		return nil, huma.Error404NotFound("user not found")
 	}
@@ -79,10 +79,10 @@ func (h *Handler) RemoveNamespaceMember(ctx context.Context, in *RemoveNamespace
 // the membership is the answer, and the username is decoration on it.
 func (h *Handler) usernamesByID(ctx context.Context) map[string]string {
 	names := map[string]string{}
-	if h.authService == nil {
+	if h.accounts == nil {
 		return names
 	}
-	users, err := h.authService.ListUsers(ctx)
+	users, err := h.accounts.ListUsers(ctx)
 	if err != nil {
 		return names
 	}

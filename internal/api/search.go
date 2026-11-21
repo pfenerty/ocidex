@@ -24,7 +24,7 @@ func (h *Handler) SearchDistinctComponents(ctx context.Context, input *SearchDis
 		Visibility: vis,
 	}
 
-	result, err := h.searchService.SearchDistinctComponents(ctx, filter)
+	result, err := h.components.SearchDistinctComponents(ctx, filter)
 	if err != nil {
 		return nil, mapServiceError(err)
 	}
@@ -38,7 +38,7 @@ func (h *Handler) SearchDistinctComponents(ctx context.Context, input *SearchDis
 // GetComponentVersions handles GET /api/v1/components/versions.
 func (h *Handler) GetComponentVersions(ctx context.Context, input *GetComponentVersionsInput) (*GetComponentVersionsOutput, error) {
 	vis := visibilityFilterFromContext(ctx)
-	result, err := h.searchService.GetComponentVersions(ctx, service.ComponentVersionFilter{
+	result, err := h.components.GetComponentVersions(ctx, service.ComponentVersionFilter{
 		Name:       input.Name,
 		Group:      input.Group,
 		Version:    input.Version,
@@ -62,7 +62,7 @@ func (h *Handler) GetComponentVersions(ctx context.Context, input *GetComponentV
 
 // ListComponentVersionSummaries handles GET /api/v1/components/version-summaries.
 func (h *Handler) ListComponentVersionSummaries(ctx context.Context, input *ListComponentVersionSummariesInput) (*ListComponentVersionSummariesOutput, error) {
-	result, err := h.searchService.ListComponentVersionSummaries(ctx, service.ComponentVersionFilter{
+	result, err := h.components.ListComponentVersionSummaries(ctx, service.ComponentVersionFilter{
 		Name:       input.Name,
 		Group:      input.Group,
 		Type:       input.Type,
@@ -84,7 +84,7 @@ func (h *Handler) ListComponentVersionSummaries(ctx context.Context, input *List
 // ListComponentPurlTypes handles GET /api/v1/components/purl-types.
 func (h *Handler) ListComponentPurlTypes(ctx context.Context, _ *struct{}) (*ListComponentPurlTypesOutput, error) {
 	vis := visibilityFilterFromContext(ctx)
-	types, err := h.searchService.ListComponentPurlTypes(ctx, vis)
+	types, err := h.components.ListComponentPurlTypes(ctx, vis)
 	if err != nil {
 		return nil, mapServiceError(err)
 	}
@@ -134,7 +134,7 @@ func (h *Handler) ListSBOMComponents(ctx context.Context, input *ListSBOMCompone
 	}
 
 	vis := visibilityFilterFromContext(ctx)
-	result, err := h.searchService.ListSBOMComponentsPage(ctx, id, page, vis)
+	result, err := h.sbomQueries.ListSBOMComponentsPage(ctx, id, page, vis)
 	if err != nil {
 		return nil, mapServiceError(err)
 	}
@@ -168,7 +168,7 @@ func (h *Handler) ListSBOMVulns(ctx context.Context, in *ListSBOMVulnsInput) (*L
 		return nil, err
 	}
 
-	result, err := h.searchService.ListSBOMVulns(ctx, id, service.SBOMVulnParams{
+	result, err := h.sbomQueries.ListSBOMVulns(ctx, id, service.SBOMVulnParams{
 		Severity: in.Severity,
 		SortBy:   in.Sort,
 		SortDir:  in.Dir,
@@ -203,7 +203,7 @@ func (h *Handler) ListSBOMs(ctx context.Context, input *ListSBOMsInput) (*ListSB
 		Visibility:      vis,
 	}
 
-	result, err := h.searchService.ListSBOMs(ctx, filter)
+	result, err := h.sbomQueries.ListSBOMs(ctx, filter)
 	if err != nil {
 		return nil, mapServiceError(err)
 	}
@@ -224,7 +224,7 @@ func (h *Handler) GetSBOMDependencies(ctx context.Context, input *GetSBOMDepende
 	}
 
 	vis := visibilityFilterFromContext(ctx)
-	graph, err := h.searchService.GetSBOMDependencies(ctx, id, vis)
+	graph, err := h.sbomQueries.GetSBOMDependencies(ctx, id, vis)
 	if err != nil {
 		return nil, mapServiceError(err)
 	}
@@ -244,7 +244,7 @@ func (h *Handler) GetSBOM(ctx context.Context, input *GetSBOMInput) (*GetSBOMOut
 	includeRaw := input.Include == "raw"
 	vis := visibilityFilterFromContext(ctx)
 
-	detail, err := h.searchService.GetSBOM(ctx, id, includeRaw, vis)
+	detail, err := h.sbomQueries.GetSBOM(ctx, id, includeRaw, vis)
 	if err != nil {
 		return nil, mapServiceError(err)
 	}
@@ -272,7 +272,7 @@ func (h *Handler) ListSBOMDriftHistory(ctx context.Context, in *ListSBOMDriftHis
 		CursorDetectedAt: cur.CreatedAt,
 		CursorID:         cur.ID,
 	}
-	result, err := h.searchService.ListSBOMDriftHistory(ctx, id, page, vis)
+	result, err := h.sbomQueries.ListSBOMDriftHistory(ctx, id, page, vis)
 	if err != nil {
 		return nil, mapServiceError(err)
 	}
@@ -303,7 +303,7 @@ func (h *Handler) SearchComponents(ctx context.Context, input *SearchComponentsI
 		Visibility: vis,
 	}
 
-	result, err := h.searchService.SearchComponents(ctx, filter)
+	result, err := h.components.SearchComponents(ctx, filter)
 	if err != nil {
 		return nil, mapServiceError(err)
 	}
@@ -322,7 +322,7 @@ func (h *Handler) GetComponent(ctx context.Context, input *GetComponentInput) (*
 	}
 
 	vis := visibilityFilterFromContext(ctx)
-	detail, err := h.searchService.GetComponent(ctx, id, vis)
+	detail, err := h.components.GetComponent(ctx, id, vis)
 	if err != nil {
 		return nil, mapServiceError(err)
 	}
@@ -339,7 +339,7 @@ func (h *Handler) GetComponentVulns(ctx context.Context, input *GetComponentVuln
 		return nil, err
 	}
 	vis := visibilityFilterFromContext(ctx)
-	vulns, err := h.searchService.GetComponentVulns(ctx, id, vis)
+	vulns, err := h.components.GetComponentVulns(ctx, id, vis)
 	if err != nil {
 		return nil, mapServiceError(err)
 	}
@@ -360,7 +360,7 @@ func (h *Handler) ListLicenses(ctx context.Context, input *ListLicensesInput) (*
 		Visibility: vis,
 	}
 
-	result, err := h.searchService.ListLicenses(ctx, filter)
+	result, err := h.components.ListLicenses(ctx, filter)
 	if err != nil {
 		return nil, mapServiceError(err)
 	}
@@ -379,7 +379,7 @@ func (h *Handler) ListComponentsByLicense(ctx context.Context, input *ListCompon
 	}
 
 	vis := visibilityFilterFromContext(ctx)
-	result, err := h.searchService.ListComponentsByLicense(ctx, id, input.Limit, input.Offset, vis)
+	result, err := h.components.ListComponentsByLicense(ctx, id, input.Limit, input.Offset, vis)
 	if err != nil {
 		return nil, mapServiceError(err)
 	}
@@ -448,7 +448,7 @@ func (h *Handler) listArtifacts(ctx context.Context, input *ListArtifactsInput, 
 		filter.CursorName, filter.CursorType, filter.CursorID = parts[0], parts[1], parts[2]
 	}
 
-	result, err := h.searchService.ListArtifacts(ctx, filter)
+	result, err := h.artifacts.ListArtifacts(ctx, filter)
 	if err != nil {
 		return nil, mapServiceError(err)
 	}
@@ -456,7 +456,7 @@ func (h *Handler) listArtifacts(ctx context.Context, input *ListArtifactsInput, 
 	out := &ListArtifactsOutput{}
 	out.Body.Data = result.Data
 	if !hasCursor {
-		total, err := h.searchService.CountArtifacts(ctx, filter)
+		total, err := h.artifacts.CountArtifacts(ctx, filter)
 		if err != nil {
 			return nil, mapServiceError(err)
 		}
@@ -493,7 +493,7 @@ func (h *Handler) GetArtifact(ctx context.Context, input *GetArtifactInput) (*Ge
 	}
 
 	vis := visibilityFilterFromContext(ctx)
-	detail, err := h.searchService.GetArtifact(ctx, id, vis)
+	detail, err := h.artifacts.GetArtifact(ctx, id, vis)
 	if err != nil {
 		return nil, mapServiceError(err)
 	}
@@ -522,7 +522,7 @@ func (h *Handler) ListArtifactSBOMs(ctx context.Context, input *ListArtifactSBOM
 	}
 
 	vis := visibilityFilterFromContext(ctx)
-	result, err := h.searchService.ListSBOMsByArtifact(ctx, id, input.SubjectVersion, input.ImageVersion, page, vis)
+	result, err := h.artifacts.ListSBOMsByArtifact(ctx, id, input.SubjectVersion, input.ImageVersion, page, vis)
 	if err != nil {
 		return nil, mapServiceError(err)
 	}
@@ -543,7 +543,7 @@ func (h *Handler) ListArtifactVersions(ctx context.Context, input *ListArtifactV
 	}
 
 	vis := visibilityFilterFromContext(ctx)
-	result, err := h.searchService.ListVersionsByArtifact(ctx, id, input.Limit, input.Offset, service.ParseVersionSortMode(input.Mode), service.ParseVersionColumnSort(input.Sort, input.Dir), vis)
+	result, err := h.artifacts.ListVersionsByArtifact(ctx, id, input.Limit, input.Offset, service.ParseVersionSortMode(input.Mode), service.ParseVersionColumnSort(input.Sort, input.Dir), vis)
 	if err != nil {
 		return nil, mapServiceError(err)
 	}
@@ -587,7 +587,7 @@ func (h *Handler) DiffSBOMs(ctx context.Context, input *DiffSBOMsInput) (*DiffSB
 	}
 
 	vis := visibilityFilterFromContext(ctx)
-	entry, err := h.searchService.DiffSBOMs(ctx, fromID, toID, vis)
+	entry, err := h.sbomQueries.DiffSBOMs(ctx, fromID, toID, vis)
 	if err != nil {
 		return nil, mapServiceError(err)
 	}
@@ -609,7 +609,7 @@ func (h *Handler) GetDiffTree(ctx context.Context, input *DiffTreeInput) (*DiffT
 	}
 
 	vis := visibilityFilterFromContext(ctx)
-	tree, err := h.searchService.DiffSBOMsWithTree(ctx, fromID, toID, vis)
+	tree, err := h.sbomQueries.DiffSBOMsWithTree(ctx, fromID, toID, vis)
 	if err != nil {
 		return nil, mapServiceError(err)
 	}
@@ -627,7 +627,7 @@ func (h *Handler) GetArtifactLicenseSummary(ctx context.Context, input *GetArtif
 	}
 
 	vis := visibilityFilterFromContext(ctx)
-	summary, err := h.searchService.GetArtifactLicenseSummary(ctx, id, vis)
+	summary, err := h.artifactInsights.GetArtifactLicenseSummary(ctx, id, vis)
 	if err != nil {
 		return nil, mapServiceError(err)
 	}
@@ -648,7 +648,7 @@ func (h *Handler) GetArtifactVulnSummary(ctx context.Context, input *GetArtifact
 	}
 
 	vis := visibilityFilterFromContext(ctx)
-	summary, err := h.searchService.GetArtifactVulnSummary(ctx, id, vis)
+	summary, err := h.artifactInsights.GetArtifactVulnSummary(ctx, id, vis)
 	if err != nil {
 		return nil, mapServiceError(err)
 	}
@@ -667,7 +667,7 @@ func (h *Handler) GetArtifactUsages(ctx context.Context, input *GetArtifactUsage
 	}
 
 	vis := visibilityFilterFromContext(ctx)
-	usages, err := h.searchService.GetArtifactUsages(ctx, id, vis)
+	usages, err := h.artifactInsights.GetArtifactUsages(ctx, id, vis)
 	if err != nil {
 		return nil, mapServiceError(err)
 	}
@@ -685,7 +685,7 @@ func (h *Handler) GetArtifactContains(ctx context.Context, input *GetArtifactCon
 	}
 
 	vis := visibilityFilterFromContext(ctx)
-	contains, err := h.searchService.GetArtifactContains(ctx, id, vis)
+	contains, err := h.artifactInsights.GetArtifactContains(ctx, id, vis)
 	if err != nil {
 		return nil, mapServiceError(err)
 	}
@@ -698,7 +698,7 @@ func (h *Handler) GetArtifactContains(ctx context.Context, input *GetArtifactCon
 // GetDashboardStats handles GET /api/v1/stats/summary.
 func (h *Handler) GetDashboardStats(ctx context.Context, _ *struct{}) (*DashboardStatsOutput, error) {
 	vis := visibilityFilterFromContext(ctx)
-	stats, err := h.searchService.GetDashboardStats(ctx, vis)
+	stats, err := h.insights.GetDashboardStats(ctx, vis)
 	if err != nil {
 		return nil, mapServiceError(err)
 	}
@@ -770,7 +770,7 @@ func (h *Handler) GetDashboardStats(ctx context.Context, _ *struct{}) (*Dashboar
 // signed-in caller gets the same bytes an anonymous one does. Personalisation
 // lives on the dashboard endpoints, not here.
 func (h *Handler) GetDiscovery(ctx context.Context, _ *struct{}) (*DiscoveryOutput, error) {
-	discovery, err := h.searchService.GetDiscovery(ctx)
+	discovery, err := h.insights.GetDiscovery(ctx)
 	if err != nil {
 		return nil, mapServiceError(err)
 	}
@@ -825,7 +825,7 @@ func (h *Handler) listTopVulnerabilities(ctx context.Context, input *ListTopVuln
 		SortDir:    input.SortDir,
 		Visibility: vis,
 	}
-	result, err := h.searchService.ListTopVulnerabilities(ctx, filter)
+	result, err := h.insights.ListTopVulnerabilities(ctx, filter)
 	if err != nil {
 		return nil, mapServiceError(err)
 	}
@@ -838,7 +838,7 @@ func (h *Handler) listTopVulnerabilities(ctx context.Context, input *ListTopVuln
 // GetVulnerability handles GET /api/v1/vulns/{id}.
 func (h *Handler) GetVulnerability(ctx context.Context, input *GetVulnerabilityInput) (*GetVulnerabilityOutput, error) {
 	vis := visibilityFilterFromContext(ctx)
-	result, err := h.searchService.GetVulnerabilityDetail(ctx, input.ID, input.Limit, input.Offset, vis)
+	result, err := h.insights.GetVulnerabilityDetail(ctx, input.ID, input.Limit, input.Offset, vis)
 	if err != nil {
 		return nil, mapServiceError(err)
 	}
@@ -863,7 +863,7 @@ func (h *Handler) GetArtifactChangelog(ctx context.Context, input *GetArtifactCh
 	}
 
 	vis := visibilityFilterFromContext(ctx)
-	changelog, err := h.searchService.GetArtifactChangelog(ctx, id, service.ChangelogQuery{
+	changelog, err := h.artifacts.GetArtifactChangelog(ctx, id, service.ChangelogQuery{
 		SubjectVersion: input.SubjectVersion,
 		Arch:           input.Arch,
 		Flavor:         input.Flavor,
@@ -889,7 +889,7 @@ func (h *Handler) ListArtifactVulns(ctx context.Context, in *ListArtifactVulnsIn
 		return nil, err
 	}
 
-	result, err := h.searchService.ListArtifactVulns(ctx, id, service.ArtifactVulnParams{
+	result, err := h.artifactInsights.ListArtifactVulns(ctx, id, service.ArtifactVulnParams{
 		Severity:     in.Severity,
 		Vuln:         in.Vuln,
 		SortBy:       in.Sort,

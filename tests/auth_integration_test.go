@@ -70,8 +70,28 @@ func setupServerWithPublisher(t *testing.T, pool *pgxpool.Pool, pub event.Publis
 	enrichJobSvc := service.NewEnrichJobService(pool, "")
 	watchSvc := service.NewWatchService(pool)
 	clusterSvc := service.NewClusterService(pool, nil)
-	handler := api.NewHandler(sbomSvc, searchSvc, authSvc, registrySvc,
-		namespaceSvc, sourceSvc, jobSvc, enrichJobSvc, watchSvc, clusterSvc, pool, nil, cfg)
+	handler := api.NewHandler(api.Deps{
+		SBOMs:            sbomSvc,
+		SBOMQueries:      searchSvc,
+		Components:       searchSvc,
+		Artifacts:        searchSvc,
+		ArtifactInsights: searchSvc,
+		Insights:         searchSvc,
+		Authenticator:    authSvc,
+		Logins:           authSvc,
+		Accounts:         authSvc,
+		Registries:       registrySvc,
+		Namespaces:       namespaceSvc,
+		Sources:          sourceSvc,
+		Jobs:             jobSvc,
+		EnrichJobs:       enrichJobSvc,
+		Watches:          watchSvc,
+		Clusters:         clusterSvc,
+		ClusterAgents:    clusterSvc,
+		ClusterInventory: clusterSvc,
+		DB:               pool,
+		Config:           cfg,
+	})
 	router := api.NewRouter(handler, "*", "", "")
 	return httptest.NewServer(router), authSvc, searchSvc
 }

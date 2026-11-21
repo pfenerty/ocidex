@@ -45,25 +45,27 @@ const conformanceUUID = "00000000-0000-0000-0000-0000000000ff"
 // nil service the request fails with a 500 rather than reaching the
 // capability check, and the suite would prove nothing about enforcement.
 func newConformanceRouter(authSvc service.AuthService) http.Handler {
-	h := api.NewHandler(
-		&fakeSBOMService{namespaceID: mwNamespaceID},
-		nil,
-		authSvc,
-		&fakeRegistryService{registry: testRegistry},
-		&fakeNamespaceService{},
-		&fakeSourceService{},
-		nil, nil, nil,
-		&fakeClusterService{},
-		&fakePinger{},
-		nil, nil,
-	)
+	clusterSvc := &fakeClusterService{}
+	h := api.NewHandler(api.Deps{
+		SBOMs:            &fakeSBOMService{namespaceID: mwNamespaceID},
+		Authenticator:    authSvc,
+		Logins:           authSvc,
+		Accounts:         authSvc,
+		Registries:       &fakeRegistryService{registry: testRegistry},
+		Namespaces:       &fakeNamespaceService{},
+		Sources:          &fakeSourceService{},
+		Clusters:         clusterSvc,
+		ClusterAgents:    clusterSvc,
+		ClusterInventory: clusterSvc,
+		DB:               &fakePinger{},
+	})
 	return api.NewRouter(h, "*", "", "")
 }
 
 // conformanceSpec returns the OpenAPI spec of a freshly built router, which is
 // the authoritative list of registered operations.
 func conformanceSpec() []api.AuthMatrixRow {
-	h := api.NewHandler(nil, nil, nil, nil, nil, nil, nil, nil, nil, nil, nil, nil, nil)
+	h := api.NewHandler(api.Deps{})
 	_ = api.NewRouter(h, "*", "", "")
 	return api.AuthMatrixRows(h.API().OpenAPI())
 }

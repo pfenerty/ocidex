@@ -187,7 +187,7 @@ func NewRouter(h *Handler, corsOrigins, frontendURL, apiBaseURL string) chi.Rout
 	r.Use(RecordInventoryPushes(h.pushRecorder()))
 	r.Use(CrossOriginGuard(allowedOrigins, apiBaseURL))
 	r.Use(middleware.Timeout(30 * time.Second))
-	r.Use(OptionalAuthenticate(h.authService))
+	r.Use(OptionalAuthenticate(h.authenticator))
 
 	config := huma.DefaultConfig("OCIDex API", ContractVersion)
 	config.Info.Description = apiIntro

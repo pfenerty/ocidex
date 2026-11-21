@@ -44,7 +44,16 @@ func TestPreviewRegistryConfig(t *testing.T) {
 	host := strings.TrimPrefix(srv.URL, "http://")
 	regSvc := &recordingRegistryService{}
 	cfg := &config.Config{EgressPolicy: netguard.Policy{AllowCIDRs: []netip.Prefix{netip.MustParsePrefix("127.0.0.0/8")}}}
-	h := api.NewHandler(nil, nil, createRegistryAuthService(), regSvc, &namedNamespaceService{}, nil, nil, nil, nil, nil, &fakePinger{}, nil, cfg)
+	authSvc := createRegistryAuthService()
+	h := api.NewHandler(api.Deps{
+		Authenticator: authSvc,
+		Logins:        authSvc,
+		Accounts:      authSvc,
+		Registries:    regSvc,
+		Namespaces:    &namedNamespaceService{},
+		DB:            &fakePinger{},
+		Config:        cfg,
+	})
 	router := api.NewRouter(h, "*", "", "")
 
 	t.Run("counts", func(t *testing.T) {

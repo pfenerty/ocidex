@@ -65,7 +65,15 @@ func TestUpdateRegistry_NamespaceMove(t *testing.T) {
 			regSvc := &movingRegistryService{fakeRegistryService: fakeRegistryService{
 				registry: service.Registry{ID: "r1", Name: "r", NamespaceID: sourceNamespaceID},
 			}}
-			h := api.NewHandler(nil, nil, auth, regSvc, &namedNamespaceService{exists: tt.exists}, nil, nil, nil, nil, nil, &fakePinger{}, nil, &config.Config{})
+			h := api.NewHandler(api.Deps{
+				Authenticator: auth,
+				Logins:        auth,
+				Accounts:      auth,
+				Registries:    regSvc,
+				Namespaces:    &namedNamespaceService{exists: tt.exists},
+				DB:            &fakePinger{},
+				Config:        &config.Config{},
+			})
 			router := api.NewRouter(h, "*", "", "")
 
 			w := memberRequest(router, http.MethodPatch, "/api/v1/registries/00000000-0000-0000-0000-000000000001", moveRegistryBody, tt.token)

@@ -57,7 +57,7 @@ func requestFromContext(ctx context.Context) (*http.Request, bool) {
 // API key is present, but allows unauthenticated requests through (user will
 // be absent from context). Use this for browse endpoints that should be
 // accessible to the public but can show more data to authenticated users.
-func OptionalAuthenticate(authSvc service.AuthService) func(http.Handler) http.Handler {
+func OptionalAuthenticate(authSvc Authenticator) func(http.Handler) http.Handler {
 	if authSvc == nil {
 		return func(next http.Handler) http.Handler { return next }
 	}

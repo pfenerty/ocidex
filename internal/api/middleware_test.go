@@ -264,7 +264,13 @@ func (f *fakeAuthService) LoadGrants(_ context.Context, userID pgtype.UUID) (map
 // authz.CapManageSource, which owner and maintainer hold and security,
 // developer and viewer do not.
 func newCapabilityTestRouter(regSvc service.RegistryService, authSvc service.AuthService) http.Handler {
-	h := api.NewHandler(nil, nil, authSvc, regSvc, nil, nil, nil, nil, nil, nil, &fakePinger{}, nil, nil)
+	h := api.NewHandler(api.Deps{
+		Authenticator: authSvc,
+		Logins:        authSvc,
+		Accounts:      authSvc,
+		Registries:    regSvc,
+		DB:            &fakePinger{},
+	})
 	return api.NewRouter(h, "*", "", "")
 }
 

@@ -151,7 +151,7 @@ func (h *Handler) beginOAuth(r *http.Request, provider string, extra map[string]
 		return "", "", fmt.Errorf("encoding state: %w", err)
 	}
 
-	authURL, err = h.authService.BuildAuthURL(provider, state, verifier)
+	authURL, err = h.logins.BuildAuthURL(provider, state, verifier)
 	if err != nil {
 		return "", "", err
 	}
@@ -229,7 +229,7 @@ func (h *Handler) HandleCallback(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	user, err := h.authService.ExchangeCodeForUser(r.Context(), provider, code, stateData["verifier"])
+	user, err := h.logins.ExchangeCodeForUser(r.Context(), provider, code, stateData["verifier"])
 	if errors.Is(err, service.ErrSignupClosed) {
 		http.Error(w, "sign-up is closed on this installation: ask an administrator for access", http.StatusUnauthorized)
 		return
@@ -239,7 +239,7 @@ func (h *Handler) HandleCallback(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	token, err := h.authService.CreateSession(r.Context(), user.ID)
+	token, err := h.logins.CreateSession(r.Context(), user.ID)
 	if err != nil {
 		http.Error(w, "internal error", http.StatusInternalServerError)
 		return
@@ -290,7 +290,7 @@ func (h *Handler) authRateLimit() int {
 func (h *Handler) HandleLogout(w http.ResponseWriter, r *http.Request) {
 	c, err := r.Cookie(sessionCookieName)
 	if err == nil {
-		_ = h.authService.DeleteSession(r.Context(), c.Value)
+		_ = h.logins.DeleteSession(r.Context(), c.Value)
 	}
 	// Built by the same helper as HandleCallback's setter, so the clear
 	// carries matching attributes and the browser accepts it.
@@ -642,7 +642,7 @@ func meCursorList[T any](
 func (h *Handler) ListMyActivity(ctx context.Context, in *ListMyActivityInput) (*ListMyActivityOutput, error) {
 	data, meta, err := meCursorList(ctx, in.CursorParams,
 		func(userID pgtype.UUID, page service.FeedPage) (service.CursorPage[service.ActivityEntry], error) {
-			return h.searchService.ListOwnedActivity(ctx, userID, page)
+			return h.insights.ListOwnedActivity(ctx, userID, page)
 		},
 		func(a service.ActivityEntry) string { return encodeTimeIDCursor(a.CreatedAt, a.SBOMID) },
 	)
@@ -736,7 +736,7 @@ func (h *Handler) CreateAPIKey(ctx context.Context, in *CreateAPIKeyInput) (*Cre
 	if in.Body.ExpiresAt != nil {
 		expiresAt = *in.Body.ExpiresAt
 	}
-	plaintext, err := h.authService.CreateExpiringAPIKey(ctx, user.ID, in.Body.Name, caps, expiresAt)
+	plaintext, err := h.accounts.CreateExpiringAPIKey(ctx, user.ID, in.Body.Name, caps, expiresAt)
 	if err != nil {
 		return nil, mapServiceError(err)
 	}
@@ -750,7 +750,7 @@ func (h *Handler) ListAPIKeys(ctx context.Context, _ *struct{}) (*ListAPIKeysOut
 	if !ok {
 		return nil, huma.Error401Unauthorized("not authenticated")
 	}
-	keys, err := h.authService.ListAPIKeys(ctx, user.ID)
+	keys, err := h.accounts.ListAPIKeys(ctx, user.ID)
 	if err != nil {
 		return nil, huma.Error500InternalServerError(fmt.Sprintf("listing keys: %v", err))
 	}
@@ -789,7 +789,7 @@ func (h *Handler) DeleteAPIKey(ctx context.Context, in *DeleteAPIKeyInput) (*str
 			return nil, huma.Error403Forbidden("an API key can only delete keys whose capabilities it holds itself")
 		}
 	}
-	if err := h.authService.DeleteAPIKey(ctx, user.ID, keyID); err != nil {
+	if err := h.accounts.DeleteAPIKey(ctx, user.ID, keyID); err != nil {
 		return nil, huma.Error404NotFound("key not found")
 	}
 	return nil, nil
@@ -818,7 +818,7 @@ func keyCovers(user service.AuthUser, caps []authz.Capability) bool {
 
 // ownAPIKey returns one of the caller's keys, or 404.
 func (h *Handler) ownAPIKey(ctx context.Context, user service.AuthUser, keyID pgtype.UUID) (service.APIKeyMeta, error) {
-	keys, err := h.authService.ListAPIKeys(ctx, user.ID)
+	keys, err := h.accounts.ListAPIKeys(ctx, user.ID)
 	if err != nil {
 		return service.APIKeyMeta{}, mapServiceError(err)
 	}
@@ -831,7 +831,7 @@ func (h *Handler) ownAPIKey(ctx context.Context, user service.AuthUser, keyID pg
 }
 
 func (h *Handler) ListUsers(ctx context.Context, _ *struct{}) (*ListUsersOutput, error) {
-	users, err := h.authService.ListUsers(ctx)
+	users, err := h.accounts.ListUsers(ctx)
 	if err != nil {
 		return nil, huma.Error500InternalServerError(fmt.Sprintf("listing users: %v", err))
 	}
@@ -852,7 +852,7 @@ func (h *Handler) UpdateUserRole(ctx context.Context, in *UpdateUserRoleInput) (
 	if err != nil {
 		return nil, huma.Error400BadRequest("invalid user id")
 	}
-	u, err := h.authService.UpdateUserRole(ctx, targetID, in.Body.Role)
+	u, err := h.accounts.UpdateUserRole(ctx, targetID, in.Body.Role)
 	if err != nil {
 		return nil, huma.Error400BadRequest(fmt.Sprintf("updating role: %v", err))
 	}

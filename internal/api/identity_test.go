@@ -39,13 +39,18 @@ func newLinkAuthService() *sessionAuthService {
 }
 
 func newIdentityTestRouter(authSvc service.AuthService) http.Handler {
-	h := api.NewHandler(nil, nil, authSvc, nil, nil, nil, nil, nil, nil, nil, &fakePinger{}, nil,
-		&config.Config{
+	h := api.NewHandler(api.Deps{
+		Authenticator: authSvc,
+		Logins:        authSvc,
+		Accounts:      authSvc,
+		DB:            &fakePinger{},
+		Config: &config.Config{
 			Environment:       "development",
 			SessionSecret:     strings.Repeat("k", 32),
 			SessionMaxAgeDays: 7,
 			FrontendURL:       "http://localhost:3000",
-		})
+		},
+	})
 	return api.NewRouter(h, "*", "", "")
 }
 

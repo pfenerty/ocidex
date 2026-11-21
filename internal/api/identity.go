@@ -45,7 +45,7 @@ func (h *Handler) finishIdentityLink(
 		http.Error(w, "not authenticated", http.StatusUnauthorized)
 		return
 	}
-	user, err := h.authService.ValidateSession(r.Context(), sessionCookie.Value)
+	user, err := h.authenticator.ValidateSession(r.Context(), sessionCookie.Value)
 	if errors.Is(err, service.ErrNotFound) {
 		http.Error(w, "not authenticated", http.StatusUnauthorized)
 		return
@@ -60,7 +60,7 @@ func (h *Handler) finishIdentityLink(
 	}
 
 	outcome := "ok"
-	if _, err := h.authService.LinkIdentity(r.Context(), user.ID, provider, code, stateData["verifier"]); err != nil {
+	if _, err := h.logins.LinkIdentity(r.Context(), user.ID, provider, code, stateData["verifier"]); err != nil {
 		outcome = "error"
 		if errors.Is(err, service.ErrConflict) {
 			outcome = "conflict"
@@ -78,7 +78,7 @@ func (h *Handler) finishIdentityLink(
 // in. It reveals only the names an administrator chose for their own issuers,
 // which is what the sign-in buttons say anyway.
 func (h *Handler) ListAuthProviders(_ context.Context, _ *struct{}) (*ListProvidersOutput, error) {
-	names := h.authService.ProviderNames()
+	names := h.logins.ProviderNames()
 	out := &ListProvidersOutput{}
 	out.Body.Providers = make([]ProviderResponse, len(names))
 	for i, name := range names {
@@ -110,7 +110,7 @@ func (h *Handler) ListMyIdentities(ctx context.Context, _ *struct{}) (*ListIdent
 	if !ok {
 		return nil, huma.Error401Unauthorized("not authenticated")
 	}
-	rows, err := h.authService.ListIdentities(ctx, user.ID)
+	rows, err := h.logins.ListIdentities(ctx, user.ID)
 	if err != nil {
 		return nil, mapServiceError(err)
 	}
@@ -177,7 +177,7 @@ func (h *Handler) UnlinkIdentity(ctx context.Context, in *UnlinkIdentityInput) (
 	if err != nil {
 		return nil, err
 	}
-	if err := h.authService.UnlinkIdentity(ctx, user.ID, identityID); err != nil {
+	if err := h.logins.UnlinkIdentity(ctx, user.ID, identityID); err != nil {
 		if errors.Is(err, service.ErrConflict) {
 			return nil, huma.Error409Conflict("cannot unlink the only way to sign in to this account")
 		}

@@ -17,12 +17,16 @@ import (
 // newAuthRouteTestRouter wires only the browser-redirect auth routes, which is
 // all these tests are about.
 func newAuthRouteTestRouter(authSvc *fakeAuthService) http.Handler {
-	h := api.NewHandler(nil, nil, authSvc, nil, nil, nil, nil, nil, nil, nil, nil, nil,
-		&config.Config{
+	h := api.NewHandler(api.Deps{
+		Authenticator: authSvc,
+		Logins:        authSvc,
+		Accounts:      authSvc,
+		Config: &config.Config{
 			SessionSecret: strings.Repeat("k", 32),
 			FrontendURL:   "http://localhost:3000",
 			Environment:   "development",
-		})
+		},
+	})
 
 	r := chi.NewRouter()
 	r.Get("/auth/login", h.HandleLogin)
