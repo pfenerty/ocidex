@@ -35,7 +35,7 @@ type CreateNamespaceParams struct {
 //
 // There is no OwnerID. Ownership was never transferable through this path — the
 // handler says so and only ever read the existing owner back and wrote it
-// straight out again — and with ownership in namespace_member (ocidex-y0hg.4)
+// straight out again — and with ownership in namespace_member
 // there is nothing to carry forward. Transferring ownership is member
 // management.
 type UpdateNamespaceParams struct {
@@ -53,7 +53,7 @@ type NamespaceService interface {
 	Update(ctx context.Context, params UpdateNamespaceParams) (Namespace, error)
 	Delete(ctx context.Context, id string) error
 
-	// Membership (ocidex-y0hg.7), implemented in namespace_member.go. It sits
+	// Membership, implemented in namespace_member.go. It sits
 	// on the namespace service rather than a service of its own because a
 	// membership is not a thing that exists apart from its namespace: every
 	// guard rail on it is a statement about the namespace it belongs to.

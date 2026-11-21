@@ -1,10 +1,8 @@
 // Package auth holds the identity providers OCIDex can authenticate against.
 //
-// It exists so that the service layer never names an issuer. Before
-// ocidex-iqkt, "who is signed in" was spelled github_id/github_username and
-// reached from the database schema up through the frontend; adding a second
-// issuer meant editing every one of those layers. Here a sign-in is a Provider
-// returning an Identity, and everything above it is issuer-agnostic.
+// It exists so that the service layer never names an issuer: a sign-in is a
+// Provider returning an Identity, and everything above it is issuer-agnostic,
+// so adding an issuer doesn't touch the schema, the services or the frontend.
 package auth
 
 import "context"
@@ -37,8 +35,8 @@ type Identity struct {
 // The verifier threaded through AuthURL and Exchange is a PKCE code verifier.
 // It is generated per sign-in attempt and carried in the signed state cookie,
 // so a provider that does not use PKCE simply ignores it — that is what the
-// GitHub provider does, and it keeps the OIDC provider in ocidex-iqkt.3 an
-// addition rather than a change to this interface.
+// GitHub provider does, and it let the OIDC provider be an addition rather
+// than a change to this interface.
 type Provider interface {
 	// Name is the issuer key stored in user_identity.provider. It is stable:
 	// changing it orphans every account that signed in through this provider.

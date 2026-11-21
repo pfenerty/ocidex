@@ -289,7 +289,7 @@ func copyComponentExtRefs(ctx context.Context, tx copyFromer, flat []flatCompone
 // The upserts run in license-key order. Each one row-locks its license until the
 // ingest commits, so two concurrent ingests that met the same licenses in
 // different component orders would each hold one the other wanted and deadlock
-// (ocidex-5prp). Locking in a fixed order rules that cycle out.
+// . Locking in a fixed order rules that cycle out.
 func copyComponentLicenses(ctx context.Context, tx copyFromer, q *repository.Queries, flat []flatComponent) error {
 	type licenseRef struct{ spdxID, name, url string }
 	refs := make(map[string]licenseRef)
@@ -372,9 +372,9 @@ func licenseKey(spdxID, displayName string) string {
 // upsertLicense resolves a license to its ID, inserting it if new. It reads
 // first and writes only when the license is new or the upsert would change it:
 // an upsert row-locks the license until the ingest commits, so every concurrent
-// ingest would otherwise queue on a common license like MIT (ocidex-q1ni).
+// ingest would otherwise queue on a common license like MIT.
 // licenseUpserter is what upsertLicense needs, so ingest and the license
-// backfill (ocidex-wb5k) resolve a license the same way.
+// backfill resolve a license the same way.
 type licenseUpserter interface {
 	GetLicenseBySPDX(ctx context.Context, spdxID pgtype.Text) (repository.GetLicenseBySPDXRow, error)
 	GetLicenseByName(ctx context.Context, name string) (repository.GetLicenseByNameRow, error)

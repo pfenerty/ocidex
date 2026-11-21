@@ -280,7 +280,7 @@ func (s *searchService) ListRecentProvenanceDrift(ctx context.Context, page Drif
 }
 
 // ListOwnedActivity returns the SBOMs that landed in namespaces the given user
-// owns, newest first — the ingest stream for their workspace (ocidex-998g.2).
+// owns, newest first — the ingest stream for their workspace.
 //
 // This takes an owner ID rather than a VisibilityFilter on purpose. Every other
 // feed asks "what may this caller see", and answers with public rows included;

@@ -40,7 +40,7 @@ const (
 	// the DSSE payload, never from the manifest's
 	// dev.sigstore.bundle.predicateType annotation — cilium's 5 MB SPDX
 	// attestation bundle carries that annotation set to this exact value, so
-	// the annotation cannot discriminate (ocidex-gm28).
+	// the annotation cannot discriminate.
 	cosignSignPredicateType = "https://sigstore.dev/cosign/sign/v1"
 
 	// defaultTimeout bounds one Enrich call end to end. The chain is an
@@ -48,7 +48,7 @@ const (
 	// lookup and cosign verification — and cosign may refresh the Sigstore
 	// trusted root, which is itself allowed trustedRootFetchTimeout. The
 	// previous 30s left that sub-fetch able to consume the entire budget.
-	// Overridable via PROVENANCE_TIMEOUT (ocidex-5gbm).
+	// Overridable via PROVENANCE_TIMEOUT.
 	defaultTimeout = 90 * time.Second
 
 	// rekorLookupTimeout scopes the Rekor transparency-log lookup out of the
@@ -63,14 +63,14 @@ const (
 	// separately the attestation layers of one manifest. The layers are
 	// registry-controlled and read whole into memory: a bare cosign signature is
 	// a few KB, but an attestation carrying a full SBOM is megabytes, and reading
-	// one unbounded is what OOMKilled this worker (ocidex-wvnp). 16MiB is far
+	// one unbounded is what OOMKilled this worker. 16MiB is far
 	// above any legitimate compressed attestation while staying small enough that
 	// several concurrent reads fit the pod's memory limit. Raising it means
 	// raising that limit too.
 	//
 	// It is a budget shared across a manifest's layers rather than a per-layer
 	// cap: a .sig manifest holds one layer per signature and all of them are now
-	// read (ocidex-r27f), so a per-layer cap would multiply the ceiling by the
+	// read, so a per-layer cap would multiply the ceiling by the
 	// layer count and reopen the OOM this closed.
 	defaultMaxLayerBytes = 16 << 20
 
@@ -308,7 +308,7 @@ func (e *Enricher) Enrich(ctx context.Context, ref subject.Ref) ([]byte, error) 
 	// index the lookup should resolve. buildProvenance seeds the Rekor fields
 	// from the first signature, but on a multiply signed image that is usually
 	// not the signature the configured identity matched, and applyTrust
-	// re-stamps them from the one that did (ocidex-r27f). Looking up the UUID
+	// re-stamps them from the one that did. Looking up the UUID
 	// first would resolve the losing signature's entry.
 	if e.trustResolver != nil {
 		e.applyTrust(ctx, &p, raw, ref.RegistryID, host, lookupDigest)
@@ -408,7 +408,7 @@ func (e *Enricher) discover(digestRef name.Digest, repo name.Repository, rawDige
 //
 // Every matching referrer contributes, not just the first: an image may be
 // signed by more than one party, and the one a consumer trusts is not
-// necessarily listed first (ocidex-r27f). Signatures and attestations draw on
+// necessarily listed first. Signatures and attestations draw on
 // separate budgets, so a referrers index naming many artifacts still costs at
 // most what a single .sig plus a single .att manifest could.
 func (e *Enricher) extractFromReferrers(idx v1.ImageIndex, repo name.Repository, opts []remote.Option) (RawArtifacts, bool, error) {
@@ -432,7 +432,7 @@ func (e *Enricher) extractFromReferrers(idx v1.ImageIndex, repo name.Repository,
 			// Bundles draw the attestation budget even when they turn out to
 			// hold a signature: which kind it is is only knowable after the
 			// bytes are read. A signature bundle is ~10 KB against a 16 MiB
-			// budget, so this keeps the ocidex-wvnp memory envelope intact.
+			// budget, so this keeps the worker's memory envelope intact.
 			budget = attBudget
 		default:
 			continue

@@ -43,7 +43,7 @@ func (s *searchService) normalizeStatsScope(ctx context.Context, vis VisibilityF
 //
 // On a miss it returns empty stats rather than computing them. The aggregates
 // used to scan the whole component table and take minutes; they read the
-// rollups now (ocidex-kf1p.5), but the request path still never runs them, so a
+// rollups now, but the request path still never runs them, so a
 // dashboard load cannot occupy pool connections that in-flight requests need.
 // Callers render the loading state and retry, by which time the warmer has
 // filled the entry.

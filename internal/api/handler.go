@@ -59,7 +59,7 @@ type Handler struct {
 	tracerProvider   trace.TracerProvider
 }
 
-// Deps is what a Handler is built from (ocidex-8xij.3). Fields are named, so
+// Deps is what a Handler is built from. Fields are named, so
 // two dependencies of the same kind can't be swapped by position, and each is
 // a consumer-sized view (deps.go): a test sets only the ones its routes use.
 // cmd/ocidex hands one service to every view of it, e.g. the search service to
@@ -131,14 +131,14 @@ func NewHandler(d Deps) *Handler {
 
 // WithAdhocWalks sets the coordinator that runs ad-hoc registry walks
 // (POST /registries/{id}/scan). Without it the route answers 503, as it does
-// with no scan submitter (ocidex-89c9.2).
+// with no scan submitter.
 func (h *Handler) WithAdhocWalks(w *scanner.AdhocWalks) *Handler {
 	h.adhocWalks = w
 	return h
 }
 
 // WithClusterIngests sets the coordinator that runs cluster auto-ingest after
-// an inventory snapshot. Without it auto-ingest is skipped (ocidex-89c9.6).
+// an inventory snapshot. Without it auto-ingest is skipped.
 func (h *Handler) WithClusterIngests(w *scanner.AdhocWalks) *Handler {
 	h.clusterIngests = w
 	return h

@@ -25,7 +25,7 @@ INSERT INTO component_hash (component_id, algorithm, value)
 VALUES ($1, $2, $3);
 
 -- name: GetLicenseBySPDX :one
--- Ingest's lock-free read before the license upserts (ocidex-q1ni): an
+-- Ingest's lock-free read before the license upserts: an
 -- upsert row-locks the license until the ingest commits, so every concurrent
 -- ingest would queue on a common license like MIT.
 SELECT id, name FROM license WHERE spdx_id = $1;
@@ -169,7 +169,7 @@ SELECT s.id,
     -- lets sqlc type this column at all, and a cast expression is inferred NOT
     -- NULL, so a row with neither enrichment -- an SBOM that arrived by upload,
     -- or one the oci-metadata enricher has not reached yet -- would fail to scan
-    -- and 500 the whole lookup (ocidex-klj4). Absent architecture reads as "",
+    -- and 500 the whole lookup. Absent architecture reads as "",
     -- which is how every other qualifier here already spells absent.
     COALESCE(e.data->>'architecture', u.data->>'architecture', '')::text AS architecture,
        s.flavor,
@@ -193,8 +193,8 @@ LIMIT 50;
 -- name: UpdateSBOMSubjectVersion :exec
 UPDATE sbom SET subject_version = $2 WHERE id = $1;
 
--- License backfill (ocidex-wb5k): re-derive licenses stored before
--- ExpandLicense (ocidex-nps9.13) split expressions, mapped aliases and dropped
+-- License backfill: re-derive licenses stored before
+-- ExpandLicense split expressions, mapped aliases and dropped
 -- fragments.
 
 -- name: ListNameOnlyLicensesPage :many
@@ -217,7 +217,7 @@ DELETE FROM license WHERE id = $1;
 
 -- name: ListSBOMIDsWithLicenseExpressionsPage :many
 -- SBOMs whose raw_bom has a CycloneDX license expression anywhere: the choices
--- ingest skipped before ocidex-nps9.13 read them.
+-- older ingests skipped.
 SELECT id FROM sbom
 WHERE id > @after::uuid
   AND jsonb_path_exists(raw_bom, 'lax $.**.licenses[*].expression')

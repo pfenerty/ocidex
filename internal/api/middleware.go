@@ -97,7 +97,7 @@ func OptionalAuthenticate(authSvc Authenticator) func(http.Handler) http.Handler
 			}
 
 			// Namespace grants are resolved here, once, and attached to the
-			// principal for the life of the request (ocidex-y0hg.5). Once,
+			// principal for the life of the request. Once,
 			// because a capability check happens in middleware and again in the
 			// handler and a per-check query would multiply for free; here,
 			// because the alternative — writing the grant set onto the session
@@ -109,7 +109,7 @@ func OptionalAuthenticate(authSvc Authenticator) func(http.Handler) http.Handler
 			// check but still answers public-class routes. Failing the whole
 			// request would take the browse surface down with the membership
 			// table.
-			// A cluster agent credential (ocidex-70eo.5) is refused everywhere
+			// A cluster agent credential is refused everywhere
 			// but its own inventory push. Checked here, before any route runs,
 			// so a route added later cannot forget to exclude it; and refused
 			// rather than demoted to anonymous, which would still let it read
@@ -136,7 +136,7 @@ func OptionalAuthenticate(authSvc Authenticator) func(http.Handler) http.Handler
 }
 
 // actorFor is the audit actor for an authenticated caller: the user, and the
-// key when the request came in on one (ocidex-n9na).
+// key when the request came in on one.
 func actorFor(user service.AuthUser) event.Actor {
 	return event.Actor{Kind: event.ActorUser, ID: user.ID, APIKeyID: user.APIKeyID}
 }
@@ -224,7 +224,7 @@ func RequireAdmin(api huma.API) func(huma.Context, func(huma.Context)) {
 // capability c in the namespace resolve derives from the request.
 //
 // It replaces RequireRegistryOwner, RequireSBOMOwner and RequireArtifactOwner
-// (ocidex-y0hg.5), which differed from each other only in how they found the
+// , which differed from each other only in how they found the
 // namespace and then asked the same hard-coded "are you the owner" question.
 // resolve is those bodies lifted out: everything above it is one rule, declared
 // once, and an operation names the capability it needs rather than a role that
@@ -243,7 +243,7 @@ func RequireAdmin(api huma.API) func(huma.Context, func(huma.Context)) {
 //     rule, where no membership can cover it and only an admin passes. No live
 //     row is like that: sbom.namespace_id has been NOT NULL since 00054, and the
 //     registry, artifact and namespace resolvers read NOT NULL columns or
-//     inner joins (ocidex-avsz.3).
+//     inner joins.
 func RequireCapability(api huma.API, c authz.Capability,
 	resolve func(huma.Context) (string, error),
 ) func(huma.Context, func(huma.Context)) {

@@ -83,7 +83,7 @@ const (
 
 // LockKey is the Postgres advisory lock key for a lock name: the name's
 // 64-bit FNV-1a hash. Every LeaderElect caller and the rollup refresher derive
-// their key here (ocidex-43lo.4).
+// their key here.
 func LockKey(name string) int64 {
 	h := fnv.New64a()
 	_, _ = h.Write([]byte(name))

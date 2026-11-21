@@ -156,7 +156,7 @@ var numericVersionRe = regexp.MustCompile(`^[0-9]+(\.[0-9]+)*$`)
 // order by timestamp) or are plain numbers. "main-d4bd093c" against
 // "main-bf2bab70" compares two commit hashes letter by letter, and calling one
 // of them an upgrade alternated the changelog between upgraded and downgraded
-// on every build (ocidex-nps9.3).
+// on every build.
 func versionsOrderable(purl, a, b string) bool {
 	if distroPurlTypes[purlType(purl)] {
 		return true

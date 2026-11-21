@@ -568,8 +568,8 @@ canonical AS (
         v.severity,
         v.cvss_score,
         v.summary
-    -- The representative is chosen among the records that matched this scope
-    -- (ocidex-33ho.6), not every record sharing the canonical id: an aliased
+    -- The representative is chosen among the records that matched this scope,
+    -- not every record sharing the canonical id: an aliased
     -- record that matched some other package must not lend its id or severity.
     FROM vulnerability v
     WHERE v.id IN (SELECT vuln_id FROM running)
@@ -703,7 +703,7 @@ ORDER BY c.name ASC, w.k8s_namespace ASC, w.workload_name ASC
 LIMIT sqlc.narg('limit')::int;
 
 -- name: ListWorkloadsForArtifact :many
--- Where an artifact is running (ocidex-70eo.8): every visible workload whose
+-- Where an artifact is running: every visible workload whose
 -- digest resolves to one of the artifact's SBOMs, by the same two-tier match
 -- as everything else here (ADR-044 K4). Same row shape as
 -- ListWorkloadsForVulnerability, so the UI renders both with one component.
@@ -733,7 +733,7 @@ WHERE s.artifact_id = @artifact_id::uuid
 ORDER BY c.name ASC, w.k8s_namespace ASC, w.workload_name ASC
 LIMIT sqlc.narg('limit')::int;
 
--- Cluster agent credentials (ocidex-70eo.5). These are api_key rows bound to a
+-- Cluster agent credentials. These are api_key rows bound to a
 -- cluster; the CHECK on api_key pins their ceiling to push_inventory. Every
 -- caller here has already passed manage_cluster on the cluster's namespace.
 
@@ -768,7 +768,7 @@ SELECT sqlc.arg('user_id'), old.name, sqlc.arg('key_hash'), sqlc.arg('prefix'),
 FROM old
 RETURNING id, name, prefix, created_at;
 
--- Push history and health (ocidex-70eo.4).
+-- Push history and health.
 
 -- name: RecordClusterPush :execrows
 -- A no-op for a cluster id that does not exist: a push to a mistyped id has

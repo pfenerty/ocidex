@@ -26,10 +26,10 @@ type AddNamespaceMemberParams struct {
 	Role        string      `json:"role"`
 }
 
-// Membership (ocidex-y0hg.1). Direct reads and writes of the membership table.
+// Membership. Direct reads and writes of the membership table.
 // The read *paths* deliberately do not use these: visibility goes through the
 // functions 00066 rewrote, which is what keeps one rule in one place. Member
-// management (ocidex-y0hg.7) is what consumes them.
+// management is what consumes them.
 // Idempotent on (namespace_id, user_id): re-adding an existing member changes
 // their role rather than failing, which is what the member-management PUT wants.
 // Promoting someone to 'owner' while another owner exists violates
@@ -96,8 +96,8 @@ type CreateNamespaceRow struct {
 // Namespace is the authorization anchor (ADR-039): ownership and visibility live
 // here and nowhere else. Everything about *how* an SBOM arrived belongs on
 // source; everything that needs an OCI manifest belongs on registry.
-// Creating a namespace creates its owner member in the same statement
-// (ocidex-y0hg.4). Two statements would leave a window in which a namespace
+// Creating a namespace creates its owner member in the same statement.
+// Two statements would leave a window in which a namespace
 // exists with nobody in it, and a caller that crashed inside that window would
 // leave an orphan nobody can administer.
 //
@@ -287,7 +287,7 @@ type ListNamespacesRow struct {
 	OwnerID   pgtype.UUID `json:"owner_id"`
 }
 
-// Two selection paths, one query (ocidex-998g.2).
+// Two selection paths, one query.
 //
 // The default is the *visibility* path: admin, or public, or mine. The
 // owned_only path backs /api/v1/users/me/* and is strictly narrower — it drops
@@ -296,8 +296,8 @@ type ListNamespacesRow struct {
 // admin. Keeping both in one query is what stops the me-scoped feeds from
 // drifting away from the ones they mirror.
 //
-// Both paths are function calls now rather than inline predicates
-// (ocidex-y0hg.4). "Mine" means any membership, not the owner role: a security
+// Both paths are function calls now rather than inline predicates.
+// "Mine" means any membership, not the owner role: a security
 // engineer's workspace should list the namespaces they are in.
 //
 // An unauthenticated caller on the ownership path still matches nothing, but for
@@ -377,7 +377,7 @@ type UpdateNamespaceRow struct {
 // Ownership is not transferable here and never was: the handler says so and only
 // ever carried the existing owner forward. With ownership in namespace_member
 // there is nothing to carry, so the parameter is gone rather than reinstated as
-// a no-op. Transferring ownership is member management (ocidex-y0hg.7).
+// a no-op. Transferring ownership is member management.
 func (q *Queries) UpdateNamespace(ctx context.Context, arg UpdateNamespaceParams) (UpdateNamespaceRow, error) {
 	row := q.db.QueryRow(ctx, updateNamespace, arg.ID, arg.Name, arg.Visibility)
 	var i UpdateNamespaceRow

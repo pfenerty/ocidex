@@ -39,7 +39,7 @@ func applyVerification(ctx context.Context, p *Provenance, raw RawArtifacts, mod
 	// A failure below means verification could not run at all, as opposed to
 	// running and rejecting. p.Verified stays nil (SigningStatus keeps reading
 	// "signed"), but the reason is recorded so a misconfigured trust key is
-	// visible in the UI instead of only in this worker's logs (ocidex-j9qa).
+	// visible in the UI instead of only in this worker's logs.
 	pubkey, err := cryptoutils.UnmarshalPEMToPublicKey([]byte(pemKey))
 	if err != nil {
 		setVerificationError(p, "trust public key: "+err.Error())

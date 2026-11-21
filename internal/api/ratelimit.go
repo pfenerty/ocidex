@@ -14,8 +14,7 @@ import (
 	"github.com/pfenerty/ocidex/internal/config"
 )
 
-// ClientIPPolicy says how far to believe what proxies report about the client
-// (ocidex-mqav.5, ocidex-w6st).
+// ClientIPPolicy says how far to believe what proxies report about the client.
 //
 // Precedence, strictest gate first:
 //
@@ -213,7 +212,7 @@ func (h *Handler) principalKey(r *http.Request) string {
 }
 
 // buildAPIRateLimits builds the per-principal limits on the endpoints that
-// cost the most to serve (ocidex-mqav.6): SBOM ingest, and the heavy
+// cost the most to serve: SBOM ingest, and the heavy
 // artifact/component reads. Each is one budget shared by every operation that
 // carries it. Without a config both are disabled.
 func (h *Handler) buildAPIRateLimits() {

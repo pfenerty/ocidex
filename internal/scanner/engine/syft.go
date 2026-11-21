@@ -35,7 +35,7 @@ import (
 // GuardDefaultTransport makes every connection http.DefaultTransport opens — and
 // every clone of it made afterwards — obey p.
 //
-// This is how syft's registry pulls are guarded (ocidex-avsz.7). Syft takes no
+// This is how syft's registry pulls are guarded. Syft takes no
 // transport: stereoscope's RegistryOptions has no hook, and its registry
 // provider builds one per pull from http.DefaultTransport.(*http.Transport).Clone()
 // (stereoscope pkg/image/oci/registry_provider.go getTransport), not from

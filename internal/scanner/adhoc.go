@@ -18,7 +18,7 @@ var ErrWalkInProgress = errors.New("a walk of this registry is already in progre
 var ErrWalksNotRunning = errors.New("ad-hoc walks are not accepting work")
 
 // AdhocWalks owns the catalog walks started by POST /registries/{id}/scan
-// (ocidex-89c9.2). Each walk used to run in a bare goroutine off
+// . Each walk used to run in a bare goroutine off
 // context.Background(), so N requests started N overlapping walks of one
 // registry, nothing bounded how many ran at once, and a deploy killed them
 // with no record. AdhocWalks gives each walk:

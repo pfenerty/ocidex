@@ -96,7 +96,7 @@ type Config struct {
 	// TrustedProxyHops is how many proxies stand in front of the API; the
 	// client is that many X-Forwarded-For entries from the right. 0 is off.
 	// It needs no addresses, but trusts that every path passes through all
-	// of them (ocidex-w6st).
+	// of them.
 	TrustedProxyHops int `env:"TRUSTED_PROXY_HOPS" envDefault:"0"`
 	// ClientIPHeader names a header the edge overwrites with the client IP
 	// (CF-Connecting-IP, True-Client-IP). It wins over TrustedProxyHops, and
@@ -143,7 +143,7 @@ type Config struct {
 	// Frontend URL — used as the post-OAuth redirect target and for CORS defaults.
 	FrontendURL string `env:"FRONTEND_URL" envDefault:"http://localhost:3000"`
 	// DiscoverFeatured names the artifacts the landing page features, in
-	// order (ocidex-08ys). Empty features the public container images with
+	// order. Empty features the public container images with
 	// the most packages.
 	DiscoverFeatured []string `env:"DISCOVER_FEATURED" envSeparator:","`
 
@@ -201,7 +201,7 @@ type Config struct {
 	// Sigstore trusted root). The phases share one budget deliberately — giving
 	// each its own would leave total wall clock unbounded across a variable
 	// number of child fetches. 30s was too tight for that whole chain against a
-	// slow registry, and a mid-chain expiry costs a retry (ocidex-zvkx), so the
+	// slow registry, and a mid-chain expiry costs a retry, so the
 	// default is the lever to raise when provenance error rates climb.
 	ProvenanceTimeout time.Duration `env:"PROVENANCE_TIMEOUT" envDefault:"90s"`
 
@@ -209,13 +209,13 @@ type Config struct {
 	// separately the attestation layers of one manifest, that the provenance
 	// enricher will read. The layers are registry-controlled and read whole into
 	// memory: a bare cosign signature is a few KB, an attestation carrying a full
-	// SBOM is megabytes, and reading one unbounded is what OOMKilled the worker
-	// (ocidex-wvnp). Exceeding it fails that job, not the pod. Raising it means
+	// SBOM is megabytes, and reading one unbounded is what OOMKilled the worker.
+	// Exceeding it fails that job, not the pod. Raising it means
 	// raising the worker's memory limit too.
 	//
 	// It is a budget shared across a manifest's layers rather than a per-layer
-	// cap: a .sig manifest holds one layer per signature and all of them are read
-	// (ocidex-r27f), so a per-layer cap would multiply the ceiling by the layer
+	// cap: a .sig manifest holds one layer per signature and all of them are read,
+	// so a per-layer cap would multiply the ceiling by the layer
 	// count.
 	ProvenanceMaxLayerBytes int64 `env:"PROVENANCE_MAX_LAYER_BYTES" envDefault:"16777216"` // 16MiB
 
@@ -647,7 +647,7 @@ func (c *Config) validateOIDC() error {
 	}
 	// OIDC requires an https issuer. Enforcing it in production is also what
 	// keeps the demo's mock issuer (cmd/mock-idp, plain http, vouches for
-	// anyone) from ever signing users in to a real installation (ocidex-vvw6.3).
+	// anyone) from ever signing users in to a real installation.
 	if c.Environment == envProduction && c.OIDCIssuerURL != "" && !strings.HasPrefix(c.OIDCIssuerURL, "https://") {
 		return fmt.Errorf("OIDC_ISSUER_URL must be an https URL when ENVIRONMENT=production, got %q", c.OIDCIssuerURL)
 	}
@@ -728,7 +728,7 @@ func (c *Config) validateClientIP() error {
 	return nil
 }
 
-// validateCORSOrigins checks CORS_ALLOWED_ORIGINS (ocidex-mqav.3). CORS is
+// validateCORSOrigins checks CORS_ALLOWED_ORIGINS. CORS is
 // served with credentials, so a wildcard lets every site read authenticated
 // responses: in production it, and anything that is not a bare
 // scheme://host[:port] origin a browser could send, fails the load. A path,

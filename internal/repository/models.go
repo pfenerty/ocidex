@@ -76,7 +76,7 @@ type Cluster struct {
 	PausedAt pgtype.Timestamptz `json:"paused_at"`
 }
 
-// Recent inventory push attempts per cluster, accepted and rejected (ocidex-70eo.4). Capped per cluster on insert.
+// Recent inventory push attempts per cluster, accepted and rejected. Capped per cluster on insert.
 type ClusterPush struct {
 	ID           int64              `json:"id"`
 	ClusterID    pgtype.UUID        `json:"cluster_id"`

@@ -75,7 +75,7 @@ type GetLicenseBySPDXRow struct {
 	Name string      `json:"name"`
 }
 
-// Ingest's lock-free read before the license upserts (ocidex-q1ni): an
+// Ingest's lock-free read before the license upserts: an
 // upsert row-locks the license until the ingest commits, so every concurrent
 // ingest would queue on a common license like MIT.
 func (q *Queries) GetLicenseBySPDX(ctx context.Context, spdxID pgtype.Text) (GetLicenseBySPDXRow, error) {
@@ -411,8 +411,8 @@ type ListNameOnlyLicensesPageRow struct {
 	Name string      `json:"name"`
 }
 
-// License backfill (ocidex-wb5k): re-derive licenses stored before
-// ExpandLicense (ocidex-nps9.13) split expressions, mapped aliases and dropped
+// License backfill: re-derive licenses stored before
+// ExpandLicense split expressions, mapped aliases and dropped
 // fragments.
 // The licenses ingest stored without an SPDX id, keyset-paged by id. Only these
 // can need re-deriving: an SPDX id passes through ExpandLicense unchanged.
@@ -513,7 +513,7 @@ type ListSBOMIDsWithLicenseExpressionsPageParams struct {
 }
 
 // SBOMs whose raw_bom has a CycloneDX license expression anywhere: the choices
-// ingest skipped before ocidex-nps9.13 read them.
+// older ingests skipped.
 func (q *Queries) ListSBOMIDsWithLicenseExpressionsPage(ctx context.Context, arg ListSBOMIDsWithLicenseExpressionsPageParams) ([]pgtype.UUID, error) {
 	rows, err := q.db.Query(ctx, listSBOMIDsWithLicenseExpressionsPage, arg.After, arg.RowLimit)
 	if err != nil {
@@ -635,7 +635,7 @@ SELECT s.id,
     -- lets sqlc type this column at all, and a cast expression is inferred NOT
     -- NULL, so a row with neither enrichment -- an SBOM that arrived by upload,
     -- or one the oci-metadata enricher has not reached yet -- would fail to scan
-    -- and 500 the whole lookup (ocidex-klj4). Absent architecture reads as "",
+    -- and 500 the whole lookup. Absent architecture reads as "",
     -- which is how every other qualifier here already spells absent.
     COALESCE(e.data->>'architecture', u.data->>'architecture', '')::text AS architecture,
        s.flavor,

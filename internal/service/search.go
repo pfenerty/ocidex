@@ -287,7 +287,7 @@ type ArtifactVulnParams struct {
 	VersionScope int32
 }
 
-// Version scope of the artifact vulnerability list (ocidex-7gf7.5).
+// Version scope of the artifact vulnerability list.
 //
 // The list is computed over the newest SBOM of each version. Uncapped that was
 // 1,025 SBOMs at ~1,093 components for the widest artifact in the corpus, and
@@ -611,7 +611,7 @@ type ArtifactDetail struct {
 	// Watched reports whether the calling user has this artifact on their
 	// watchlist. It rides along with the detail response so the star renders
 	// in its final state on first paint rather than flipping in after a
-	// second round trip (ocidex-998g.3). It is always false for an
+	// second round trip. It is always false for an
 	// unauthenticated caller, who has no watchlist.
 	Watched bool `json:"watched"`
 }

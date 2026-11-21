@@ -14,7 +14,7 @@ const (
 
 // Roots returns the enrichers enqueued directly on SBOM ingest: those with no
 // prerequisite on another enricher's output. Ingest writes their
-// enrichment_jobs rows inside its own transaction (ocidex-n1z4.1).
+// enrichment_jobs rows inside its own transaction.
 func Roots() []string {
 	return []string{User, OCIMetadata, Provenance}
 }

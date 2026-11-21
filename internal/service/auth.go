@@ -35,8 +35,7 @@ type AuthUser struct {
 	// rather than by a session cookie.
 	APIKeyAuth bool
 	// APIKeyID is the ID of the key that authenticated this request, empty
-	// for a session. The audit log records it as the actor's key
-	// (ocidex-n9na).
+	// for a session. The audit log records it as the actor's key.
 	APIKeyID string
 	// APIKeyCaps is the capability ceiling declared on that key. It is only
 	// ever a ceiling: what the caller may actually do is this set INTERSECTED
@@ -47,8 +46,8 @@ type AuthUser struct {
 	// carries no ceiling, and an empty slice on a key means a key that may do
 	// nothing but read public data.
 	APIKeyCaps []authz.Capability
-	// APIKeyClusterID is set when the key is a cluster agent credential
-	// (ocidex-70eo.5). Such a key may push that cluster's inventory and do
+	// APIKeyClusterID is set when the key is a cluster agent credential.
+	// Such a key may push that cluster's inventory and do
 	// nothing else; the API layer rejects it on every other route.
 	APIKeyClusterID string
 	// Grants is the caller's namespace membership, keyed by namespace ID
@@ -640,7 +639,7 @@ func (s *authService) ValidateAPIKey(ctx context.Context, rawKey string) (AuthUs
 		APIKeyID:    row.ID.String(),
 		APIKeyCaps:  caps,
 		// Empty for an ordinary key. Set, it confines the key to pushing
-		// this one cluster's inventory (ocidex-70eo.5).
+		// this one cluster's inventory.
 		APIKeyClusterID: row.ClusterID.String(),
 	}, nil
 }

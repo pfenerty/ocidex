@@ -75,7 +75,7 @@ type GetLicenseCategoryCountsRow struct {
 
 // Reads license_rollup rather than joining component_license to component over
 // every visible SBOM: that was a full scan of the 10.9M-row table, run by the
-// stats warmer every five minutes per scope (ocidex-kf1p.5).
+// stats warmer every five minutes per scope.
 //
 // The count is distinct package identities (name, group, version, type) per
 // category, the same unit ListLicenses' component_count uses, where it was
@@ -136,7 +136,7 @@ type GetPackageGrowthTimelineRow struct {
 // Cumulative distinct packages (name+group+type) by the day each first appeared.
 // component_rollup carries each identity's first_seen per namespace, and the
 // earliest across the visible namespaces is the MIN of those, so this reads the
-// rollup instead of scanning component (ocidex-kf1p.5).
+// rollup instead of scanning component.
 func (q *Queries) GetPackageGrowthTimeline(ctx context.Context, arg GetPackageGrowthTimelineParams) ([]GetPackageGrowthTimelineRow, error) {
 	rows, err := q.db.Query(ctx, getPackageGrowthTimeline, arg.UserID, arg.IsAdmin)
 	if err != nil {
@@ -226,7 +226,7 @@ SELECT
     --
     -- Packages are library identities only, the set /components lists. Counting
     -- every type took in syft's file entries, 117k of the 123k "packages" the
-    -- home page reported against 6k on /components (ocidex-nps9.11; glossary in
+    -- home page reported against 6k on /components (glossary in
     -- docs/ARCHITECTURE.md).
     (SELECT COUNT(*)::bigint FROM (
         SELECT DISTINCT r.name, COALESCE(r.group_name,'') AS g, r.type
@@ -365,7 +365,7 @@ type GetVersionGrowthTimelineRow struct {
 
 // Cumulative distinct package versions (name+group+version+type) by the day each
 // first appeared. Reads component_version_rollup, the version-grain twin of the
-// package timeline's source (ocidex-kf1p.5).
+// package timeline's source.
 func (q *Queries) GetVersionGrowthTimeline(ctx context.Context, arg GetVersionGrowthTimelineParams) ([]GetVersionGrowthTimelineRow, error) {
 	rows, err := q.db.Query(ctx, getVersionGrowthTimeline, arg.UserID, arg.IsAdmin)
 	if err != nil {
@@ -433,7 +433,7 @@ type GetVulnStatsRow struct {
 // (GO-xxxx + GHSA-yyyy) count once.
 //
 // Reads vuln_rollup instead of joining component to package_vulnerability over
-// every visible SBOM, a full scan of component (ocidex-kf1p.5). Each canonical
+// every visible SBOM, a full scan of component. Each canonical
 // vulnerability takes the severity ListTopVulnerabilities' canonical CTE picks
 // for it, so it lands in exactly one bucket and these totals agree with the
 // /vulnerabilities list rather than counting a record once per alias severity.

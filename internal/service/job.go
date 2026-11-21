@@ -413,7 +413,7 @@ func (s *jobService) RequeueStuckRunning(ctx context.Context, stuckThreshold tim
 		return err
 	}
 	// The same sweep covers the other stuck state: queued for retry, but no
-	// worker has come back for it (ocidex-nps9.26).
+	// worker has come back for it.
 	stale := pgtype.Timestamptz{}
 	_ = stale.Scan(time.Now().Add(-staleRequeuedAfter))
 	if err := s.repo.FailStaleRequeuedScanJobs(ctx, stale); err != nil {

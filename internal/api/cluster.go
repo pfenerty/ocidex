@@ -70,7 +70,7 @@ func (h *Handler) listClusters(ctx context.Context, vis service.VisibilityFilter
 }
 
 // clusterSummary is one list row's coverage and running criticals
-// (ocidex-70eo.7). Nil for a cluster that has never reported, where both
+// . Nil for a cluster that has never reported, where both
 // would be zeros that read as clean, and on any error: a summary is an aid to
 // the list, not a reason to fail it. One cluster at a time, because a
 // namespace has a handful of clusters, not hundreds.
@@ -272,7 +272,7 @@ func toAgentInfo(a *InventoryAgent) *service.AgentInfo {
 // Anything that goes wrong is logged and dropped: the next snapshot retries
 // it, and the submitter's (registry, digest) key makes that retry free.
 //
-// The clusterIngests coordinator owns it (ocidex-89c9.6): one ingest per
+// The clusterIngests coordinator owns it: one ingest per
 // cluster, so a snapshot that lands while the last one's ingest is still
 // running skips rather than stacking a second; a bound across clusters; a
 // deadline; and cancellation on shutdown.
@@ -581,7 +581,7 @@ func (h *Handler) ListVulnWorkloads(ctx context.Context, in *ListVulnWorkloadsIn
 }
 
 // ListRegistryGaps handles GET /api/v1/clusters/registry-gaps: for each
-// registry, which clusters' gaps it would close (ocidex-70eo.14). Visibility is
+// registry, which clusters' gaps it would close. Visibility is
 // the cluster list's: a cluster the caller cannot see contributes nothing.
 func (h *Handler) ListRegistryGaps(ctx context.Context, _ *struct{}) (*ListRegistryGapsOutput, error) {
 	if _, ok := UserFromContext(ctx); !ok {
@@ -603,7 +603,7 @@ func (h *Handler) ListRegistryGaps(ctx context.Context, _ *struct{}) (*ListRegis
 }
 
 // ListArtifactWorkloads handles GET /api/v1/artifacts/{id}/workloads: where any
-// version of an artifact is running (ocidex-70eo.8). Visibility is the query's,
+// version of an artifact is running. Visibility is the query's,
 // as for ListVulnWorkloads: invisible clusters contribute nothing.
 func (h *Handler) ListArtifactWorkloads(ctx context.Context, in *ListArtifactWorkloadsInput) (*ListVulnWorkloadsOutput, error) {
 	rows, err := h.clusterInventory.WorkloadsForArtifact(ctx, in.ID, in.Limit, visibilityFilterFromContext(ctx))
@@ -655,7 +655,7 @@ func (h *Handler) visibleCluster(ctx context.Context, id string) (service.Cluste
 // pushing an inventory is push_inventory (what a CI agent does), and asking for
 // unknown images to be ingested spends the namespace's registry credentials, so
 // it is trigger_scan. Collapsing them onto one check is how a developer role
-// ends up able to delete a cluster (ocidex-y0hg.5).
+// ends up able to delete a cluster.
 func (h *Handler) clusterCapabilityCheck(ctx context.Context, id string, c authz.Capability) error {
 	user, ok := UserFromContext(ctx)
 	if !ok {

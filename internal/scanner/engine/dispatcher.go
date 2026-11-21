@@ -99,7 +99,7 @@ func (d *Dispatcher) ProcessOne(ctx context.Context, req scanner.ScanRequest) (s
 	if err != nil {
 		err = fmt.Errorf("ingest: %w", err)
 		// Ingest refused the SBOM itself, and refuses the same BOM on every
-		// retry (ocidex-a7km).
+		// retry.
 		var verr *service.ValidationError
 		if errors.As(err, &verr) {
 			return "", jobqueue.Permanent(err)
@@ -116,7 +116,7 @@ func (d *Dispatcher) ProcessOne(ctx context.Context, req scanner.ScanRequest) (s
 const shortDigestLen = len("sha256:") + 12
 
 // subjectVersion is the version an SBOM is stored under: the image's version
-// label, else the tag it was found by, else its short digest (ocidex-a7km). A
+// label, else the tag it was found by, else its short digest. A
 // catalog walk always has a tag, but a running image reported by digest alone
 // may have neither, and ingest refuses a container SBOM with no version. The
 // index digest is used when there is one, so every platform of a multi-arch

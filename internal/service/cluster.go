@@ -52,13 +52,13 @@ type Cluster struct {
 	AutoIngest bool
 	// Agent is what the agent said about itself with its last accepted
 	// snapshot. Nil until one has reported, and for an agent that predates
-	// self-reporting (ocidex-70eo.3).
+	// self-reporting.
 	Agent *AgentInfo
 	// LastPushErrorAt and LastPushError are the most recent rejected push.
 	// They mean "erroring" only while newer than LastSeenAt (see Health).
 	LastPushErrorAt *time.Time
 	LastPushError   string
-	// PausedAt is set while the cluster is paused (ocidex-70eo.9): pushes are
+	// PausedAt is set while the cluster is paused: pushes are
 	// refused and the last inventory is kept.
 	PausedAt  *time.Time
 	CreatedAt time.Time
@@ -370,11 +370,11 @@ type ClusterService interface {
 	WorkloadsForVulnerability(ctx context.Context, canonicalID, clusterID string, limit int32, filter VisibilityFilter) ([]RunningWorkload, error)
 
 	// RegistryGaps groups every visible cluster's No-SBOM gap by the registry
-	// each image resolves to (ocidex-70eo.14).
+	// each image resolves to.
 	RegistryGaps(ctx context.Context, filter VisibilityFilter) ([]RegistryClusterGap, error)
 
-	// WorkloadsForArtifact answers "where is this artifact running"
-	// (ocidex-70eo.8), across every cluster the caller can see.
+	// WorkloadsForArtifact answers "where is this artifact running",
+	// across every cluster the caller can see.
 	WorkloadsForArtifact(ctx context.Context, artifactID string, limit int32, filter VisibilityFilter) ([]RunningWorkload, error)
 
 	// UnknownImages lists the cluster's No-SBOM gap grouped by image, each
@@ -388,7 +388,7 @@ type ClusterService interface {
 	// identical from a count alone.
 	IngestUnknown(ctx context.Context, clusterID string, sub RunningImageSubmitter, params IngestUnknownParams, filter VisibilityFilter) (IngestResult, error)
 
-	// Agent credentials (ocidex-70eo.5): API keys bound to this cluster that
+	// Agent credentials: API keys bound to this cluster that
 	// may only push its inventory. Callers authorize manage_cluster first.
 	// Connect registers a cluster with its first credential, atomically.
 	Connect(ctx context.Context, p ConnectClusterParams) (Cluster, ClusterCredential, error)
@@ -397,7 +397,7 @@ type ClusterService interface {
 	RevokeCredential(ctx context.Context, clusterID, credentialID string) error
 	RotateCredential(ctx context.Context, clusterID, credentialID string, userID string) (ClusterCredential, error)
 
-	// Push history (ocidex-70eo.4). RecordPush ignores an unknown cluster id.
+	// Push history. RecordPush ignores an unknown cluster id.
 	RecordPush(ctx context.Context, clusterID string, p PushAttempt) error
 	ListPushes(ctx context.Context, clusterID string, limit int32) ([]ClusterPush, error)
 }
@@ -885,7 +885,7 @@ func optionalText(v string) pgtype.Text {
 // unknown key becomes the empty string, which matches no CASE branch and so
 // leaves the query's default ordering in place.
 func clampSort(sortBy, sortDir string, allowed map[string]bool) (string, string) {
-	// The API names sort keys in camelCase (ocidex-nps9.34); the keys here name
+	// The API names sort keys in camelCase; the keys here name
 	// the SQL columns they order by, so cvssScore is looked up as cvss_score.
 	sortBy = columnName(sortBy)
 	if !allowed[sortBy] {

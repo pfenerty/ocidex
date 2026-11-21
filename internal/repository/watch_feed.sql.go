@@ -179,7 +179,7 @@ type ListWatchedArtifactEventsRow struct {
 	VulnSummary     pgtype.Text        `json:"vuln_summary"`
 }
 
-// Watched-artifact change feed (ocidex-998g.4).
+// Watched-artifact change feed.
 //
 // Three signals already exist in the schema and none of them are recomputed
 // here: a new version is a `sbom` row, a drift event is a

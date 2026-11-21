@@ -86,7 +86,7 @@ func (h *Handler) webhookWantsScan(ctx context.Context, reg service.Registry, in
 
 	// Cosign signatures and attestations pass the check above — they are image
 	// manifests — but syft cannot catalog their signature-payload layers. The
-	// tag is the only signal available here (ocidex-ptj2).
+	// tag is the only signal available here.
 	if scanner.IsAttachedArtifactTag(in.Body.Reference) {
 		return false
 	}

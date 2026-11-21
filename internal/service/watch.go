@@ -11,7 +11,7 @@ import (
 	"github.com/pfenerty/ocidex/internal/repository"
 )
 
-// WatchService manages a user's artifact watchlist (ocidex-998g.3).
+// WatchService manages a user's artifact watchlist.
 //
 // A watch is a private bookmark, not an ownership or visibility relation:
 // watching a public base image somebody else owns is the primary use case. The
@@ -38,7 +38,7 @@ type WatchService interface {
 	Feed(ctx context.Context, userID string, vis VisibilityFilter, page FeedPage) (CursorPage[WatchEvent], error)
 }
 
-// WatchEvent is one change to a watched artifact (ocidex-998g.4).
+// WatchEvent is one change to a watched artifact.
 //
 // None of the three signals is computed here. A new version is a sbom row, a
 // drift event is a provenance_drift_events row, and a vulnerability is the same

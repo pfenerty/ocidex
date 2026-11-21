@@ -24,7 +24,7 @@ type ClusterResponse struct {
 }
 
 // ClusterSummaryResponse is what the cluster list shows per row
-// (ocidex-70eo.7): how much of what runs OCIDex can assess, and the worst of
+// : how much of what runs OCIDex can assess, and the worst of
 // what it found. Criticals count only the matched containers, which is why
 // coverage travels with them.
 type ClusterSummaryResponse struct {
@@ -32,7 +32,7 @@ type ClusterSummaryResponse struct {
 	RunningCriticals int64                    `json:"runningCriticals" doc:"Distinct critical vulnerabilities in matched running images"`
 }
 
-// ClusterHealthResponse is a cluster's derived agent health (ocidex-70eo.4).
+// ClusterHealthResponse is a cluster's derived agent health.
 type ClusterHealthResponse struct {
 	State             string `json:"state" enum:"never_reported,healthy,stale,erroring,paused" doc:"never_reported: nothing pushed yet. healthy: last push accepted and recent. stale: no accepted push within three report intervals. erroring: the agent is pushing and being refused. paused: paused on purpose; snapshots are refused."`
 	Reason            string `json:"reason,omitempty" doc:"Why, for every state but healthy"`
@@ -170,7 +170,7 @@ type PutInventoryInput struct {
 }
 
 // InventoryAgent is what an agent reports about itself and its cluster with a
-// snapshot (ocidex-70eo.3). Every field is optional.
+// snapshot. Every field is optional.
 type InventoryAgent struct {
 	Version               string   `json:"version,omitempty" maxLength:"128" doc:"Agent build version"`
 	KubernetesVersion     string   `json:"kubernetesVersion,omitempty" maxLength:"128" doc:"Kubernetes server gitVersion from the discovery API"`
@@ -499,7 +499,7 @@ type ListClusterUnknownImagesOutput struct {
 		Reasons    UnknownImageReasonCounts `json:"reasons" doc:"Breakdown of the entire gap by remedy, independent of the page returned"`
 		Hosts      []UnknownHostResponse    `json:"hosts" doc:"The entire gap grouped by registry scope, biggest first; independent of the page returned"`
 		Pagination PaginationMeta           `json:"pagination"`
-		// ocidex-70eo.12: without a scanner, "ready" means "would be ready",
+		// Without a scanner, "ready" means "would be ready",
 		// and the ingest endpoint answers 503. Clients branch on this rather
 		// than offering an action that cannot run.
 		ScanningEnabled bool `json:"scanningEnabled" doc:"Whether this deployment can scan images at all. When false, nothing can be ingested from here (manually or by auto-ingest) and the ingest endpoint returns 503."`
@@ -537,7 +537,7 @@ type IngestUnknownOutput struct {
 }
 
 // ---------------------------------------------------------------------------
-// Agent credentials (ocidex-70eo.5)
+// Agent credentials
 // ---------------------------------------------------------------------------
 
 // ClusterCredentialResponse is an agent credential bound to one cluster. Key
@@ -604,7 +604,7 @@ type ClusterCredentialInput struct {
 }
 
 // RegistryClusterGapResponse is one registry's share of one cluster's No-SBOM
-// gap (ocidex-70eo.14).
+// gap.
 type RegistryClusterGapResponse struct {
 	RegistryID  string `json:"registryId"`
 	ClusterID   string `json:"clusterId"`

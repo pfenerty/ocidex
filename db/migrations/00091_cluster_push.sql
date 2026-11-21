@@ -16,7 +16,7 @@ CREATE TABLE cluster_push (
 CREATE INDEX cluster_push_cluster_id_idx ON cluster_push (cluster_id, id DESC);
 
 COMMENT ON TABLE cluster_push IS
-    'Recent inventory push attempts per cluster, accepted and rejected (ocidex-70eo.4). Capped per cluster on insert.';
+    'Recent inventory push attempts per cluster, accepted and rejected. Capped per cluster on insert.';
 
 -- The last rejection, denormalized so a cluster list derives health without a
 -- join. Erroring means this is newer than last_seen_at.

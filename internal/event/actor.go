@@ -16,7 +16,7 @@ const (
 )
 
 // Actor is who caused an event: the principal the audit log records
-// (ocidex-n9na). It travels on the context rather than on each event's data:
+// . It travels on the context rather than on each event's data:
 // Bus.Publish is synchronous, so a subscriber sees the publisher's ctx, and
 // the actor is known where the request is authenticated, far from where
 // events are published.

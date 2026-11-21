@@ -1,5 +1,5 @@
 -- name: GetArtifactByIdentity :one
--- Ingest's lock-free read before UpsertArtifact (ocidex-q1ni). An ON CONFLICT
+-- Ingest's lock-free read before UpsertArtifact. An ON CONFLICT
 -- DO UPDATE row-locks the artifact until the ingest commits, even when it
 -- changes nothing, so concurrent ingests of one image would queue on it.
 SELECT id, purl, cpe FROM artifact
@@ -36,13 +36,13 @@ RETURNING id;
 -- failed to verify, dominates rather than being masked by a sibling SBOM that
 -- still verifies.
 --
--- verification_failed sits above verified rather than below it (ocidex-7gf7.3).
+-- verification_failed sits above verified rather than below it.
 -- It used to sit below, which made this ladder worst-first only at its top
 -- rung: a signature that had actually been checked and rejected — the
 -- strongest negative signal the provenance enricher can produce — was hidden
 -- by any sibling that happened to pass.
 --
--- signed sits above verified for the same reason (ocidex-nps9.8). A signature
+-- signed sits above verified for the same reason. A signature
 -- that was found but never checked is a weaker claim than one that was, and
 -- with verified first an artifact whose newest builds went unchecked still
 -- read "Verified" from its older siblings — while the list's tooltip promised
@@ -82,7 +82,7 @@ WHERE a.id = $1;
 
 -- name: CountArtifacts :one
 -- The total behind ListArtifacts' first page, under the same filters and
--- visibility rule, so the list can say "20 of 126" (ocidex-nps9.18). Keyset
+-- visibility rule, so the list can say "20 of 126". Keyset
 -- pages carry no total of their own (ADR-043).
 SELECT COUNT(*)::bigint
 FROM artifact a
@@ -131,10 +131,9 @@ SELECT a.id, a.type, a.name, a.group_name, a.purl, a.cpe, a.created_at,
            ) THEN 'verified'
            ELSE 'unsigned'
        END)::text AS signing_status,
-       -- Severity counts for this artifact's latest *version* (ocidex-unn8.9,
-       -- rescoped by ocidex-7gf7.2). They come from sbom_vuln_rollup rather
-       -- than an aggregate over component: ocidex-ckv.2 measured that shape at
-       -- ~53s against a 30s timeout, which is why the rollups exist at all.
+       -- Severity counts for this artifact's latest *version*. They come from
+       -- sbom_vuln_rollup rather than an aggregate over component: that shape
+       -- measured ~53s against a 30s timeout, which is why the rollups exist.
        --
        -- One version, not a union across every SBOM under the artifact: a union
        -- would keep reporting the artifact vulnerable long after the fix
@@ -174,7 +173,7 @@ LEFT JOIN LATERAL (
     -- Version parts first, insert order only as a tiebreak. Ordering by
     -- created_at alone meant "most recently ingested", so re-scanning or
     -- backfilling an old tag rewrote this row's counts to that old tag's
-    -- findings (ocidex-7gf7.2). NULLS LAST because a subject_version that does
+    -- findings. NULLS LAST because a subject_version that does
     -- not parse — a digest, a branch name — is unknown, not newest; the
     -- matching index idx_sbom_artifact_version declares the same.
     --
@@ -196,7 +195,7 @@ WHERE (sqlc.narg('type')::text IS NULL OR a.type = sqlc.narg('type'))
   -- artifact is "mine" when it appears in a namespace I own; artifact_visible()
   -- would additionally admit every public artifact and every artifact with no
   -- namespace link at all, which is exactly what this collection must exclude
-  -- (ocidex-998g.2, and see ListNamespaces).
+  -- (see ListNamespaces).
   AND CASE WHEN COALESCE(sqlc.narg('owned_only')::boolean, false)
            THEN EXISTS (
                SELECT 1 FROM artifact_namespace an
@@ -349,7 +348,7 @@ LIMIT @row_limit;
 -- The changelog's candidate list. Deliberately not ListSBOMsByArtifact: that
 -- query carries a correlated (SELECT COUNT(*) FROM component ...) per row, and
 -- the changelog asks for up to 10,000 rows, so it paid for counting every
--- component of every version before paging anything (ocidex-7gf7.12). It reads
+-- component of every version before paging anything. It reads
 -- only these four columns -- architecture and build date come from
 -- ListSBOMEnrichmentsByArtifact -- so the count and the enrichment joins were
 -- pure cost here.

@@ -11,7 +11,7 @@ import (
 
 // canReadPrivate reports whether the caller may see a private namespace's
 // content. It is the read half of what canManageNamespace used to answer
-// (ocidex-y0hg.5): membership of a private namespace is precisely the right to
+// : membership of a private namespace is precisely the right to
 // read it, so every role holds CapReadPrivate and a non-member holds nothing.
 //
 // A public namespace never reaches here — its rows are visible through the SQL
@@ -29,7 +29,7 @@ func (h *Handler) ListNamespaces(ctx context.Context, _ *ListNamespacesInput) (*
 
 // ListMyNamespaces returns only the namespaces the caller owns. It shares
 // ListNamespaces' body and differs solely in the filter, so the two cannot
-// drift apart in what they project (ocidex-998g.2).
+// drift apart in what they project.
 func (h *Handler) ListMyNamespaces(ctx context.Context, _ *ListMyNamespacesInput) (*ListNamespacesOutput, error) {
 	return h.listNamespaces(ctx, ownedFilterFromContext(ctx))
 }

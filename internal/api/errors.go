@@ -43,7 +43,7 @@ func mapServiceError(err error) error {
 
 // requireUUID checks that a request's ID is a UUID, answering 400 when it
 // isn't, and returns it in canonical form. IDs cross into the services as
-// strings (ocidex-8xij.4); checking here keeps a malformed one a 400 whatever
+// strings; checking here keeps a malformed one a 400 whatever
 // the handler does with service errors.
 func requireUUID(s string) (string, error) {
 	id, err := uuidx.Parse(s)

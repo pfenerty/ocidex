@@ -31,7 +31,7 @@ const (
 	// memory. A commit JSON is a few KB; 4MiB leaves room for a pathological
 	// commit message while keeping a misbehaving or proxied API host from
 	// costing the worker its memory limit. Mirrors the provenance enricher's
-	// layer cap (ocidex-wvnp.3).
+	// layer cap.
 	defaultMaxResponseBytes = 4 << 20
 )
 

@@ -51,10 +51,9 @@ func (s *searchService) GetArtifact(ctx context.Context, idStr string, vis Visib
 		return ArtifactDetail{}, fmt.Errorf("counting sboms: %w", err)
 	}
 
-	// The detail response inherits SufficientSbomCount from ArtifactSummary, and
-	// until ocidex-ag4q.33 nothing populated it here — the field was serialized
-	// as a permanent 0 while the list endpoint reported the real figure for the
-	// same artifact. The band now shows enrichment coverage, so it is counted.
+	// The detail response inherits SufficientSbomCount from ArtifactSummary and
+	// the band shows enrichment coverage, so it is counted here too; left unset
+	// it would serialize as 0 while the list endpoint reports the real figure.
 	sufficientCount, err := q.CountSufficientSBOMsByArtifact(ctx, repository.CountSufficientSBOMsByArtifactParams{
 		ArtifactID: id,
 		UserID:     uuidOrNull(vis.UserID),
@@ -550,7 +549,7 @@ func (s *searchService) GetArtifactVulnSummary(ctx context.Context, artifactIDSt
 // here with. The band tile and this tab therefore report different totals by
 // design; the tab states its scope.
 //
-// The version cap is ocidex-7gf7.5: uncapped, this walked every version of the
+// The version cap exists because, uncapped, this walked every version of the
 // artifact and timed out on the widest one in the corpus. Both the cap and the
 // artifact's true version count come back on the page so the tab can say which
 // slice of history the numbers describe — an unstated truncation would be worse

@@ -242,7 +242,7 @@ type CreateClusterCredentialRow struct {
 	CreatedAt pgtype.Timestamptz `json:"created_at"`
 }
 
-// Cluster agent credentials (ocidex-70eo.5). These are api_key rows bound to a
+// Cluster agent credentials. These are api_key rows bound to a
 // cluster; the CHECK on api_key pins their ceiling to push_inventory. Every
 // caller here has already passed manage_cluster on the cluster's namespace.
 func (q *Queries) CreateClusterCredential(ctx context.Context, arg CreateClusterCredentialParams) (CreateClusterCredentialRow, error) {
@@ -795,8 +795,8 @@ canonical AS (
         v.severity,
         v.cvss_score,
         v.summary
-    -- The representative is chosen among the records that matched this scope
-    -- (ocidex-33ho.6), not every record sharing the canonical id: an aliased
+    -- The representative is chosen among the records that matched this scope,
+    -- not every record sharing the canonical id: an aliased
     -- record that matched some other package must not lend its id or severity.
     FROM vulnerability v
     WHERE v.id IN (SELECT vuln_id FROM running)
@@ -1384,7 +1384,7 @@ type ListWorkloadsForArtifactRow struct {
 	MatchState      string          `json:"match_state"`
 }
 
-// Where an artifact is running (ocidex-70eo.8): every visible workload whose
+// Where an artifact is running: every visible workload whose
 // digest resolves to one of the artifact's SBOMs, by the same two-tier match
 // as everything else here (ADR-044 K4). Same row shape as
 // ListWorkloadsForVulnerability, so the UI renders both with one component.
@@ -1627,7 +1627,7 @@ type RecordClusterPushParams struct {
 	ClusterID    pgtype.UUID `json:"cluster_id"`
 }
 
-// Push history and health (ocidex-70eo.4).
+// Push history and health.
 // A no-op for a cluster id that does not exist: a push to a mistyped id has
 // no cluster to explain itself to.
 func (q *Queries) RecordClusterPush(ctx context.Context, arg RecordClusterPushParams) (int64, error) {

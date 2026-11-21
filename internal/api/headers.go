@@ -10,7 +10,7 @@ import (
 // /users/me. No cache, shared or private, may keep them.
 var noStorePrefixes = []string{"/auth/", "/api/v1/auth/", "/api/v1/users/me"}
 
-// SecurityHeaders sets the API's response hardening headers (ocidex-mqav.7):
+// SecurityHeaders sets the API's response hardening headers:
 // nosniff on everything, so a JSON body is never sniffed into something a
 // browser would render, and Cache-Control: no-store on noStorePrefixes. The
 // web tier's CSP and friends live in web/nginx.conf; the API serves no HTML a

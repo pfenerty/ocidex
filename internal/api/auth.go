@@ -44,7 +44,7 @@ const (
 
 // deriveFrontendURL returns where the browser goes after signing in.
 //
-// In production that is FRONTEND_URL verbatim (ocidex-mqav.4): behind a
+// In production that is FRONTEND_URL verbatim: behind a
 // TLS-terminating proxy r.TLS is nil, so deriving the scheme sent users to
 // http://, and the Host header is the client's to choose.
 //
@@ -255,7 +255,7 @@ func (h *Handler) HandleCallback(w http.ResponseWriter, r *http.Request) {
 // sessionCookie builds the session cookie with the attributes every path that
 // sets or clears it must agree on: a clear whose attributes differ from the
 // set is ignored by the browser. SameSite comes from SESSION_COOKIE_SAMESITE
-// (ocidex-mqav.2); Secure is forced on for SameSite=None, which browsers
+// ; Secure is forced on for SameSite=None, which browsers
 // otherwise reject, and config validation only allows None in production.
 func (h *Handler) sessionCookie(value string, maxAge int) *http.Cookie {
 	sameSite := http.SameSiteLaxMode
@@ -311,7 +311,7 @@ func registerAuthOps(r chi.Router, api huma.API, h *Handler) {
 	// ?provider=, not a second code path.
 	//
 	// Sign-in is the unauthenticated surface, so it is limited per client IP
-	// (AUTH_RATE_LIMIT, ocidex-mqav.5). Starting an identity link shares the
+	// (AUTH_RATE_LIMIT). Starting an identity link shares the
 	// limit: it is the same trip to the issuer.
 	authLimit := newRateLimiter(h.authRateLimit(), h.clientIPs.ClientIP,
 		"too many sign-in requests from this address; retry later")
@@ -336,7 +336,7 @@ func registerAuthOps(r chi.Router, api huma.API, h *Handler) {
 		Middlewares: huma.Middlewares{authMW},
 	}, h.GetMe)
 
-	// Self-scoped collections (ocidex-998g.2). Each one mirrors an existing
+	// Self-scoped collections. Each one mirrors an existing
 	// list endpoint but selects on ownership rather than visibility, so a
 	// workspace UI does not have to fetch the whole catalogue and filter it
 	// client-side. All are authenticated-class: there is nothing to authorize
@@ -391,7 +391,7 @@ func registerAuthOps(r chi.Router, api huma.API, h *Handler) {
 		Middlewares: huma.Middlewares{authMW},
 	}, h.ListMyActivity)
 
-	// Owner-scoped views of the two cross-cutting feeds (ocidex-998g.5). These
+	// Owner-scoped views of the two cross-cutting feeds. These
 	// differ from the collections above in that their siblings are already
 	// visibility-filtered rather than admin-only; the narrowing here is from
 	// "everything I can see" to "everything I own", which is what the dashboard
@@ -416,7 +416,7 @@ func registerAuthOps(r chi.Router, api huma.API, h *Handler) {
 		Middlewares: huma.Middlewares{authMW},
 	}, h.ListMyVulnerabilities)
 
-	// Watchlist (ocidex-998g.3). The watch pair is self-scoped like the
+	// Watchlist. The watch pair is self-scoped like the
 	// collections above — the caller is implied, never a path segment — but the
 	// two mutating verbs additionally need write scope, because a read-only API
 	// key must not be able to change stored state.
@@ -463,7 +463,7 @@ func registerAuthOps(r chi.Router, api huma.API, h *Handler) {
 		Middlewares: huma.Middlewares{authMW},
 	}, h.ListMyWatchFeed)
 
-	// Identity providers and linked identities (ocidex-iqkt.5). The provider
+	// Identity providers and linked identities. The provider
 	// list is public because the login page renders it before anyone is signed
 	// in; everything about a particular account's identities is
 	// authenticated-class and self-scoped, with no path segment naming a user.
@@ -636,7 +636,7 @@ func meCursorList[T any](
 // ListMyActivity returns the SBOMs ingested into the caller's namespaces,
 // newest first. Unlike the other me-scoped collections this has no sibling to
 // share a body with — there is no installation-wide activity feed — so it goes
-// straight to the ownership-keyed service call (ocidex-998g.2).
+// straight to the ownership-keyed service call.
 func (h *Handler) ListMyActivity(ctx context.Context, in *ListMyActivityInput) (*ListMyActivityOutput, error) {
 	data, meta, err := meCursorList(ctx, in.CursorParams,
 		func(u service.AuthUser, page service.FeedPage) (service.CursorPage[service.ActivityEntry], error) {
@@ -673,7 +673,7 @@ func (h *Handler) ListMyWatches(ctx context.Context, in *ListMyWatchesInput) (*L
 // ListMyWatchFeed returns changes to the caller's watched artifacts, newest
 // first. It passes a visibility filter as well as the caller's ID — the
 // watchlist itself needs no filter, but the events do, so an artifact that has
-// gone private since it was starred stops appearing here (ocidex-998g.4).
+// gone private since it was starred stops appearing here.
 func (h *Handler) ListMyWatchFeed(ctx context.Context, in *ListMyWatchFeedInput) (*ListMyWatchFeedOutput, error) {
 	vis := visibilityFilterFromContext(ctx)
 	data, meta, err := meCursorList(ctx, in.CursorParams,
@@ -694,7 +694,7 @@ func (h *Handler) ListMyWatchFeed(ctx context.Context, in *ListMyWatchFeedInput)
 // WatchArtifact stars an artifact for the caller. The visibility filter passed
 // down is the ordinary one, not the owned-only filter the sibling collections
 // use: watching a public artifact somebody else owns is the point of the
-// feature (ocidex-998g.3).
+// feature.
 func (h *Handler) WatchArtifact(ctx context.Context, in *WatchArtifactInput) (*struct{}, error) {
 	user, ok := UserFromContext(ctx)
 	if !ok {

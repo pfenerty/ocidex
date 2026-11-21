@@ -14,7 +14,7 @@ import (
 )
 
 // ClusterCredential is an agent credential bound to one cluster
-// (ocidex-70eo.5, ADR-0044 K8). It is an API key whose only power is pushing
+// (ADR-0044 K8). It is an API key whose only power is pushing
 // that cluster's inventory. Plaintext is set only on the response that minted
 // it; the server keeps a hash.
 type ClusterCredential struct {
@@ -171,7 +171,7 @@ type ConnectClusterParams struct {
 }
 
 // Connect registers a cluster and mints its first agent credential in one
-// transaction (ocidex-70eo.6), so the connect flow can never leave a cluster
+// transaction, so the connect flow can never leave a cluster
 // behind with no key to install.
 func (s *clusterService) Connect(ctx context.Context, p ConnectClusterParams) (Cluster, ClusterCredential, error) {
 	nsID, err := uuidx.Parse(p.NamespaceID)

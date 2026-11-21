@@ -322,7 +322,7 @@ func startBackgroundJobs(ctx context.Context, d backgroundDeps) {
 
 // Ad-hoc registry walks (POST /registries/{id}/scan) run under
 // scanner.AdhocWalks: at most adhocWalkConcurrency at a time across registries,
-// each bounded by adhocWalkTimeout (ocidex-89c9.2).
+// each bounded by adhocWalkTimeout.
 const (
 	adhocWalkConcurrency = 2
 	adhocWalkTimeout     = 5 * time.Minute
@@ -330,7 +330,7 @@ const (
 
 // Cluster auto-ingest after an inventory snapshot runs under its own
 // scanner.AdhocWalks: one per cluster, at most clusterIngestConcurrency across
-// clusters, each bounded by clusterIngestTimeout (ocidex-89c9.6).
+// clusters, each bounded by clusterIngestTimeout.
 const (
 	clusterIngestConcurrency = 4
 	clusterIngestTimeout     = 5 * time.Minute
@@ -698,7 +698,7 @@ func runEncryptSecrets(ctx context.Context, dbURL string, args []string) error {
 
 // backfillBatches is how much a backfill step reads at once: 50 SBOMs with
 // their raw_bom, or 10,000 component rows. The purl step's page is large
-// because each page scans the component table (ocidex-ah9z): on ocidex-dev's
+// because each page scans the component table: on ocidex-dev's
 // 52M components a page took 10-15s, so 50-row pages turned 3,339 rows into
 // ~17 minutes.
 var backfillBatches = service.BackfillBatches{SBOMs: 50, Components: 10_000}

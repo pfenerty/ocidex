@@ -292,7 +292,7 @@ SET state       = CASE
         ELSE NULL
     END,
     -- A queued row holds no lease, so it names no worker: "queued" beside a
-    -- worker id read as a job one worker had and never let go (ocidex-nps9.26).
+    -- worker id read as a job one worker had and never let go.
     worker_id   = CASE
         WHEN attempts >= $1::int THEN worker_id
         ELSE NULL
@@ -347,8 +347,8 @@ WHERE state = 'queued'
 
 // A job requeued for retry is claimed again within seconds while any worker is
 // consuming. One still queued long after its last attempt means none is, and
-// it sat "queued" for days with no way to tell that from a fresh backlog
-// (ocidex-nps9.26). It fails, keeping its last error, so Retry is on offer.
+// it sat "queued" for days with no way to tell that from a fresh backlog.
+// It fails, keeping its last error, so Retry is on offer.
 // Never-attempted rows are left alone: a large walk's backlog is legitimate.
 func (q *Queries) FailStaleRequeuedScanJobs(ctx context.Context, staleBefore pgtype.Timestamptz) error {
 	_, err := q.db.Exec(ctx, failStaleRequeuedScanJobs, staleBefore)

@@ -61,7 +61,7 @@ type SearchRepository interface {
 // WatchRepository defines data access methods for the artifact watchlist.
 // IsArtifactVisible is here as well as on SearchRepository because the watch
 // flow's one authorization decision — may this caller watch this artifact —
-// is answered by it (ocidex-998g.3).
+// is answered by it.
 type WatchRepository interface {
 	IsArtifactVisible(ctx context.Context, arg IsArtifactVisibleParams) (bool, error)
 	CreateArtifactWatch(ctx context.Context, arg CreateArtifactWatchParams) error
@@ -100,7 +100,7 @@ type NamespaceRepository interface {
 	ListNamespaces(ctx context.Context, arg ListNamespacesParams) ([]ListNamespacesRow, error)
 	UpdateNamespace(ctx context.Context, arg UpdateNamespaceParams) (UpdateNamespaceRow, error)
 	DeleteNamespace(ctx context.Context, id pgtype.UUID) (int64, error)
-	// Membership (ocidex-y0hg.7). These are the write side of the namespace
+	// Membership. These are the write side of the namespace
 	// team; the read side that decides what rows a caller sees goes through
 	// the SQL visibility functions instead, so that the rule stays in one
 	// place. AddNamespaceMember upserts, and returns a unique violation on
@@ -261,6 +261,6 @@ type AuthRepository interface {
 	// ListNamespaceMembershipsForUser backs AuthService.LoadGrants. It sits on
 	// the auth repository rather than the namespace one because the caller's
 	// grants are part of establishing who the caller is, resolved once per
-	// request alongside the session (ocidex-y0hg.5).
+	// request alongside the session.
 	ListNamespaceMembershipsForUser(ctx context.Context, userID pgtype.UUID) ([]NamespaceMember, error)
 }

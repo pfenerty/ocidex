@@ -55,7 +55,7 @@ func (s *searchService) SearchDistinctComponents(ctx context.Context, filter Com
 	namePat := textOrNull(filter.Name)
 	sortBy := columnName(filter.Sort)
 	switch sortBy {
-	// "severity" (ocidex-unn8.10) orders by the rollup's five per-severity
+	// "severity" orders by the rollup's five per-severity
 	// counts, ranked worst-first; the query, not this list, decides how they
 	// break ties against each other.
 	case sortByName, "version_count", "sbom_count", "severity":

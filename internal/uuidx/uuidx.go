@@ -1,5 +1,5 @@
 // Package uuidx is the one place this module turns text into a pgtype.UUID
-// (ocidex-43lo.3). The other direction needs no helper: pgtype.UUID.String
+// . The other direction needs no helper: pgtype.UUID.String
 // renders the canonical form, and "" for a NULL UUID.
 package uuidx
 

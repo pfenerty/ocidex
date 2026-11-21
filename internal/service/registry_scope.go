@@ -77,7 +77,7 @@ type WalkStats struct {
 
 // UnmarshalJSON reads WalkStats in either key spelling. The stats are stored as
 // registry.last_walk_stats JSONB, and rows written before the camelCase rename
-// (ocidex-nps9.32) say skipped_by_limit and skipped_by_age.
+// say skipped_by_limit and skipped_by_age.
 func (w *WalkStats) UnmarshalJSON(b []byte) error {
 	type plain WalkStats
 	var v struct {

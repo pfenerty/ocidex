@@ -24,7 +24,7 @@ SELECT COUNT(*) AS total,
        COUNT(DISTINCT m.version) AS version_count,
        COUNT(DISTINCT s.artifact_id) AS artifact_count,
        -- total counts occurrences: stdlib appears many times in one Go image's
-       -- SBOM. "Found in N SBOMs" is this figure, not that one (ocidex-nps9.2).
+       -- SBOM. "Found in N SBOMs" is this figure, not that one.
        COUNT(DISTINCT m.sbom_id) AS sbom_count
 FROM matched m
 JOIN sbom s ON s.id = m.sbom_id
@@ -54,21 +54,21 @@ type CountComponentVersionsRow struct {
 // four-key sort purely to shape the rows it returns; a window count would drag
 // every matching row through all of that just to discard it. The most-used
 // component names have thousands of rows, which is what made the unpaginated
-// version time out at 30s (ocidex-ag4q.7).
+// version time out at 30s.
 //
 // Counting needs only the visibility join, so it stays on
 // idx_component_name_group.
 //
 // It also carries the two corpus-wide figures a summary band needs, because
 // both are answers about the whole result set and the page query only ever sees
-// one window of it (ocidex-ag4q.35). Deriving them client-side from a page
+// one window of it. Deriving them client-side from a page
 // would report "3 versions" for a component with 300 — worse than saying
 // nothing. They ride along here rather than in a third query: the scan and the
 // filters are identical, so the only added cost is the DISTINCT aggregation.
 //
-// The CTE is MATERIALIZED to pin the join order (ocidex-7gf7.6). Written as a
+// The CTE is MATERIALIZED to pin the join order. Written as a
 // plain two-table join this query timed out: sbom_visible(), which this used
-// per row before ocidex-kf1p.6, is opaque to the
+// per row, is opaque to the
 // planner, so it underestimated the sbom side, drove a nested loop from a seq
 // scan of all 14,208 visible SBOMs, and probed the component index once per row
 // -- 17.2s against name='stdlib', under a 30s HTTP ceiling. The component-side
@@ -288,7 +288,7 @@ type GetLatestSBOMRefRow struct {
 }
 
 // The SBOM LicenseSummaryByArtifact counts, so the tab can say which build it
-// describes (ocidex-nps9.29). Same ordering as that query's subselect.
+// describes. Same ordering as that query's subselect.
 func (q *Queries) GetLatestSBOMRef(ctx context.Context, artifactID pgtype.UUID) (GetLatestSBOMRefRow, error) {
 	row := q.db.QueryRow(ctx, getLatestSBOMRef, artifactID)
 	var i GetLatestSBOMRefRow
@@ -687,7 +687,7 @@ type ListComponentVersionSummariesRow struct {
 // One row per distinct version of a component, for /components/overview.
 // GetComponentVersions returns one row per (version, SBOM) occurrence, so a page
 // of 20 occurrences grouped by version showed one or two versions of stdlib and
-// a pager of 375 (ocidex-nps9.2). Paging here is by version; the total is
+// a pager of 375. Paging here is by version; the total is
 // CountComponentVersions' version_count over the same filters.
 //
 // MATERIALIZED for the same join-order reason as CountComponentVersions. The
@@ -767,7 +767,7 @@ type ListComponentsByLicenseRow struct {
 	TotalCount int64       `json:"total_count"`
 }
 
-// Reads license_component_rollup (ocidex-zbe5): one row per distinct component
+// Reads license_component_rollup: one row per distinct component
 // per namespace, so the cost follows the license's distinct components, not
 // every component row carrying it. Visible namespaces are merged by keeping
 // the lowest representative id, which is the lowest across them all.
@@ -890,7 +890,7 @@ type ListLicensesRow struct {
 // wildcard-free ILIKE on name, so "Filter by name…" only ever matched a reader
 // who typed the whole license name — every prefix on the way to "Apache-2.0"
 // reported that no such license exists. Tolerable behind a submit button;
-// actively misleading now that the box filters as you type (ocidex-ag4q.31).
+// actively misleading now that the box filters as you type.
 func (q *Queries) ListLicenses(ctx context.Context, arg ListLicensesParams) ([]ListLicensesRow, error) {
 	rows, err := q.db.Query(ctx, listLicenses,
 		arg.UserID,
@@ -973,7 +973,7 @@ type ListOwnedActivityRow struct {
 }
 
 // "Recent activity" for a user workspace is the ingest stream: every SBOM that
-// landed in a namespace this user owns, newest first (ocidex-998g.2).
+// landed in a namespace this user owns, newest first.
 //
 // This is the ownership path, not the visibility path — an SBOM ingested into
 // somebody else's public namespace is not the caller's activity. Unlike the
@@ -1141,7 +1141,7 @@ type ListSBOMComponentsPageRow struct {
 // cursor tuple comparison matches the ORDER BY. Access is gated by the service
 // before this runs. The caller fetches row_limit+1 to detect a further page.
 //
-// Dual-mode pagination (ocidex-unn8.11): the default ordering is keyset, and
+// Dual-mode pagination: the default ordering is keyset, and
 // sort_severity swaps it for offset. That is ADR-043's rule being applied, not
 // an exception to it — rule (1) says a mutable column in the ORDER BY makes a
 // keyset cursor ill-defined, and the severity keys below are computed from
@@ -1529,7 +1529,7 @@ SELECT r.name, r.group_name, r.type,
        COALESCE(string_agg(DISTINCT p.purl_type, ',' ORDER BY p.purl_type), '') AS purl_types,
        COUNT(DISTINCT v.version) AS version_count,
        COALESCE(SUM(r.sbom_count) FILTER (WHERE COALESCE(v.ord, 1) = 1 AND COALESCE(p.ord, 1) = 1), 0)::bigint AS sbom_count,
-       -- Severity counts (ocidex-unn8.10) come out of the rollup for the same
+       -- Severity counts come out of the rollup for the same
        -- ~53s reason as sbom_count. MAX, not SUM, across the visible namespaces:
        -- a CVE affecting this package is a property of the package, so summing
        -- the per-namespace rows would report it once per namespace that happens

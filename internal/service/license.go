@@ -144,7 +144,7 @@ var licenseAlias = map[string]licenseDef{
 	// GFDL
 	"gfdl": {"GFDL-1.3-or-later", "GNU Free Documentation License v1.3 or later"},
 
-	// Debian copyright short names for SPDX licenses (ocidex-nps9.13). Expat
+	// Debian copyright short names for SPDX licenses. Expat
 	// is the Debian name for MIT; Artistic is Perl's Artistic 1.0.
 	"expat":        {"MIT", "MIT License"},
 	"mit/x11":      {"MIT", "MIT License"},
@@ -397,7 +397,7 @@ func splitCaseInsensitive(s, sep string) []string {
 
 // ExpandLicense turns one CycloneDX license choice into the licenses it names.
 //
-// A component's license list held three kinds of noise (ocidex-nps9.13): an
+// A component's license list held three kinds of noise: an
 // expression stored whole as one license's name ("EPL-2.0 AND GPL-2.0-only
 // WITH Classpath-exception-2.0"), so neither member was counted under its own
 // license; fragments a Debian copyright parser left behind ("AND", "license",

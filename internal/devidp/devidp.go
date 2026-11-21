@@ -3,7 +3,7 @@
 //
 // It exists because the /auth routes had nothing exercising them: the dev rig
 // authenticates by API key, and no GitHub OAuth app exists for a developer to
-// point it at. Once there is a generic OIDC provider (ocidex-iqkt.3) the
+// point it at. Once there is a generic OIDC provider the
 // protocol itself is mockable, and this is the mock.
 //
 // It is emphatically not a security boundary. It signs with a key generated at

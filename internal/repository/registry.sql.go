@@ -101,8 +101,8 @@ type CreateRegistryParams struct {
 //
 // The caller supplies the id: stored credentials are encrypted bound to the
 // row id (ADR-051), so it must be known before the row is written.
-// The owner of a namespace minted here is a member row, not a column
-// (ocidex-y0hg.4). It is written only on the mint path: supplying namespace_id
+// The owner of a namespace minted here is a member row, not a column.
+// It is written only on the mint path: supplying namespace_id
 // means joining a namespace that already has its own members, and an import
 // must not quietly make the importing user its owner.
 //
@@ -312,7 +312,7 @@ const getSourceNamespace = `-- name: GetSourceNamespace :one
 SELECT namespace_id FROM source WHERE id = $1::uuid FOR UPDATE
 `
 
-// Moving a registry to another namespace (ocidex-nps9.33). Namespace was
+// Moving a registry to another namespace. Namespace was
 // create-only, so a registry could not join the namespace a cluster resolves
 // running images against. The four statements run in one transaction; rollups
 // catch up on the refresher's next pass, which rebuilds them from scratch.

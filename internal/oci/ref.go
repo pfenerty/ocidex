@@ -25,7 +25,7 @@ var noDefaults = []name.Option{name.WithDefaultRegistry(""), name.WithDefaultTag
 
 // ParseImageRef parses an image reference — [host[:port]/]repo[:tag][@digest]
 // — with go-containerregistry's parser, which validates every part and tells
-// a registry port from a tag (ocidex-43lo.2). A digest must be a valid
+// a registry port from a tag. A digest must be a valid
 // algorithm:hex digest.
 func ParseImageRef(ref string) (ImageRef, error) {
 	parsed, err := name.ParseReference(ref, noDefaults...)

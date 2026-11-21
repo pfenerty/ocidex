@@ -507,7 +507,7 @@ func ociListCatalog(ctx context.Context, c *http.Client, baseURL string) ([]stri
 
 // ociListTags returns every tag in repo. Registries return tags oldest-first and
 // page them (ghcr.io and quay.io both do), so reading only the first page hides
-// every recent tag on any long-lived repository (ocidex-zogv).
+// every recent tag on any long-lived repository.
 func ociListTags(ctx context.Context, c *http.Client, baseURL, repo string) ([]string, error) {
 	start := fmt.Sprintf("%s/v2/%s/tags/list?n=%d", baseURL, repo, listPageSize)
 	return ociListPaged(ctx, c, baseURL, start, "tags/list",

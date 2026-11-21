@@ -152,7 +152,7 @@ func resolveSubjectIdentity(bom *cdx.BOM, params IngestParams) subjectIdentity {
 
 // artifactPlan is the artifact an ingest will resolve, worked out from the BOM
 // and params alone so the ingest can be validated before its transaction opens
-// (ocidex-n1z4.5). info carries everything but artifactID; ok is false when the
+// . info carries everything but artifactID; ok is false when the
 // SBOM names no subject and so has no artifact.
 type artifactPlan struct {
 	info   artifactInfo
@@ -247,7 +247,7 @@ func (p artifactPlan) ensure(ctx context.Context, q *repository.Queries, namespa
 // the identity other namespaces match and look up vulnerabilities by. UpsertArtifact row-locks the artifact
 // until the ingest commits even when it changes nothing, so concurrent ingests
 // of one image (a multi-arch push) would queue behind each other on it
-// (ocidex-q1ni). The read takes no lock; the upsert stays the fallback, and
+// . The read takes no lock; the upsert stays the fallback, and
 // handles a concurrent first insert.
 func ensureArtifact(ctx context.Context, q *repository.Queries, p repository.UpsertArtifactParams) (pgtype.UUID, error) {
 	row, err := q.GetArtifactByIdentity(ctx, repository.GetArtifactByIdentityParams{
@@ -410,7 +410,7 @@ type ingestPlan struct {
 
 // planIngest resolves and validates everything an ingest can know from the BOM
 // and params, so a bad upload is refused before the transaction opens and
-// writes artifact rows it then rolls back (ocidex-n1z4.5).
+// writes artifact rows it then rolls back.
 func planIngest(bom *cdx.BOM, params IngestParams) (ingestPlan, error) {
 	artifact, err := planArtifact(bom, params)
 	if err != nil {

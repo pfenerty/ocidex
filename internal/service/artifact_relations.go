@@ -250,8 +250,7 @@ func textOrEmpty(t pgtype.Text) pgtype.Text {
 //
 // Two spellings of the same commit match: a container SBOM records the Go
 // module as "main-bf2bab70" where the application SBOM says
-// "0.0.0-bf2bab70", and calling that container outdated was wrong
-// (ocidex-nps9.4).
+// "0.0.0-bf2bab70", and calling that container outdated was wrong.
 func sameVersion(matched, current *string) *bool {
 	if matched == nil || current == nil {
 		return nil

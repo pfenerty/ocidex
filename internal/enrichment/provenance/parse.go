@@ -89,7 +89,7 @@ type inTotoPredicate struct {
 // Where several signatures or attestations are attached, the first is the
 // reported one. That is a pre-verification default, so an image that never gets
 // verified still describes itself: once verification runs, applyTrust re-stamps
-// the Rekor fields from the signature that actually matched (ocidex-r27f).
+// the Rekor fields from the signature that actually matched.
 func buildProvenance(raw RawArtifacts) Provenance {
 	p := Provenance{
 		SignaturePresent:   raw.SigPresent(),
