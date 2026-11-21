@@ -156,21 +156,42 @@ its steps lose data on purpose.</p>
 <div class="sl-heading-wrapper level-h2"><h2 id="per-version-notes">Per-version notes</h2><a class="sl-anchor-link" href="#per-version-notes"><span aria-hidden="true" class="sl-anchor-icon"><svg width="16" height="16" viewBox="0 0 24 24" fill="currentColor"><path d="m12.11 15.39-3.88 3.88a2.52 2.52 0 0 1-3.5 0 2.47 2.47 0 0 1 0-3.5l3.88-3.88a1 1 0 1 0-1.42-1.42l-3.88 3.89a4.48 4.48 0 0 0 6.33 6.33l3.89-3.88a1 1 0 0 0-1.42-1.42m8.58-12.08a4.49 4.49 0 0 0-6.33 0l-3.89 3.88a1 1 0 1 0 1.42 1.42l3.88-3.88a2.52 2.52 0 0 1 3.5 0 2.47 2.47 0 0 1 0 3.5l-3.88 3.88a1 1 0 0 0 0 1.42 1 1 0 0 0 1.42 0l3.88-3.89a4.49 4.49 0 0 0 0-6.33M8.83 15.17a1 1 0 0 0 .71.29 1 1 0 0 0 .71-.29l4.92-4.92a1 1 0 1 0-1.42-1.42l-4.92 4.92a1 1 0 0 0 0 1.42"></path></svg></span><span class="sr-only" data-pagefind-ignore>Section titled “Per-version notes”</span></a></div>
 <p>Newest first. Each entry names the issue that made the change.</p>
 <div class="sl-heading-wrapper level-h3"><h3 id="next-release-unreleased">Next release (unreleased)</h3><a class="sl-anchor-link" href="#next-release-unreleased"><span aria-hidden="true" class="sl-anchor-icon"><svg width="16" height="16" viewBox="0 0 24 24" fill="currentColor"><path d="m12.11 15.39-3.88 3.88a2.52 2.52 0 0 1-3.5 0 2.47 2.47 0 0 1 0-3.5l3.88-3.88a1 1 0 1 0-1.42-1.42l-3.88 3.89a4.48 4.48 0 0 0 6.33 6.33l3.89-3.88a1 1 0 0 0-1.42-1.42m8.58-12.08a4.49 4.49 0 0 0-6.33 0l-3.89 3.88a1 1 0 1 0 1.42 1.42l3.88-3.88a2.52 2.52 0 0 1 3.5 0 2.47 2.47 0 0 1 0 3.5l-3.88 3.88a1 1 0 0 0 0 1.42 1 1 0 0 0 1.42 0l3.88-3.89a4.49 4.49 0 0 0 0-6.33M8.83 15.17a1 1 0 0 0 .71.29 1 1 0 0 0 .71-.29l4.92-4.92a1 1 0 1 0-1.42-1.42l-4.92 4.92a1 1 0 0 0 0 1.42"></path></svg></span><span class="sr-only" data-pagefind-ignore>Section titled “Next release (unreleased)”</span></a></div>
+<p><strong>After upgrading:</strong></p>
+<ul>
+<li><strong>Run <code dir="auto">ocidex migrate backfill</code> once to enrich SBOMs that were never enriched (ocidex-n1z4).</strong>
+Ingest used to queue an SBOM’s enrichment jobs just after it committed, and a client that
+disconnected at that moment, a database blip or a restart could lose them while the upload
+still succeeded. Re-uploading the same image didn’t help, since ingest returns the stored
+SBOM. Ingest now queues the jobs in the same transaction as the SBOM. The backfill’s new
+<code dir="auto">root enrichment</code> step finds SBOMs that have neither a job nor a result for a root enricher
+(user metadata, OCI metadata, provenance) and queues the missing jobs. A second run reports
+nothing to do.</li>
+</ul>
 <p><strong>Behavior changes to check after upgrading:</strong></p>
 <ul>
-<li><strong>snake_case query parameters are no longer accepted (ocidex-6hfs).</strong> Through 1.0 the server
+<li>
+<p><strong>A database fault during sign-in checks answers 503, not 401 (ocidex-n1z4.4).</strong> An API key
+or session that couldn’t be looked up used to be treated as unknown, so a database outage
+looked like bad credentials. It now fails the request with <code dir="auto">503 Service Unavailable</code>. An
+unknown key or session still answers 401.</p>
+</li>
+<li>
+<p><strong>snake_case query parameters are no longer accepted (ocidex-6hfs).</strong> Through 1.0 the server
 translated the pre-1.0 spellings (<code dir="auto">?subject_version=</code>, <code dir="auto">?sort=cvss_score</code>) to their
 camelCase names, as announced in the 1.0 notes. That translation is gone: a snake_case
 parameter is now ignored like any other unknown one, so a filter silently stops filtering
 and an ingest parameter such as <code dir="auto">subject_name</code> is dropped. What to do: upgrade any CI image
 or script that pins an <code dir="auto">ocidex-cli</code> older than 1.0, and rename parameters in your own API
-calls to camelCase (<code dir="auto">subjectVersion</code>, <code dir="auto">sort=cvssScore</code>).</li>
-<li><strong>Response <code dir="auto">$schema</code> links moved under <code dir="auto">/api</code> (ocidex-m3yn).</strong> Every JSON body’s
+calls to camelCase (<code dir="auto">subjectVersion</code>, <code dir="auto">sort=cvssScore</code>).</p>
+</li>
+<li>
+<p><strong>Response <code dir="auto">$schema</code> links moved under <code dir="auto">/api</code> (ocidex-m3yn).</strong> Every JSON body’s
 <code dir="auto">$schema</code>, and every error’s <code dir="auto">Link: rel="describedBy"</code> header, now points at
 <code dir="auto">/api/schemas/&lt;Name&gt;.json</code> instead of <code dir="auto">/schemas/&lt;Name&gt;.json</code>. The old path was not routed
 to the API on a standard install, so those links led to the web app; now they resolve.
 <code dir="auto">/schemas/&lt;Name&gt;.json</code> on the API itself redirects to the new path. Nothing to do unless
-you compare <code dir="auto">$schema</code> values literally.</li>
+you compare <code dir="auto">$schema</code> values literally.</p>
+</li>
 </ul>
 <p><strong>Deprecations (removed in 2.0):</strong></p>
 <ul>
