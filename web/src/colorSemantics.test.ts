@@ -76,7 +76,7 @@ describe("navigation and state use the secondary token", () => {
     it.each([
         ["index.css", ".tab-bar button.active"],
         ["components/TileBand.css", ".tile.active"],
-        ["components/Layout.css", ".sidebar nav a.active"],
+        ["components/Layout.css", ".topbar nav a.active"],
         ["components/ThemeToggle.css", ".theme-icon.active"],
     ])("%s: %s", (file, selector) => {
         const css = read(file);
