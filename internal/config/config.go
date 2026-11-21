@@ -68,7 +68,7 @@ type Config struct {
 	GitHubClientID     string `env:"GITHUB_CLIENT_ID"`
 	GitHubClientSecret string `env:"GITHUB_CLIENT_SECRET"`
 	GitHubRedirectURL  string `env:"GITHUB_REDIRECT_URL" envDefault:"http://localhost:8080/auth/callback"`
-	SessionSecret      string `env:"SESSION_SECRET"` //nolint:gosec
+	SessionSecret      string `env:"SESSION_SECRET"`
 	SessionMaxAgeDays  int    `env:"SESSION_MAX_AGE_DAYS" envDefault:"7"`
 	// SessionCookieSameSite is the session cookie's SameSite attribute: "lax",
 	// "strict" or "none". Lax suffices whenever the SPA and the API share a
@@ -258,7 +258,7 @@ type Config struct {
 	// Encryption of stored registry credentials (ADR-051).
 	// DATA_ENCRYPTION_KEYS is "<id>:<base64 32 bytes>,..."; every listed key
 	// decrypts, DATA_ENCRYPTION_ACTIVE_KEY names the one that encrypts.
-	DataEncryptionKeys      string `env:"DATA_ENCRYPTION_KEYS"` //nolint:gosec
+	DataEncryptionKeys      string `env:"DATA_ENCRYPTION_KEYS"`
 	DataEncryptionActiveKey string `env:"DATA_ENCRYPTION_ACTIVE_KEY"`
 	// SecretBox is built from the two fields above by validate. Nil means no
 	// key is configured, which validate allows only outside production.

@@ -67,7 +67,7 @@ func runMeasure(ctx context.Context, o measureOptions, out io.Writer) error {
 }
 
 func readRoutes(path string) ([][2]string, error) {
-	f, err := os.Open(path) //nolint:gosec // G304: an operator-supplied file is the point
+	f, err := os.Open(path)
 	if err != nil {
 		return nil, err
 	}

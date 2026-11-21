@@ -686,8 +686,6 @@ func (s *searchService) ListSBOMsByDigest(ctx context.Context, digest string, li
 }
 
 // GetSBOMDependencies returns the dependency graph for an SBOM.
-//
-//nolint:gocyclo
 func (s *searchService) GetSBOMDependencies(ctx context.Context, sbomID pgtype.UUID, vis VisibilityFilter) (DependencyGraph, error) {
 	q := repository.New(s.db)
 
@@ -732,7 +730,20 @@ func (s *searchService) GetSBOMDependencies(ctx context.Context, sbomID pgtype.U
 	for _, c := range comps {
 		nodes = append(nodes, toComponentSummary(c.ID, sbomID, c.BomRef, c.Type, c.Name, c.GroupName, c.Version, c.Purl))
 	}
+	edges, roots := linkDependencyGraph(nodes, deps, metaBomRef)
 
+	// The tree view renders a Vulns column from these nodes, exactly as the
+	// component-list paths do, so the graph must carry the same decoration.
+	if err := decorateComponentVulns(ctx, q, sbomID, nodes); err != nil {
+		return DependencyGraph{}, err
+	}
+
+	return DependencyGraph{Nodes: nodes, Edges: edges, Roots: roots}, nil
+}
+
+// linkDependencyGraph turns an SBOM's dependency rows into edges, picks the
+// graph's roots, and marks each root node as a direct dependency.
+func linkDependencyGraph(nodes []ComponentSummary, deps []repository.ListDependenciesBySBOMRow, metaBomRef string) ([]DependencyEdge, []string) {
 	edges := make([]DependencyEdge, 0, len(deps))
 	outEdges := make(map[string][]string, len(deps))
 	inEdge := make(map[string]int, len(deps))
@@ -771,13 +782,7 @@ func (s *searchService) GetSBOMDependencies(ctx context.Context, sbomID pgtype.U
 		}
 	}
 
-	// The tree view renders a Vulns column from these nodes, exactly as the
-	// component-list paths do, so the graph must carry the same decoration.
-	if err := decorateComponentVulns(ctx, q, sbomID, nodes); err != nil {
-		return DependencyGraph{}, err
-	}
-
-	return DependencyGraph{Nodes: nodes, Edges: edges, Roots: roots}, nil
+	return edges, roots
 }
 
 // ListSBOMComponents returns all components belonging to an SBOM.

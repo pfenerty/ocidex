@@ -52,7 +52,7 @@ func (h *harborDiscoverer) DiscoverManifests(ctx context.Context, client *http.C
 			req.SetBasicAuth(username, h.authToken)
 		}
 
-		resp, err := client.Do(req) //nolint:gosec
+		resp, err := client.Do(req)
 		if err != nil {
 			return nil, fmt.Errorf("harbor artifacts request: %w", err)
 		}

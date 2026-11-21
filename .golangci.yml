@@ -23,6 +23,7 @@ linters:
     - misspell
     - nilerr
     - noctx
+    - nolintlint
     - prealloc
     - predeclared
     - revive
@@ -41,6 +42,13 @@ linters:
       ignore-tests: true
     gocyclo:
       min-complexity: 15
+    nolintlint:
+      # A suppression with no reason can't be reviewed, so nobody revisits it
+      # (ocidex-89c9.5). Name the linter, say why, and drop it once it no
+      # longer suppresses anything.
+      require-explanation: true
+      require-specific: true
+      allow-unused: false
     govet:
       disable:
         - shadow

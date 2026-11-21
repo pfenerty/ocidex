@@ -88,7 +88,7 @@ func (d *Dispatcher) ProcessOne(ctx context.Context, req scanner.ScanRequest) (p
 	}
 	var sourceID pgtype.UUID
 	if sourceRef != "" {
-		_ = sourceID.Scan(sourceRef) //nolint:errcheck // invalid UUID → zero-value, harmless
+		_ = sourceID.Scan(sourceRef) // invalid UUID → zero value, harmless
 	}
 	sbomID, err := d.sbomSvc.Ingest(ctx, bom, res.SBOM, service.IngestParams{
 		Version:      version,

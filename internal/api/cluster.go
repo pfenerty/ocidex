@@ -279,7 +279,7 @@ func (h *Handler) autoIngestAfterSnapshot(ctx context.Context, clusterID string)
 		return
 	}
 	vis := visibilityFilterFromContext(ctx)
-	go func() { //nolint:gosec
+	go func() {
 		ingestCtx, cancel := context.WithTimeout(context.WithoutCancel(ctx), 5*time.Minute)
 		defer cancel()
 		ingestor := scanner.NewClusterIngestor(h.scanSubmitter, h.egress(), slog.Default())

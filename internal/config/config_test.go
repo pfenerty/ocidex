@@ -760,14 +760,14 @@ func TestLoad(t *testing.T) {
 			// t.Setenv saves the original value and restores it in cleanup;
 			// os.Unsetenv then actually removes it for the duration of the test.
 			t.Setenv("DATABASE_URL", "")
-			os.Unsetenv("DATABASE_URL") //nolint:errcheck
+			os.Unsetenv("DATABASE_URL")
 			t.Setenv("NATS_URL", "")
-			os.Unsetenv("NATS_URL") //nolint:errcheck
+			os.Unsetenv("NATS_URL")
 
 			// Clear OAuth vars — no longer required by config.Load().
 			for _, k := range []string{"GITHUB_CLIENT_ID", "GITHUB_CLIENT_SECRET", "SESSION_SECRET", "BOOTSTRAP_ADMINS", "EGRESS_ALLOW_PRIVATE", "EGRESS_ALLOW_CIDRS", "EGRESS_DENY_CIDRS", "SIGNUP_MODE", "SELF_SERVICE_NAMESPACES", "DATA_ENCRYPTION_KEYS", "DATA_ENCRYPTION_ACTIVE_KEY", "ENVIRONMENT"} {
 				t.Setenv(k, "")
-				os.Unsetenv(k) //nolint:errcheck
+				os.Unsetenv(k)
 			}
 
 			// Set env vars for this test.
@@ -921,7 +921,7 @@ func TestLoadOperator(t *testing.T) {
 			// Clear inherited values so defaults are exercised faithfully.
 			for _, k := range append([]string{"LOG_LEVEL", "ENVIRONMENT"}, leaderElectionVars...) {
 				t.Setenv(k, "")
-				os.Unsetenv(k) //nolint:errcheck
+				os.Unsetenv(k)
 			}
 			// These are all required, so give every case a valid value by
 			// default — otherwise unrelated cases would fail for the wrong
@@ -1033,7 +1033,7 @@ func TestLoadK8sAgent(t *testing.T) {
 
 			for _, k := range []string{"LOG_LEVEL", "ENVIRONMENT", "OCIDEX_NAMESPACES", "OCIDEX_REPORT_INTERVAL", "HEALTH_ADDR"} {
 				t.Setenv(k, "")
-				os.Unsetenv(k) //nolint:errcheck
+				os.Unsetenv(k)
 			}
 			t.Setenv("OCIDEX_SERVER", "http://ocidex:8080")
 			t.Setenv("OCIDEX_API_KEY", "ocidex_test")

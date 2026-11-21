@@ -60,7 +60,7 @@ func (p *Poller) poll(ctx context.Context) {
 			continue
 		}
 		p.wg.Add(1)
-		go func(r service.Registry) { //nolint:gosec
+		go func(r service.Registry) {
 			defer p.wg.Done()
 			walkCtx, cancel := context.WithTimeout(ctx, 30*time.Minute)
 			defer cancel()

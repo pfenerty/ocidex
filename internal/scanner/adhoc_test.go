@@ -138,7 +138,7 @@ func TestAdhocWalksDeadline(t *testing.T) {
 	is := is.New(t)
 	a := scanner.NewAdhocWalks(1, 10*time.Millisecond, slog.Default())
 	is.NoErr(a.Start(context.Background()))
-	defer a.Stop() //nolint:errcheck // Stop always returns nil
+	defer a.Stop()
 	errc := make(chan error, 1)
 	is.NoErr(a.Run("x", func(ctx context.Context) {
 		<-ctx.Done()

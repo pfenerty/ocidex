@@ -133,7 +133,7 @@ func TestIngestDoesNotWaitOnArtifactOrLicenseLocks(t *testing.T) {
 	// holds their row locks until it commits.
 	tx, err := pool.Begin(t.Context())
 	is.NoErr(err)
-	defer tx.Rollback(context.Background()) //nolint:errcheck // test cleanup
+	defer tx.Rollback(context.Background())
 	_, err = tx.Exec(t.Context(), `
 		INSERT INTO artifact (type, name) VALUES ('container', 'registry.test/one-image')
 		ON CONFLICT (type, name, COALESCE(group_name, '')) DO UPDATE SET purl = artifact.purl`)

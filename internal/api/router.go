@@ -134,7 +134,7 @@ func redirectLegacySchema(w http.ResponseWriter, req *http.Request) {
 		return
 	}
 	target := apiSchemasPath + "/" + url.PathEscape(name)
-	http.Redirect(w, req, target, http.StatusMovedPermanently) //nolint:gosec // G710: fixed same-origin prefix, validated name
+	http.Redirect(w, req, target, http.StatusMovedPermanently)
 }
 
 // schemaNameRx matches a huma schema file name: ErrorModel.json, ListSBOMsOutputBody.json.
@@ -208,7 +208,7 @@ func NewRouter(h *Handler, corsOrigins, frontendURL, apiBaseURL string) chi.Rout
 		config.Components = &huma.Components{}
 	}
 	config.Components.SecuritySchemes = map[string]*huma.SecurityScheme{
-		securitySchemeBearer: { //nolint:gosec
+		securitySchemeBearer: { //nolint:gosec // G101: the name of an auth scheme, not a credential
 			Type:         "http",
 			Scheme:       "bearer",
 			BearerFormat: "ocidex_<token>",

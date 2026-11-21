@@ -90,7 +90,7 @@ func Load() (File, error) {
 		return File{}, fmt.Errorf("reading %s: %w", path, err)
 	}
 
-	data, err := os.ReadFile(path) //nolint:gosec // fixed, user-owned path
+	data, err := os.ReadFile(path)
 	if err != nil {
 		return File{}, fmt.Errorf("reading %s: %w", path, err)
 	}

@@ -550,7 +550,7 @@ func ociListPaged(ctx context.Context, c *http.Client, baseURL, startURL, label 
 	next := startURL
 	for page := 0; page < maxTagPages && next != ""; page++ {
 		req, _ := http.NewRequestWithContext(ctx, http.MethodGet, next, nil)
-		resp, err := c.Do(req) //nolint:gosec
+		resp, err := c.Do(req)
 		if err != nil {
 			return nil, err
 		}
@@ -607,7 +607,7 @@ func ociExpandIndex(ctx context.Context, c *http.Client, baseURL, repo, indexDig
 		mediaTypeOCIIndex,
 		mediaTypeDockerList,
 	}, ","))
-	resp, err := c.Do(req) //nolint:gosec
+	resp, err := c.Do(req)
 	if err != nil {
 		return nil, err
 	}
@@ -697,7 +697,7 @@ func ociGetImageMetadata(ctx context.Context, c *http.Client, baseURL, repo, dig
 		mediaTypeOCIManifest,
 		mediaTypeDockerManifest,
 	}, ","))
-	resp, err := c.Do(req) //nolint:gosec
+	resp, err := c.Do(req)
 	if err != nil {
 		return imageMetadata{}
 	}
@@ -727,7 +727,7 @@ func ociGetImageMetadata(ctx context.Context, c *http.Client, baseURL, repo, dig
 		}
 	}
 	req2, _ := http.NewRequestWithContext(ctx, http.MethodGet, baseURL+"/v2/"+repo+"/blobs/"+manifest.Config.Digest, nil)
-	resp2, err := c.Do(req2) //nolint:gosec
+	resp2, err := c.Do(req2)
 	if err != nil {
 		return imageMetadata{buildDate: annotationCreated, imageVersion: annotationVersion}
 	}
@@ -783,7 +783,7 @@ func ociHeadManifest(ctx context.Context, c *http.Client, baseURL, repo, tag str
 		mediaTypeOCIIndex,
 		mediaTypeDockerList,
 	}, ","))
-	resp, err := c.Do(req) //nolint:gosec
+	resp, err := c.Do(req)
 	if err != nil {
 		return manifestInfo{}, err
 	}
@@ -897,8 +897,8 @@ func (t *ociTokenTransport) RoundTrip(req *http.Request) (*http.Response, error)
 			// Token exchange failed (e.g. ghcr.io returns 403 for unsupported scopes
 			// like catalog). Return the original 401 so the caller can handle it
 			// rather than surfacing a transport-level error.
-			slog.Debug("OCI token exchange failed", "host", req.URL.Host, "scope", scope, "err", fetchErr) //nolint:gosec // G706: host and scope come from the registry's WWW-Authenticate header, not arbitrary user input
-			return resp, nil                                                                               //nolint:nilerr // intentional: fall back to original 401 response
+			slog.Debug("OCI token exchange failed", "host", req.URL.Host, "scope", scope, "err", fetchErr)
+			return resp, nil
 		}
 		t.mu.Lock()
 		t.tokens[cacheKey] = cachedToken
@@ -923,7 +923,7 @@ func (t *ociTokenTransport) fetchToken(ctx context.Context, realm, svc, scope st
 		u += "scope=" + scope
 	}
 
-	tokenReq, err := http.NewRequestWithContext(ctx, http.MethodGet, u, nil) //nolint:gosec // G704: URL is from registry's Www-Authenticate header
+	tokenReq, err := http.NewRequestWithContext(ctx, http.MethodGet, u, nil)
 	if err != nil {
 		return "", err
 	}

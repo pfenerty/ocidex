@@ -13,7 +13,7 @@ import (
 
 	"github.com/pfenerty/ocidex/internal/enrichment/names"
 	"github.com/pfenerty/ocidex/internal/event"
-	"github.com/pfenerty/ocidex/internal/repository" //nolint:depguard
+	"github.com/pfenerty/ocidex/internal/repository"
 )
 
 // ---- fake infrastructure ----

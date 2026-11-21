@@ -32,7 +32,7 @@ func (z *zotDiscoverer) DiscoverManifests(ctx context.Context, client *http.Clie
 	}
 	req.Header.Set("Content-Type", "application/json")
 
-	resp, err := client.Do(req) //nolint:gosec
+	resp, err := client.Do(req)
 	if err != nil {
 		return nil, fmt.Errorf("zot search request: %w", err)
 	}

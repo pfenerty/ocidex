@@ -164,7 +164,7 @@ func run() error {
 		poller := scanner.NewPoller(registrySvc, walker, logger)
 		h := fnv.New64a()
 		h.Write([]byte("ocidex-poller"))
-		pollerKey := int64(h.Sum64()) //nolint:gosec
+		pollerKey := int64(h.Sum64()) //nolint:gosec // G115: an advisory lock key is an opaque 64-bit token
 		go service.LeaderElect(extCtx, pool, pollerKey, poller.Run)
 		slog.Info("registry poller election started", "lock_key", pollerKey)
 	} else {
@@ -175,7 +175,7 @@ func run() error {
 		reverifier := enrichment.NewReverifier(repository.New(pool), cfg.ProvenanceRecheckInterval, logger)
 		rh := fnv.New64a()
 		rh.Write([]byte("ocidex-reverifier"))
-		reverifierKey := int64(rh.Sum64()) //nolint:gosec
+		reverifierKey := int64(rh.Sum64()) //nolint:gosec // G115: an advisory lock key is an opaque 64-bit token
 		go service.LeaderElect(extCtx, pool, reverifierKey, reverifier.Run)
 		slog.Info("provenance reverifier election started", "lock_key", reverifierKey, "interval", cfg.ProvenanceRecheckInterval)
 	} else {

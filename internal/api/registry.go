@@ -716,7 +716,7 @@ func (h *Handler) TestRegistryConnection(ctx context.Context, in *TestRegistryCo
 		req.SetBasicAuth(username, *in.Body.AuthToken)
 	}
 
-	resp, err := c.Do(req) //nolint:gosec
+	resp, err := c.Do(req)
 	out := &TestRegistryConnectionOutput{}
 	if err != nil {
 		out.Body.Reachable = false
