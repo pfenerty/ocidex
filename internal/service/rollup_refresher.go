@@ -3,7 +3,6 @@ package service
 import (
 	"context"
 	"fmt"
-	"hash/fnv"
 	"log/slog"
 	"sync"
 	"time"
@@ -96,14 +95,12 @@ func NewRollupRefresher(pool dbPool, interval time.Duration, logger *slog.Logger
 	if interval <= 0 {
 		interval = RollupRefreshInterval
 	}
-	h := fnv.New64a()
-	_, _ = h.Write([]byte(repository.RollupRefreshLockName))
 	return &RollupRefresher{
 		pool:         pool,
 		interval:     interval,
 		pollInterval: RollupPollInterval,
 		minGap:       rollupMinGap,
-		lockKey:      int64(h.Sum64()), //nolint:gosec // G115: an advisory lock key is an opaque 64-bit token
+		lockKey:      LockKey(repository.RollupRefreshLockName),
 		logger:       logger,
 	}
 }

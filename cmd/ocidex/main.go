@@ -7,7 +7,6 @@ import (
 	"errors"
 	"flag"
 	"fmt"
-	"hash/fnv"
 	"log/slog"
 	"net/http"
 	"os"
@@ -167,9 +166,7 @@ func run() error {
 	if cfg.ScannerEnabled && cfg.RegistryPollerEnabled && scanSubmitter != nil {
 		walker := setupRegistryWalker(cfg, natsClient, scanSubmitter, sbomSvc, registrySvc, logger)
 		poller := scanner.NewPoller(registrySvc, walker, logger)
-		h := fnv.New64a()
-		h.Write([]byte("ocidex-poller"))
-		pollerKey := int64(h.Sum64()) //nolint:gosec // G115: an advisory lock key is an opaque 64-bit token
+		pollerKey := service.LockKey(service.PollerLockName)
 		go service.LeaderElect(extCtx, pool, pollerKey, poller.Run)
 		slog.Info("registry poller election started", "lock_key", pollerKey)
 	} else {
@@ -178,9 +175,7 @@ func run() error {
 
 	if cfg.ProvenanceReverifierEnabled {
 		reverifier := enrichment.NewReverifier(repository.New(pool), cfg.ProvenanceRecheckInterval, logger)
-		rh := fnv.New64a()
-		rh.Write([]byte("ocidex-reverifier"))
-		reverifierKey := int64(rh.Sum64()) //nolint:gosec // G115: an advisory lock key is an opaque 64-bit token
+		reverifierKey := service.LockKey(service.ReverifierLockName)
 		go service.LeaderElect(extCtx, pool, reverifierKey, reverifier.Run)
 		slog.Info("provenance reverifier election started", "lock_key", reverifierKey, "interval", cfg.ProvenanceRecheckInterval)
 	} else {
@@ -411,9 +406,7 @@ func startRetention(ctx context.Context, cfg *config.Config, pool, bgPool *pgxpo
 		cfg.RetentionMode == config.RetentionDryRun, cfg.RetentionInterval, cfg.RetentionBatch, logger).
 		WithPublisher(event.WithDefaultActor(bus, event.SystemActor("retention"))).
 		WithMetrics(mp)
-	h := fnv.New64a()
-	h.Write([]byte(service.RetentionLockName))
-	key := int64(h.Sum64()) //nolint:gosec // G115: an advisory lock key is an opaque 64-bit token
+	key := service.LockKey(service.RetentionLockName)
 	go service.LeaderElect(ctx, pool, key, sweeper.Run)
 	slog.Info("sbom retention election started", "lock_key", key, "mode", cfg.RetentionMode,
 		"keep_last", cfg.RetentionKeepLast, "max_age", cfg.RetentionMaxAge,

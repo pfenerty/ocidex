@@ -3,6 +3,7 @@ package service
 import (
 	"context"
 	"fmt"
+	"hash/fnv"
 	"log/slog"
 	"time"
 
@@ -67,4 +68,24 @@ func tryLead(ctx context.Context, pool *pgxpool.Pool, key int64, fn func(context
 	}
 	conn.Release()
 	return true, nil
+}
+
+// Names of the advisory locks the processes leader-elect on. LockKey turns
+// each into its key; the names, and so the keys, must not change, or a mixed
+// fleet mid-rollout would elect two leaders.
+const (
+	PollerLockName      = "ocidex-poller"
+	ReverifierLockName  = "ocidex-reverifier"
+	VulnRefreshLockName = "ocidex-vuln-refresh"
+	// RetentionLockName is in retention_sweeper.go, and the rollup
+	// refresher's in repository.RollupRefreshLockName.
+)
+
+// LockKey is the Postgres advisory lock key for a lock name: the name's
+// 64-bit FNV-1a hash. Every LeaderElect caller and the rollup refresher derive
+// their key here (ocidex-43lo.4).
+func LockKey(name string) int64 {
+	h := fnv.New64a()
+	_, _ = h.Write([]byte(name))
+	return int64(h.Sum64()) //nolint:gosec // G115: an advisory lock key is an opaque 64-bit token; wrapping is fine
 }
