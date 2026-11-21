@@ -53,3 +53,35 @@ func TestIngestExtensionsAuditLineOnIngest(t *testing.T) {
 	is.True(strings.Contains(buf.String(), `"msg":"audit"`))
 	is.True(strings.Contains(buf.String(), `"event_type":"sbom.ingested"`))
 }
+
+func TestParseImageRef(t *testing.T) {
+	digest := "sha256:" + strings.Repeat("b", 64)
+	tests := []struct {
+		ref                         string
+		wantHost, wantRepo, wantTag string
+		wantErr                     bool
+	}{
+		{ref: "ghcr.io/acme/api@" + digest, wantHost: "ghcr.io", wantRepo: "acme/api"},
+		{ref: "ghcr.io/acme/api:1.4@" + digest, wantHost: "ghcr.io", wantRepo: "acme/api", wantTag: "1.4"},
+		{ref: "registry.local:5000/acme/api:dev@" + digest, wantHost: "registry.local:5000", wantRepo: "acme/api", wantTag: "dev"},
+		{ref: "docker.io/library/nginx@" + digest, wantHost: "registry-1.docker.io", wantRepo: "library/nginx"},
+		{ref: "ghcr.io/acme/api:1.4", wantErr: true},    // no digest
+		{ref: "library/nginx@" + digest, wantErr: true}, // no registry host
+		{ref: "ghcr.io/acme/api@sha256:abc", wantErr: true},
+	}
+	for _, tt := range tests {
+		t.Run(tt.ref, func(t *testing.T) {
+			is := is.New(t)
+			host, repo, dig, tag, err := parseImageRef(tt.ref)
+			if tt.wantErr {
+				is.True(err != nil)
+				return
+			}
+			is.NoErr(err)
+			is.Equal(host, tt.wantHost)
+			is.Equal(repo, tt.wantRepo)
+			is.Equal(dig, digest)
+			is.Equal(tag, tt.wantTag)
+		})
+	}
+}

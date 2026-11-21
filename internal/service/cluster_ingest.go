@@ -592,26 +592,15 @@ func (r Registry) Host() string { return oci.NormalizeRegistryHost(r.URL) }
 // registry host and repository path, dropping any tag or digest.
 //
 // A reference with no host segment ("nginx", "library/nginx") returns an empty
-// host rather than guessing Docker Hub. Guessing would produce an ingest attempt
+// host rather than guessing Docker Hub, and so does one that doesn't parse. Guessing would produce an ingest attempt
 // against a registry the cluster may not use at all, and the caller reports an
 // unresolved host as its own remedy.
 func SplitImageRef(ref string) (host, repo string) {
-	if at := strings.LastIndex(ref, "@"); at != -1 {
-		ref = ref[:at]
-	}
-	host, repo, found := strings.Cut(ref, "/")
-	if !found {
+	r, err := oci.ParseImageRef(ref)
+	if err != nil || r.Host == "" {
 		return "", ""
 	}
-	// The first segment is only a host if it looks like one. "library/nginx"
-	// has a slash but no registry in it.
-	if !strings.ContainsAny(host, ".:") && host != "localhost" {
-		return "", ""
-	}
-	if colon := strings.LastIndex(repo, ":"); colon != -1 && !strings.Contains(repo[colon:], "/") {
-		repo = repo[:colon]
-	}
-	return oci.NormalizeRegistryHost(host), repo
+	return r.Host, r.Repository
 }
 
 // imageRefTag returns the tag on a running image reference, or "" when the
@@ -621,14 +610,11 @@ func SplitImageRef(ref string) (host, repo string) {
 // Identity is always the digest: a tag is mutable and the cluster reported one
 // specific thing to be running.
 func imageRefTag(ref string) string {
-	if at := strings.LastIndex(ref, "@"); at != -1 {
-		ref = ref[:at]
-	}
-	colon := strings.LastIndex(ref, ":")
-	if colon == -1 || colon < strings.LastIndex(ref, "/") {
+	r, err := oci.ParseImageRef(ref)
+	if err != nil {
 		return ""
 	}
-	return ref[colon+1:]
+	return r.Tag
 }
 
 // RunningImageTarget is where a running image is pulled from and whose SBOM

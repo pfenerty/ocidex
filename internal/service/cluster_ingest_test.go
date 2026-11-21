@@ -7,6 +7,8 @@ import (
 	"testing"
 )
 
+var testDigest = "sha256:" + strings.Repeat("a", 64)
+
 func TestSplitImageRef(t *testing.T) {
 	tests := []struct {
 		name     string
@@ -15,8 +17,9 @@ func TestSplitImageRef(t *testing.T) {
 		wantRepo string
 	}{
 		{"tagged ghcr ref", "ghcr.io/pfenerty/ocidex-api:v1.2.3", "ghcr.io", "pfenerty/ocidex-api"},
-		{"digest ref", "ghcr.io/pfenerty/api@sha256:abc", "ghcr.io", "pfenerty/api"},
-		{"tag and digest", "quay.io/team/app:v1@sha256:abc", "quay.io", "team/app"},
+		{"digest ref", "ghcr.io/pfenerty/api@" + testDigest, "ghcr.io", "pfenerty/api"},
+		{"tag and digest", "quay.io/team/app:v1@" + testDigest, "quay.io", "team/app"},
+		{"port, tag and digest", "registry.local:5000/team/app:v1@" + testDigest, "registry.local:5000", "team/app"},
 		{"port in host", "localhost:5005/ocidex/api:dev", "localhost:5005", "ocidex/api"},
 		{"docker hub alias normalized", "docker.io/library/nginx:1.27", "registry-1.docker.io", "library/nginx"},
 		{"deep repository path", "registry.example.com/a/b/c/app:v1", "registry.example.com", "a/b/c/app"},
@@ -28,6 +31,9 @@ func TestSplitImageRef(t *testing.T) {
 		{"bare name", "nginx", "", ""},
 		{"implicit docker hub path", "library/nginx:1.27", "", ""},
 		{"bare identifier", "sha256:aaaa", "", ""},
+		{"no host, with digest", "nginx@" + testDigest, "", ""},
+		// A reference that doesn't parse resolves no host either.
+		{"truncated digest", "ghcr.io/pfenerty/api@sha256:abc", "", ""},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
