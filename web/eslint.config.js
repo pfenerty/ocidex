@@ -1,6 +1,7 @@
 import js from "@eslint/js";
 import tseslint from "typescript-eslint";
 import solid from "eslint-plugin-solid/configs/typescript";
+import ocidex from "./eslint-rules/ocidex.js";
 
 export default tseslint.config(
     js.configs.recommended,
@@ -62,6 +63,69 @@ export default tseslint.config(
             "no-unassigned-vars": "off",
             "object-shorthand": "error",
             "prefer-template": "error",
+        },
+    },
+    {
+        // Design-system contracts: which files may emit which classes and
+        // elements. Each was a regex test over source; the reasons live with the
+        // primitives (components/ui) they protect.
+        files: ["src/**/*.tsx"],
+        ignores: ["src/**/*.test.tsx"],
+        plugins: { ocidex },
+        rules: {
+            "ocidex/class-contract": [
+                "error",
+                [
+                    {
+                        // .btn, .btn-primary, .btn-sm… but not sidebar-logout-btn.
+                        pattern: "(?<![-\\w])btn(-[a-z]+)?\\b",
+                        allow: ["components/ui/Button.tsx", "components/ui/ButtonGroup.tsx"],
+                        message: "Use <Button>/<ButtonGroup>; only they emit the .btn classes.",
+                    },
+                    {
+                        // index.css styles `.btn-group .btn.active`, so the container
+                        // must come from the primitive that also sets `active`.
+                        pattern: "(?<![-\\w])btn-group(?![-\\w])",
+                        scope: "string",
+                        allow: ["components/ui/ButtonGroup.tsx"],
+                        message: "Use <ButtonGroup>; it is the only emitter of .btn-group.",
+                    },
+                    {
+                        pattern: "btn-secondary",
+                        scope: "string",
+                        message: "No rule defines .btn-secondary; the bare .btn is the secondary button.",
+                    },
+                    {
+                        pattern: "tab-btn|tab-active",
+                        scope: "string",
+                        message: "tab-btn and tab-active are not defined; use <TabBar>.",
+                    },
+                    {
+                        pattern: "(?<![-\\w])card(-header)?(?![-\\w])",
+                        allow: ["components/ui/Card.tsx", "components/ui/Modal.tsx", "components/Skeleton.tsx"],
+                        message: "Use <Card>; it is the only emitter of the card markup.",
+                    },
+                    {
+                        pattern: "(?<![-\\w])table(?![-\\w])",
+                        message: "No stylesheet defines a .table class.",
+                    },
+                    {
+                        pattern: "^(page-header|page-header-row)$",
+                        allow: ["components/ui/PageHeader.tsx", "components/Skeleton.tsx"],
+                        message: "Use <PageHeader>; it is the only emitter of the page-header markup.",
+                    },
+                ],
+            ],
+            "ocidex/jsx-element-contract": [
+                "error",
+                [
+                    {
+                        element: "table",
+                        allow: ["components/DataTable.tsx", "components/Skeleton.tsx"],
+                        message: "Use <DataTable>; it is the only place a <table> is rendered.",
+                    },
+                ],
+            ],
         },
     },
     {

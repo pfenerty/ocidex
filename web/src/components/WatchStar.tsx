@@ -1,5 +1,6 @@
 import { Show } from "solid-js";
 import { Star } from "lucide-solid";
+import { Button } from "~/components/ui";
 import { useAuth } from "~/context/auth";
 import { useToggleWatch } from "~/api/queries";
 
@@ -7,6 +8,7 @@ interface WatchStarProps {
     artifactId: string;
     /** Current watch state, read from the artifact detail response. */
     watched: boolean;
+    /** Extra classes, added to the small button's own. */
     class?: string;
 }
 
@@ -31,9 +33,10 @@ export default function WatchStar(props: WatchStarProps) {
 
     return (
         <Show when={user()}>
-            <button
+            <Button
                 type="button"
-                class={props.class ?? "btn btn-sm"}
+                size="sm"
+                class={props.class}
                 aria-pressed={props.watched}
                 aria-label={`${label()} this artifact`}
                 title={
@@ -48,7 +51,7 @@ export default function WatchStar(props: WatchStarProps) {
             >
                 <Star size={14} fill={props.watched ? "currentColor" : "none"} />
                 {label()}
-            </button>
+            </Button>
         </Show>
     );
 }

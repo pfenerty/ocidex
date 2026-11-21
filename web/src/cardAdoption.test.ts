@@ -1,6 +1,7 @@
 import { describe, it, expect } from "vitest";
 import { readFileSync, readdirSync, statSync } from "node:fs";
 import { join, relative } from "node:path";
+import { stripComments } from "./testing/sourceCode";
 
 /**
  * `<Card>` / `<CardHeader>` are the one writer of the `card > card-header > h3`
@@ -40,20 +41,11 @@ const MIGRATED = [
     "pages/admin/sources/WebhookSecretBanner.tsx",
 ];
 
-/**
- * `Modal` renders a dialog whose chrome *is* a card header, and `Skeleton`
- * stands in for a card that has not loaded — both must emit the markup rather
- * than import the thing they replace.
- */
-const ALLOWED = ["components/ui/Card.tsx", "components/ui/Modal.tsx", "components/Skeleton.tsx"];
-
 const SRC = __dirname;
 
 /** Source with comments stripped, so prose naming a class stops matching it. */
 function code(file: string): string {
-    return readFileSync(file, "utf-8")
-        .replace(/\/\*[\s\S]*?\*\//g, "")
-        .replace(/\/\/[^\n]*/g, "");
+    return stripComments(readFileSync(file, "utf-8"), file);
 }
 
 /** index.css with its comments stripped, for the same reason `code()` exists. */
@@ -70,20 +62,7 @@ function sources(dir: string, acc: string[] = []): string[] {
     return acc;
 }
 
-/**
- * A bare `card` or `card-header` class. `details.card` is a separate documented
- * variant with its own `summary.card-summary` contract, and `stat-card` is an
- * unrelated rule in admin/Admin.css, so the lookbehind keeps both out — a plain
- * word boundary matches after a hyphen, because a hyphen is not a word
- * character.
- */
-const RAW_CARD = /class="[^"]*(?<![-\w])card(-header)?(?![-\w])[^"]*"/;
-
 describe("migrated pages use the Card primitive", () => {
-    it("hand-writes no card markup", () => {
-        const offenders = MIGRATED.filter((f) => RAW_CARD.test(code(join(SRC, f))));
-        expect(offenders).toEqual([]);
-    });
 
     it("reaches for a primitive that emits one", () => {
         // `DataTable` counts: it renders its own `<Card>`, so a page that moved
@@ -91,16 +70,6 @@ describe("migrated pages use the Card primitive", () => {
         // naming `Card` directly and is more migrated, not less.
         const missing = MIGRATED.filter((f) => !/\b(Card|DataTable)\b/.test(code(join(SRC, f))));
         expect(missing).toEqual([]);
-    });
-});
-
-describe("card markup is emitted from nowhere else", () => {
-    it("is confined to the primitives", () => {
-        const offenders = sources(SRC)
-            .filter((f) => RAW_CARD.test(code(f)))
-            .map((f) => relative(SRC, f))
-            .filter((f) => !ALLOWED.includes(f));
-        expect(offenders).toEqual([]);
     });
 });
 

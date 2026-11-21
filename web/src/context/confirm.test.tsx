@@ -2,6 +2,7 @@
 import { describe, it, expect, beforeAll } from "vitest";
 import { render, fireEvent } from "@solidjs/testing-library";
 import { ConfirmProvider, useConfirm, type ConfirmFn } from "~/context/confirm";
+import { stripComments } from "../testing/sourceCode";
 
 // happy-dom's <dialog> has no top layer; the provider only needs the open flag
 // and the close event, which these stand in for.
@@ -77,7 +78,7 @@ describe("no native dialogs", () => {
                 const full = join(dir, e);
                 if (statSync(full).isDirectory()) walk(full);
                 else if (/\.tsx?$/.test(e) && !/\.test\.tsx?$/.test(e)) {
-                    const code = readFileSync(full, "utf-8").replace(/\/\*[\s\S]*?\*\/|\/\/.*$/gm, "");
+                    const code = stripComments(readFileSync(full, "utf-8"), full);
                     if (/(^|[^.\w])(window\.)?(confirm|alert|prompt)\(\s*[`"']/m.test(code)) offenders.push(full.slice(root.length + 1));
                 }
             }

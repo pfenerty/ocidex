@@ -115,18 +115,4 @@ describe("tab-bar CSS contract", () => {
         expect(block).toMatch(/\.tab-bar\s*\{[^}]*overflow-x:\s*auto/);
     });
 
-    it("has no call site emitting the undefined tab-btn / tab-active classes", () => {
-        // Comments are stripped first: this file and the call sites that were
-        // converted both name the dead classes in prose, and that is not drift.
-        const stripComments = (body: string) =>
-            body.replace(/\/\*[\s\S]*?\*\//g, "").replace(/\/\/.*$/gm, "");
-
-        const offenders = tsxFiles(SRC)
-            .filter((path) => path !== __filename)
-            .filter((path) => {
-                const body = stripComments(readFileSync(path, "utf-8"));
-                return body.includes("tab-btn") || body.includes("tab-active");
-            });
-        expect(offenders.map((p) => p.slice(SRC.length + 1))).toEqual([]);
-    });
 });

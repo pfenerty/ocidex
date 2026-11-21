@@ -1,6 +1,7 @@
 import { describe, it, expect } from "vitest";
-import { readFileSync, readdirSync, statSync } from "node:fs";
-import { join, relative } from "node:path";
+import { readFileSync } from "node:fs";
+import { join } from "node:path";
+import { stripComments } from "./testing/sourceCode";
 
 /**
  * `<PageHeader>` is the one writer of the `.page-header` / `.page-header-row`
@@ -38,43 +39,14 @@ const MIGRATED = [
     "pages/Vulnerabilities.tsx",
 ];
 
-/**
- * Skeleton deliberately emits the real structure rather than the primitive: it
- * is a placeholder standing in for a header that has not loaded, so it must
- * match the markup byte for byte without importing the thing it replaces.
- */
-const ALLOWED = ["components/ui/PageHeader.tsx", "components/Skeleton.tsx"];
-
 const SRC = __dirname;
-
-/**
- * The two structural classes, and only those. A prefix match would also catch
- * `page-header-badges`, a different class entirely — and one that no stylesheet
- * ever defined, which is why .23 deleted it rather than exempting it here.
- */
-const STRUCTURE = /class="(page-header|page-header-row)"/;
 
 /** Source with comments stripped, so prose naming a class stops matching it. */
 function code(file: string): string {
-    return readFileSync(file, "utf-8")
-        .replace(/\/\*[\s\S]*?\*\//g, "")
-        .replace(/\/\/[^\n]*/g, "");
-}
-
-function sources(dir: string, acc: string[] = []): string[] {
-    for (const entry of readdirSync(dir)) {
-        const full = join(dir, entry);
-        if (statSync(full).isDirectory()) sources(full, acc);
-        else if (full.endsWith(".tsx") && !full.endsWith(".test.tsx")) acc.push(full);
-    }
-    return acc;
+    return stripComments(readFileSync(file, "utf-8"), file);
 }
 
 describe("migrated pages use the PageHeader primitive", () => {
-    it("hand-writes no .page-header markup", () => {
-        const offenders = MIGRATED.filter((f) => STRUCTURE.test(code(join(SRC, f))));
-        expect(offenders).toEqual([]);
-    });
 
     it("imports it from the barrel", () => {
         const missing = MIGRATED.filter((f) => !code(join(SRC, f)).includes("PageHeader"));
@@ -100,11 +72,4 @@ describe("the .page-header-row wrapper", () => {
         );
     });
 
-    it("is emitted from nowhere else", () => {
-        const offenders = sources(SRC)
-            .filter((f) => STRUCTURE.test(code(f)))
-            .map((f) => relative(SRC, f))
-            .filter((f) => !ALLOWED.includes(f));
-        expect(offenders).toEqual([]);
-    });
 });

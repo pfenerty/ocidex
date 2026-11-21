@@ -1,6 +1,7 @@
 import { describe, it, expect } from "vitest";
 import { readFileSync, readdirSync, statSync } from "node:fs";
 import { join, relative } from "node:path";
+import { stripComments } from "./testing/sourceCode";
 
 /**
  * `<DataTable>` is the one call site for `<table>` markup (ocidex-ag4q.26/.27),
@@ -25,9 +26,7 @@ const SRC = __dirname;
 
 /** Source with comments stripped, so prose explaining a rule cannot satisfy it. */
 function code(file: string): string {
-    return readFileSync(file, "utf-8")
-        .replace(/\/\*[\s\S]*?\*\//g, "")
-        .replace(/\/\/[^\n]*/g, "");
+    return stripComments(readFileSync(file, "utf-8"), file);
 }
 
 function css(): string {
@@ -43,26 +42,9 @@ function sources(dir: string, acc: string[] = []): string[] {
     return acc;
 }
 
-/**
- * The primitive itself, and the shimmer that has to mirror its markup in order
- * to occupy the same space.
- */
-const ALLOWED = ["components/DataTable.tsx", "components/Skeleton.tsx"];
-
 describe("table markup", () => {
-    it("is confined to the primitive and its shimmer", () => {
-        const offenders = sources(SRC)
-            .filter((f) => code(f).includes("<table"))
-            .map((f) => relative(SRC, f))
-            .filter((f) => !ALLOWED.includes(f));
-        expect(offenders.sort()).toEqual([]);
-    });
 
-    it("never carries a `table` class, which no stylesheet defines", () => {
-        const offenders = sources(SRC)
-            .filter((f) => /class="[^"]*(?<![-\w])table(?![-\w])[^"]*"/.test(code(f)))
-            .map((f) => relative(SRC, f));
-        expect(offenders).toEqual([]);
+    it("has no .table rule, so no call site may use the class (ESLint ocidex/class-contract)", () => {
         expect(css()).not.toMatch(/^\s*\.table\s*[,{]/m);
     });
 

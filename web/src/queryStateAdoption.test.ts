@@ -1,6 +1,7 @@
 import { describe, it, expect } from "vitest";
 import { readFileSync, readdirSync, statSync } from "node:fs";
 import { join, relative } from "node:path";
+import { stripComments } from "./testing/sourceCode";
 
 /**
  * Loading, error and empty are one ladder, and every page that wrote it by hand
@@ -29,9 +30,7 @@ const SRC = __dirname;
 
 /** Source with comments stripped, so prose explaining a rule cannot satisfy it. */
 function code(file: string): string {
-    return readFileSync(file, "utf-8")
-        .replace(/\/\*[\s\S]*?\*\//g, "")
-        .replace(/\/\/[^\n]*/g, "");
+    return stripComments(readFileSync(file, "utf-8"), file);
 }
 
 function sources(dir: string, acc: string[] = []): string[] {

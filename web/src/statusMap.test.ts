@@ -2,6 +2,7 @@ import { describe, it, expect } from "vitest";
 import { readFileSync, readdirSync, statSync } from "node:fs";
 import { join } from "node:path";
 import { AGENT_HEALTH_STATUS, MATCH_STATUS, VULN_DATA_STATUS, type Tone } from "~/utils/status";
+import { stripComments } from "./testing/sourceCode";
 
 /**
  * One status vocabulary (ocidex-iz0r.4). The cluster page used to colour "no
@@ -49,7 +50,7 @@ describe("status map", () => {
         const offenders = sources()
             .filter((f) => !f.endsWith("utils/status.ts"))
             .filter((f) =>
-                retired.test(readFileSync(f, "utf-8").replace(/\/\*[\s\S]*?\*\/|\/\/.*$/gm, "")),
+                retired.test(stripComments(readFileSync(f, "utf-8"), f)),
             )
             .map((f) => f.slice(SRC.length + 1));
         expect(offenders).toEqual([]);
