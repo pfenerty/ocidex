@@ -106,17 +106,17 @@ func backfillSBOMLicenseExpressions(ctx context.Context, repo BackfillRepository
 		return nil // deleted since it was listed
 	}
 	if err != nil {
-		return fmt.Errorf("reading SBOM %s: %w", uuidToStr(sbomID), err)
+		return fmt.Errorf("reading SBOM %s: %w", sbomID.String(), err)
 	}
 	var bom cdx.BOM
 	if err := cdx.NewBOMDecoder(bytes.NewReader(sbom.RawBom), cdx.BOMFileFormatJSON).Decode(&bom); err != nil {
-		slog.Warn("backfill license expressions: skipping SBOM, raw_bom decode error", "sbomID", uuidToStr(sbomID), "err", err)
+		slog.Warn("backfill license expressions: skipping SBOM, raw_bom decode error", "sbomID", sbomID.String(), "err", err)
 		c.Errored++
 		return nil
 	}
 	refs, err := repo.ListSBOMComponentRefs(ctx, sbomID)
 	if err != nil {
-		return fmt.Errorf("listing SBOM %s components: %w", uuidToStr(sbomID), err)
+		return fmt.Errorf("listing SBOM %s components: %w", sbomID.String(), err)
 	}
 	l := expressionLinker{repo: repo, c: c, byRef: make(map[string]pgtype.UUID, len(refs)), licenseIDs: map[string]pgtype.UUID{}}
 	for _, r := range refs {
@@ -181,7 +181,7 @@ func (l *expressionLinker) link(ctx context.Context, componentID pgtype.UUID, ex
 			LicenseID:   licenseID,
 		})
 		if err != nil {
-			return fmt.Errorf("linking component %s: %w", uuidToStr(componentID), err)
+			return fmt.Errorf("linking component %s: %w", componentID.String(), err)
 		}
 		l.c.Updated += int(n)
 	}

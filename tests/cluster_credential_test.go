@@ -47,7 +47,7 @@ func TestClusterCredentialLifecycle(t *testing.T) {
 	is.NoErr(err)
 	is.Equal(len(list), 1)
 	is.Equal(list[0].Name, "prod-agent")
-	is.Equal(list[0].OwnerID, uuidString(t, owner))
+	is.Equal(list[0].OwnerID, owner.String())
 
 	// The owner's own key list shows it too, marked as bound.
 	keys, err := auth.ListAPIKeys(ctx, owner)

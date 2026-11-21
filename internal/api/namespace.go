@@ -47,7 +47,7 @@ func (h *Handler) listNamespaces(ctx context.Context, vis service.VisibilityFilt
 	ownerNames := map[string]string{}
 	if users, err := h.authService.ListUsers(ctx); err == nil {
 		for _, u := range users {
-			ownerNames[uuidToStr(u.ID)] = u.DisplayName
+			ownerNames[u.ID.String()] = u.DisplayName
 		}
 	}
 

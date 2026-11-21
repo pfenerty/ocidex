@@ -28,6 +28,7 @@ import (
 
 	"github.com/pfenerty/ocidex/internal/gosymbols"
 	"github.com/pfenerty/ocidex/internal/netguard"
+	"github.com/pfenerty/ocidex/internal/oci"
 	"github.com/pfenerty/ocidex/internal/scanner"
 )
 
@@ -74,7 +75,7 @@ func NewSyftScanner(logger *slog.Logger, symbolScope string) *SyftScanner {
 // Scan runs syft against the image identified by req and returns the CycloneDX
 // document plus the Go symbols syft captured, keyed by bom-ref.
 func (s *SyftScanner) Scan(ctx context.Context, req scanner.ScanRequest) (scanner.Result, error) {
-	registryHost := normalizeRegistryHost(req.RegistryURL)
+	registryHost := oci.NormalizeRegistryHost(req.RegistryURL)
 	ref := fmt.Sprintf("%s/%s@%s", registryHost, req.Repository, req.Digest)
 	s.logger.Info("scanning image", "ref", ref, "tag", req.Tag)
 
@@ -167,19 +168,4 @@ func syftPackageID(bomRef string) string {
 		return bomRef[i+len("package-id="):]
 	}
 	return bomRef
-}
-
-// normalizeRegistryHost trims any scheme prefix and rewrites docker.io aliases
-// to the actual registry hostname syft expects. Mirrors the unexported helper
-// in the parent scanner package; duplicated here to keep this subpackage free
-// of the catalog HTTP code.
-func normalizeRegistryHost(host string) string {
-	if i := strings.Index(host, "://"); i != -1 {
-		host = strings.TrimSuffix(host[i+3:], "/")
-	}
-	switch host {
-	case "docker.io", "index.docker.io", "hub.docker.com":
-		return "registry-1.docker.io"
-	}
-	return host
 }

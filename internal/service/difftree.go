@@ -62,7 +62,7 @@ func buildNodeLookups(toPkgs []repository.ListSBOMPackagesRow) (nodeByPurl, node
 	nodeByNameGroup = make(map[string]string, len(toPkgs))
 	bomRefToID = make(map[string]string, len(toPkgs))
 	for _, p := range toPkgs {
-		id := uuidToString(p.ID)
+		id := p.ID.String()
 		if p.Purl.Valid && p.Purl.String != "" {
 			nodeByPurl[p.Purl.String] = id
 		}

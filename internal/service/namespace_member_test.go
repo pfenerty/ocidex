@@ -11,6 +11,7 @@ import (
 	"github.com/matryer/is"
 
 	"github.com/pfenerty/ocidex/internal/repository"
+	"github.com/pfenerty/ocidex/internal/uuidx"
 )
 
 // fakeNamespaceRepo answers the four membership queries from an in-memory
@@ -62,7 +63,7 @@ func (f *fakeNamespaceRepo) AddNamespaceMember(_ context.Context, arg repository
 }
 
 func (f *fakeNamespaceRepo) GetNamespaceMember(_ context.Context, arg repository.GetNamespaceMemberParams) (repository.NamespaceMember, error) {
-	role, ok := f.members[uuidToStr(arg.UserID)]
+	role, ok := f.members[arg.UserID.String()]
 	if !ok {
 		return repository.NamespaceMember{}, pgx.ErrNoRows
 	}
@@ -76,7 +77,7 @@ func (f *fakeNamespaceRepo) GetNamespaceMember(_ context.Context, arg repository
 func (f *fakeNamespaceRepo) ListNamespaceMembers(_ context.Context, namespaceID pgtype.UUID) ([]repository.NamespaceMember, error) {
 	out := make([]repository.NamespaceMember, 0, len(f.members))
 	for id, role := range f.members {
-		uid, err := parseUUID(id)
+		uid, err := uuidx.Parse(id)
 		if err != nil {
 			return nil, err
 		}
@@ -87,7 +88,7 @@ func (f *fakeNamespaceRepo) ListNamespaceMembers(_ context.Context, namespaceID 
 
 func (f *fakeNamespaceRepo) RemoveNamespaceMember(_ context.Context, arg repository.RemoveNamespaceMemberParams) (int64, error) {
 	f.removed = &arg
-	if _, ok := f.members[uuidToStr(arg.UserID)]; !ok {
+	if _, ok := f.members[arg.UserID.String()]; !ok {
 		return 0, nil
 	}
 	return 1, nil
@@ -206,7 +207,7 @@ func TestRemoveMember(t *testing.T) {
 	})
 
 	is.NoErr(svc.RemoveMember(context.Background(), memberTestNamespace, memberTestOther))
-	is.Equal(uuidToStr(repo.removed.UserID), memberTestOther)
+	is.Equal(repo.removed.UserID.String(), memberTestOther)
 
 	err := svc.RemoveMember(context.Background(), memberTestNamespace, memberTestOwner)
 	is.True(errors.Is(err, ErrConflict))

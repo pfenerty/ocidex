@@ -3,11 +3,9 @@ package nats
 import (
 	"context"
 	"encoding/json"
-	"fmt"
 	"log/slog"
 	"time"
 
-	"github.com/jackc/pgx/v5/pgtype"
 	"github.com/nats-io/nats.go"
 
 	"github.com/pfenerty/ocidex/internal/event"
@@ -123,7 +121,7 @@ func marshalPayload(ev event.Event) (json.RawMessage, error) {
 	switch d := ev.Data.(type) {
 	case event.SBOMIngestedData:
 		return json.Marshal(sbomIngestedWire{
-			SBOMID:         uuidToString(d.SBOMID),
+			SBOMID:         d.SBOMID.String(),
 			ArtifactType:   d.ArtifactType,
 			ArtifactName:   d.ArtifactName,
 			Digest:         d.Digest,
@@ -133,11 +131,11 @@ func marshalPayload(ev event.Event) (json.RawMessage, error) {
 		})
 	case event.SBOMDeletedData:
 		return json.Marshal(sbomDeletedWire{
-			SBOMID: uuidToString(d.SBOMID),
+			SBOMID: d.SBOMID.String(),
 		})
 	case event.ArtifactDeletedData:
 		return json.Marshal(artifactDeletedWire{
-			ArtifactID: uuidToString(d.ArtifactID),
+			ArtifactID: d.ArtifactID.String(),
 		})
 	default:
 		// ArtifactCreated or unknown — marshal as-is (nil becomes null).
@@ -148,21 +146,12 @@ func marshalPayload(ev event.Event) (json.RawMessage, error) {
 func msgIDForEvent(ev event.Event) string {
 	switch d := ev.Data.(type) {
 	case event.SBOMIngestedData:
-		return uuidToString(d.SBOMID)
+		return d.SBOMID.String()
 	case event.SBOMDeletedData:
-		return "deleted-" + uuidToString(d.SBOMID)
+		return "deleted-" + d.SBOMID.String()
 	case event.ArtifactDeletedData:
-		return uuidToString(d.ArtifactID)
+		return d.ArtifactID.String()
 	default:
 		return ""
 	}
-}
-
-func uuidToString(u pgtype.UUID) string {
-	if !u.Valid {
-		return ""
-	}
-	b := u.Bytes
-	return fmt.Sprintf("%08x-%04x-%04x-%04x-%012x",
-		b[0:4], b[4:6], b[6:8], b[8:10], b[10:16])
 }

@@ -43,9 +43,9 @@ func TestUpdateRegistry_NamespaceMove(t *testing.T) {
 		// Everyone may manage the registry where it is; only the owner may
 		// manage sources in the target.
 		grants: map[string]map[string]authz.Role{
-			uuidString(ownerUUID):     {sourceNamespaceID: authz.RoleOwner, testNamespaceID: authz.RoleOwner},
-			uuidString(developerUUID): {sourceNamespaceID: authz.RoleOwner, testNamespaceID: authz.RoleDeveloper},
-			uuidString(strangerUUID):  {sourceNamespaceID: authz.RoleOwner},
+			ownerUUID.String():     {sourceNamespaceID: authz.RoleOwner, testNamespaceID: authz.RoleOwner},
+			developerUUID.String(): {sourceNamespaceID: authz.RoleOwner, testNamespaceID: authz.RoleDeveloper},
+			strangerUUID.String():  {sourceNamespaceID: authz.RoleOwner},
 		},
 	}
 	tests := []struct {

@@ -14,7 +14,6 @@ package main
 import (
 	"context"
 	"flag"
-	"hash/fnv"
 	"log/slog"
 	"os"
 	"os/signal"
@@ -97,9 +96,7 @@ func run() error {
 	defer cancel()
 
 	if cfg.RefreshEnabled {
-		h := fnv.New64a()
-		_, _ = h.Write([]byte("ocidex-vuln-refresh"))
-		lockKey := int64(h.Sum64()) //nolint:gosec // G115: advisory lock key
+		lockKey := service.LockKey(service.VulnRefreshLockName)
 		go service.LeaderElect(runCtx, pool, lockKey, refresher.Run)
 		slog.Info("vuln refresh election started", "lock_key", lockKey)
 	}

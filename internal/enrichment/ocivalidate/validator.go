@@ -14,6 +14,7 @@ import (
 	"time"
 
 	"github.com/pfenerty/ocidex/internal/netguard"
+	"github.com/pfenerty/ocidex/internal/oci"
 )
 
 // Index media types — a Content-Type match means the digest points at a
@@ -24,7 +25,7 @@ const (
 )
 
 // dockerHubHost is the user-visible alias for the Docker Hub registry; the
-// actual API lives at registry-1.docker.io (see normalizeRegistryHost).
+// actual API lives at registry-1.docker.io (see oci.NormalizeRegistryHost).
 const dockerHubHost = "docker.io"
 
 // manifestAccept lists every manifest media type the registry might return.
@@ -100,7 +101,7 @@ func (v *Validator) ValidateDigest(ctx context.Context, imageName, digest string
 	if v.insecureFor(ctx, host) {
 		scheme = "http"
 	}
-	registryHost := normalizeRegistryHost(host)
+	registryHost := oci.NormalizeRegistryHost(host)
 	url := fmt.Sprintf("%s://%s/v2/%s/manifests/%s", scheme, registryHost, repo, digest)
 
 	req, err := http.NewRequestWithContext(ctx, http.MethodHead, url, nil)
@@ -212,16 +213,6 @@ func splitImageName(imageName string) (host, repo string, err error) {
 		return dockerHubHost, imageName, nil
 	}
 	return first, imageName[slash+1:], nil
-}
-
-// normalizeRegistryHost rewrites docker.io aliases to the actual API host.
-// Mirrors the unexported helper in internal/scanner/catalog.go.
-func normalizeRegistryHost(host string) string {
-	switch host {
-	case dockerHubHost, "index.docker.io", "hub.docker.com":
-		return "registry-1.docker.io"
-	}
-	return host
 }
 
 // parseBearerChallenge extracts realm, service, and scope from

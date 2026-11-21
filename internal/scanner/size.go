@@ -8,6 +8,7 @@ import (
 	"strings"
 
 	"github.com/pfenerty/ocidex/internal/netguard"
+	"github.com/pfenerty/ocidex/internal/oci"
 )
 
 // ImageLayerBytes reports the total compressed layer size req's image
@@ -29,7 +30,7 @@ func ImageLayerBytes(ctx context.Context, req ScanRequest, egress netguard.Polic
 	if req.Insecure {
 		scheme = schemeHTTP
 	}
-	baseURL := scheme + "://" + normalizeRegistryHost(req.RegistryURL)
+	baseURL := scheme + "://" + oci.NormalizeRegistryHost(req.RegistryURL)
 	client := registryClient(egress, 0, req.AuthUsername, req.AuthToken)
 
 	httpReq, err := http.NewRequestWithContext(ctx, http.MethodGet,

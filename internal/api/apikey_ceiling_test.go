@@ -102,7 +102,7 @@ func TestDeleteAPIKeyIsBoundedByTheCallingKey(t *testing.T) {
 			is := is.New(t)
 			svc := newKeyMgmtAuthService()
 			rec := doAuthRequest(newAuthBoundaryRouter(svc), http.MethodDelete,
-				"/api/v1/auth/keys/"+uuidString(tt.target), "", tt.token)
+				"/api/v1/auth/keys/"+tt.target.String(), "", tt.token)
 			is.Equal(rec.Code, tt.want)
 			is.Equal(len(svc.deleted) == 1, tt.want == http.StatusNoContent)
 		})

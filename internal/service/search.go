@@ -953,13 +953,6 @@ var _ repository.SearchRepository = (*repository.Queries)(nil)
 
 // Helper functions for pgtype → Go type conversion.
 
-func uuidToString(u pgtype.UUID) string {
-	if !u.Valid {
-		return ""
-	}
-	return uuid.UUID(u.Bytes).String()
-}
-
 func textToPtr(t pgtype.Text) *string {
 	if !t.Valid {
 		return nil
@@ -971,7 +964,7 @@ func uuidToPtr(u pgtype.UUID) *string {
 	if !u.Valid {
 		return nil
 	}
-	s := uuidToString(u)
+	s := u.String()
 	return &s
 }
 
@@ -990,8 +983,8 @@ func uuidOrNull(s string) pgtype.UUID {
 
 func toComponentSummary(id, sbomID pgtype.UUID, bomRef pgtype.Text, typ, name string, group, version, purl pgtype.Text) ComponentSummary {
 	return ComponentSummary{
-		ID:      uuidToString(id),
-		SbomID:  uuidToString(sbomID),
+		ID:      id.String(),
+		SbomID:  sbomID.String(),
 		BomRef:  textToPtr(bomRef),
 		Type:    typ,
 		Name:    name,
@@ -1029,7 +1022,7 @@ func visAdminBool(v VisibilityFilter) pgtype.Bool {
 
 func toLicenseSummary(l repository.License) LicenseSummary {
 	return LicenseSummary{
-		ID:     uuidToString(l.ID),
+		ID:     l.ID.String(),
 		SpdxID: textToPtr(l.SpdxID),
 		Name:   l.Name,
 		URL:    textToPtr(l.Url),

@@ -39,7 +39,7 @@ func deduplicateSBOMs(sboms []repository.ListSBOMCandidatesByArtifactRow, meta m
 		m := meta[sbom.ID]
 		sv := sbom.SubjectVersion.String
 		if !sbom.SubjectVersion.Valid || sv == "" {
-			sv = uuidToString(sbom.ID)
+			sv = sbom.ID.String()
 		}
 		flavorStr := sbom.Flavor.String
 		key := changelogGroupKey{sv, m.architecture, flavorStr}
@@ -247,7 +247,7 @@ func nonEmptyStrPtr(s string) *string {
 
 func sbomToRef(row repository.ListSBOMCandidatesByArtifactRow) SBOMRef {
 	return SBOMRef{
-		ID:             uuidToString(row.ID),
+		ID:             row.ID.String(),
 		SubjectVersion: textToPtr(row.SubjectVersion),
 		CreatedAt:      row.CreatedAt.Time,
 	}

@@ -209,7 +209,7 @@ func (f *fakeAuthService) DeleteAPIKey(_ context.Context, _ pgtype.UUID, _ pgtyp
 }
 
 func (f *fakeAuthService) GetUser(_ context.Context, id pgtype.UUID) (service.AuthUser, error) {
-	if u, ok := f.usersByID[uuidString(id)]; ok {
+	if u, ok := f.usersByID[id.String()]; ok {
 		return u, nil
 	}
 	return service.AuthUser{}, errors.New("no such user")
@@ -253,7 +253,7 @@ func (f *fakeAuthService) UnlinkIdentity(_ context.Context, _, _ pgtype.UUID) er
 }
 
 func (f *fakeAuthService) LoadGrants(_ context.Context, userID pgtype.UUID) (map[string]authz.Role, error) {
-	if g, ok := f.grants[uuidString(userID)]; ok {
+	if g, ok := f.grants[userID.String()]; ok {
 		return g, nil
 	}
 	return map[string]authz.Role{}, nil
@@ -338,7 +338,7 @@ func TestRequireCapability(t *testing.T) {
 			}
 			if tt.role != "" {
 				authSvc.grants = map[string]map[string]authz.Role{
-					uuidString(tt.user.ID): {mwNamespaceID: tt.role},
+					tt.user.ID.String(): {mwNamespaceID: tt.role},
 				}
 			}
 
@@ -369,7 +369,7 @@ func TestRequireCapabilityNoNamespace(t *testing.T) {
 				users: map[string]service.AuthUser{"token": tt.user},
 				// A grant elsewhere must not leak onto the un-namespaced row.
 				grants: map[string]map[string]authz.Role{
-					uuidString(tt.user.ID): {mwNamespaceID: authz.RoleOwner},
+					tt.user.ID.String(): {mwNamespaceID: authz.RoleOwner},
 				},
 			}
 			router := newCapabilityTestRouter(&fakeRegistryService{registry: unNamespaced}, authSvc)
@@ -389,7 +389,7 @@ func TestRequireCapabilityGlobalViewerFloor(t *testing.T) {
 			"viewer-token": {ID: ownerUUID, Role: "viewer"},
 		},
 		grants: map[string]map[string]authz.Role{
-			uuidString(ownerUUID): {mwNamespaceID: authz.RoleOwner},
+			ownerUUID.String(): {mwNamespaceID: authz.RoleOwner},
 		},
 	}
 

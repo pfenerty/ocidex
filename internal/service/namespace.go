@@ -9,6 +9,7 @@ import (
 	"github.com/jackc/pgx/v5/pgxpool"
 
 	"github.com/pfenerty/ocidex/internal/repository"
+	"github.com/pfenerty/ocidex/internal/uuidx"
 )
 
 // Namespace is the authorization anchor (ADR-039). Ownership and visibility
@@ -96,7 +97,7 @@ func (s *namespaceService) Create(ctx context.Context, params CreateNamespacePar
 }
 
 func (s *namespaceService) Get(ctx context.Context, id string) (Namespace, error) {
-	uid, err := parseUUID(id)
+	uid, err := uuidx.Parse(id)
 	if err != nil {
 		return Namespace{}, ErrNotFound
 	}
@@ -132,7 +133,7 @@ func (s *namespaceService) List(ctx context.Context, filter VisibilityFilter) ([
 }
 
 func (s *namespaceService) Update(ctx context.Context, params UpdateNamespaceParams) (Namespace, error) {
-	uid, err := parseUUID(params.ID)
+	uid, err := uuidx.Parse(params.ID)
 	if err != nil {
 		return Namespace{}, ErrNotFound
 	}
@@ -172,7 +173,7 @@ func (s *namespaceService) Update(ctx context.Context, params UpdateNamespacePar
 // away with it — a namespace is the tenancy boundary, so this is a tenant-level
 // delete, not a config tidy-up.
 func (s *namespaceService) Delete(ctx context.Context, id string) error {
-	uid, err := parseUUID(id)
+	uid, err := uuidx.Parse(id)
 	if err != nil {
 		return ErrNotFound
 	}
@@ -192,7 +193,7 @@ func (s *namespaceService) Delete(ctx context.Context, id string) error {
 // type. Passing it in keeps one renderer rather than one per query shape.
 func namespaceFromRepo(ns repository.Namespace, ownerID pgtype.UUID) Namespace {
 	out := Namespace{
-		ID:         uuidToStr(ns.ID),
+		ID:         ns.ID.String(),
 		Name:       ns.Name,
 		OwnerID:    uuidToPtr(ownerID),
 		Visibility: ns.Visibility,

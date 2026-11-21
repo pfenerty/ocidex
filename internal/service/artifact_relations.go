@@ -118,11 +118,11 @@ func (s *searchService) GetArtifactUsages(ctx context.Context, artifactID pgtype
 			continue
 		}
 		rel := ArtifactRelation{
-			ArtifactID:     uuidToString(r.ArtifactID),
+			ArtifactID:     r.ArtifactID.String(),
 			ArtifactType:   r.ArtifactType,
 			ArtifactName:   r.ArtifactName,
 			ArtifactGroup:  textToPtr(r.ArtifactGroup),
-			SBOMID:         uuidToString(r.SbomID),
+			SBOMID:         r.SbomID.String(),
 			SubjectVersion: textToPtr(r.SubjectVersion),
 			Digest:         textToPtr(r.Digest),
 			Flavor:         textToPtr(r.Flavor),
@@ -171,11 +171,11 @@ func (s *searchService) GetArtifactContains(ctx context.Context, artifactID pgty
 			continue
 		}
 		rel := ArtifactRelation{
-			ArtifactID:     uuidToString(r.ArtifactID),
+			ArtifactID:     r.ArtifactID.String(),
 			ArtifactType:   r.ArtifactType,
 			ArtifactName:   r.ArtifactName,
 			ArtifactGroup:  textToPtr(r.ArtifactGroup),
-			SBOMID:         uuidToString(r.CurrentSbomID),
+			SBOMID:         r.CurrentSbomID.String(),
 			Digest:         textToPtr(r.CurrentDigest),
 			Flavor:         textToPtr(r.CurrentFlavor),
 			MatchedVersion: textToPtr(r.MatchedVersion),

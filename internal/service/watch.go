@@ -171,7 +171,7 @@ func (s *watchService) List(ctx context.Context, userID pgtype.UUID, page FeedPa
 	items := make([]WatchEntry, len(rows))
 	for i, r := range rows {
 		items[i] = WatchEntry{
-			ArtifactID: uuidToString(r.ArtifactID),
+			ArtifactID: r.ArtifactID.String(),
 			Type:       r.Type,
 			Name:       r.Name,
 			Group:      textToPtr(r.GroupName),
@@ -211,12 +211,12 @@ func (s *watchService) Feed(ctx context.Context, userID pgtype.UUID, vis Visibil
 	for i, r := range rows {
 		items[i] = WatchEvent{
 			Kind:            r.Kind,
-			ID:              uuidToString(r.EventID),
+			ID:              r.EventID.String(),
 			OccurredAt:      r.OccurredAt.Time,
-			ArtifactID:      uuidToString(r.ArtifactID),
+			ArtifactID:      r.ArtifactID.String(),
 			ArtifactName:    r.ArtifactName,
 			ArtifactType:    r.ArtifactType,
-			SBOMID:          uuidToString(r.SbomID),
+			SBOMID:          r.SbomID.String(),
 			Version:         textToPtr(r.SubjectVersion),
 			PreviousVersion: emptyToNil(r.PreviousVersion),
 			PreviousStatus:  textToPtr(r.PreviousStatus),

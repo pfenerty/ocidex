@@ -17,6 +17,7 @@ import (
 	"go.opentelemetry.io/otel/trace"
 
 	"github.com/pfenerty/ocidex/internal/netguard"
+	"github.com/pfenerty/ocidex/internal/oci"
 	"github.com/pfenerty/ocidex/internal/service"
 	"github.com/pfenerty/ocidex/internal/tracing"
 )
@@ -460,19 +461,6 @@ func submitUntaggedIndex(ctx context.Context, client *http.Client, baseURL, repo
 	return queued
 }
 
-// normalizeRegistryHost maps known Docker Hub alias hostnames to the canonical
-// OCI registry API endpoint. docker.io, index.docker.io, and hub.docker.com all
-// redirect to the web frontend; registry-1.docker.io is the actual API.
-// It also strips any scheme prefix (e.g. "https://quay.io" → "quay.io") so
-// callers that store full URLs in the registry config still work.
-//
-// The rule lives in internal/service because cluster ingest matches a running
-// image's host against a registry's configured URL, and two copies of this
-// mapping would eventually disagree about whether they name the same registry.
-func normalizeRegistryHost(host string) string {
-	return service.NormalizeRegistryHost(host)
-}
-
 // decodeJSONBody reads the response body and JSON-decodes it into v.
 // If Content-Type is HTML (a sign the URL hit a web frontend instead of the
 // registry API), returns a diagnostic error with a body preview without
@@ -495,9 +483,9 @@ func decodeJSONBody(resp *http.Response, v any) error {
 func registrySchemeHost(reg service.Registry) (scheme, host string) {
 	raw := reg.URL
 	if i := strings.Index(raw, "://"); i != -1 {
-		return raw[:i], normalizeRegistryHost(strings.TrimSuffix(raw[i+3:], "/"))
+		return raw[:i], oci.NormalizeRegistryHost(raw[i+3:])
 	}
-	host = normalizeRegistryHost(strings.TrimSuffix(raw, "/"))
+	host = oci.NormalizeRegistryHost(raw)
 	if reg.Insecure {
 		return schemeHTTP, host
 	}

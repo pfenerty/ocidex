@@ -13,6 +13,7 @@ import (
 
 	"github.com/pfenerty/ocidex/internal/repository"
 	"github.com/pfenerty/ocidex/internal/secretbox"
+	"github.com/pfenerty/ocidex/internal/uuidx"
 )
 
 // Workload match states (ADR-044 K4/K5). These mirror the match_state column
@@ -417,7 +418,7 @@ func NewClusterService(pool *pgxpool.Pool, box *secretbox.Box) ClusterService {
 }
 
 func (s *clusterService) Create(ctx context.Context, params CreateClusterParams) (Cluster, error) {
-	nsID, err := parseUUID(params.NamespaceID)
+	nsID, err := uuidx.Parse(params.NamespaceID)
 	if err != nil {
 		return Cluster{}, ErrNotFound
 	}
@@ -436,7 +437,7 @@ func (s *clusterService) Create(ctx context.Context, params CreateClusterParams)
 }
 
 func (s *clusterService) Get(ctx context.Context, id string) (Cluster, error) {
-	cid, err := parseUUID(id)
+	cid, err := uuidx.Parse(id)
 	if err != nil {
 		return Cluster{}, ErrNotFound
 	}
@@ -448,7 +449,7 @@ func (s *clusterService) Get(ctx context.Context, id string) (Cluster, error) {
 }
 
 func (s *clusterService) GetByName(ctx context.Context, namespaceID, name string) (Cluster, error) {
-	nsID, err := parseUUID(namespaceID)
+	nsID, err := uuidx.Parse(namespaceID)
 	if err != nil {
 		return Cluster{}, ErrNotFound
 	}
@@ -463,7 +464,7 @@ func (s *clusterService) GetByName(ctx context.Context, namespaceID, name string
 }
 
 func (s *clusterService) ListByNamespace(ctx context.Context, namespaceID string) ([]Cluster, error) {
-	nsID, err := parseUUID(namespaceID)
+	nsID, err := uuidx.Parse(namespaceID)
 	if err != nil {
 		return nil, ErrNotFound
 	}
@@ -497,7 +498,7 @@ func (s *clusterService) List(ctx context.Context, filter VisibilityFilter) ([]C
 }
 
 func (s *clusterService) Update(ctx context.Context, params UpdateClusterParams) (Cluster, error) {
-	cid, err := parseUUID(params.ID)
+	cid, err := uuidx.Parse(params.ID)
 	if err != nil {
 		return Cluster{}, ErrNotFound
 	}
@@ -526,7 +527,7 @@ func (s *clusterService) Update(ctx context.Context, params UpdateClusterParams)
 }
 
 func (s *clusterService) Delete(ctx context.Context, id string) error {
-	cid, err := parseUUID(id)
+	cid, err := uuidx.Parse(id)
 	if err != nil {
 		return ErrNotFound
 	}
@@ -554,7 +555,7 @@ func (s *clusterService) Delete(ctx context.Context, id string) error {
 // visible. A reader mid-push must not see a cluster that appears to be running
 // half of what it runs.
 func (s *clusterService) ReplaceInventory(ctx context.Context, clusterID string, workloads []ReportedWorkload, agent *AgentInfo) (int, error) {
-	cid, err := parseUUID(clusterID)
+	cid, err := uuidx.Parse(clusterID)
 	if err != nil {
 		return 0, ErrNotFound
 	}
@@ -624,7 +625,7 @@ func (s *clusterService) ReplaceInventory(ctx context.Context, clusterID string,
 
 //nolint:dupl // The by-image listing has the same shape; see ListImages.
 func (s *clusterService) ListWorkloads(ctx context.Context, clusterID string, params WorkloadParams, filter VisibilityFilter) (PagedResult[ClusterWorkload], error) {
-	cid, err := parseUUID(clusterID)
+	cid, err := uuidx.Parse(clusterID)
 	if err != nil {
 		return PagedResult[ClusterWorkload]{}, ErrNotFound
 	}
@@ -664,7 +665,7 @@ func (s *clusterService) ListWorkloads(ctx context.Context, clusterID string, pa
 //
 //nolint:dupl // see above: the duplicated part is sqlc param assignment.
 func (s *clusterService) ListImages(ctx context.Context, clusterID string, params ImageParams, filter VisibilityFilter) (PagedResult[ClusterImage], error) {
-	cid, err := parseUUID(clusterID)
+	cid, err := uuidx.Parse(clusterID)
 	if err != nil {
 		return PagedResult[ClusterImage]{}, ErrNotFound
 	}
@@ -730,7 +731,7 @@ func pagedInventory[Row, Out any](
 // container count, so the workload filter offers the whole cluster rather than
 // whichever namespaces happen to be on the current page.
 func (s *clusterService) NamespaceFacets(ctx context.Context, clusterID string, filter VisibilityFilter) ([]NamespaceFacet, error) {
-	cid, err := parseUUID(clusterID)
+	cid, err := uuidx.Parse(clusterID)
 	if err != nil {
 		return nil, ErrNotFound
 	}
@@ -750,7 +751,7 @@ func (s *clusterService) NamespaceFacets(ctx context.Context, clusterID string, 
 }
 
 func (s *clusterService) Coverage(ctx context.Context, clusterID string, filter VisibilityFilter) (WorkloadCoverage, error) {
-	cid, err := parseUUID(clusterID)
+	cid, err := uuidx.Parse(clusterID)
 	if err != nil {
 		return WorkloadCoverage{}, ErrNotFound
 	}
@@ -773,7 +774,7 @@ func (s *clusterService) Coverage(ctx context.Context, clusterID string, filter 
 
 // RunningVulns lists the cluster's running vulnerabilities, most severe first.
 func (s *clusterService) RunningVulns(ctx context.Context, clusterID string, params RunningVulnParams, filter VisibilityFilter) (PagedResult[RunningVuln], error) {
-	cid, err := parseUUID(clusterID)
+	cid, err := uuidx.Parse(clusterID)
 	if err != nil {
 		return PagedResult[RunningVuln]{}, ErrNotFound
 	}
@@ -838,7 +839,7 @@ func (s *clusterService) WorkloadsForVulnerability(ctx context.Context, canonica
 	// An unparseable cluster id is not silently widened to every cluster: that
 	// would answer a different, larger question than the caller asked.
 	if clusterID != "" {
-		cid, err := parseUUID(clusterID)
+		cid, err := uuidx.Parse(clusterID)
 		if err != nil {
 			return nil, ErrNotFound
 		}
@@ -927,8 +928,8 @@ func clampPage(limit, offset int32) (int32, int32) {
 
 func clusterFromRepo(c repository.Cluster) Cluster {
 	out := Cluster{
-		ID:          uuidToStr(c.ID),
-		NamespaceID: uuidToStr(c.NamespaceID),
+		ID:          c.ID.String(),
+		NamespaceID: c.NamespaceID.String(),
 		Name:        c.Name,
 		Description: c.Description,
 		AutoIngest:  c.AutoIngest,
@@ -1009,8 +1010,8 @@ func agentInfoFromRepo(c repository.Cluster) *AgentInfo {
 func workloadFromRepo(r repository.ListClusterWorkloadsRow) ClusterWorkload {
 	w := r.ClusterWorkload
 	out := ClusterWorkload{
-		ID:             uuidToStr(w.ID),
-		ClusterID:      uuidToStr(w.ClusterID),
+		ID:             w.ID.String(),
+		ClusterID:      w.ClusterID.String(),
 		K8sNamespace:   w.K8sNamespace,
 		WorkloadKind:   w.WorkloadKind,
 		WorkloadName:   w.WorkloadName,
@@ -1019,8 +1020,8 @@ func workloadFromRepo(r repository.ListClusterWorkloadsRow) ClusterWorkload {
 		ImageDigest:    w.ImageDigest.String,
 		PodCount:       w.PodCount,
 		MatchState:     r.MatchState,
-		SBOMID:         uuidToStr(r.SbomID),
-		ArtifactID:     uuidToStr(r.ArtifactID),
+		SBOMID:         r.SbomID.String(),
+		ArtifactID:     r.ArtifactID.String(),
 		ArtifactName:   r.ArtifactName.String,
 		ArtifactType:   r.ArtifactType.String,
 		SubjectVersion: r.SubjectVersion.String,
@@ -1056,8 +1057,8 @@ func imageFromRepo(r repository.ListClusterImagesRow) ClusterImage {
 		SampleNamespace: r.SampleNamespace,
 		SampleWorkload:  r.SampleWorkload,
 		MatchState:      r.MatchState,
-		SBOMID:          uuidToStr(r.SbomID),
-		ArtifactID:      uuidToStr(r.ArtifactID),
+		SBOMID:          r.SbomID.String(),
+		ArtifactID:      r.ArtifactID.String(),
 		ArtifactName:    r.ArtifactName.String,
 		ArtifactType:    r.ArtifactType.String,
 		SubjectVersion:  r.SubjectVersion.String,
@@ -1080,7 +1081,7 @@ func imageFromRepo(r repository.ListClusterImagesRow) ClusterImage {
 }
 
 func (s *clusterService) WorkloadsForArtifact(ctx context.Context, artifactID string, limit int32, filter VisibilityFilter) ([]RunningWorkload, error) {
-	aid, err := parseUUID(artifactID)
+	aid, err := uuidx.Parse(artifactID)
 	if err != nil {
 		return nil, ErrNotFound
 	}

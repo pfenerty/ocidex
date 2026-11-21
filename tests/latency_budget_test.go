@@ -165,7 +165,7 @@ func seedWideArtifact(t *testing.T, pool *pgxpool.Pool, baseURL, apiKey, sourceI
 		t.Fatalf("analyzing: %v", err)
 	}
 
-	return uuidString(t, aID), uuidString(t, sID)
+	return aID.String(), sID.String()
 }
 
 // TestReadPathLatencyBudget walks every GET whose cost scales with the size of
@@ -246,18 +246,4 @@ func TestReadPathLatencyBudget(t *testing.T) {
 			}
 		})
 	}
-}
-
-// uuidString renders a pgtype.UUID for use in a URL.
-func uuidString(t *testing.T, u pgtype.UUID) string {
-	t.Helper()
-	s, err := u.Value()
-	if err != nil {
-		t.Fatalf("rendering uuid: %v", err)
-	}
-	str, ok := s.(string)
-	if !ok {
-		t.Fatalf("rendering uuid: got %T", s)
-	}
-	return str
 }

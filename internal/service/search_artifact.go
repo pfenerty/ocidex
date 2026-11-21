@@ -84,7 +84,7 @@ func (s *searchService) GetArtifact(ctx context.Context, id pgtype.UUID, vis Vis
 
 	return ArtifactDetail{
 		ArtifactSummary: ArtifactSummary{
-			ID:                  uuidToString(row.ID),
+			ID:                  row.ID.String(),
 			Type:                row.Type,
 			Name:                row.Name,
 			Group:               textToPtr(row.GroupName),
@@ -167,7 +167,7 @@ const maxVersionsFetch = 10000
 func artifactVersionFromRow(row repository.ListArtifactVersionsRow) ArtifactVersion {
 	v := ArtifactVersion{
 		VersionKey:    row.VersionKey.String,
-		SbomID:        uuidToString(row.NewestSbomID),
+		SbomID:        row.NewestSbomID.String(),
 		SBOMCount:     row.SbomCount,
 		Sufficient:    row.EnrichmentSufficient,
 		CreatedAt:     row.CreatedAt.Time,
@@ -359,7 +359,7 @@ func (s *searchService) ListArtifacts(ctx context.Context, filter ArtifactFilter
 	items := make([]ArtifactSummary, 0, len(rows))
 	for _, row := range rows {
 		items = append(items, ArtifactSummary{
-			ID:                  uuidToString(row.ID),
+			ID:                  row.ID.String(),
 			Type:                row.Type,
 			Name:                row.Name,
 			Group:               textToPtr(row.GroupName),
@@ -443,7 +443,7 @@ func (s *searchService) GetArtifactLicenseSummary(ctx context.Context, artifactI
 	for _, row := range rows {
 		spdx := textToPtr(row.SpdxID)
 		items = append(items, LicenseCount{
-			ID:             uuidToString(row.ID),
+			ID:             row.ID.String(),
 			SpdxID:         spdx,
 			Name:           row.Name,
 			URL:            textToPtr(row.Url),
@@ -459,7 +459,7 @@ func (s *searchService) GetArtifactLicenseSummary(ctx context.Context, artifactI
 	case err != nil:
 		return ArtifactLicenseSummary{}, fmt.Errorf("finding latest sbom: %w", err)
 	default:
-		out.SbomID = uuidToString(ref.ID)
+		out.SbomID = ref.ID.String()
 		out.SubjectVersion = textToPtr(ref.SubjectVersion)
 		if ref.CreatedAt.Valid {
 			t := ref.CreatedAt.Time
@@ -656,7 +656,7 @@ func attachArtifactVulnVersions(ctx context.Context, q *repository.Queries, arti
 	for _, r := range rows {
 		v := ArtifactVulnVersion{
 			Version:              r.VersionKey.String,
-			SbomID:               uuidToString(r.SbomID),
+			SbomID:               r.SbomID.String(),
 			AffectedPackageCount: r.AffectedPackageCount,
 			PackageNames:         []string{},
 		}

@@ -13,6 +13,7 @@ import (
 	"github.com/pfenerty/ocidex/internal/repository"
 	"github.com/pfenerty/ocidex/internal/secretbox"
 	"github.com/pfenerty/ocidex/internal/tracing"
+	"github.com/pfenerty/ocidex/internal/uuidx"
 )
 
 // ScanJobState represents the lifecycle state of a scan job.
@@ -233,7 +234,7 @@ func (s *jobService) List(ctx context.Context, state string, vis VisibilityFilte
 }
 
 func (s *jobService) Get(ctx context.Context, id string, vis VisibilityFilter) (ScanJob, error) {
-	uid, err := parseUUID(id)
+	uid, err := uuidx.Parse(id)
 	if err != nil {
 		return ScanJob{}, ErrNotFound
 	}
@@ -250,7 +251,7 @@ func (s *jobService) Get(ctx context.Context, id string, vis VisibilityFilter) (
 
 func fromJobRow(r repository.ScanJob) ScanJob {
 	j := ScanJob{
-		ID:         uuidToStr(r.ID),
+		ID:         r.ID.String(),
 		Repository: r.Repository,
 		Digest:     r.Digest,
 		State:      ScanJobState(r.State),
@@ -258,7 +259,7 @@ func fromJobRow(r repository.ScanJob) ScanJob {
 		CreatedAt:  r.CreatedAt.Time,
 	}
 	if r.RegistryID.Valid {
-		s := uuidToStr(r.RegistryID)
+		s := r.RegistryID.String()
 		j.RegistryID = &s
 	}
 	if r.Tag.Valid {
@@ -271,7 +272,7 @@ func fromJobRow(r repository.ScanJob) ScanJob {
 		j.NATSMsgID = &r.NatsMsgID.String
 	}
 	if r.SbomID.Valid {
-		s := uuidToStr(r.SbomID)
+		s := r.SbomID.String()
 		j.SbomID = &s
 	}
 	if r.StartedAt.Valid {
@@ -330,7 +331,7 @@ func (s *jobService) CountByState(ctx context.Context) (int64, int64, int64, int
 }
 
 func (s *jobService) ClaimByID(ctx context.Context, id, workerID string) (ScanJobClaim, bool, error) {
-	uid, err := parseUUID(id)
+	uid, err := uuidx.Parse(id)
 	if err != nil {
 		return ScanJobClaim{}, false, nil //nolint:nilerr // not-found is signalled by the bool, not the error.
 	}
@@ -369,7 +370,7 @@ func (s *jobService) ClaimNext(ctx context.Context, workerID string) (ScanJobCla
 }
 
 func (s *jobService) FinishByID(ctx context.Context, id string, sbomID pgtype.UUID) error {
-	uid, err := parseUUID(id)
+	uid, err := uuidx.Parse(id)
 	if err != nil {
 		return fmt.Errorf("invalid job id: %w", err)
 	}
@@ -380,7 +381,7 @@ func (s *jobService) FinishByID(ctx context.Context, id string, sbomID pgtype.UU
 }
 
 func (s *jobService) FailOrRequeue(ctx context.Context, id, lastError string, maxAttempts int32) (string, error) {
-	uid, err := parseUUID(id)
+	uid, err := uuidx.Parse(id)
 	if err != nil {
 		return "", fmt.Errorf("invalid job id: %w", err)
 	}
@@ -424,7 +425,7 @@ func (s *jobService) RequeueStuckRunning(ctx context.Context, stuckThreshold tim
 // Cancel fails a queued scan job on an operator's request. It reports
 // ErrNotFound when the job is missing or no longer queued.
 func (s *jobService) Cancel(ctx context.Context, id string) error {
-	uid, err := parseUUID(id)
+	uid, err := uuidx.Parse(id)
 	if err != nil {
 		return ErrNotFound
 	}
@@ -453,7 +454,7 @@ func (s *jobService) CountActive(ctx context.Context) (map[string]int64, error) 
 }
 
 func (s *jobService) Retry(ctx context.Context, id string) error {
-	uid, err := parseUUID(id)
+	uid, err := uuidx.Parse(id)
 	if err != nil {
 		return fmt.Errorf("invalid job id: %w", err)
 	}
@@ -474,7 +475,7 @@ func (s *jobService) openAuthToken(registryID, stored string) (string, error) {
 
 func claimFromRow(id pgtype.UUID, registryID, clusterID, repo, digest, indexDigest, tag, registryURL string, insecure bool, authUser, authToken string, attempts int32, traceContext string) ScanJobClaim {
 	return ScanJobClaim{
-		ID:           uuidToStr(id),
+		ID:           id.String(),
 		RegistryID:   registryID,
 		ClusterID:    clusterID,
 		Repository:   repo,
@@ -499,9 +500,6 @@ func nullStr(s string) *string {
 
 // optionalUUID parses id, mapping "" (or anything unparseable) to NULL.
 func optionalUUID(id string) pgtype.UUID {
-	var u pgtype.UUID
-	if id != "" {
-		_ = u.Scan(id) // invalid UUID → NULL, as before
-	}
+	u, _ := uuidx.Parse(id) // an error leaves u NULL, which is the point
 	return u
 }

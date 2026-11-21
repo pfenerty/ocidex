@@ -13,6 +13,7 @@ import (
 
 	"github.com/pfenerty/ocidex/internal/metrics"
 	"github.com/pfenerty/ocidex/internal/repository"
+	"github.com/pfenerty/ocidex/internal/uuidx"
 )
 
 // Agent health states (ocidex-70eo.4). Exhaustive: every cluster is in one.
@@ -126,7 +127,7 @@ func shortDuration(d time.Duration) string {
 // RecordPush stores a push attempt and, for a rejection, marks the cluster as
 // erroring with its reason. Unknown cluster ids are ignored.
 func (s *clusterService) RecordPush(ctx context.Context, clusterID string, p PushAttempt) error {
-	cid, err := parseUUID(clusterID)
+	cid, err := uuidx.Parse(clusterID)
 	if err != nil {
 		// Not a cluster id at all: nothing to record against, as for an
 		// unknown one.
@@ -180,7 +181,7 @@ func (s *clusterService) markPushError(ctx context.Context, cid pgtype.UUID, rea
 
 // ListPushes returns the cluster's most recent push attempts, newest first.
 func (s *clusterService) ListPushes(ctx context.Context, clusterID string, limit int32) ([]ClusterPush, error) {
-	cid, err := parseUUID(clusterID)
+	cid, err := uuidx.Parse(clusterID)
 	if err != nil {
 		return nil, ErrNotFound
 	}

@@ -162,12 +162,12 @@ func (s *searchService) DiffSBOMs(ctx context.Context, fromID, toID pgtype.UUID,
 	}
 
 	fromRef := SBOMRef{
-		ID:             uuidToString(fromSBOM.ID),
+		ID:             fromSBOM.ID.String(),
 		SubjectVersion: textToPtr(fromSBOM.SubjectVersion),
 		CreatedAt:      fromSBOM.CreatedAt.Time,
 	}
 	toRef := SBOMRef{
-		ID:             uuidToString(toSBOM.ID),
+		ID:             toSBOM.ID.String(),
 		SubjectVersion: textToPtr(toSBOM.SubjectVersion),
 		CreatedAt:      toSBOM.CreatedAt.Time,
 	}
@@ -219,14 +219,14 @@ func (s *searchService) DiffSBOMsWithTree(ctx context.Context, fromID, toID pgty
 	}
 
 	fromRef := SBOMRef{
-		ID:             uuidToString(fromSBOM.ID),
+		ID:             fromSBOM.ID.String(),
 		SubjectVersion: textToPtr(fromSBOM.SubjectVersion),
 		CreatedAt:      fromSBOM.CreatedAt.Time,
 		BuildDate:      interfaceToTimePtr(fromSBOM.BuildDate),
 		Architecture:   interfaceToStringPtr(fromSBOM.Architecture),
 	}
 	toRef := SBOMRef{
-		ID:             uuidToString(toSBOM.ID),
+		ID:             toSBOM.ID.String(),
 		SubjectVersion: textToPtr(toSBOM.SubjectVersion),
 		CreatedAt:      toSBOM.CreatedAt.Time,
 		BuildDate:      interfaceToTimePtr(toSBOM.BuildDate),
@@ -377,7 +377,7 @@ func (s *searchService) GetArtifactChangelog(ctx context.Context, artifactID pgt
 	}
 
 	changelog := Changelog{
-		ArtifactID:             uuidToString(artifactID),
+		ArtifactID:             artifactID.String(),
 		AvailableArchitectures: arches,
 		AvailableFlavors:       flavors,
 		HasSemver:              hasSemver,

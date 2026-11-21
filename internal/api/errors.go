@@ -10,6 +10,7 @@ import (
 	"github.com/jackc/pgx/v5/pgtype"
 
 	"github.com/pfenerty/ocidex/internal/service"
+	"github.com/pfenerty/ocidex/internal/uuidx"
 )
 
 // mapServiceError converts domain/service errors into huma status errors.
@@ -41,13 +42,11 @@ func mapServiceError(err error) error {
 	return huma.Error500InternalServerError("internal error")
 }
 
-// parseUUID parses a string into a pgtype.UUID, returning a huma 400 error on failure.
+// parseUUID parses a request's UUID with uuidx.Parse, answering 400 when it
+// isn't one.
 func parseUUID(s string) (pgtype.UUID, error) {
-	var id pgtype.UUID
-	if err := id.Scan(s); err != nil {
-		return pgtype.UUID{}, huma.Error400BadRequest(fmt.Sprintf("invalid UUID: %s", s))
-	}
-	if !id.Valid {
+	id, err := uuidx.Parse(s)
+	if err != nil {
 		return pgtype.UUID{}, huma.Error400BadRequest(fmt.Sprintf("invalid UUID: %s", s))
 	}
 	return id, nil

@@ -773,8 +773,8 @@ func credRegistries() []Registry {
 	userB, tokB := "b", "token-b"
 	return []Registry{
 		// B's registry first, so a host-keyed or first-match lookup would pick it.
-		{ID: uuidToStr(credRegB), NamespaceID: credNSB, Enabled: true, URL: "https://ghcr.io", AuthUsername: &userB, AuthToken: &tokB},
-		{ID: uuidToStr(credRegA), NamespaceID: credNSA, Enabled: true, URL: "https://ghcr.io", AuthUsername: &userA, AuthToken: &tokA},
+		{ID: credRegB.String(), NamespaceID: credNSB, Enabled: true, URL: "https://ghcr.io", AuthUsername: &userB, AuthToken: &tokB},
+		{ID: credRegA.String(), NamespaceID: credNSA, Enabled: true, URL: "https://ghcr.io", AuthUsername: &userA, AuthToken: &tokA},
 	}
 }
 
@@ -842,7 +842,7 @@ func TestBuildCredentialLookup_NoAuthToken(t *testing.T) {
 	is := is.New(t)
 	reg := pgtype.UUID{Bytes: [16]byte{1}, Valid: true}
 	svc := &fakeListRegistryService{registries: []Registry{
-		{ID: uuidToStr(reg), URL: "https://registry.example.com"}, // no token
+		{ID: reg.String(), URL: "https://registry.example.com"}, // no token
 	}}
 	u, tk := BuildCredentialLookup(svc, sourcesIn("", ""))(context.Background(), reg, "registry.example.com")
 	is.Equal(u, "")
@@ -875,7 +875,7 @@ func TestBuildTrustLookup_PublicKeyMode(t *testing.T) {
 	regID := pgtype.UUID{Bytes: [16]byte{1}, Valid: true}
 	svc := &fakeListRegistryService{
 		registries: []Registry{
-			{ID: uuidToStr(regID), URL: "https://registry.example.com", VerificationMode: "public_key", TrustPublicKey: &key},
+			{ID: regID.String(), URL: "https://registry.example.com", VerificationMode: "public_key", TrustPublicKey: &key},
 		},
 	}
 	lookup := BuildTrustLookup(svc)
@@ -895,7 +895,7 @@ func TestBuildTrustLookup_KeylessMode(t *testing.T) {
 	regID := pgtype.UUID{Bytes: [16]byte{2}, Valid: true}
 	svc := &fakeListRegistryService{
 		registries: []Registry{
-			{ID: uuidToStr(regID), URL: "https://registry.example.com", VerificationMode: "keyless", TrustIdentity: &identity, TrustIssuer: &issuer},
+			{ID: regID.String(), URL: "https://registry.example.com", VerificationMode: "keyless", TrustIdentity: &identity, TrustIssuer: &issuer},
 		},
 	}
 	lookup := BuildTrustLookup(svc)
@@ -911,7 +911,7 @@ func TestBuildTrustLookup_KeylessMode(t *testing.T) {
 func TestBuildTrustLookup_NoMatchDefaultsToNone(t *testing.T) {
 	is := is.New(t)
 	svc := &fakeListRegistryService{
-		registries: []Registry{{ID: uuidToStr(pgtype.UUID{Bytes: [16]byte{9}, Valid: true}), URL: "https://other.example.com", VerificationMode: "public_key"}},
+		registries: []Registry{{ID: pgtype.UUID{Bytes: [16]byte{9}, Valid: true}.String(), URL: "https://other.example.com", VerificationMode: "public_key"}},
 	}
 	lookup := BuildTrustLookup(svc)
 
@@ -927,8 +927,8 @@ func TestBuildTrustLookup_DuplicateHostDifferentRegistries(t *testing.T) {
 	key := "-----BEGIN PUBLIC KEY-----\nabc\n-----END PUBLIC KEY-----\n"
 	svc := &fakeListRegistryService{
 		registries: []Registry{
-			{ID: uuidToStr(noneID), URL: "https://ghcr.io", VerificationMode: "none"},
-			{ID: uuidToStr(pubKeyID), URL: "https://ghcr.io", VerificationMode: "public_key", TrustPublicKey: &key},
+			{ID: noneID.String(), URL: "https://ghcr.io", VerificationMode: "none"},
+			{ID: pubKeyID.String(), URL: "https://ghcr.io", VerificationMode: "public_key", TrustPublicKey: &key},
 		},
 	}
 	lookup := BuildTrustLookup(svc)
@@ -947,7 +947,7 @@ func TestBuildTrustLookup_CachesResults(t *testing.T) {
 	regID := pgtype.UUID{Bytes: [16]byte{6}, Valid: true}
 	svc := &countingListService{
 		fakeListRegistryService: fakeListRegistryService{registries: []Registry{
-			{ID: uuidToStr(regID), URL: "https://registry.example.com", VerificationMode: "public_key"},
+			{ID: regID.String(), URL: "https://registry.example.com", VerificationMode: "public_key"},
 		}},
 		onList: func() { callCount++ },
 	}
@@ -1235,7 +1235,7 @@ func TestTrustSummary_MapsRows(t *testing.T) {
 	out, err := svc.TrustSummary(context.Background(), VisibilityFilter{IsAdmin: true})
 	is.NoErr(err)
 	is.Equal(len(out), 1)
-	is.Equal(out[0].RegistryID, uuidToStr(id))
+	is.Equal(out[0].RegistryID, id.String())
 	is.Equal(out[0].SigningStatus, "verified")
 	is.Equal(out[0].Count, int64(5))
 }

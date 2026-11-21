@@ -35,7 +35,7 @@ func (s *searchService) ListLicenses(ctx context.Context, filter LicenseFilter) 
 		total = row.TotalCount
 		spdx := textToPtr(row.SpdxID)
 		items = append(items, LicenseCount{
-			ID:             uuidToString(row.ID),
+			ID:             row.ID.String(),
 			SpdxID:         spdx,
 			Name:           row.Name,
 			URL:            textToPtr(row.Url),

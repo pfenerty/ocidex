@@ -14,7 +14,6 @@ import (
 	"time"
 
 	"github.com/danielgtaylor/huma/v2"
-	"github.com/jackc/pgx/v5/pgtype"
 
 	"github.com/pfenerty/ocidex/internal/authz"
 	"github.com/pfenerty/ocidex/internal/netguard"
@@ -777,15 +776,6 @@ func (h *Handler) ScanRegistry(ctx context.Context, in *ScanRegistryInput) (*Sca
 	out := &ScanRegistryOutput{}
 	out.Body.Message = fmt.Sprintf("scan accepted for registry %q", reg.Name)
 	return out, nil
-}
-
-func uuidToStr(u pgtype.UUID) string {
-	if !u.Valid {
-		return ""
-	}
-	b := u.Bytes
-	return fmt.Sprintf("%08x-%04x-%04x-%04x-%012x",
-		b[0:4], b[4:6], b[6:8], b[8:10], b[10:16])
 }
 
 // tagOrderAuto is the API's name for the order the service stores as "".

@@ -13,7 +13,6 @@ import (
 	"log/slog"
 	"os"
 	"os/signal"
-	"strings"
 	"syscall"
 	"time"
 
@@ -28,6 +27,7 @@ import (
 	"github.com/pfenerty/ocidex/internal/jobqueue"
 	"github.com/pfenerty/ocidex/internal/metrics"
 	natspkg "github.com/pfenerty/ocidex/internal/nats"
+	"github.com/pfenerty/ocidex/internal/oci"
 	"github.com/pfenerty/ocidex/internal/scanner"
 	"github.com/pfenerty/ocidex/internal/scanner/engine"
 	"github.com/pfenerty/ocidex/internal/service"
@@ -272,30 +272,19 @@ func ingestExtensions(cfg *config.Config, natsClient *natspkg.Client, logger *sl
 	return exts
 }
 
-// parseImageRef parses an OCI image reference into its components.
-// Accepts "registry/repo@digest" or "registry/repo:tag@digest".
+// parseImageRef parses SCAN_IMAGE into its components. It must name a
+// registry host and a digest: "registry/repo@digest" or
+// "registry/repo:tag@digest".
 func parseImageRef(ref string) (registryURL, repo, digest, tag string, err error) {
-	atIdx := strings.LastIndex(ref, "@")
-	if atIdx < 0 {
-		return "", "", "", "", fmt.Errorf("missing digest separator (@) in %q", ref)
+	r, err := oci.ParseImageRef(ref)
+	if err != nil {
+		return "", "", "", "", err
 	}
-	digest = ref[atIdx+1:]
-	nameTag := ref[:atIdx]
-
-	slashIdx := strings.Index(nameTag, "/")
-	if slashIdx < 0 {
-		return "", "", "", "", fmt.Errorf("missing repository path in %q", ref)
+	if r.Digest == "" {
+		return "", "", "", "", fmt.Errorf("missing digest (@sha256:...) in %q", ref)
 	}
-	registryURL = nameTag[:slashIdx]
-	repoTag := nameTag[slashIdx+1:]
-
-	colonIdx := strings.LastIndex(repoTag, ":")
-	if colonIdx >= 0 {
-		repo = repoTag[:colonIdx]
-		tag = repoTag[colonIdx+1:]
-	} else {
-		repo = repoTag
+	if r.Host == "" {
+		return "", "", "", "", fmt.Errorf("missing registry host in %q", ref)
 	}
-
-	return registryURL, repo, digest, tag, nil
+	return r.Host, r.Repository, r.Digest, r.Tag, nil
 }

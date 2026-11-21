@@ -95,7 +95,7 @@ func personaGrants() map[string]map[string]authz.Role {
 		if !ok {
 			continue
 		}
-		grants[uuidString(p.user.ID)] = map[string]authz.Role{
+		grants[p.user.ID.String()] = map[string]authz.Role{
 			testNamespaceID: role,
 			mwNamespaceID:   role,
 		}

@@ -110,7 +110,7 @@ func uuidStrings(t *testing.T, ids []pgtype.UUID) []string {
 	t.Helper()
 	out := make([]string, 0, len(ids))
 	for _, id := range ids {
-		out = append(out, uuidString(t, id))
+		out = append(out, id.String())
 	}
 	return sorted(out...)
 }

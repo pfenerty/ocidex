@@ -151,7 +151,7 @@ func TestGoSymbolsIngestAndMatch(t *testing.T) {
 		linking = append(linking, id)
 	}
 	rows.Close()
-	dStr := fmt.Sprintf("%x-%x-%x-%x-%x", d.Bytes[0:4], d.Bytes[4:6], d.Bytes[6:8], d.Bytes[8:10], d.Bytes[10:16])
+	dStr := d.String()
 	want := []string{a, b, dStr}
 	sort.Strings(want)
 	is.Equal(linking, want)

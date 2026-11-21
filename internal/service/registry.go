@@ -20,6 +20,7 @@ import (
 	"github.com/pfenerty/ocidex/internal/repository"
 	"github.com/pfenerty/ocidex/internal/secretbox"
 	"github.com/pfenerty/ocidex/internal/trust"
+	"github.com/pfenerty/ocidex/internal/uuidx"
 )
 
 // Registry is the domain model for a configured OCI registry.
@@ -167,7 +168,7 @@ func NewSourceLookup(pool dbPool) SourceLookup {
 		if err != nil {
 			return "", "", err
 		}
-		return uuidToStr(src.NamespaceID), src.Kind, nil
+		return src.NamespaceID.String(), src.Kind, nil
 	}
 }
 
@@ -247,7 +248,7 @@ func BuildCredentialLookup(svc RegistryService, sources SourceLookup) SourceCred
 			return "", ""
 		}
 		regs := registries(ctx)
-		src := uuidToStr(sourceID)
+		src := sourceID.String()
 		for _, r := range regs {
 			if r.ID == src {
 				if registryHost(r.URL) != host {
@@ -317,7 +318,7 @@ func BuildTrustLookup(svc RegistryService) func(ctx context.Context, registryID 
 			}
 			fetchedAt = time.Now()
 		}
-		if id := uuidToStr(registryID); id != "" {
+		if id := registryID.String(); id != "" {
 			if cfg, ok := byID[id]; ok && cfg.Mode != "" {
 				return cfg
 			}
@@ -593,7 +594,7 @@ func (s *registryService) Create(ctx context.Context, params CreateRegistryParam
 // NamespaceID (ocidex-avsz.2).
 func (s *registryService) resolveNamespace(ctx context.Context, params CreateRegistryParams, visibility string) (pgtype.UUID, error) {
 	if params.NamespaceID != "" {
-		id, err := parseUUID(params.NamespaceID)
+		id, err := uuidx.Parse(params.NamespaceID)
 		if err != nil {
 			return pgtype.UUID{}, ErrNotFound
 		}
@@ -634,7 +635,7 @@ func (s *registryService) GetByName(ctx context.Context, name string) (Registry,
 }
 
 func (s *registryService) Get(ctx context.Context, id string) (Registry, error) {
-	uid, err := parseUUID(id)
+	uid, err := uuidx.Parse(id)
 	if err != nil {
 		return Registry{}, ErrNotFound
 	}
@@ -697,7 +698,7 @@ func orExisting[T any](v, existing *T) *T {
 }
 
 func (s *registryService) Update(ctx context.Context, params UpdateRegistryParams) (Registry, error) {
-	uid, err := parseUUID(params.ID)
+	uid, err := uuidx.Parse(params.ID)
 	if err != nil {
 		return Registry{}, ErrNotFound
 	}
@@ -740,11 +741,11 @@ func (s *registryService) Update(ctx context.Context, params UpdateRegistryParam
 		return Registry{}, err
 	}
 
-	webhookSecret, err := sealCredential(s.box, colWebhookSecret, uuidToStr(uid), params.WebhookSecret)
+	webhookSecret, err := sealCredential(s.box, colWebhookSecret, uid.String(), params.WebhookSecret)
 	if err != nil {
 		return Registry{}, err
 	}
-	authToken, err := sealCredential(s.box, colAuthToken, uuidToStr(uid), params.AuthToken)
+	authToken, err := sealCredential(s.box, colAuthToken, uid.String(), params.AuthToken)
 	if err != nil {
 		return Registry{}, err
 	}
@@ -801,7 +802,7 @@ func (s *registryService) ListPollable(ctx context.Context) ([]Registry, error) 
 }
 
 func (s *registryService) MarkPolled(ctx context.Context, id string) (Registry, error) {
-	uid, err := parseUUID(id)
+	uid, err := uuidx.Parse(id)
 	if err != nil {
 		return Registry{}, ErrNotFound
 	}
@@ -820,14 +821,14 @@ func (s *registryService) LastWalks(ctx context.Context) (map[string]WalkStats, 
 	for _, r := range rows {
 		var w WalkStats
 		if json.Unmarshal(r.LastWalkStats, &w) == nil {
-			out[uuidToStr(r.ID)] = w
+			out[r.ID.String()] = w
 		}
 	}
 	return out, nil
 }
 
 func (s *registryService) RecordWalkStats(ctx context.Context, id string, stats WalkStats) error {
-	uid, err := parseUUID(id)
+	uid, err := uuidx.Parse(id)
 	if err != nil {
 		return ErrNotFound
 	}
@@ -885,7 +886,7 @@ func replaceRegistryWindow(ctx context.Context, q *repository.Queries, registryI
 }
 
 func (s *registryService) SetEnabled(ctx context.Context, id string, enabled bool) (Registry, error) {
-	uid, err := parseUUID(id)
+	uid, err := uuidx.Parse(id)
 	if err != nil {
 		return Registry{}, ErrNotFound
 	}
@@ -900,7 +901,7 @@ func (s *registryService) SetEnabled(ctx context.Context, id string, enabled boo
 }
 
 func (s *registryService) Delete(ctx context.Context, id string) error {
-	uid, err := parseUUID(id)
+	uid, err := uuidx.Parse(id)
 	if err != nil {
 		return ErrNotFound
 	}
@@ -925,7 +926,7 @@ func (s *registryService) TrustSummary(ctx context.Context, vis VisibilityFilter
 	out := make([]RegistryTrustCount, len(rows))
 	for i, r := range rows {
 		out[i] = RegistryTrustCount{
-			RegistryID:    uuidToStr(r.RegistryID),
+			RegistryID:    r.RegistryID.String(),
 			SigningStatus: r.SigningStatus,
 			Count:         r.ArtifactCount,
 		}
@@ -946,9 +947,9 @@ type registryComposite struct {
 func fromRepo(c registryComposite) Registry {
 	r := c.reg
 	out := Registry{
-		ID:                  uuidToStr(r.ID),
+		ID:                  r.ID.String(),
 		Name:                c.name,
-		NamespaceID:         uuidToStr(c.namespaceID),
+		NamespaceID:         c.namespaceID.String(),
 		Type:                r.Type,
 		URL:                 r.Url,
 		Insecure:            r.Insecure,
@@ -1030,23 +1031,6 @@ func nonEmpty(ss []string) []string {
 	return out
 }
 
-func parseUUID(s string) (pgtype.UUID, error) {
-	var id pgtype.UUID
-	if err := id.Scan(s); err != nil || !id.Valid {
-		return pgtype.UUID{}, fmt.Errorf("invalid uuid: %s", s)
-	}
-	return id, nil
-}
-
-func uuidToStr(u pgtype.UUID) string {
-	if !u.Valid {
-		return ""
-	}
-	b := u.Bytes
-	return fmt.Sprintf("%08x-%04x-%04x-%04x-%012x",
-		b[0:4], b[4:6], b[6:8], b[8:10], b[10:16])
-}
-
 // MoveNamespace moves the registry id into namespaceID, along with every SBOM
 // whose source it is and the artifact visibility links those SBOMs imply
 // (ocidex-nps9.33). It is a no-op when the registry is already there. A source
@@ -1054,11 +1038,11 @@ func uuidToStr(u pgtype.UUID) string {
 //
 // Rollups are not touched: they are rebuilt whole on the refresher's next pass.
 func (s *registryService) MoveNamespace(ctx context.Context, id, namespaceID string) error {
-	uid, err := parseUUID(id)
+	uid, err := uuidx.Parse(id)
 	if err != nil {
 		return ErrNotFound
 	}
-	nsID, err := parseUUID(namespaceID)
+	nsID, err := uuidx.Parse(namespaceID)
 	if err != nil {
 		return ErrNotFound
 	}

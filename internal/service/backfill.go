@@ -138,20 +138,20 @@ func backfillSBOMRootEnrichment(ctx context.Context, repo BackfillRepository, ro
 		return nil // deleted since it was listed
 	}
 	if err != nil {
-		return fmt.Errorf("reading SBOM %s: %w", uuidToStr(row.ID), err)
+		return fmt.Errorf("reading SBOM %s: %w", row.ID.String(), err)
 	}
 	// An undecodable BOM still gets its jobs, without architecture or build
 	// date: the enrichers read the image, not the BOM.
 	var bom cdx.BOM
 	if err := cdx.NewBOMDecoder(bytes.NewReader(sbom.RawBom), cdx.BOMFileFormatJSON).Decode(&bom); err != nil {
 		slog.Warn("backfill root enrichment: raw_bom decode error; enqueueing without architecture/build date",
-			"sbomID", uuidToStr(row.ID), "err", err)
+			"sbomID", row.ID.String(), "err", err)
 	}
 	arch, bd := resolveArchitecture(&bom, IngestParams{}), resolveBuildDate(&bom, IngestParams{})
 	for _, name := range row.Missing {
 		_, err := repo.InsertEnrichmentJob(ctx, enrichJobParams(ctx, row.ID, arch, bd, name))
 		if err != nil && !isUniqueViolation(err) { // a unique violation: enqueued since listed
-			return fmt.Errorf("enqueueing %s enrichment for SBOM %s: %w", name, uuidToStr(row.ID), err)
+			return fmt.Errorf("enqueueing %s enrichment for SBOM %s: %w", name, row.ID.String(), err)
 		}
 	}
 	c.Updated++
@@ -169,7 +169,7 @@ func backfillFlavor(ctx context.Context, repo BackfillRepository, batchSize int3
 		for _, row := range rows {
 			var bom cdx.BOM
 			if err := cdx.NewBOMDecoder(bytes.NewReader(row.RawBom), cdx.BOMFileFormatJSON).Decode(&bom); err != nil {
-				slog.Warn("backfill flavor: skipping SBOM, raw_bom decode error", "sbomID", uuidToStr(row.ID), "err", err)
+				slog.Warn("backfill flavor: skipping SBOM, raw_bom decode error", "sbomID", row.ID.String(), "err", err)
 				c.Errored++
 				continue
 			}
@@ -178,7 +178,7 @@ func backfillFlavor(ctx context.Context, repo BackfillRepository, batchSize int3
 				ID:     row.ID,
 				Flavor: pgtype.Text{String: flavor, Valid: true},
 			}); err != nil {
-				return c, fmt.Errorf("updating SBOM %s flavor: %w", uuidToStr(row.ID), err)
+				return c, fmt.Errorf("updating SBOM %s flavor: %w", row.ID.String(), err)
 			}
 			c.Updated++
 		}
@@ -209,7 +209,7 @@ func backfillPurl(ctx context.Context, repo BackfillRepository, batchSize int32)
 				ID:   row.ID,
 				Purl: pgtype.Text{String: next, Valid: true},
 			}); err != nil {
-				return c, fmt.Errorf("updating component %s purl: %w", uuidToStr(row.ID), err)
+				return c, fmt.Errorf("updating component %s purl: %w", row.ID.String(), err)
 			}
 			c.Updated++
 		}
@@ -249,11 +249,11 @@ func backfillSBOMProvenance(ctx context.Context, repo BackfillRepository, sbomID
 		return nil // deleted since it was listed
 	}
 	if err != nil {
-		return fmt.Errorf("reading SBOM %s: %w", uuidToStr(sbomID), err)
+		return fmt.Errorf("reading SBOM %s: %w", sbomID.String(), err)
 	}
 	components, err := repo.ListSBOMComponentsMissingProvenance(ctx, sbomID)
 	if err != nil {
-		return fmt.Errorf("listing SBOM %s components: %w", uuidToStr(sbomID), err)
+		return fmt.Errorf("listing SBOM %s components: %w", sbomID.String(), err)
 	}
 	existing := make([]ExistingComponentRef, len(components))
 	for i, comp := range components {
@@ -261,7 +261,7 @@ func backfillSBOMProvenance(ctx context.Context, repo BackfillRepository, sbomID
 	}
 	updates, err := ComputeProvenanceUpdates(sbom.RawBom, sbom.Flavor.String, existing)
 	if err != nil {
-		slog.Warn("backfill provenance: skipping SBOM, raw_bom decode error", "sbomID", uuidToStr(sbomID), "err", err)
+		slog.Warn("backfill provenance: skipping SBOM, raw_bom decode error", "sbomID", sbomID.String(), "err", err)
 		c.Errored++
 		return nil
 	}
@@ -276,7 +276,7 @@ func backfillSBOMProvenance(ctx context.Context, repo BackfillRepository, sbomID
 			SourcePurl:    u.SourcePurl,
 			FilePath:      u.FilePath,
 		}); err != nil {
-			return fmt.Errorf("updating component %s provenance: %w", uuidToStr(u.ComponentID), err)
+			return fmt.Errorf("updating component %s provenance: %w", u.ComponentID.String(), err)
 		}
 		c.Updated++
 	}

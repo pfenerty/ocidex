@@ -260,10 +260,10 @@ func buildDiscovery(
 	featuredItems := make([]DiscoverFeatured, 0, len(featured))
 	for _, r := range featured {
 		featuredItems = append(featuredItems, DiscoverFeatured{
-			ArtifactID:     uuidToString(r.ArtifactID),
+			ArtifactID:     r.ArtifactID.String(),
 			Type:           r.Type,
 			Name:           r.Name,
-			SbomID:         uuidToString(r.SbomID),
+			SbomID:         r.SbomID.String(),
 			SubjectVersion: textToPtr(r.SubjectVersion),
 			CreatedAt:      r.CreatedAt.Time,
 			PackageCount:   r.PackageCount,
@@ -286,7 +286,7 @@ func buildDiscovery(
 	topItems := make([]DiscoverArtifact, 0, len(top))
 	for _, r := range top {
 		item := DiscoverArtifact{
-			ID:           uuidToString(r.ArtifactID),
+			ID:           r.ArtifactID.String(),
 			Type:         r.Type,
 			Name:         r.Name,
 			Group:        textToPtr(r.GroupName),
@@ -306,11 +306,11 @@ func buildDiscovery(
 	recentItems := make([]DiscoverRecent, 0, len(recent))
 	for _, r := range recent {
 		recentItems = append(recentItems, DiscoverRecent{
-			ArtifactID:     uuidToString(r.ArtifactID),
+			ArtifactID:     r.ArtifactID.String(),
 			Type:           r.Type,
 			Name:           r.Name,
 			Group:          textToPtr(r.GroupName),
-			SbomID:         uuidToString(r.SbomID),
+			SbomID:         r.SbomID.String(),
 			SubjectVersion: textToPtr(r.SubjectVersion),
 			Digest:         textToPtr(r.Digest),
 			Flavor:         textToPtr(r.Flavor),
@@ -339,7 +339,7 @@ func buildDiscovery(
 	licenseItems := make([]DiscoverLicense, 0, len(licenses))
 	for _, r := range licenses {
 		licenseItems = append(licenseItems, DiscoverLicense{
-			ID:             uuidToString(r.ID),
+			ID:             r.ID.String(),
 			SpdxID:         textToPtr(r.SpdxID),
 			Name:           r.Name,
 			Category:       r.Category,

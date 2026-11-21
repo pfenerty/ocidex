@@ -50,7 +50,7 @@ func rosterRouter(nsSvc service.NamespaceService, role authz.Role) http.Handler 
 			"owner-token": {ID: ownerUUID, Role: "member", APIKeyAuth: true, APIKeyCaps: authz.AllCapabilities()},
 		},
 		grants: map[string]map[string]authz.Role{
-			uuidString(ownerUUID): {testNamespaceID: role},
+			ownerUUID.String(): {testNamespaceID: role},
 		},
 		usersByID: map[string]service.AuthUser{
 			memberTargetID: {DisplayName: "devsecurity"},
