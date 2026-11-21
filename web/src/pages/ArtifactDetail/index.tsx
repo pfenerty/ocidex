@@ -245,7 +245,7 @@ export default function ArtifactDetail() {
             >
                         {(a) => (
                             <>
-                                <ArtifactHeader artifact={a()} breadcrumb={<Breadcrumb items={crumbs()} />} />
+                                <ArtifactHeader artifact={a()} breadcrumb={<Breadcrumb items={crumbs()} />} points={latestPoints()} />
 
                                 <Show when={runningClusters().length > 0}>
                                     <p class="mb-3" data-testid="running-in">

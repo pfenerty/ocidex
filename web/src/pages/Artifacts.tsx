@@ -1,4 +1,5 @@
 import { createMemo, Show } from "solid-js";
+import { Sprite } from "~/components/Sprite";
 import { A, useSearchParams } from "@solidjs/router";
 import { useArtifactsInfinite } from "~/api/queries";
 import DataTable from "~/components/DataTable";
@@ -79,7 +80,14 @@ const groupKey = (a: ArtifactSummary): string => {
 const columns: Column<ArtifactSummary>[] = [
     {
         header: "Artifact",
-        render: (a) => <A href={`/artifacts/${a.id}`}>{artifactDisplayName(a)}</A>,
+        render: (a) => (
+            <span class="with-sprite">
+                <Sprite
+                    points={(a.criticalHistory ?? []).map((h) => ({ versionKey: h.versionKey, critical: h.critical }))}
+                />
+                <A href={`/artifacts/${a.id}`}>{artifactDisplayName(a)}</A>
+            </span>
+        ),
     },
     {
         header: "Type",

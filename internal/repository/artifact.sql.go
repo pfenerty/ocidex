@@ -337,6 +337,89 @@ func (q *Queries) GetArtifactIDByEntryNumber(ctx context.Context, arg GetArtifac
 	return id, err
 }
 
+const listArtifactCriticalHistory = `-- name: ListArtifactCriticalHistory :many
+WITH per_version AS (
+    SELECT DISTINCT ON (s.artifact_id, s.subject_version)
+        s.id, s.artifact_id, s.subject_version,
+        s.version_major, s.version_minor, s.version_patch, s.created_at
+    FROM sbom s
+    WHERE s.artifact_id = ANY($1::uuid[])
+      AND s.subject_version IS NOT NULL
+      AND s.namespace_id IN (SELECT visible_namespace_ids($2::uuid, $3::boolean))
+    ORDER BY s.artifact_id, s.subject_version, s.created_at DESC, s.id DESC
+),
+ranked AS (
+    SELECT pv.id, pv.artifact_id, pv.subject_version, pv.version_major, pv.version_minor, pv.version_patch, pv.created_at,
+           ROW_NUMBER() OVER (
+               PARTITION BY pv.artifact_id
+               ORDER BY pv.version_major DESC NULLS LAST,
+                        pv.version_minor DESC NULLS LAST,
+                        pv.version_patch DESC NULLS LAST,
+                        pv.created_at DESC, pv.id DESC
+           ) AS rn
+    FROM per_version pv
+)
+SELECT r.artifact_id,
+       r.subject_version::text AS version_key,
+       r.rn::bigint AS rank,
+       COALESCE(vr.critical, 0)::bigint AS critical,
+       (vr.sbom_id IS NOT NULL)::boolean AS scanned
+FROM ranked r
+LEFT JOIN sbom_vuln_rollup vr ON vr.sbom_id = r.id
+WHERE r.rn <= 12
+ORDER BY r.artifact_id, r.rn
+`
+
+type ListArtifactCriticalHistoryParams struct {
+	ArtifactIds []pgtype.UUID `json:"artifact_ids"`
+	UserID      pgtype.UUID   `json:"user_id"`
+	IsAdmin     pgtype.Bool   `json:"is_admin"`
+}
+
+type ListArtifactCriticalHistoryRow struct {
+	ArtifactID pgtype.UUID `json:"artifact_id"`
+	VersionKey string      `json:"version_key"`
+	Rank       int64       `json:"rank"`
+	Critical   int64       `json:"critical"`
+	Scanned    bool        `json:"scanned"`
+}
+
+// The newest versions of each listed artifact with their critical counts, for
+// the per-artifact sprite. Run for one page of artifacts at a time rather than
+// joined into ListArtifacts, which is already the heaviest list query.
+//
+// One row per version: the newest SBOM of each subject_version, ordered the way
+// ListArtifacts picks its latest version. Twelve rather than six, because the
+// client keeps only the newest version's variant ("-trixie") and a variant can
+// interleave with others. `scanned` is false when the rollup has no row, which
+// is "no findings" or "never scanned" indistinguishably (ADR-044); the client
+// leaves those as gaps rather than drawing them as zero.
+func (q *Queries) ListArtifactCriticalHistory(ctx context.Context, arg ListArtifactCriticalHistoryParams) ([]ListArtifactCriticalHistoryRow, error) {
+	rows, err := q.db.Query(ctx, listArtifactCriticalHistory, arg.ArtifactIds, arg.UserID, arg.IsAdmin)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	items := []ListArtifactCriticalHistoryRow{}
+	for rows.Next() {
+		var i ListArtifactCriticalHistoryRow
+		if err := rows.Scan(
+			&i.ArtifactID,
+			&i.VersionKey,
+			&i.Rank,
+			&i.Critical,
+			&i.Scanned,
+		); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
 const listArtifactNamespaceIDs = `-- name: ListArtifactNamespaceIDs :many
 SELECT an.namespace_id
 FROM artifact_namespace an

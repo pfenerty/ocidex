@@ -597,12 +597,23 @@ type ArtifactSummary struct {
 	// EntryNumber is the artifact's place in indexing order, shown as "№ 012".
 	// Never reused, so a deleted artifact leaves a gap.
 	EntryNumber int64 `json:"entryNumber" doc:"Sequential number in the order the artifact was first indexed. Never reused."`
+	// CriticalHistory is the newest versions' critical counts, newest first,
+	// for the list's per-artifact sprite. Set by ListArtifacts only.
+	CriticalHistory []VersionCritical `json:"criticalHistory,omitempty" doc:"Newest versions first, up to 12. List responses only."`
 
 	// Vulns is nil when the artifact's newest SBOM has no sbom_vuln_rollup
 	// row, which means "no known vulnerabilities" or "never scanned" without
 	// distinguishing them. Callers must render nil as unknown, never as a
 	// clean zero (ADR-044) — the same contract ArtifactVersion.Vulns carries.
 	Vulns *VulnSummary `json:"vulns,omitempty"`
+}
+
+// VersionCritical is one version's critical count. Critical is nil when the
+// version has no rollup row, which is "no findings" or "never scanned"
+// indistinguishably (ADR-044): render it as unknown, never as zero.
+type VersionCritical struct {
+	VersionKey string `json:"versionKey"`
+	Critical   *int64 `json:"critical,omitempty"`
 }
 
 // ArtifactDetail extends ArtifactSummary with full metadata.

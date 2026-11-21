@@ -141,6 +141,16 @@
             "format": "date-time",
             "type": "string"
           },
+          "criticalHistory": {
+            "description": "Newest versions first, up to 12. List responses only.",
+            "items": {
+              "$ref": "#/components/schemas/VersionCritical"
+            },
+            "type": [
+              "array",
+              "null"
+            ]
+          },
           "entryNumber": {
             "description": "Sequential number in the order the artifact was first indexed. Never reused.",
             "format": "int64",
@@ -249,6 +259,16 @@
       "ArtifactSummary": {
         "additionalProperties": false,
         "properties": {
+          "criticalHistory": {
+            "description": "Newest versions first, up to 12. List responses only.",
+            "items": {
+              "$ref": "#/components/schemas/VersionCritical"
+            },
+            "type": [
+              "array",
+              "null"
+            ]
+          },
           "entryNumber": {
             "description": "Sequential number in the order the artifact was first indexed. Never reused.",
             "format": "int64",
@@ -7303,6 +7323,22 @@
           "id",
           "displayName",
           "role"
+        ],
+        "type": "object"
+      },
+      "VersionCritical": {
+        "additionalProperties": false,
+        "properties": {
+          "critical": {
+            "format": "int64",
+            "type": "integer"
+          },
+          "versionKey": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "versionKey"
         ],
         "type": "object"
       },

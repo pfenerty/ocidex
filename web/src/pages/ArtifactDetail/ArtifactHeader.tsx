@@ -3,6 +3,8 @@ import { Show } from "solid-js";
 import { A } from "@solidjs/router";
 import type { ArtifactDetail } from "~/api/client";
 import PurlLink from "~/components/PurlLink";
+import { Sprite } from "~/components/Sprite";
+import type { SeverityPoint } from "~/utils/versionDelta";
 import CopyShareLink, { artifactLookupPath } from "~/components/CopyShareLink";
 import WatchStar from "~/components/WatchStar";
 import { Button, ButtonGroup, Card, DetailField, DetailGrid, EntryLine, PageHeader, TitleWithPrefix, TypeBadge } from "~/components/ui";
@@ -18,7 +20,7 @@ import { safeHref } from "~/utils/links";
  * and the one thing on the page that looked clickable for no visible reason.
  * The registry is an action now, beside Compare, which is the page's primary.
  */
-export function ArtifactHeader(props: { artifact: ArtifactDetail; breadcrumb?: JSX.Element }) {
+export function ArtifactHeader(props: { artifact: ArtifactDetail; breadcrumb?: JSX.Element; points?: SeverityPoint[] }) {
     const a = () => props.artifact;
     const registryPurl = () => {
         const purl = a().purl;
@@ -36,7 +38,16 @@ export function ArtifactHeader(props: { artifact: ArtifactDetail; breadcrumb?: J
                     <TypeBadge type={a().type} />
                 </>
             }
-            title={<TitleWithPrefix name={artifactDisplayName(a())} />}
+            title={
+                <span class="with-sprite">
+                    <Show when={props.points !== undefined && props.points.length > 0}>
+                        <Sprite points={props.points ?? []} size={34} class="sprite-title" />
+                    </Show>
+                    <span>
+                        <TitleWithPrefix name={artifactDisplayName(a())} />
+                    </span>
+                </span>
+            }
             actions={
                 <ButtonGroup>
                     <WatchStar artifactId={a().id} watched={a().watched} />

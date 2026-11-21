@@ -385,7 +385,50 @@ func (s *searchService) ListArtifacts(ctx context.Context, filter ArtifactFilter
 		})
 	}
 
+	if err := s.attachCriticalHistory(ctx, q, items, filter.Visibility); err != nil {
+		return CursorPage[ArtifactSummary]{}, err
+	}
+
 	return CursorPage[ArtifactSummary]{Data: items, HasMore: hasMore}, nil
+}
+
+// attachCriticalHistory fills CriticalHistory for one page of artifacts with a
+// single query, so the list's main query does not grow a second lateral.
+func (s *searchService) attachCriticalHistory(ctx context.Context, q *repository.Queries, items []ArtifactSummary, vis VisibilityFilter) error {
+	if len(items) == 0 {
+		return nil
+	}
+	ids := make([]pgtype.UUID, 0, len(items))
+	index := make(map[string]int, len(items))
+	for i, it := range items {
+		id, err := parseID(it.ID)
+		if err != nil {
+			return err
+		}
+		ids = append(ids, id)
+		index[it.ID] = i
+	}
+	rows, err := q.ListArtifactCriticalHistory(ctx, repository.ListArtifactCriticalHistoryParams{
+		ArtifactIds: ids,
+		UserID:      uuidOrNull(vis.UserID),
+		IsAdmin:     visAdminBool(vis),
+	})
+	if err != nil {
+		return fmt.Errorf("listing artifact critical history: %w", err)
+	}
+	for _, r := range rows {
+		i, ok := index[r.ArtifactID.String()]
+		if !ok {
+			continue
+		}
+		point := VersionCritical{VersionKey: r.VersionKey}
+		if r.Scanned {
+			c := r.Critical
+			point.Critical = &c
+		}
+		items[i].CriticalHistory = append(items[i].CriticalHistory, point)
+	}
+	return nil
 }
 
 // sortDirSign maps a direction onto the multiplier the ORDER BY in

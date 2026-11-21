@@ -246,6 +246,48 @@ ORDER BY
 -- rollup that a refresh pass rewrites under the reader's feet.
 LIMIT @row_limit OFFSET @row_offset;
 
+-- name: ListArtifactCriticalHistory :many
+-- The newest versions of each listed artifact with their critical counts, for
+-- the per-artifact sprite. Run for one page of artifacts at a time rather than
+-- joined into ListArtifacts, which is already the heaviest list query.
+--
+-- One row per version: the newest SBOM of each subject_version, ordered the way
+-- ListArtifacts picks its latest version. Twelve rather than six, because the
+-- client keeps only the newest version's variant ("-trixie") and a variant can
+-- interleave with others. `scanned` is false when the rollup has no row, which
+-- is "no findings" or "never scanned" indistinguishably (ADR-044); the client
+-- leaves those as gaps rather than drawing them as zero.
+WITH per_version AS (
+    SELECT DISTINCT ON (s.artifact_id, s.subject_version)
+        s.id, s.artifact_id, s.subject_version,
+        s.version_major, s.version_minor, s.version_patch, s.created_at
+    FROM sbom s
+    WHERE s.artifact_id = ANY(@artifact_ids::uuid[])
+      AND s.subject_version IS NOT NULL
+      AND s.namespace_id IN (SELECT visible_namespace_ids(sqlc.narg('user_id')::uuid, sqlc.narg('is_admin')::boolean))
+    ORDER BY s.artifact_id, s.subject_version, s.created_at DESC, s.id DESC
+),
+ranked AS (
+    SELECT pv.*,
+           ROW_NUMBER() OVER (
+               PARTITION BY pv.artifact_id
+               ORDER BY pv.version_major DESC NULLS LAST,
+                        pv.version_minor DESC NULLS LAST,
+                        pv.version_patch DESC NULLS LAST,
+                        pv.created_at DESC, pv.id DESC
+           ) AS rn
+    FROM per_version pv
+)
+SELECT r.artifact_id,
+       r.subject_version::text AS version_key,
+       r.rn::bigint AS rank,
+       COALESCE(vr.critical, 0)::bigint AS critical,
+       (vr.sbom_id IS NOT NULL)::boolean AS scanned
+FROM ranked r
+LEFT JOIN sbom_vuln_rollup vr ON vr.sbom_id = r.id
+WHERE r.rn <= 12
+ORDER BY r.artifact_id, r.rn;
+
 -- name: LookupArtifacts :many
 -- ADR-042 R3/R4: name-keyed resolver. Unlike ListArtifacts, `name` here is an
 -- exact key, not an ILIKE search — the resolver's contract is unique-or-409,

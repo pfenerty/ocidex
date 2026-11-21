@@ -1692,6 +1692,9 @@ type ArtifactDetail struct {
 	Cpe       *string   `json:"cpe,omitempty"`
 	CreatedAt time.Time `json:"createdAt"`
 
+	// CriticalHistory Newest versions first, up to 12. List responses only.
+	CriticalHistory *[]VersionCritical `json:"criticalHistory,omitempty"`
+
 	// EntryNumber Sequential number in the order the artifact was first indexed. Never reused.
 	EntryNumber         int64        `json:"entryNumber"`
 	Group               *string      `json:"group,omitempty"`
@@ -1725,6 +1728,9 @@ type ArtifactRelation struct {
 
 // ArtifactSummary defines model for ArtifactSummary.
 type ArtifactSummary struct {
+	// CriticalHistory Newest versions first, up to 12. List responses only.
+	CriticalHistory *[]VersionCritical `json:"criticalHistory,omitempty"`
+
 	// EntryNumber Sequential number in the order the artifact was first indexed. Never reused.
 	EntryNumber         int64        `json:"entryNumber"`
 	Group               *string      `json:"group,omitempty"`
@@ -4211,6 +4217,12 @@ type UserResponse struct {
 	DisplayName string `json:"displayName"`
 	Id          string `json:"id"`
 	Role        string `json:"role"`
+}
+
+// VersionCritical defines model for VersionCritical.
+type VersionCritical struct {
+	Critical   *int64 `json:"critical,omitempty"`
+	VersionKey string `json:"versionKey"`
 }
 
 // VersionOutputBody defines model for VersionOutputBody.

@@ -2027,6 +2027,8 @@ export interface components {
             cpe?: string;
             /** Format: date-time */
             createdAt: string;
+            /** @description Newest versions first, up to 12. List responses only. */
+            criticalHistory?: components["schemas"]["VersionCritical"][] | null;
             /**
              * Format: int64
              * @description Sequential number in the order the artifact was first indexed. Never reused.
@@ -2063,6 +2065,8 @@ export interface components {
             subjectVersion?: string;
         };
         ArtifactSummary: {
+            /** @description Newest versions first, up to 12. List responses only. */
+            criticalHistory?: components["schemas"]["VersionCritical"][] | null;
             /**
              * Format: int64
              * @description Sequential number in the order the artifact was first indexed. Never reused.
@@ -4744,6 +4748,11 @@ export interface components {
             displayName: string;
             id: string;
             role: string;
+        };
+        VersionCritical: {
+            /** Format: int64 */
+            critical?: number;
+            versionKey: string;
         };
         VersionOutputBody: {
             /**
