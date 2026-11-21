@@ -3,17 +3,17 @@ import { readFileSync, readdirSync, statSync } from "node:fs";
 import { join } from "node:path";
 
 /**
- * The red/blue split documented in index.css (ocidex-ag4q.11).
+ * The one-job-per-hue split documented in index.css.
  *
- *   red  (--color-brand)     identity only (the mark's LED)
- *   ink  (--color-ink)       the one primary action
- *   blue (--color-secondary) navigation and state
+ *   brand     (--color-brand)      the mark only
+ *   ink       (--color-ink)        the one primary action
+ *   secondary (--color-secondary)  navigation and state
+ *   severity  (--color-severity-*) findings, and nothing else
  *
- * Nothing in the type system or the linter can tell those apart, and the whole
- * failure mode this replaces was the two tokens drifting into interchangeable
- * use over 47 call sites. So the rule is asserted here: the specific places
- * that were wrong stay fixed, and any *new* red outside the allowed brand
- * surfaces fails the build rather than quietly re-blurring the split.
+ * Nothing in the type system or the linter can tell those apart, and the
+ * failure mode this guards against is tokens drifting into interchangeable
+ * use. So the rule is asserted here: any new use of the brand outside the
+ * mark, or of the brand for state, fails the build.
  */
 
 const SRC = __dirname;
@@ -70,9 +70,9 @@ describe("the primary action is ink, not brand red", () => {
     });
 });
 
-describe("navigation and state read blue", () => {
-    // Each of these shipped red, so red marked "where you are" with exactly the
-    // same colour as "this deletes something".
+describe("navigation and state use the secondary token", () => {
+    // Each of these once shipped brand red, so red marked "where you are" with
+    // exactly the same colour as "this deletes something".
     it.each([
         ["index.css", ".tab-bar button.active"],
         ["components/TileBand.css", ".tile.active"],

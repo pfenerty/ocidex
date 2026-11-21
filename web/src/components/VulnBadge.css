@@ -35,40 +35,31 @@
     font-weight: 400;
 }
 
-/* Shared de-escalating redscale — one definition, applied to both the
-   compact VulnCountBadges chip segments (.vuln-chip-n) and full-size
-   SeverityPill badges (.badge.badge-sm) across the app.
- *
- * Every step is mixed from --color-severity-critical, and none of them from
- * --color-danger. The two tokens look interchangeable and are not: danger
- * inverts between themes (a light salmon on dark, a deep red on light), so a
- * scale built on it silently inverted too. `.sev-high` was `#fff` on the dark
- * theme's #F06565 — 3.11:1, a failure on the second-most-urgent label in the
- * app — while the same rule measured 6.47 in light mode. severity-critical is
- * a deep red in *both* themes (ADR note at the token: severity is not brand),
- * so mixing toward white de-escalates in one direction only.
- *
- * Only the deepest step can carry white text; everything lighter carries ink,
- * which is also what makes the ladder readable at a glance. 0.85 rather than
- * 0.75 alpha because the 75% step measured 4.41:1 on the light theme's mix. */
+/* The shared severity ramp, applied to both the compact VulnCountBadges chip
+   segments (.vuln-chip-n) and full-size SeverityPill badges (.badge.badge-sm).
+
+   Every step is its own token with its own foreground, defined per theme in
+   index.css. They used to be mixed from the critical red toward white, which
+   only de-escalates in one direction and so only works while critical is a
+   deep red in both themes. contrastContract.test.ts measures each pairing. */
 .sev-critical {
     background: var(--color-severity-critical);
-    color: #fff;
+    color: var(--color-severity-critical-fg);
 }
 
 .sev-high {
-    background: color-mix(in srgb, var(--color-severity-critical) 75%, white 25%);
-    color: rgba(0, 0, 0, 0.85);
+    background: var(--color-severity-high);
+    color: var(--color-severity-high-fg);
 }
 
 .sev-medium {
-    background: color-mix(in srgb, var(--color-severity-critical) 50%, white 50%);
-    color: rgba(0, 0, 0, 0.85);
+    background: var(--color-severity-medium);
+    color: var(--color-severity-medium-fg);
 }
 
 .sev-low {
-    background: color-mix(in srgb, var(--color-severity-critical) 25%, white 75%);
-    color: rgba(0, 0, 0, 0.85);
+    background: var(--color-severity-low);
+    color: var(--color-severity-low-fg);
 }
 
 .sev-default {

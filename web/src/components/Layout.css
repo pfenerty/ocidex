@@ -9,6 +9,7 @@
        colour, never a link and never mono (ocidex-iz0r.6). The red underline
        stub that used to follow it is gone: brand red is the mark's alone. */
     font-family: var(--font-display);
+    font-stretch: var(--font-display-stretch);
     font-size: var(--text-3xl);
     font-weight: 700;
     letter-spacing: -0.02em;
@@ -80,10 +81,12 @@
 /* Brand display font */
 .brand {
     font-family: var(--font-display);
+    font-stretch: var(--font-display-stretch);
 }
 
 .entry-number {
     font-family: var(--font-display);
+    font-stretch: var(--font-display-stretch);
     font-size: 0.75rem;
     font-weight: 500;
     color: var(--color-text-muted);

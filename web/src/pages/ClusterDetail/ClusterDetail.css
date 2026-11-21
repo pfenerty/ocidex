@@ -354,7 +354,7 @@
 
 /* Cluster list (ocidex-70eo.7). */
 .sev-critical-text {
-    color: var(--color-danger);
+    color: var(--color-severity-critical);
     font-weight: 600;
 }
 
