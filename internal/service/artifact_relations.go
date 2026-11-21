@@ -67,7 +67,11 @@ type ArtifactRelation struct {
 //
 // CurrentVersion on every returned relation is the SUBJECT's current version,
 // so IsCurrent answers "does this container ship the current build of me?".
-func (s *searchService) GetArtifactUsages(ctx context.Context, artifactID pgtype.UUID, vis VisibilityFilter) ([]ArtifactRelation, error) {
+func (s *searchService) GetArtifactUsages(ctx context.Context, artifactIDStr string, vis VisibilityFilter) ([]ArtifactRelation, error) {
+	artifactID, err := parseID(artifactIDStr)
+	if err != nil {
+		return nil, err
+	}
 	q := repository.New(s.db)
 
 	subject, err := s.visibleArtifact(ctx, q, artifactID, vis)
@@ -144,7 +148,11 @@ func (s *searchService) GetArtifactUsages(ctx context.Context, artifactID pgtype
 //
 // CurrentVersion here is each MATCHED artifact's own current version, so
 // IsCurrent answers "does this container carry the current build of that?".
-func (s *searchService) GetArtifactContains(ctx context.Context, artifactID pgtype.UUID, vis VisibilityFilter) ([]ArtifactRelation, error) {
+func (s *searchService) GetArtifactContains(ctx context.Context, artifactIDStr string, vis VisibilityFilter) ([]ArtifactRelation, error) {
+	artifactID, err := parseID(artifactIDStr)
+	if err != nil {
+		return nil, err
+	}
 	q := repository.New(s.db)
 
 	if _, err := s.visibleArtifact(ctx, q, artifactID, vis); err != nil {

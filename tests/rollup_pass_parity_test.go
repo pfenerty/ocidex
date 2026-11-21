@@ -31,7 +31,7 @@ func TestRollupPassWritesExactlyWhatEachAggregateDefines(t *testing.T) {
 	is := is.New(t)
 
 	ownerID := seedUser(t, pool, 8406, "slim-owner", "member")
-	ownerKey, err := authSvc.CreateAPIKey(t.Context(), ownerID, "slim-owner", nil)
+	ownerKey, err := authSvc.CreateAPIKey(t.Context(), ownerID.String(), "slim-owner", nil)
 	is.NoErr(err)
 	publicSrc := discoverNS(t, pool, "slim-public", ownerID, "public")
 	privateSrc := discoverNS(t, pool, "slim-private", ownerID, "private")

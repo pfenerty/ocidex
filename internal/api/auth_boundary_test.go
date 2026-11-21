@@ -56,23 +56,23 @@ func (f *configFakeAuthService) ListUsers(_ context.Context) ([]service.AuthUser
 	return f.listUsersOut, nil
 }
 
-func (f *configFakeAuthService) UpdateUserRole(_ context.Context, _ pgtype.UUID, _ string) (service.AuthUser, error) {
+func (f *configFakeAuthService) UpdateUserRole(_ context.Context, _ string, _ string) (service.AuthUser, error) {
 	return f.updateRoleOut, nil
 }
 
-func (f *configFakeAuthService) CreateAPIKey(_ context.Context, _ pgtype.UUID, _ string, _ []authz.Capability) (string, error) {
+func (f *configFakeAuthService) CreateAPIKey(_ context.Context, _ string, _ string, _ []authz.Capability) (string, error) {
 	return f.createKeyOut, nil
 }
 
-func (f *configFakeAuthService) CreateExpiringAPIKey(_ context.Context, _ pgtype.UUID, _ string, _ []authz.Capability, _ time.Time) (string, error) {
+func (f *configFakeAuthService) CreateExpiringAPIKey(_ context.Context, _ string, _ string, _ []authz.Capability, _ time.Time) (string, error) {
 	return f.createKeyOut, nil
 }
 
-func (f *configFakeAuthService) ListAPIKeys(_ context.Context, _ pgtype.UUID) ([]service.APIKeyMeta, error) {
+func (f *configFakeAuthService) ListAPIKeys(_ context.Context, _ string) ([]service.APIKeyMeta, error) {
 	return f.listKeysOut, nil
 }
 
-func (f *configFakeAuthService) DeleteAPIKey(_ context.Context, _ pgtype.UUID, _ pgtype.UUID) error {
+func (f *configFakeAuthService) DeleteAPIKey(_ context.Context, _ string, _ string) error {
 	return nil
 }
 

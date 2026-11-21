@@ -83,7 +83,7 @@ func (h *Handler) LookupArtifact(ctx context.Context, input *LookupArtifactInput
 		return nil, newLookupConflict("artifact", candidates)
 	}
 
-	id, err := parseUUID(candidates[0].ID)
+	id, err := requireUUID(candidates[0].ID)
 	if err != nil {
 		return nil, err
 	}
@@ -142,7 +142,7 @@ func (h *Handler) LookupSBOM(ctx context.Context, input *LookupSBOMInput) (*GetS
 		return nil, newLookupConflict("sbom", candidates)
 	}
 
-	id, err := parseUUID(candidates[0].ID)
+	id, err := requireUUID(candidates[0].ID)
 	if err != nil {
 		return nil, err
 	}

@@ -113,10 +113,10 @@ func TestCrossTenantDenialIsNotFound(t *testing.T) {
 	ctx := t.Context()
 
 	ownerID := seedUser(t, pool, 7601, "devowner", "member")
-	ownerKey, err := authSvc.CreateAPIKey(ctx, ownerID, "devowner", nil)
+	ownerKey, err := authSvc.CreateAPIKey(ctx, ownerID.String(), "devowner", nil)
 	is.NoErr(err)
 	outsiderID := seedUser(t, pool, 7602, "devoutsider", "member")
-	outsiderKey, err := authSvc.CreateAPIKey(ctx, outsiderID, "devoutsider", nil)
+	outsiderKey, err := authSvc.CreateAPIKey(ctx, outsiderID.String(), "devoutsider", nil)
 	is.NoErr(err)
 
 	// devowner's tenant. Its artifact is docker.io/alpine, which the outsider

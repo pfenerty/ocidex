@@ -155,7 +155,7 @@ func TestCommandArtifactsMatchTheirImageByBinaryPath(t *testing.T) {
 	is := is.New(t)
 
 	ownerID := seedUser(t, pool, 7601, "cmd-owner", "member")
-	ownerKey, err := authSvc.CreateAPIKey(t.Context(), ownerID, "owner", nil)
+	ownerKey, err := authSvc.CreateAPIKey(t.Context(), ownerID.String(), "owner", nil)
 	is.NoErr(err)
 
 	nsID := seedNamespace(t, pool, "cmd-ns", ownerID, "public")
@@ -215,7 +215,7 @@ func TestCommandMatchRequiresARecordedBinaryPath(t *testing.T) {
 	is := is.New(t)
 
 	ownerID := seedUser(t, pool, 7602, "nopath-owner", "member")
-	ownerKey, err := authSvc.CreateAPIKey(t.Context(), ownerID, "owner", nil)
+	ownerKey, err := authSvc.CreateAPIKey(t.Context(), ownerID.String(), "owner", nil)
 	is.NoErr(err)
 
 	nsID := seedNamespace(t, pool, "nopath-ns", ownerID, "public")

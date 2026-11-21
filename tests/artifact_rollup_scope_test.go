@@ -120,7 +120,7 @@ func TestArtifactRollupVulns_LatestVersionNotLatestIngest(t *testing.T) {
 	is := is.New(t)
 
 	memberID := seedUser(t, pool, 8401, "rollup-scope-member", "member")
-	memberKey, err := authSvc.CreateAPIKey(t.Context(), memberID, "rollup-scope", nil)
+	memberKey, err := authSvc.CreateAPIKey(t.Context(), memberID.String(), "rollup-scope", nil)
 	is.NoErr(err)
 	path := ingestPath(t, pool, memberID)
 
@@ -194,7 +194,7 @@ func TestArtifactRollupSigningStatus_FailureBeatsVerified(t *testing.T) {
 	is := is.New(t)
 
 	memberID := seedUser(t, pool, 8402, "signing-ladder-member", "member")
-	memberKey, err := authSvc.CreateAPIKey(t.Context(), memberID, "signing-ladder", nil)
+	memberKey, err := authSvc.CreateAPIKey(t.Context(), memberID.String(), "signing-ladder", nil)
 	is.NoErr(err)
 	path := ingestPath(t, pool, memberID)
 
@@ -252,7 +252,7 @@ func TestArtifactRollupSigningStatus_UncheckedBeatsVerified(t *testing.T) {
 	is := is.New(t)
 
 	memberID := seedUser(t, pool, 8403, "signing-unchecked-member", "member")
-	memberKey, err := authSvc.CreateAPIKey(t.Context(), memberID, "signing-unchecked", nil)
+	memberKey, err := authSvc.CreateAPIKey(t.Context(), memberID.String(), "signing-unchecked", nil)
 	is.NoErr(err)
 	path := ingestPath(t, pool, memberID)
 

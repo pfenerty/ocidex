@@ -94,7 +94,7 @@ func (h *Handler) DevMintSession(ctx context.Context, in *DevSessionInput) (*Dev
 		return nil, huma.Error404NotFound("no seeded user named " + in.Body.Username)
 	}
 
-	token, err := h.logins.CreateSession(ctx, user.ID)
+	token, err := h.logins.CreateSession(ctx, user.ID.String())
 	if err != nil {
 		return nil, huma.Error500InternalServerError("creating session")
 	}

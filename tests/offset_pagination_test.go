@@ -108,7 +108,7 @@ func TestOffsetPaginationReturnsEveryTiedRowOnce(t *testing.T) {
 	is := is.New(t)
 
 	ownerID := seedUser(t, pool, 8405, "tied-owner", "member")
-	ownerKey, err := authSvc.CreateAPIKey(t.Context(), ownerID, "tied-owner", nil)
+	ownerKey, err := authSvc.CreateAPIKey(t.Context(), ownerID.String(), "tied-owner", nil)
 	is.NoErr(err)
 	src := discoverNS(t, pool, "tied-public", ownerID, "public")
 	ingestInto(t, srv.URL, src, tiedSBOM(), ownerKey)

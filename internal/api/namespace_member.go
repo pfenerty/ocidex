@@ -43,7 +43,7 @@ func (h *Handler) SetNamespaceMember(ctx context.Context, in *SetNamespaceMember
 		return nil, huma.Error403Forbidden("cannot grant a role you do not hold")
 	}
 
-	target, err := parseUUID(in.UserID)
+	target, err := requireUUID(in.UserID)
 	if err != nil {
 		return nil, err
 	}

@@ -30,11 +30,11 @@ func (f *fakeSBOMService) Ingest(_ context.Context, _ *cdx.BOM, _ []byte, _ serv
 	}, nil
 }
 
-func (f *fakeSBOMService) DeleteSBOM(_ context.Context, _ pgtype.UUID) error {
+func (f *fakeSBOMService) DeleteSBOM(_ context.Context, _ string) error {
 	return nil
 }
 
-func (f *fakeSBOMService) DeleteArtifact(_ context.Context, _ pgtype.UUID) error {
+func (f *fakeSBOMService) DeleteArtifact(_ context.Context, _ string) error {
 	return nil
 }
 
@@ -42,28 +42,24 @@ func (f *fakeSBOMService) ListDigestsBySource(_ context.Context, _ string) (map[
 	return nil, nil
 }
 
-func (f *fakeSBOMService) GetSBOMNamespaceID(_ context.Context, _ pgtype.UUID) (pgtype.UUID, error) {
+func (f *fakeSBOMService) GetSBOMNamespaceID(_ context.Context, _ string) (string, error) {
 	return f.namespace()
 }
 
-func (f *fakeSBOMService) DeleteArtifactFromNamespaces(_ context.Context, _ pgtype.UUID, _ []pgtype.UUID) error {
+func (f *fakeSBOMService) DeleteArtifactFromNamespaces(_ context.Context, _ string, _ []string) error {
 	return nil
 }
 
-func (f *fakeSBOMService) ListArtifactNamespaceIDs(_ context.Context, _ pgtype.UUID) ([]pgtype.UUID, error) {
+func (f *fakeSBOMService) ListArtifactNamespaceIDs(_ context.Context, _ string) ([]string, error) {
 	if f.namespaceID == "" {
 		return nil, nil
 	}
 	id, err := f.namespace()
-	return []pgtype.UUID{id}, err
+	return []string{id}, err
 }
 
-func (f *fakeSBOMService) namespace() (pgtype.UUID, error) {
-	var id pgtype.UUID
-	if f.namespaceID == "" {
-		return id, nil
-	}
-	return id, id.Scan(f.namespaceID)
+func (f *fakeSBOMService) namespace() (string, error) {
+	return f.namespaceID, nil
 }
 
 // failSBOMService is a stub that always returns an error.
@@ -73,11 +69,11 @@ func (f *failSBOMService) Ingest(_ context.Context, _ *cdx.BOM, _ []byte, _ serv
 	return pgtype.UUID{}, errors.New("database unavailable")
 }
 
-func (f *failSBOMService) DeleteSBOM(_ context.Context, _ pgtype.UUID) error {
+func (f *failSBOMService) DeleteSBOM(_ context.Context, _ string) error {
 	return errors.New("database unavailable")
 }
 
-func (f *failSBOMService) DeleteArtifact(_ context.Context, _ pgtype.UUID) error {
+func (f *failSBOMService) DeleteArtifact(_ context.Context, _ string) error {
 	return errors.New("database unavailable")
 }
 
@@ -85,15 +81,15 @@ func (f *failSBOMService) ListDigestsBySource(_ context.Context, _ string) (map[
 	return nil, errors.New("database unavailable")
 }
 
-func (f *failSBOMService) GetSBOMNamespaceID(_ context.Context, _ pgtype.UUID) (pgtype.UUID, error) {
-	return pgtype.UUID{}, errors.New("database unavailable")
+func (f *failSBOMService) GetSBOMNamespaceID(_ context.Context, _ string) (string, error) {
+	return "", errors.New("database unavailable")
 }
 
-func (f *failSBOMService) DeleteArtifactFromNamespaces(_ context.Context, _ pgtype.UUID, _ []pgtype.UUID) error {
+func (f *failSBOMService) DeleteArtifactFromNamespaces(_ context.Context, _ string, _ []string) error {
 	return errors.New("database unavailable")
 }
 
-func (f *failSBOMService) ListArtifactNamespaceIDs(_ context.Context, _ pgtype.UUID) ([]pgtype.UUID, error) {
+func (f *failSBOMService) ListArtifactNamespaceIDs(_ context.Context, _ string) ([]string, error) {
 	return nil, errors.New("database unavailable")
 }
 
@@ -257,7 +253,7 @@ func (f *fakeClusterService) Connect(_ context.Context, _ service.ConnectCluster
 	return f.cluster(), service.ClusterCredential{}, nil
 }
 
-func (f *fakeClusterService) CreateCredential(_ context.Context, _ string, _ pgtype.UUID, _ string) (service.ClusterCredential, error) {
+func (f *fakeClusterService) CreateCredential(_ context.Context, _ string, _ string, _ string) (service.ClusterCredential, error) {
 	return service.ClusterCredential{}, nil
 }
 
@@ -267,7 +263,7 @@ func (f *fakeClusterService) ListCredentials(_ context.Context, _ string) ([]ser
 
 func (f *fakeClusterService) RevokeCredential(_ context.Context, _, _ string) error { return nil }
 
-func (f *fakeClusterService) RotateCredential(_ context.Context, _, _ string, _ pgtype.UUID) (service.ClusterCredential, error) {
+func (f *fakeClusterService) RotateCredential(_ context.Context, _ string, _ string, _ string) (service.ClusterCredential, error) {
 	return service.ClusterCredential{}, nil
 }
 

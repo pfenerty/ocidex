@@ -38,9 +38,9 @@ func (f *sessionAuthService) ListUsers(_ context.Context) ([]service.AuthUser, e
 	return f.roster, nil
 }
 
-func (f *sessionAuthService) CreateSession(_ context.Context, userID pgtype.UUID) (string, error) {
+func (f *sessionAuthService) CreateSession(_ context.Context, userID string) (string, error) {
 	for _, u := range f.roster {
-		if u.ID == userID {
+		if u.ID.String() == userID {
 			f.minted++
 			token := "session-" + u.DisplayName
 			f.sessions[token] = u

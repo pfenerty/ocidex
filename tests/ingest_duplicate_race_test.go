@@ -38,7 +38,7 @@ func TestConcurrentDuplicateIngestIsIdempotent(t *testing.T) {
 			bom, raw := licenseOrderSBOM(t, 9000+r, []string{"MIT"})
 			wg.Go(func() {
 				id, err := svc.Ingest(t.Context(), bom, raw, service.IngestParams{
-					SourceID: source, Architecture: "amd64", BuildDate: "2026-01-01T00:00:00Z",
+					SourceID: source.String(), Architecture: "amd64", BuildDate: "2026-01-01T00:00:00Z",
 				})
 				if err != nil {
 					errs <- err

@@ -27,7 +27,7 @@ func TestRegistryNamespaceMove(t *testing.T) {
 	is := is.New(t)
 
 	owner := seedUser(t, pool, 9301, "move-owner", "member")
-	ownerKey, err := authSvc.CreateAPIKey(t.Context(), owner, "move", nil)
+	ownerKey, err := authSvc.CreateAPIKey(t.Context(), owner.String(), "move", nil)
 	is.NoErr(err)
 
 	fromNS := seedNamespace(t, pool, "move-from", owner, "public")

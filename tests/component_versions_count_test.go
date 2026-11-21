@@ -105,7 +105,7 @@ func TestComponentVersionCountsRespectFiltersAndVisibility(t *testing.T) {
 	is := is.New(t)
 
 	ownerID := seedUser(t, pool, 8404, "count-owner", "member")
-	ownerKey, err := authSvc.CreateAPIKey(t.Context(), ownerID, "count-owner", nil)
+	ownerKey, err := authSvc.CreateAPIKey(t.Context(), ownerID.String(), "count-owner", nil)
 	is.NoErr(err)
 
 	publicSrc := discoverNS(t, pool, "count-public", ownerID, "public")

@@ -96,7 +96,7 @@ func (h *Handler) ListComponentPurlTypes(ctx context.Context, _ *struct{}) (*Lis
 
 // ListSBOMComponents handles GET /api/v1/sbom/{id}/components.
 func (h *Handler) ListSBOMComponents(ctx context.Context, input *ListSBOMComponentsInput) (*ListSBOMComponentsOutput, error) {
-	id, err := parseUUID(input.ID)
+	id, err := requireUUID(input.ID)
 	if err != nil {
 		return nil, err
 	}
@@ -163,7 +163,7 @@ const componentSortSeverity = "severity"
 // ListSBOMVulns handles GET /api/v1/sboms/{id}/vulns: the vulnerability list
 // the SBOM page's tile finally has somewhere to send a reader to.
 func (h *Handler) ListSBOMVulns(ctx context.Context, in *ListSBOMVulnsInput) (*ListSBOMVulnsOutput, error) {
-	id, err := parseUUID(in.ID)
+	id, err := requireUUID(in.ID)
 	if err != nil {
 		return nil, err
 	}
@@ -218,7 +218,7 @@ func (h *Handler) ListSBOMs(ctx context.Context, input *ListSBOMsInput) (*ListSB
 
 // GetSBOMDependencies handles GET /api/v1/sbom/{id}/dependencies.
 func (h *Handler) GetSBOMDependencies(ctx context.Context, input *GetSBOMDependenciesInput) (*GetSBOMDependenciesOutput, error) {
-	id, err := parseUUID(input.ID)
+	id, err := requireUUID(input.ID)
 	if err != nil {
 		return nil, err
 	}
@@ -236,7 +236,7 @@ func (h *Handler) GetSBOMDependencies(ctx context.Context, input *GetSBOMDepende
 
 // GetSBOM handles GET /api/v1/sbom/{id}.
 func (h *Handler) GetSBOM(ctx context.Context, input *GetSBOMInput) (*GetSBOMOutput, error) {
-	id, err := parseUUID(input.ID)
+	id, err := requireUUID(input.ID)
 	if err != nil {
 		return nil, err
 	}
@@ -256,7 +256,7 @@ func (h *Handler) GetSBOM(ctx context.Context, input *GetSBOMInput) (*GetSBOMOut
 
 // ListSBOMDriftHistory handles GET /api/v1/sboms/{id}/drift.
 func (h *Handler) ListSBOMDriftHistory(ctx context.Context, in *ListSBOMDriftHistoryInput) (*ListSBOMDriftHistoryOutput, error) {
-	id, err := parseUUID(in.ID)
+	id, err := requireUUID(in.ID)
 	if err != nil {
 		return nil, err
 	}
@@ -316,7 +316,7 @@ func (h *Handler) SearchComponents(ctx context.Context, input *SearchComponentsI
 
 // GetComponent handles GET /api/v1/components/{id}.
 func (h *Handler) GetComponent(ctx context.Context, input *GetComponentInput) (*GetComponentOutput, error) {
-	id, err := parseUUID(input.ID)
+	id, err := requireUUID(input.ID)
 	if err != nil {
 		return nil, err
 	}
@@ -334,7 +334,7 @@ func (h *Handler) GetComponent(ctx context.Context, input *GetComponentInput) (*
 
 // GetComponentVulns handles GET /api/v1/components/{id}/vulns.
 func (h *Handler) GetComponentVulns(ctx context.Context, input *GetComponentVulnsInput) (*GetComponentVulnsOutput, error) {
-	id, err := parseUUID(input.ID)
+	id, err := requireUUID(input.ID)
 	if err != nil {
 		return nil, err
 	}
@@ -373,7 +373,7 @@ func (h *Handler) ListLicenses(ctx context.Context, input *ListLicensesInput) (*
 
 // ListComponentsByLicense handles GET /api/v1/licenses/{id}/components.
 func (h *Handler) ListComponentsByLicense(ctx context.Context, input *ListComponentsByLicenseInput) (*ListComponentsByLicenseOutput, error) {
-	id, err := parseUUID(input.ID)
+	id, err := requireUUID(input.ID)
 	if err != nil {
 		return nil, err
 	}
@@ -487,7 +487,7 @@ const artifactSortSeverity = "severity"
 
 // GetArtifact handles GET /api/v1/artifacts/{id}.
 func (h *Handler) GetArtifact(ctx context.Context, input *GetArtifactInput) (*GetArtifactOutput, error) {
-	id, err := parseUUID(input.ID)
+	id, err := requireUUID(input.ID)
 	if err != nil {
 		return nil, err
 	}
@@ -505,7 +505,7 @@ func (h *Handler) GetArtifact(ctx context.Context, input *GetArtifactInput) (*Ge
 
 // ListArtifactSBOMs handles GET /api/v1/artifacts/{id}/sboms.
 func (h *Handler) ListArtifactSBOMs(ctx context.Context, input *ListArtifactSBOMsInput) (*ListArtifactSBOMsOutput, error) {
-	id, err := parseUUID(input.ID)
+	id, err := requireUUID(input.ID)
 	if err != nil {
 		return nil, err
 	}
@@ -537,7 +537,7 @@ func (h *Handler) ListArtifactSBOMs(ctx context.Context, input *ListArtifactSBOM
 
 // ListArtifactVersions handles GET /api/v1/artifacts/{id}/versions.
 func (h *Handler) ListArtifactVersions(ctx context.Context, input *ListArtifactVersionsInput) (*ListArtifactVersionsOutput, error) {
-	id, err := parseUUID(input.ID)
+	id, err := requireUUID(input.ID)
 	if err != nil {
 		return nil, err
 	}
@@ -576,12 +576,12 @@ func (h *Handler) ListArtifactVersions(ctx context.Context, input *ListArtifactV
 
 // DiffSBOMs handles GET /api/v1/sboms/diff?from={id}&to={id}.
 func (h *Handler) DiffSBOMs(ctx context.Context, input *DiffSBOMsInput) (*DiffSBOMsOutput, error) {
-	fromID, err := parseUUID(input.From)
+	fromID, err := requireUUID(input.From)
 	if err != nil {
 		return nil, err
 	}
 
-	toID, err := parseUUID(input.To)
+	toID, err := requireUUID(input.To)
 	if err != nil {
 		return nil, err
 	}
@@ -599,11 +599,11 @@ func (h *Handler) DiffSBOMs(ctx context.Context, input *DiffSBOMsInput) (*DiffSB
 
 // GetDiffTree handles GET /api/v1/sboms/diff-tree?from={id}&to={id}.
 func (h *Handler) GetDiffTree(ctx context.Context, input *DiffTreeInput) (*DiffTreeOutput, error) {
-	fromID, err := parseUUID(input.From)
+	fromID, err := requireUUID(input.From)
 	if err != nil {
 		return nil, err
 	}
-	toID, err := parseUUID(input.To)
+	toID, err := requireUUID(input.To)
 	if err != nil {
 		return nil, err
 	}
@@ -621,7 +621,7 @@ func (h *Handler) GetDiffTree(ctx context.Context, input *DiffTreeInput) (*DiffT
 
 // GetArtifactLicenseSummary handles GET /api/v1/artifacts/{id}/license-summary.
 func (h *Handler) GetArtifactLicenseSummary(ctx context.Context, input *GetArtifactLicenseSummaryInput) (*GetArtifactLicenseSummaryOutput, error) {
-	id, err := parseUUID(input.ID)
+	id, err := requireUUID(input.ID)
 	if err != nil {
 		return nil, err
 	}
@@ -642,7 +642,7 @@ func (h *Handler) GetArtifactLicenseSummary(ctx context.Context, input *GetArtif
 
 // GetArtifactVulnSummary handles GET /api/v1/artifacts/{id}/vuln-summary.
 func (h *Handler) GetArtifactVulnSummary(ctx context.Context, input *GetArtifactVulnSummaryInput) (*GetArtifactVulnSummaryOutput, error) {
-	id, err := parseUUID(input.ID)
+	id, err := requireUUID(input.ID)
 	if err != nil {
 		return nil, err
 	}
@@ -661,7 +661,7 @@ func (h *Handler) GetArtifactVulnSummary(ctx context.Context, input *GetArtifact
 
 // GetArtifactUsages handles GET /api/v1/artifacts/{id}/usages.
 func (h *Handler) GetArtifactUsages(ctx context.Context, input *GetArtifactUsagesInput) (*GetArtifactUsagesOutput, error) {
-	id, err := parseUUID(input.ID)
+	id, err := requireUUID(input.ID)
 	if err != nil {
 		return nil, err
 	}
@@ -679,7 +679,7 @@ func (h *Handler) GetArtifactUsages(ctx context.Context, input *GetArtifactUsage
 
 // GetArtifactContains handles GET /api/v1/artifacts/{id}/contains.
 func (h *Handler) GetArtifactContains(ctx context.Context, input *GetArtifactContainsInput) (*GetArtifactContainsOutput, error) {
-	id, err := parseUUID(input.ID)
+	id, err := requireUUID(input.ID)
 	if err != nil {
 		return nil, err
 	}
@@ -857,7 +857,7 @@ func (h *Handler) GetVulnerability(ctx context.Context, input *GetVulnerabilityI
 
 // GetArtifactChangelog handles GET /api/v1/artifacts/{id}/changelog.
 func (h *Handler) GetArtifactChangelog(ctx context.Context, input *GetArtifactChangelogInput) (*GetArtifactChangelogOutput, error) {
-	id, err := parseUUID(input.ID)
+	id, err := requireUUID(input.ID)
 	if err != nil {
 		return nil, err
 	}
@@ -884,7 +884,7 @@ func (h *Handler) GetArtifactChangelog(ctx context.Context, input *GetArtifactCh
 // vulnerability list, scoped to the newest SBOM per version so it can answer
 // which versions carry a finding.
 func (h *Handler) ListArtifactVulns(ctx context.Context, in *ListArtifactVulnsInput) (*ListArtifactVulnsOutput, error) {
-	id, err := parseUUID(in.ID)
+	id, err := requireUUID(in.ID)
 	if err != nil {
 		return nil, err
 	}

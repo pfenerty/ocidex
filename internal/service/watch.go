@@ -27,15 +27,15 @@ type WatchService interface {
 	// Watch records a watch. It is idempotent, so an optimistic UI toggle can
 	// replay a click without erroring. It returns ErrNotFound when the
 	// artifact does not exist or is not visible to the caller.
-	Watch(ctx context.Context, userID pgtype.UUID, artifactID string, vis VisibilityFilter) error
+	Watch(ctx context.Context, userID string, artifactID string, vis VisibilityFilter) error
 	// Unwatch removes a watch. Removing one that is not there is not an error,
 	// for the same idempotency reason.
-	Unwatch(ctx context.Context, userID pgtype.UUID, artifactID string) error
+	Unwatch(ctx context.Context, userID string, artifactID string) error
 	// List returns the caller's watches, newest first.
-	List(ctx context.Context, userID pgtype.UUID, page FeedPage) (CursorPage[WatchEntry], error)
+	List(ctx context.Context, userID string, page FeedPage) (CursorPage[WatchEntry], error)
 	// Feed returns changes to the caller's watched artifacts, newest first.
 	// Unlike List, it does apply vis — see the WatchEvent doc comment.
-	Feed(ctx context.Context, userID pgtype.UUID, vis VisibilityFilter, page FeedPage) (CursorPage[WatchEvent], error)
+	Feed(ctx context.Context, userID string, vis VisibilityFilter, page FeedPage) (CursorPage[WatchEvent], error)
 }
 
 // WatchEvent is one change to a watched artifact (ocidex-998g.4).
@@ -100,7 +100,11 @@ func NewWatchService(pool *pgxpool.Pool) WatchService {
 	return &watchService{repo: repository.New(pool)}
 }
 
-func (s *watchService) Watch(ctx context.Context, userID pgtype.UUID, artifactID string, vis VisibilityFilter) error {
+func (s *watchService) Watch(ctx context.Context, userIDStr string, artifactID string, vis VisibilityFilter) error {
+	userID, err := parseID(userIDStr)
+	if err != nil {
+		return err
+	}
 	id := uuidOrNull(artifactID)
 	if !id.Valid || !userID.Valid {
 		return ErrNotFound
@@ -130,7 +134,11 @@ func (s *watchService) Watch(ctx context.Context, userID pgtype.UUID, artifactID
 	return nil
 }
 
-func (s *watchService) Unwatch(ctx context.Context, userID pgtype.UUID, artifactID string) error {
+func (s *watchService) Unwatch(ctx context.Context, userIDStr string, artifactID string) error {
+	userID, err := parseID(userIDStr)
+	if err != nil {
+		return err
+	}
 	// Nothing could have been watched under an unparseable id, and the caller
 	// asked for it to be gone. It is.
 	id := uuidOrNull(artifactID)
@@ -146,7 +154,11 @@ func (s *watchService) Unwatch(ctx context.Context, userID pgtype.UUID, artifact
 	return nil
 }
 
-func (s *watchService) List(ctx context.Context, userID pgtype.UUID, page FeedPage) (CursorPage[WatchEntry], error) {
+func (s *watchService) List(ctx context.Context, userIDStr string, page FeedPage) (CursorPage[WatchEntry], error) {
+	userID, err := parseID(userIDStr)
+	if err != nil {
+		return CursorPage[WatchEntry]{}, err
+	}
 	if !userID.Valid {
 		return CursorPage[WatchEntry]{Data: []WatchEntry{}}, nil
 	}
@@ -183,7 +195,11 @@ func (s *watchService) List(ctx context.Context, userID pgtype.UUID, page FeedPa
 	return CursorPage[WatchEntry]{Data: items, HasMore: hasMore}, nil
 }
 
-func (s *watchService) Feed(ctx context.Context, userID pgtype.UUID, vis VisibilityFilter, page FeedPage) (CursorPage[WatchEvent], error) {
+func (s *watchService) Feed(ctx context.Context, userIDStr string, vis VisibilityFilter, page FeedPage) (CursorPage[WatchEvent], error) {
+	userID, err := parseID(userIDStr)
+	if err != nil {
+		return CursorPage[WatchEvent]{}, err
+	}
 	if !userID.Valid {
 		return CursorPage[WatchEvent]{Data: []WatchEvent{}}, nil
 	}

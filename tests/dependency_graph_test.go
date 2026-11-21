@@ -30,7 +30,7 @@ func TestDependencyGraphEndpoint(t *testing.T) {
 	is := is.New(t)
 
 	memberID := seedUser(t, pool, 9101, "dep-graph-member", "member")
-	memberKey, err := authSvc.CreateAPIKey(t.Context(), memberID, "dep-graph-test", nil)
+	memberKey, err := authSvc.CreateAPIKey(t.Context(), memberID.String(), "dep-graph-test", nil)
 	is.NoErr(err)
 
 	resp, err := doWithAuth(t, http.MethodPost, srv.URL+ingestPath(t, pool, memberID), diffTreeFromSBOM, memberKey)

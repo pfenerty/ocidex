@@ -7,7 +7,6 @@ import (
 	"log/slog"
 
 	"github.com/danielgtaylor/huma/v2"
-	"github.com/jackc/pgx/v5/pgtype"
 
 	"github.com/pfenerty/ocidex/internal/service"
 	"github.com/pfenerty/ocidex/internal/uuidx"
@@ -42,12 +41,14 @@ func mapServiceError(err error) error {
 	return huma.Error500InternalServerError("internal error")
 }
 
-// parseUUID parses a request's UUID with uuidx.Parse, answering 400 when it
-// isn't one.
-func parseUUID(s string) (pgtype.UUID, error) {
+// requireUUID checks that a request's ID is a UUID, answering 400 when it
+// isn't, and returns it in canonical form. IDs cross into the services as
+// strings (ocidex-8xij.4); checking here keeps a malformed one a 400 whatever
+// the handler does with service errors.
+func requireUUID(s string) (string, error) {
 	id, err := uuidx.Parse(s)
 	if err != nil {
-		return pgtype.UUID{}, huma.Error400BadRequest(fmt.Sprintf("invalid UUID: %s", s))
+		return "", huma.Error400BadRequest(fmt.Sprintf("invalid UUID: %s", s))
 	}
-	return id, nil
+	return id.String(), nil
 }

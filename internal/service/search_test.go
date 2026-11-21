@@ -35,7 +35,7 @@ func TestGetSBOM_NotVisible(t *testing.T) {
 	})
 	uid := pgtype.UUID{Bytes: [16]byte{1}, Valid: true}
 
-	_, err := svc.GetSBOM(context.Background(), uid, false, VisibilityFilter{})
+	_, err := svc.GetSBOM(context.Background(), uid.String(), false, VisibilityFilter{})
 	is.Equal(err, ErrNotFound)
 }
 
@@ -48,7 +48,7 @@ func TestGetSBOM_DBError(t *testing.T) {
 	})
 	uid := pgtype.UUID{Bytes: [16]byte{2}, Valid: true}
 
-	_, err := svc.GetSBOM(context.Background(), uid, false, VisibilityFilter{})
+	_, err := svc.GetSBOM(context.Background(), uid.String(), false, VisibilityFilter{})
 	is.True(err != nil)
 }
 
@@ -85,7 +85,7 @@ func TestGetArtifact_NotVisible(t *testing.T) {
 	})
 	uid := pgtype.UUID{Bytes: [16]byte{3}, Valid: true}
 
-	_, err := svc.GetArtifact(context.Background(), uid, VisibilityFilter{})
+	_, err := svc.GetArtifact(context.Background(), uid.String(), VisibilityFilter{})
 	is.Equal(err, ErrNotFound)
 }
 
@@ -98,7 +98,7 @@ func TestGetArtifact_DBError(t *testing.T) {
 	})
 	uid := pgtype.UUID{Bytes: [16]byte{4}, Valid: true}
 
-	_, err := svc.GetArtifact(context.Background(), uid, VisibilityFilter{})
+	_, err := svc.GetArtifact(context.Background(), uid.String(), VisibilityFilter{})
 	is.True(err != nil)
 }
 
@@ -133,7 +133,7 @@ func TestGetSBOMDependencies_DBError(t *testing.T) {
 	svc := &searchService{db: db}
 	uid := pgtype.UUID{Bytes: [16]byte{5}, Valid: true}
 
-	_, err := svc.GetSBOMDependencies(context.Background(), uid, VisibilityFilter{})
+	_, err := svc.GetSBOMDependencies(context.Background(), uid.String(), VisibilityFilter{})
 	is.True(err != nil)
 }
 
@@ -151,7 +151,7 @@ func TestListSBOMComponents_DBError(t *testing.T) {
 	svc := &searchService{db: db}
 	uid := pgtype.UUID{Bytes: [16]byte{6}, Valid: true}
 
-	_, err := svc.ListSBOMComponents(context.Background(), uid, VisibilityFilter{})
+	_, err := svc.ListSBOMComponents(context.Background(), uid.String(), VisibilityFilter{})
 	is.True(err != nil)
 }
 
@@ -169,7 +169,7 @@ func TestListSBOMsByArtifact_DBError(t *testing.T) {
 	svc := &searchService{db: db}
 	uid := pgtype.UUID{Bytes: [16]byte{7}, Valid: true}
 
-	_, err := svc.ListSBOMsByArtifact(context.Background(), uid, "", "", SBOMByArtifactPage{Limit: 10}, VisibilityFilter{})
+	_, err := svc.ListSBOMsByArtifact(context.Background(), uid.String(), "", "", SBOMByArtifactPage{Limit: 10}, VisibilityFilter{})
 	is.True(err != nil)
 }
 
@@ -206,7 +206,7 @@ func TestGetArtifactLicenseSummary_DBError(t *testing.T) {
 	svc := &searchService{db: db}
 	uid := pgtype.UUID{Bytes: [16]byte{8}, Valid: true}
 
-	_, err := svc.GetArtifactLicenseSummary(context.Background(), uid, VisibilityFilter{})
+	_, err := svc.GetArtifactLicenseSummary(context.Background(), uid.String(), VisibilityFilter{})
 	is.Equal(err, ErrNotFound)
 }
 
@@ -237,7 +237,7 @@ func TestListComponentsByLicense_DBError(t *testing.T) {
 	svc := &searchService{db: db}
 	uid := pgtype.UUID{Bytes: [16]byte{9}, Valid: true}
 
-	_, err := svc.ListComponentsByLicense(context.Background(), uid, 10, 0, VisibilityFilter{})
+	_, err := svc.ListComponentsByLicense(context.Background(), uid.String(), 10, 0, VisibilityFilter{})
 	is.True(err != nil)
 }
 
@@ -552,7 +552,7 @@ func TestListSBOMDriftHistory_NotVisible(t *testing.T) {
 	})
 	uid := pgtype.UUID{Bytes: [16]byte{10}, Valid: true}
 
-	_, err := svc.ListSBOMDriftHistory(context.Background(), uid, DriftPage{Limit: 10}, VisibilityFilter{})
+	_, err := svc.ListSBOMDriftHistory(context.Background(), uid.String(), DriftPage{Limit: 10}, VisibilityFilter{})
 	is.Equal(err, ErrNotFound)
 }
 
@@ -574,7 +574,7 @@ func TestListSBOMDriftHistory_DBError(t *testing.T) {
 	svc := &searchService{db: db}
 	uid := pgtype.UUID{Bytes: [16]byte{11}, Valid: true}
 
-	_, err := svc.ListSBOMDriftHistory(context.Background(), uid, DriftPage{Limit: 10}, VisibilityFilter{})
+	_, err := svc.ListSBOMDriftHistory(context.Background(), uid.String(), DriftPage{Limit: 10}, VisibilityFilter{})
 	is.True(err != nil)
 }
 
@@ -664,7 +664,7 @@ func TestGetSBOMDependencies_DecoratesVulns(t *testing.T) {
 	}
 	svc := &searchService{db: db}
 
-	graph, err := svc.GetSBOMDependencies(context.Background(), sbomID, VisibilityFilter{})
+	graph, err := svc.GetSBOMDependencies(context.Background(), sbomID.String(), VisibilityFilter{})
 	is.NoErr(err)
 	is.Equal(len(graph.Nodes), 1)
 	is.Equal(graph.Nodes[0].VulnCount, 1)

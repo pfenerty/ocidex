@@ -60,7 +60,7 @@ func (h *Handler) finishIdentityLink(
 	}
 
 	outcome := "ok"
-	if _, err := h.logins.LinkIdentity(r.Context(), user.ID, provider, code, stateData["verifier"]); err != nil {
+	if _, err := h.logins.LinkIdentity(r.Context(), user.ID.String(), provider, code, stateData["verifier"]); err != nil {
 		outcome = "error"
 		if errors.Is(err, service.ErrConflict) {
 			outcome = "conflict"
@@ -110,7 +110,7 @@ func (h *Handler) ListMyIdentities(ctx context.Context, _ *struct{}) (*ListIdent
 	if !ok {
 		return nil, huma.Error401Unauthorized("not authenticated")
 	}
-	rows, err := h.logins.ListIdentities(ctx, user.ID)
+	rows, err := h.logins.ListIdentities(ctx, user.ID.String())
 	if err != nil {
 		return nil, mapServiceError(err)
 	}
@@ -173,11 +173,11 @@ func (h *Handler) UnlinkIdentity(ctx context.Context, in *UnlinkIdentityInput) (
 	if !ok {
 		return nil, huma.Error401Unauthorized("not authenticated")
 	}
-	identityID, err := parseUUID(in.ID)
+	identityID, err := requireUUID(in.ID)
 	if err != nil {
 		return nil, err
 	}
-	if err := h.logins.UnlinkIdentity(ctx, user.ID, identityID); err != nil {
+	if err := h.logins.UnlinkIdentity(ctx, user.ID.String(), identityID); err != nil {
 		if errors.Is(err, service.ErrConflict) {
 			return nil, huma.Error409Conflict("cannot unlink the only way to sign in to this account")
 		}

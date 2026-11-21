@@ -33,7 +33,7 @@ func TestClusterCredentialLifecycle(t *testing.T) {
 	nsID := seedNamespace(t, pool, "cred-ns", owner, "private")
 	clusterID := seedCluster(t, pool, nsID, "prod")
 
-	cred, err := clusters.CreateCredential(ctx, clusterID, owner, "prod-agent")
+	cred, err := clusters.CreateCredential(ctx, clusterID, owner.String(), "prod-agent")
 	is.NoErr(err)
 	is.True(cred.Plaintext != "")
 
@@ -50,12 +50,12 @@ func TestClusterCredentialLifecycle(t *testing.T) {
 	is.Equal(list[0].OwnerID, owner.String())
 
 	// The owner's own key list shows it too, marked as bound.
-	keys, err := auth.ListAPIKeys(ctx, owner)
+	keys, err := auth.ListAPIKeys(ctx, owner.String())
 	is.NoErr(err)
 	is.Equal(len(keys), 1)
 	is.Equal(keys[0].ClusterID, clusterID)
 
-	rotated, err := clusters.RotateCredential(ctx, clusterID, cred.ID, owner)
+	rotated, err := clusters.RotateCredential(ctx, clusterID, cred.ID, owner.String())
 	is.NoErr(err)
 	is.Equal(rotated.Name, "prod-agent")
 	is.True(rotated.ID != cred.ID)
@@ -65,7 +65,7 @@ func TestClusterCredentialLifecycle(t *testing.T) {
 	is.NoErr(err)
 
 	// Rotating a credential that is no longer there is a 404, not a fresh mint.
-	_, err = clusters.RotateCredential(ctx, clusterID, cred.ID, owner)
+	_, err = clusters.RotateCredential(ctx, clusterID, cred.ID, owner.String())
 	is.Equal(err, service.ErrNotFound)
 
 	is.NoErr(clusters.RevokeCredential(ctx, clusterID, rotated.ID))
@@ -74,7 +74,7 @@ func TestClusterCredentialLifecycle(t *testing.T) {
 	is.Equal(clusters.RevokeCredential(ctx, clusterID, rotated.ID), service.ErrNotFound)
 
 	// Deleting the cluster revokes its credentials.
-	last, err := clusters.CreateCredential(ctx, clusterID, owner, "last")
+	last, err := clusters.CreateCredential(ctx, clusterID, owner.String(), "last")
 	is.NoErr(err)
 	is.NoErr(clusters.Delete(ctx, clusterID))
 	_, err = auth.ValidateAPIKey(ctx, last.Plaintext)

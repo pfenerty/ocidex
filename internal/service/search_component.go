@@ -350,7 +350,11 @@ func vulnCountsByPurl(ctx context.Context, q *repository.Queries, purls []string
 	return byPurl, nil
 }
 
-func (s *searchService) GetComponent(ctx context.Context, id pgtype.UUID, vis VisibilityFilter) (ComponentDetail, error) {
+func (s *searchService) GetComponent(ctx context.Context, idStr string, vis VisibilityFilter) (ComponentDetail, error) {
+	id, err := parseID(idStr)
+	if err != nil {
+		return ComponentDetail{}, err
+	}
 	q := repository.New(s.db)
 
 	row, err := q.GetComponent(ctx, id)
@@ -501,8 +505,12 @@ func deriveConfidence(foundBy pgtype.Text) *string {
 // GetComponentVulns returns all vulnerability findings for the component's purl.
 // The visibility check is delegated to GetComponent — if the component is not
 // visible the call returns ErrNotFound before any vuln query is made.
-func (s *searchService) GetComponentVulns(ctx context.Context, id pgtype.UUID, vis VisibilityFilter) ([]ComponentVulnEntry, error) {
-	detail, err := s.GetComponent(ctx, id, vis)
+func (s *searchService) GetComponentVulns(ctx context.Context, idStr string, vis VisibilityFilter) ([]ComponentVulnEntry, error) {
+	id, err := parseID(idStr)
+	if err != nil {
+		return nil, err
+	}
+	detail, err := s.GetComponent(ctx, idStr, vis)
 	if err != nil {
 		return nil, err
 	}

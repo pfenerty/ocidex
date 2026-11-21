@@ -9,7 +9,6 @@ import (
 
 	cdx "github.com/CycloneDX/cyclonedx-go"
 	"github.com/danielgtaylor/huma/v2"
-	"github.com/jackc/pgx/v5/pgtype"
 
 	"github.com/pfenerty/ocidex/internal/authz"
 	"github.com/pfenerty/ocidex/internal/service"
@@ -44,7 +43,7 @@ func (h *Handler) resolveIngestSource(ctx context.Context, ref string) (service.
 		if ns, err = h.namespaceService.GetByName(ctx, nsName); err == nil {
 			src, err = h.sourceService.GetByName(ctx, ns.ID, srcName)
 		}
-	} else if _, perr := parseUUID(ref); perr != nil {
+	} else if _, perr := requireUUID(ref); perr != nil {
 		return service.Source{}, huma.Error400BadRequest(fmt.Sprintf(
 			"source %q is neither a UUID nor a <namespace>/<name> reference", ref))
 	} else {
@@ -74,7 +73,7 @@ func (h *Handler) IngestSBOM(ctx context.Context, input *IngestSBOMInput) (*Inge
 	if err != nil {
 		return nil, err
 	}
-	sourceID, err := parseUUID(src.ID)
+	sourceID, err := requireUUID(src.ID)
 	if err != nil {
 		return nil, err
 	}
@@ -119,7 +118,7 @@ func (h *Handler) IngestSBOM(ctx context.Context, input *IngestSBOMInput) (*Inge
 
 // DeleteSBOM removes an SBOM by ID.
 func (h *Handler) DeleteSBOM(ctx context.Context, input *DeleteSBOMInput) (*struct{}, error) {
-	id, err := parseUUID(input.ID)
+	id, err := requireUUID(input.ID)
 	if err != nil {
 		return nil, err
 	}
@@ -133,7 +132,7 @@ func (h *Handler) DeleteSBOM(ctx context.Context, input *DeleteSBOMInput) (*stru
 
 // DeleteArtifact removes an artifact and all its SBOMs by ID.
 func (h *Handler) DeleteArtifact(ctx context.Context, input *DeleteArtifactInput) (*struct{}, error) {
-	id, err := parseUUID(input.ID)
+	id, err := requireUUID(input.ID)
 	if err != nil {
 		return nil, err
 	}
@@ -157,9 +156,9 @@ func (h *Handler) DeleteArtifact(ctx context.Context, input *DeleteArtifactInput
 	if err != nil {
 		return nil, mapServiceError(err)
 	}
-	var mine []pgtype.UUID
+	var mine []string
 	for _, ns := range all {
-		if can(user, ns.String(), authz.CapDeleteArtifact) {
+		if can(user, ns, authz.CapDeleteArtifact) {
 			mine = append(mine, ns)
 		}
 	}

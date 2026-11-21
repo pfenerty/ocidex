@@ -185,7 +185,7 @@ func TestReadPathLatencyBudget(t *testing.T) {
 	is := is.New(t)
 
 	ownerID := seedUser(t, pool, 7701, "latency-owner", "member")
-	ownerKey, err := authSvc.CreateAPIKey(t.Context(), ownerID, "owner", nil)
+	ownerKey, err := authSvc.CreateAPIKey(t.Context(), ownerID.String(), "owner", nil)
 	is.NoErr(err)
 
 	nsID := seedNamespace(t, pool, "latency-ns", ownerID, "public")

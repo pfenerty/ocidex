@@ -79,7 +79,7 @@ func TestAuditLineNamesAPIKeyActor(t *testing.T) {
 
 	ctx := t.Context()
 	userID := seedUser(t, pool, 7801, "auditor", "member")
-	key, err := authSvc.CreateAPIKey(ctx, userID, "ci", nil)
+	key, err := authSvc.CreateAPIKey(ctx, userID.String(), "ci", nil)
 	is.NoErr(err)
 	var keyID pgtype.UUID
 	is.NoErr(pool.QueryRow(ctx, `SELECT id FROM api_key WHERE user_id = $1`, userID).Scan(&keyID))

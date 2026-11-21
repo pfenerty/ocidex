@@ -27,10 +27,10 @@ func TestDeleteSharedArtifactIsConfinedToCallerNamespaces(t *testing.T) {
 	ctx := t.Context()
 
 	aID := seedUser(t, pool, 7701, "tenant-a", "member")
-	aKey, err := authSvc.CreateAPIKey(ctx, aID, "tenant-a", nil)
+	aKey, err := authSvc.CreateAPIKey(ctx, aID.String(), "tenant-a", nil)
 	is.NoErr(err)
 	bID := seedUser(t, pool, 7702, "tenant-b", "member")
-	bKey, err := authSvc.CreateAPIKey(ctx, bID, "tenant-b", nil)
+	bKey, err := authSvc.CreateAPIKey(ctx, bID.String(), "tenant-b", nil)
 	is.NoErr(err)
 
 	aNS := seedNamespace(t, pool, "tenant-a-ns", aID, "private")

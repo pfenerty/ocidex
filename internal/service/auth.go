@@ -127,33 +127,33 @@ type AuthService interface {
 	// ExchangeCodeForUser redeems a callback code against provider and resolves
 	// it to the account that identity belongs to, creating one on first sign-in.
 	ExchangeCodeForUser(ctx context.Context, provider, code, verifier string) (AuthUser, error)
-	CreateSession(ctx context.Context, userID pgtype.UUID) (plaintext string, err error)
+	CreateSession(ctx context.Context, userID string) (plaintext string, err error)
 	ValidateSession(ctx context.Context, token string) (AuthUser, error)
 	DeleteSession(ctx context.Context, token string) error
-	CreateAPIKey(ctx context.Context, userID pgtype.UUID, name string, caps []authz.Capability) (plaintext string, err error)
+	CreateAPIKey(ctx context.Context, userID string, name string, caps []authz.Capability) (plaintext string, err error)
 	// CreateExpiringAPIKey is CreateAPIKey for a key refused after expiresAt.
 	// A zero expiresAt means never, which is what CreateAPIKey gives.
-	CreateExpiringAPIKey(ctx context.Context, userID pgtype.UUID, name string, caps []authz.Capability, expiresAt time.Time) (plaintext string, err error)
+	CreateExpiringAPIKey(ctx context.Context, userID string, name string, caps []authz.Capability, expiresAt time.Time) (plaintext string, err error)
 	ValidateAPIKey(ctx context.Context, rawKey string) (AuthUser, error)
-	ListAPIKeys(ctx context.Context, userID pgtype.UUID) ([]APIKeyMeta, error)
-	DeleteAPIKey(ctx context.Context, userID pgtype.UUID, keyID pgtype.UUID) error
-	GetUser(ctx context.Context, userID pgtype.UUID) (AuthUser, error)
+	ListAPIKeys(ctx context.Context, userID string) ([]APIKeyMeta, error)
+	DeleteAPIKey(ctx context.Context, userID string, keyID string) error
+	GetUser(ctx context.Context, userID string) (AuthUser, error)
 	ListUsers(ctx context.Context) ([]AuthUser, error)
-	UpdateUserRole(ctx context.Context, targetID pgtype.UUID, role string) (AuthUser, error)
+	UpdateUserRole(ctx context.Context, targetID string, role string) (AuthUser, error)
 	CleanExpiredSessions(ctx context.Context) error
 	// ListIdentities returns the issuers this account can sign in with.
-	ListIdentities(ctx context.Context, userID pgtype.UUID) ([]LinkedIdentity, error)
+	ListIdentities(ctx context.Context, userID string) ([]LinkedIdentity, error)
 	// LinkIdentity redeems a callback code and attaches the identity it
 	// resolves to onto an account that already exists, instead of signing in as
 	// whoever holds it.
-	LinkIdentity(ctx context.Context, userID pgtype.UUID, provider, code, verifier string) (LinkedIdentity, error)
+	LinkIdentity(ctx context.Context, userID string, provider, code, verifier string) (LinkedIdentity, error)
 	// UnlinkIdentity removes one of the account's identities, refusing to
 	// remove the last one.
-	UnlinkIdentity(ctx context.Context, userID, identityID pgtype.UUID) error
+	UnlinkIdentity(ctx context.Context, userID string, identityID string) error
 	// LoadGrants returns the user's namespace memberships keyed by namespace ID.
 	// The API layer calls it once per authenticated request; see AuthUser.Grants
 	// for why it is not folded into ValidateSession's row.
-	LoadGrants(ctx context.Context, userID pgtype.UUID) (map[string]authz.Role, error)
+	LoadGrants(ctx context.Context, userID string) (map[string]authz.Role, error)
 }
 
 type authService struct {
@@ -348,7 +348,11 @@ type LinkedIdentity struct {
 	CreatedAt time.Time
 }
 
-func (s *authService) ListIdentities(ctx context.Context, userID pgtype.UUID) ([]LinkedIdentity, error) {
+func (s *authService) ListIdentities(ctx context.Context, userIDStr string) ([]LinkedIdentity, error) {
+	userID, err := parseID(userIDStr)
+	if err != nil {
+		return nil, err
+	}
 	rows, err := s.repo.ListIdentitiesByUser(ctx, userID)
 	if err != nil {
 		return nil, fmt.Errorf("listing identities: %w", err)
@@ -373,9 +377,11 @@ func (s *authService) ListIdentities(ctx context.Context, userID pgtype.UUID) ([
 // identity absorbs another account: link the identity you hold to the account
 // you want and the two become one. The only safe answer is that the identity is
 // spoken for and nothing changes.
-func (s *authService) LinkIdentity(
-	ctx context.Context, userID pgtype.UUID, provider, code, verifier string,
-) (LinkedIdentity, error) {
+func (s *authService) LinkIdentity(ctx context.Context, userIDStr string, provider string, code string, verifier string) (LinkedIdentity, error) {
+	userID, err := parseID(userIDStr)
+	if err != nil {
+		return LinkedIdentity{}, err
+	}
 	p, ok := s.providers[provider]
 	if !ok {
 		return LinkedIdentity{}, &ValidationError{Message: fmt.Sprintf("unknown identity provider %q", provider)}
@@ -426,7 +432,15 @@ func (s *authService) LinkIdentity(
 // Removing the last one is refused. The account would still exist, still own
 // namespaces and hold API keys, and nobody could ever sign in to it again;
 // deleting an account is a different operation and this is not it.
-func (s *authService) UnlinkIdentity(ctx context.Context, userID, identityID pgtype.UUID) error {
+func (s *authService) UnlinkIdentity(ctx context.Context, userIDStr string, identityIDStr string) error {
+	userID, err := parseID(userIDStr)
+	if err != nil {
+		return err
+	}
+	identityID, err := parseID(identityIDStr)
+	if err != nil {
+		return err
+	}
 	count, err := s.repo.CountIdentitiesByUser(ctx, userID)
 	if err != nil {
 		return fmt.Errorf("counting identities: %w", err)
@@ -457,7 +471,11 @@ func identityFromRow(r repository.UserIdentity) LinkedIdentity {
 	}
 }
 
-func (s *authService) CreateSession(ctx context.Context, userID pgtype.UUID) (string, error) {
+func (s *authService) CreateSession(ctx context.Context, userIDStr string) (string, error) {
+	userID, err := parseID(userIDStr)
+	if err != nil {
+		return "", err
+	}
 	raw := make([]byte, 32)
 	if _, err := rand.Read(raw); err != nil {
 		return "", fmt.Errorf("generating session token: %w", err)
@@ -466,7 +484,7 @@ func (s *authService) CreateSession(ctx context.Context, userID pgtype.UUID) (st
 	hash := sha256hex(plaintext)
 
 	expiry := time.Now().Add(time.Duration(s.cfg.SessionMaxAgeDays) * 24 * time.Hour)
-	_, err := s.repo.CreateSession(ctx, repository.CreateSessionParams{
+	_, err = s.repo.CreateSession(ctx, repository.CreateSessionParams{
 		UserID:    userID,
 		TokenHash: hash,
 		ExpiresAt: pgtype.Timestamptz{Time: expiry, Valid: true},
@@ -509,14 +527,18 @@ func (s *authService) DeleteSession(ctx context.Context, token string) error {
 // happens at validation time against live membership, so a key that names no
 // capability is a key that simply tracks its owner. A caller who wants a
 // narrow key says so explicitly.
-func (s *authService) CreateAPIKey(ctx context.Context, userID pgtype.UUID, name string, caps []authz.Capability) (string, error) {
+func (s *authService) CreateAPIKey(ctx context.Context, userID string, name string, caps []authz.Capability) (string, error) {
 	return s.CreateExpiringAPIKey(ctx, userID, name, caps, time.Time{})
 }
 
 // CreateExpiringAPIKey mints a key that is refused once expiresAt has passed;
 // a zero expiresAt never expires. An expiry in the past is rejected rather than
 // minting a key that is dead on arrival.
-func (s *authService) CreateExpiringAPIKey(ctx context.Context, userID pgtype.UUID, name string, caps []authz.Capability, expiresAt time.Time) (string, error) {
+func (s *authService) CreateExpiringAPIKey(ctx context.Context, userIDStr string, name string, caps []authz.Capability, expiresAt time.Time) (string, error) {
+	userID, err := parseID(userIDStr)
+	if err != nil {
+		return "", err
+	}
 	if !expiresAt.IsZero() && !expiresAt.After(time.Now()) {
 		return "", &ValidationError{Message: "expiresAt must be in the future"}
 	}
@@ -623,7 +645,11 @@ func (s *authService) ValidateAPIKey(ctx context.Context, rawKey string) (AuthUs
 	}, nil
 }
 
-func (s *authService) ListAPIKeys(ctx context.Context, userID pgtype.UUID) ([]APIKeyMeta, error) {
+func (s *authService) ListAPIKeys(ctx context.Context, userIDStr string) ([]APIKeyMeta, error) {
+	userID, err := parseID(userIDStr)
+	if err != nil {
+		return nil, err
+	}
 	rows, err := s.repo.ListAPIKeysByUser(ctx, userID)
 	if err != nil {
 		return nil, fmt.Errorf("listing api keys: %w", err)
@@ -662,7 +688,15 @@ func (s *authService) ListAPIKeys(ctx context.Context, userID pgtype.UUID) ([]AP
 	return out, nil
 }
 
-func (s *authService) DeleteAPIKey(ctx context.Context, userID pgtype.UUID, keyID pgtype.UUID) error {
+func (s *authService) DeleteAPIKey(ctx context.Context, userIDStr string, keyIDStr string) error {
+	userID, err := parseID(userIDStr)
+	if err != nil {
+		return err
+	}
+	keyID, err := parseID(keyIDStr)
+	if err != nil {
+		return err
+	}
 	n, err := s.repo.DeleteAPIKey(ctx, repository.DeleteAPIKeyParams{
 		ID:     keyID,
 		UserID: userID,
@@ -676,7 +710,11 @@ func (s *authService) DeleteAPIKey(ctx context.Context, userID pgtype.UUID, keyI
 	return nil
 }
 
-func (s *authService) GetUser(ctx context.Context, userID pgtype.UUID) (AuthUser, error) {
+func (s *authService) GetUser(ctx context.Context, userIDStr string) (AuthUser, error) {
+	userID, err := parseID(userIDStr)
+	if err != nil {
+		return AuthUser{}, err
+	}
 	u, err := s.repo.GetUserByID(ctx, userID)
 	if err != nil {
 		return AuthUser{}, fmt.Errorf("getting user: %w", err)
@@ -711,7 +749,11 @@ const (
 	roleViewer = "viewer"
 )
 
-func (s *authService) UpdateUserRole(ctx context.Context, targetID pgtype.UUID, role string) (AuthUser, error) {
+func (s *authService) UpdateUserRole(ctx context.Context, targetIDStr string, role string) (AuthUser, error) {
+	targetID, err := parseID(targetIDStr)
+	if err != nil {
+		return AuthUser{}, err
+	}
 	switch role {
 	case roleAdmin, roleMember, roleViewer:
 	default:
@@ -745,7 +787,11 @@ func (s *authService) CleanExpiredSessions(ctx context.Context) error {
 // Role strings that no longer map to a known role are kept as-is: authz.Role
 // grants nothing unless it is one of the five, so a row written by a future
 // version denies instead of panicking.
-func (s *authService) LoadGrants(ctx context.Context, userID pgtype.UUID) (map[string]authz.Role, error) {
+func (s *authService) LoadGrants(ctx context.Context, userIDStr string) (map[string]authz.Role, error) {
+	userID, err := parseID(userIDStr)
+	if err != nil {
+		return nil, err
+	}
 	if !userID.Valid {
 		return map[string]authz.Role{}, nil
 	}

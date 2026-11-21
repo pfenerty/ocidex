@@ -71,7 +71,7 @@ func TestLinkIdentity_CreatesRowWhenUnknown(t *testing.T) {
 	}
 	svc := newLinkService(repo, linkableProvider())
 
-	linked, err := svc.LinkIdentity(context.Background(), userID(1), "oidc:corp", "code", "verifier")
+	linked, err := svc.LinkIdentity(context.Background(), userID(1).String(), "oidc:corp", "code", "verifier")
 	is.NoErr(err)
 	is.Equal(linked.Provider, "oidc:corp")
 	is.Equal(got.UserID, userID(1))
@@ -93,7 +93,7 @@ func TestLinkIdentity_RefusesIdentityHeldByAnotherAccount(t *testing.T) {
 	}
 	svc := newLinkService(repo, linkableProvider())
 
-	_, err := svc.LinkIdentity(context.Background(), userID(1), "oidc:corp", "code", "verifier")
+	_, err := svc.LinkIdentity(context.Background(), userID(1).String(), "oidc:corp", "code", "verifier")
 	// Refused, not merged: absorbing the other account is exactly the attack
 	// this rule exists to stop.
 	is.True(errors.Is(err, ErrConflict))
@@ -114,7 +114,7 @@ func TestLinkIdentity_IsIdempotentForTheSameAccount(t *testing.T) {
 	}
 	svc := newLinkService(repo, linkableProvider())
 
-	linked, err := svc.LinkIdentity(context.Background(), userID(1), "oidc:corp", "code", "verifier")
+	linked, err := svc.LinkIdentity(context.Background(), userID(1).String(), "oidc:corp", "code", "verifier")
 	is.NoErr(err)
 	is.Equal(linked.Provider, "oidc:corp")
 	is.True(!created)
@@ -124,7 +124,7 @@ func TestLinkIdentity_RejectsUnknownProvider(t *testing.T) {
 	is := is.New(t)
 	svc := newLinkService(&fakeAuthRepo{}, linkableProvider())
 
-	_, err := svc.LinkIdentity(context.Background(), userID(1), "oidc:nope", "code", "verifier")
+	_, err := svc.LinkIdentity(context.Background(), userID(1).String(), "oidc:nope", "code", "verifier")
 	var valErr *ValidationError
 	is.True(errors.As(err, &valErr))
 }
@@ -141,7 +141,7 @@ func TestUnlinkIdentity_RefusesTheLastOne(t *testing.T) {
 	}
 	svc := newLinkService(repo)
 
-	err := svc.UnlinkIdentity(context.Background(), userID(1), userID(9))
+	err := svc.UnlinkIdentity(context.Background(), userID(1).String(), userID(9).String())
 	// The account would survive, still owning namespaces, with nobody able to
 	// sign in to it.
 	is.True(errors.Is(err, ErrConflict))
@@ -160,7 +160,7 @@ func TestUnlinkIdentity_RemovesOneOfSeveral(t *testing.T) {
 	}
 	svc := newLinkService(repo)
 
-	is.NoErr(svc.UnlinkIdentity(context.Background(), userID(1), userID(9)))
+	is.NoErr(svc.UnlinkIdentity(context.Background(), userID(1).String(), userID(9).String()))
 	// Scoped by owner as well as id, so one account cannot unlink another's.
 	is.Equal(got.UserID, userID(1))
 	is.Equal(got.ID, userID(9))
@@ -176,7 +176,7 @@ func TestUnlinkIdentity_NotFoundWhenRowIsNotTheCallers(t *testing.T) {
 	}
 	svc := newLinkService(repo)
 
-	is.True(errors.Is(svc.UnlinkIdentity(context.Background(), userID(1), userID(9)), ErrNotFound))
+	is.True(errors.Is(svc.UnlinkIdentity(context.Background(), userID(1).String(), userID(9).String()), ErrNotFound))
 }
 
 func TestListIdentities_MapsRows(t *testing.T) {
@@ -191,7 +191,7 @@ func TestListIdentities_MapsRows(t *testing.T) {
 	}
 	svc := newLinkService(repo)
 
-	out, err := svc.ListIdentities(context.Background(), userID(1))
+	out, err := svc.ListIdentities(context.Background(), userID(1).String())
 	is.NoErr(err)
 	is.Equal(len(out), 2)
 	is.Equal(out[0].Provider, "github")

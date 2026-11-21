@@ -80,7 +80,7 @@ func TestGoSymbolsIngestAndMatch(t *testing.T) {
 	is := is.New(t)
 
 	memberID := seedUser(t, pool, 8013, "gosymbols-member", "member")
-	memberKey, err := authSvc.CreateAPIKey(t.Context(), memberID, "gosymbols-test", nil)
+	memberKey, err := authSvc.CreateAPIKey(t.Context(), memberID.String(), "gosymbols-test", nil)
 	is.NoErr(err)
 
 	serving := gosymbols.Table{"net/http": {"(*Server).Serve", "Get"}, "unsafe": {}}
@@ -105,7 +105,7 @@ func TestGoSymbolsIngestAndMatch(t *testing.T) {
 	var sourceID pgtype.UUID
 	is.NoErr(sourceID.Scan(seedSource(t, pool, nsID, "upload", "ci")))
 	d, err := service.NewSBOMService(pool, nil, nil).Ingest(t.Context(), &bom, raw4, service.IngestParams{
-		SourceID:  sourceID,
+		SourceID:  sourceID.String(),
 		GoSymbols: map[string]gosymbols.Table{"stdlib-ref": serving},
 	})
 	is.NoErr(err)

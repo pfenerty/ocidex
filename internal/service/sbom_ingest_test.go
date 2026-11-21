@@ -246,7 +246,7 @@ func TestIngest_IdempotencyOnDuplicateDigest(t *testing.T) {
 	bom := containerBOM("docker.io/ubuntu", "sha256:abc123def456", "22.04")
 
 	id, err := svc.Ingest(context.Background(), bom, []byte("{}"),
-		IngestParams{Version: "22.04", Architecture: "amd64", BuildDate: "2024-01-01", SourceID: sourceID})
+		IngestParams{Version: "22.04", Architecture: "amd64", BuildDate: "2024-01-01", SourceID: sourceID.String()})
 
 	is.NoErr(err)
 	is.Equal(id, existingID)
@@ -317,7 +317,7 @@ func TestIngest_HappyPath_ContainerSBOM(t *testing.T) {
 	bom := fullContainerBOM("docker.io/alpine", "sha256:deadbeef1234")
 
 	id, err := svc.Ingest(context.Background(), bom, []byte("{}"),
-		IngestParams{Version: "3.18.4", Architecture: "amd64", BuildDate: "2024-01-01", SourceID: sourceID})
+		IngestParams{Version: "3.18.4", Architecture: "amd64", BuildDate: "2024-01-01", SourceID: sourceID.String()})
 
 	is.NoErr(err)
 	is.Equal(id, sbomID)
@@ -927,7 +927,7 @@ func TestDeleteSBOM_NotFound(t *testing.T) {
 	tx := deleteSBOMTx("DELETE 0", &committed)
 	db := &fakeDB{beginFn: func(_ context.Context) (pgx.Tx, error) { return tx, nil }}
 	svc := NewSBOMService(db, nil, nil)
-	err := svc.DeleteSBOM(context.Background(), newUUID(t))
+	err := svc.DeleteSBOM(context.Background(), newUUID(t).String())
 	is.True(errors.Is(err, ErrNotFound))
 	is.True(!committed)
 }
@@ -940,7 +940,7 @@ func TestDeleteSBOM_Success(t *testing.T) {
 	tx := deleteSBOMTx("DELETE 1", &committed)
 	db := &fakeDB{beginFn: func(_ context.Context) (pgx.Tx, error) { return tx, nil }}
 	svc := NewSBOMService(db, publisher, nil)
-	err := svc.DeleteSBOM(context.Background(), newUUID(t))
+	err := svc.DeleteSBOM(context.Background(), newUUID(t).String())
 	is.NoErr(err)
 	is.True(committed)
 	is.Equal(len(publisher.events), 1)
@@ -1024,7 +1024,7 @@ func TestDeleteArtifact_NotFound(t *testing.T) {
 		beginFn: func(_ context.Context) (pgx.Tx, error) { return tx, nil },
 	}
 	svc := NewSBOMService(db, nil, nil)
-	err := svc.DeleteArtifact(context.Background(), newUUID(t))
+	err := svc.DeleteArtifact(context.Background(), newUUID(t).String())
 	is.True(errors.Is(err, ErrNotFound))
 }
 
@@ -1057,7 +1057,7 @@ func TestDeleteArtifact_Success(t *testing.T) {
 		beginFn: func(_ context.Context) (pgx.Tx, error) { return tx, nil },
 	}
 	svc := NewSBOMService(db, publisher, nil)
-	err := svc.DeleteArtifact(context.Background(), newUUID(t))
+	err := svc.DeleteArtifact(context.Background(), newUUID(t).String())
 	is.NoErr(err)
 	is.True(committed)
 	is.Equal(len(publisher.events), 1)
@@ -1488,7 +1488,7 @@ func TestIngest_InvalidInputOpensNoTransaction(t *testing.T) {
 					return noRowsRow{} // no existing SBOM for the digest
 				},
 			}
-			tt.params.SourceID = sourceID
+			tt.params.SourceID = sourceID.String()
 
 			_, err := NewSBOMService(db, nil, nil).Ingest(context.Background(), tt.bom, []byte("{}"), tt.params)
 
@@ -1550,7 +1550,7 @@ func TestIngest_EnqueueFailureFailsIngest(t *testing.T) {
 
 	_, err := NewSBOMService(db, publisher, nil).Ingest(context.Background(),
 		fullContainerBOM("docker.io/alpine", "sha256:deadbeef1234"), []byte("{}"),
-		IngestParams{Version: "3.18.4", Architecture: "amd64", BuildDate: "2024-01-01", SourceID: sourceID})
+		IngestParams{Version: "3.18.4", Architecture: "amd64", BuildDate: "2024-01-01", SourceID: sourceID.String()})
 
 	is.True(err != nil)
 	is.True(!committed)

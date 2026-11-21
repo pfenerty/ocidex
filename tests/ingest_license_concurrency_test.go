@@ -78,7 +78,7 @@ func TestConcurrentIngestLicenseOrder(t *testing.T) {
 			}
 			bom, raw := licenseOrderSBOM(t, r*perRound+i, order)
 			wg.Go(func() {
-				if _, err := svc.Ingest(t.Context(), bom, raw, service.IngestParams{SourceID: source, Architecture: "amd64", BuildDate: "2026-01-01T00:00:00Z"}); err != nil {
+				if _, err := svc.Ingest(t.Context(), bom, raw, service.IngestParams{SourceID: source.String(), Architecture: "amd64", BuildDate: "2026-01-01T00:00:00Z"}); err != nil {
 					errs <- err
 				}
 			})
@@ -115,7 +115,7 @@ func TestIngestDoesNotWaitOnArtifactOrLicenseLocks(t *testing.T) {
 	var source pgtype.UUID
 	is.NoErr(source.Scan(seedSource(t, pool, ns, "upload", "ci")))
 	svc := service.NewSBOMService(pool, nil, nil)
-	params := service.IngestParams{SourceID: source, Architecture: "amd64", BuildDate: "2026-01-01T00:00:00Z"}
+	params := service.IngestParams{SourceID: source.String(), Architecture: "amd64", BuildDate: "2026-01-01T00:00:00Z"}
 
 	// The same image name for every ingest: one artifact, as a multi-arch push.
 	sbom := func(n int) (*cdx.BOM, []byte) {

@@ -23,7 +23,15 @@ const (
 	sevLow      = "LOW"
 )
 
-func (s *searchService) GetSBOM(ctx context.Context, id pgtype.UUID, includeRaw bool, vis VisibilityFilter) (SBOMDetail, error) {
+func (s *searchService) GetSBOM(ctx context.Context, idStr string, includeRaw bool, vis VisibilityFilter) (SBOMDetail, error) {
+	id, err := parseID(idStr)
+	if err != nil {
+		return SBOMDetail{}, err
+	}
+	return s.getSBOM(ctx, id, includeRaw, vis)
+}
+
+func (s *searchService) getSBOM(ctx context.Context, id pgtype.UUID, includeRaw bool, vis VisibilityFilter) (SBOMDetail, error) {
 	q := repository.New(s.db)
 
 	// Access check.
@@ -172,7 +180,11 @@ func currentDrift(drift *ProvenanceDriftSummary, currentStatus string) *Provenan
 
 // ListSBOMDriftHistory returns the provenance drift event history for an
 // SBOM, newest first. Visibility-gated the same way as GetSBOM.
-func (s *searchService) ListSBOMDriftHistory(ctx context.Context, sbomID pgtype.UUID, page DriftPage, vis VisibilityFilter) (CursorPage[ProvenanceDriftSummary], error) {
+func (s *searchService) ListSBOMDriftHistory(ctx context.Context, sbomIDStr string, page DriftPage, vis VisibilityFilter) (CursorPage[ProvenanceDriftSummary], error) {
+	sbomID, err := parseID(sbomIDStr)
+	if err != nil {
+		return CursorPage[ProvenanceDriftSummary]{}, err
+	}
 	q := repository.New(s.db)
 
 	visible, err := q.IsSBOMVisible(ctx, repository.IsSBOMVisibleParams{
@@ -274,7 +286,11 @@ func (s *searchService) ListRecentProvenanceDrift(ctx context.Context, page Drif
 // feed asks "what may this caller see", and answers with public rows included;
 // this one asks "what happened in my namespaces", where somebody else's public
 // namespace is not an answer. Passing a filter here would invite the wrong one.
-func (s *searchService) ListOwnedActivity(ctx context.Context, ownerID pgtype.UUID, page FeedPage) (CursorPage[ActivityEntry], error) {
+func (s *searchService) ListOwnedActivity(ctx context.Context, ownerIDStr string, page FeedPage) (CursorPage[ActivityEntry], error) {
+	ownerID, err := parseID(ownerIDStr)
+	if err != nil {
+		return CursorPage[ActivityEntry]{}, err
+	}
 	if !ownerID.Valid {
 		return CursorPage[ActivityEntry]{Data: []ActivityEntry{}}, nil
 	}
@@ -414,7 +430,11 @@ func decorateComponentVulns(ctx context.Context, q *repository.Queries, sbomID p
 // ListSBOMVulns returns one page of the SBOM's vulnerability list, keyed by
 // canonical_id so an alias group is a single finding, with the affected
 // components attached inline.
-func (s *searchService) ListSBOMVulns(ctx context.Context, sbomID pgtype.UUID, params SBOMVulnParams, vis VisibilityFilter) (PagedResult[SBOMVulnEntry], error) {
+func (s *searchService) ListSBOMVulns(ctx context.Context, sbomIDStr string, params SBOMVulnParams, vis VisibilityFilter) (PagedResult[SBOMVulnEntry], error) {
+	sbomID, err := parseID(sbomIDStr)
+	if err != nil {
+		return PagedResult[SBOMVulnEntry]{}, err
+	}
 	q := repository.New(s.db)
 
 	// Access check.
@@ -582,7 +602,15 @@ func (s *searchService) ListSBOMs(ctx context.Context, filter SBOMFilter) (Curso
 	return CursorPage[SBOMSummary]{Data: items, HasMore: hasMore}, nil
 }
 
-func (s *searchService) ListSBOMsByArtifact(ctx context.Context, artifactID pgtype.UUID, subjectVersion, imageVersion string, page SBOMByArtifactPage, vis VisibilityFilter) (CursorPage[SBOMSummary], error) {
+func (s *searchService) ListSBOMsByArtifact(ctx context.Context, artifactIDStr string, subjectVersion string, imageVersion string, page SBOMByArtifactPage, vis VisibilityFilter) (CursorPage[SBOMSummary], error) {
+	artifactID, err := parseID(artifactIDStr)
+	if err != nil {
+		return CursorPage[SBOMSummary]{}, err
+	}
+	return s.listSBOMsByArtifact(ctx, artifactID, subjectVersion, imageVersion, page, vis)
+}
+
+func (s *searchService) listSBOMsByArtifact(ctx context.Context, artifactID pgtype.UUID, subjectVersion string, imageVersion string, page SBOMByArtifactPage, vis VisibilityFilter) (CursorPage[SBOMSummary], error) {
 	q := repository.New(s.db)
 
 	// Fetch one extra row to detect whether a further page exists.
@@ -686,7 +714,11 @@ func (s *searchService) ListSBOMsByDigest(ctx context.Context, digest string, li
 }
 
 // GetSBOMDependencies returns the dependency graph for an SBOM.
-func (s *searchService) GetSBOMDependencies(ctx context.Context, sbomID pgtype.UUID, vis VisibilityFilter) (DependencyGraph, error) {
+func (s *searchService) GetSBOMDependencies(ctx context.Context, sbomIDStr string, vis VisibilityFilter) (DependencyGraph, error) {
+	sbomID, err := parseID(sbomIDStr)
+	if err != nil {
+		return DependencyGraph{}, err
+	}
 	q := repository.New(s.db)
 
 	// Access check.
@@ -786,7 +818,11 @@ func linkDependencyGraph(nodes []ComponentSummary, deps []repository.ListDepende
 }
 
 // ListSBOMComponents returns all components belonging to an SBOM.
-func (s *searchService) ListSBOMComponents(ctx context.Context, sbomID pgtype.UUID, vis VisibilityFilter) ([]ComponentSummary, error) {
+func (s *searchService) ListSBOMComponents(ctx context.Context, sbomIDStr string, vis VisibilityFilter) ([]ComponentSummary, error) {
+	sbomID, err := parseID(sbomIDStr)
+	if err != nil {
+		return nil, err
+	}
 	q := repository.New(s.db)
 
 	// Access check.
@@ -827,7 +863,11 @@ func (s *searchService) ListSBOMComponents(ctx context.Context, sbomID pgtype.UU
 // The ordering decides the pagination style: keyset for the default, offset for
 // severity (ADR-043 rule 1 — see the query comment). Access is gated the same
 // way as ListSBOMComponents.
-func (s *searchService) ListSBOMComponentsPage(ctx context.Context, sbomID pgtype.UUID, page ComponentPage, vis VisibilityFilter) (CursorPage[ComponentSummary], error) {
+func (s *searchService) ListSBOMComponentsPage(ctx context.Context, sbomIDStr string, page ComponentPage, vis VisibilityFilter) (CursorPage[ComponentSummary], error) {
+	sbomID, err := parseID(sbomIDStr)
+	if err != nil {
+		return CursorPage[ComponentSummary]{}, err
+	}
 	q := repository.New(s.db)
 
 	// Access check.

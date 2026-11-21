@@ -120,7 +120,15 @@ type ComponentDiff struct {
 }
 
 // DiffSBOMs computes the diff between two arbitrary SBOMs.
-func (s *searchService) DiffSBOMs(ctx context.Context, fromID, toID pgtype.UUID, vis VisibilityFilter) (ChangelogEntry, error) {
+func (s *searchService) DiffSBOMs(ctx context.Context, fromIDStr string, toIDStr string, vis VisibilityFilter) (ChangelogEntry, error) {
+	fromID, err := parseID(fromIDStr)
+	if err != nil {
+		return ChangelogEntry{}, err
+	}
+	toID, err := parseID(toIDStr)
+	if err != nil {
+		return ChangelogEntry{}, err
+	}
 	q := repository.New(s.db)
 
 	// Access check for both SBOMs.
@@ -177,7 +185,15 @@ func (s *searchService) DiffSBOMs(ctx context.Context, fromID, toID pgtype.UUID,
 
 // DiffSBOMsWithTree computes the diff between two SBOMs and returns it alongside
 // the non-file dependency graph of the "to" SBOM for tree-structured rendering.
-func (s *searchService) DiffSBOMsWithTree(ctx context.Context, fromID, toID pgtype.UUID, vis VisibilityFilter) (DiffTree, error) {
+func (s *searchService) DiffSBOMsWithTree(ctx context.Context, fromIDStr string, toIDStr string, vis VisibilityFilter) (DiffTree, error) {
+	fromID, err := parseID(fromIDStr)
+	if err != nil {
+		return DiffTree{}, err
+	}
+	toID, err := parseID(toIDStr)
+	if err != nil {
+		return DiffTree{}, err
+	}
 	q := repository.New(s.db)
 
 	for _, id := range []pgtype.UUID{fromID, toID} {
@@ -304,7 +320,11 @@ func (s *searchService) packagesForSBOMs(ctx context.Context, q *repository.Quer
 // GetArtifactChangelog generates a changelog by diffing consecutive SBOMs for an artifact.
 // SBOMs are grouped by (architecture, flavor), deduplicated by (version, arch, flavor), then
 // diffed within the selected (arch, flavor) timeline.
-func (s *searchService) GetArtifactChangelog(ctx context.Context, artifactID pgtype.UUID, query ChangelogQuery, vis VisibilityFilter) (Changelog, error) {
+func (s *searchService) GetArtifactChangelog(ctx context.Context, artifactIDStr string, query ChangelogQuery, vis VisibilityFilter) (Changelog, error) {
+	artifactID, err := parseID(artifactIDStr)
+	if err != nil {
+		return Changelog{}, err
+	}
 	limit, offset := query.clamp()
 
 	q := repository.New(s.db)
