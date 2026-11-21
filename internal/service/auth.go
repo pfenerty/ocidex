@@ -615,11 +615,11 @@ func (s *authService) ValidateAPIKey(ctx context.Context, rawKey string) (AuthUs
 		DisplayName: displayName(row.DisplayName),
 		Role:        row.Role,
 		APIKeyAuth:  true,
-		APIKeyID:    uuidToStr(row.ID),
+		APIKeyID:    row.ID.String(),
 		APIKeyCaps:  caps,
 		// Empty for an ordinary key. Set, it confines the key to pushing
 		// this one cluster's inventory (ocidex-70eo.5).
-		APIKeyClusterID: uuidToStr(row.ClusterID),
+		APIKeyClusterID: row.ClusterID.String(),
 	}, nil
 }
 
@@ -647,7 +647,7 @@ func (s *authService) ListAPIKeys(ctx context.Context, userID pgtype.UUID) ([]AP
 			Prefix:       r.Prefix,
 			Capabilities: caps,
 			CreatedAt:    r.CreatedAt.Time,
-			ClusterID:    uuidToStr(r.ClusterID),
+			ClusterID:    r.ClusterID.String(),
 		}
 		if r.LastUsedAt.Valid {
 			t := r.LastUsedAt.Time
@@ -755,7 +755,7 @@ func (s *authService) LoadGrants(ctx context.Context, userID pgtype.UUID) (map[s
 	}
 	out := make(map[string]authz.Role, len(rows))
 	for _, m := range rows {
-		out[uuidToStr(m.NamespaceID)] = authz.Role(m.Role)
+		out[m.NamespaceID.String()] = authz.Role(m.Role)
 	}
 	return out, nil
 }

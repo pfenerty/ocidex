@@ -9,6 +9,7 @@ import (
 	"github.com/jackc/pgx/v5"
 	"github.com/pfenerty/ocidex/internal/authz"
 	"github.com/pfenerty/ocidex/internal/repository"
+	"github.com/pfenerty/ocidex/internal/uuidx"
 )
 
 // NamespaceMember is one (user, role) pair in a namespace. The namespace is the
@@ -31,7 +32,7 @@ type SetNamespaceMemberParams struct {
 
 // ListMembers returns the namespace's members, owner first.
 func (s *namespaceService) ListMembers(ctx context.Context, namespaceID string) ([]NamespaceMember, error) {
-	nsID, err := parseUUID(namespaceID)
+	nsID, err := uuidx.Parse(namespaceID)
 	if err != nil {
 		return nil, ErrNotFound
 	}
@@ -62,11 +63,11 @@ func (s *namespaceService) ListMembers(ctx context.Context, namespaceID string) 
 // the caller's own role and is enforced at the API boundary, where the caller's
 // grants are already resolved.
 func (s *namespaceService) SetMember(ctx context.Context, params SetNamespaceMemberParams) (NamespaceMember, error) {
-	nsID, err := parseUUID(params.NamespaceID)
+	nsID, err := uuidx.Parse(params.NamespaceID)
 	if err != nil {
 		return NamespaceMember{}, ErrNotFound
 	}
-	userID, err := parseUUID(params.UserID)
+	userID, err := uuidx.Parse(params.UserID)
 	if err != nil {
 		return NamespaceMember{}, ErrNotFound
 	}
@@ -109,11 +110,11 @@ func (s *namespaceService) SetMember(ctx context.Context, params SetNamespaceMem
 // reason demoting them is: the namespace would be left with nobody who can
 // administer it, and unlike a demote there is no constraint that would notice.
 func (s *namespaceService) RemoveMember(ctx context.Context, namespaceID, userID string) error {
-	nsID, err := parseUUID(namespaceID)
+	nsID, err := uuidx.Parse(namespaceID)
 	if err != nil {
 		return ErrNotFound
 	}
-	uid, err := parseUUID(userID)
+	uid, err := uuidx.Parse(userID)
 	if err != nil {
 		return ErrNotFound
 	}
@@ -147,8 +148,8 @@ func (s *namespaceService) RemoveMember(ctx context.Context, namespaceID, userID
 
 func namespaceMemberFromRepo(m repository.NamespaceMember) NamespaceMember {
 	out := NamespaceMember{
-		NamespaceID: uuidToStr(m.NamespaceID),
-		UserID:      uuidToStr(m.UserID),
+		NamespaceID: m.NamespaceID.String(),
+		UserID:      m.UserID.String(),
 		Role:        m.Role,
 	}
 	if m.CreatedAt.Valid {

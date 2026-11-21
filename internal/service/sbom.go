@@ -17,6 +17,7 @@ import (
 	"github.com/pfenerty/ocidex/internal/gosymbols"
 	"github.com/pfenerty/ocidex/internal/mainmodule"
 	"github.com/pfenerty/ocidex/internal/repository"
+	"github.com/pfenerty/ocidex/internal/uuidx"
 )
 
 // dbPool is satisfied by *pgxpool.Pool. Extracted to allow unit-test injection.
@@ -728,8 +729,8 @@ func (s *sbomService) DeleteArtifactFromNamespaces(ctx context.Context, id pgtyp
 // ListDigestsBySource returns the set of SBOM digests already ingested through
 // a source, so a rescan can skip them.
 func (s *sbomService) ListDigestsBySource(ctx context.Context, sourceID string) (map[string]bool, error) {
-	var srcUUID pgtype.UUID
-	if err := srcUUID.Scan(sourceID); err != nil {
+	srcUUID, err := uuidx.Parse(sourceID)
+	if err != nil {
 		return nil, fmt.Errorf("parsing source ID: %w", err)
 	}
 	q := repository.New(s.pool)

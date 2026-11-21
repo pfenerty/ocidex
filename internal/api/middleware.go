@@ -139,7 +139,7 @@ func OptionalAuthenticate(authSvc service.AuthService) func(http.Handler) http.H
 // actorFor is the audit actor for an authenticated caller: the user, and the
 // key when the request came in on one (ocidex-n9na).
 func actorFor(user service.AuthUser) event.Actor {
-	return event.Actor{Kind: event.ActorUser, ID: uuidToStr(user.ID), APIKeyID: user.APIKeyID}
+	return event.Actor{Kind: event.ActorUser, ID: user.ID.String(), APIKeyID: user.APIKeyID}
 }
 
 // clusterCredentialRoute reports whether r is the one request a credential
@@ -259,7 +259,7 @@ func RequireCapability(api huma.API, c authz.Capability,
 			_ = huma.WriteErr(api, ctx, http.StatusNotFound, "not found")
 			return
 		}
-		if !can(user, uuidToStr(namespaceID), c) {
+		if !can(user, namespaceID.String(), c) {
 			_ = huma.WriteErr(api, ctx, http.StatusForbidden, "forbidden")
 			return
 		}
@@ -294,7 +294,7 @@ func RequireCapabilityInAny(api huma.API, c authz.Capability,
 			namespaceIDs = []pgtype.UUID{{}}
 		}
 		for _, ns := range namespaceIDs {
-			if can(user, uuidToStr(ns), c) {
+			if can(user, ns.String(), c) {
 				next(ctx)
 				return
 			}

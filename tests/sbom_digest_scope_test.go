@@ -89,7 +89,7 @@ func TestSBOMDigestDedupeIsPerNamespace(t *testing.T) {
 
 	aRow := matchFor(aNS, aID, "a-prod")
 	is.Equal(aRow.MatchState, "exact")
-	is.Equal(uuidString(t, aRow.SbomID), aSBOM)
+	is.Equal(aRow.SbomID.String(), aSBOM)
 
 	// A cluster in a namespace with no SBOM for the digest does not borrow a
 	// private namespace's: it is a coverage gap.

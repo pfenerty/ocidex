@@ -24,7 +24,7 @@ type fakeEnrichmentGetter struct {
 func (f *fakeEnrichmentGetter) GetEnrichment(_ context.Context, arg repository.GetEnrichmentParams) (repository.Enrichment, error) {
 	f.mu.Lock()
 	defer f.mu.Unlock()
-	status, ok := f.statuses[uuidToHex(arg.SbomID)+":"+arg.EnricherName]
+	status, ok := f.statuses[arg.SbomID.String()+":"+arg.EnricherName]
 	if !ok {
 		return repository.Enrichment{}, pgx.ErrNoRows
 	}
@@ -77,7 +77,7 @@ func testSBOMID() pgtype.UUID {
 
 func TestEnqueueDependents(t *testing.T) {
 	sbomID := testSBOMID()
-	key := uuidToHex(sbomID) + ":oci-metadata"
+	key := sbomID.String() + ":oci-metadata"
 
 	tests := []struct {
 		name              string

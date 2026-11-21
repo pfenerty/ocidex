@@ -9,6 +9,7 @@ import (
 	"github.com/jackc/pgx/v5/pgxpool"
 
 	"github.com/pfenerty/ocidex/internal/repository"
+	"github.com/pfenerty/ocidex/internal/uuidx"
 )
 
 // Source kinds. An OCI registry source has a matching registry row carrying
@@ -70,7 +71,7 @@ func NewSourceService(pool *pgxpool.Pool) SourceService {
 }
 
 func (s *sourceService) Create(ctx context.Context, params CreateSourceParams) (Source, error) {
-	nsID, err := parseUUID(params.NamespaceID)
+	nsID, err := uuidx.Parse(params.NamespaceID)
 	if err != nil {
 		return Source{}, ErrNotFound
 	}
@@ -93,7 +94,7 @@ func (s *sourceService) Create(ctx context.Context, params CreateSourceParams) (
 }
 
 func (s *sourceService) Get(ctx context.Context, id string) (Source, error) {
-	uid, err := parseUUID(id)
+	uid, err := uuidx.Parse(id)
 	if err != nil {
 		return Source{}, ErrNotFound
 	}
@@ -105,7 +106,7 @@ func (s *sourceService) Get(ctx context.Context, id string) (Source, error) {
 }
 
 func (s *sourceService) GetByName(ctx context.Context, namespaceID, name string) (Source, error) {
-	nsID, err := parseUUID(namespaceID)
+	nsID, err := uuidx.Parse(namespaceID)
 	if err != nil {
 		return Source{}, ErrNotFound
 	}
@@ -120,7 +121,7 @@ func (s *sourceService) GetByName(ctx context.Context, namespaceID, name string)
 }
 
 func (s *sourceService) ListByNamespace(ctx context.Context, namespaceID string) ([]Source, error) {
-	nsID, err := parseUUID(namespaceID)
+	nsID, err := uuidx.Parse(namespaceID)
 	if err != nil {
 		return nil, ErrNotFound
 	}
@@ -154,7 +155,7 @@ func (s *sourceService) List(ctx context.Context, filter VisibilityFilter) ([]So
 }
 
 func (s *sourceService) Update(ctx context.Context, params UpdateSourceParams) (Source, error) {
-	uid, err := parseUUID(params.ID)
+	uid, err := uuidx.Parse(params.ID)
 	if err != nil {
 		return Source{}, ErrNotFound
 	}
@@ -177,7 +178,7 @@ func (s *sourceService) Update(ctx context.Context, params UpdateSourceParams) (
 // Delete removes a source, cascading to its registry subtype row. The owning
 // namespace and its SBOMs survive; the SBOMs only lose source_id.
 func (s *sourceService) Delete(ctx context.Context, id string) error {
-	uid, err := parseUUID(id)
+	uid, err := uuidx.Parse(id)
 	if err != nil {
 		return ErrNotFound
 	}
@@ -209,8 +210,8 @@ func (s *sourceService) refuseClusterSource(ctx context.Context, id pgtype.UUID)
 
 func sourceFromRepo(src repository.Source) Source {
 	out := Source{
-		ID:          uuidToStr(src.ID),
-		NamespaceID: uuidToStr(src.NamespaceID),
+		ID:          src.ID.String(),
+		NamespaceID: src.NamespaceID.String(),
 		Kind:        src.Kind,
 		Name:        src.Name,
 	}

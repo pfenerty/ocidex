@@ -15,6 +15,7 @@ import (
 	"github.com/pfenerty/ocidex/internal/netguard"
 	"github.com/pfenerty/ocidex/internal/scanner"
 	"github.com/pfenerty/ocidex/internal/service"
+	"github.com/pfenerty/ocidex/internal/uuidx"
 )
 
 // Dispatcher runs a single scan: fetch image, decode SBOM, ingest. It does not
@@ -86,10 +87,7 @@ func (d *Dispatcher) ProcessOne(ctx context.Context, req scanner.ScanRequest) (p
 	if req.ClusterID != "" {
 		sourceRef = req.ClusterID
 	}
-	var sourceID pgtype.UUID
-	if sourceRef != "" {
-		_ = sourceID.Scan(sourceRef) // invalid UUID → zero value, harmless
-	}
+	sourceID, _ := uuidx.Parse(sourceRef) // "" or invalid → NULL, harmless
 	sbomID, err := d.sbomSvc.Ingest(ctx, bom, res.SBOM, service.IngestParams{
 		Version:      version,
 		Architecture: req.Architecture,

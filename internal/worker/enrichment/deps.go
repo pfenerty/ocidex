@@ -3,7 +3,6 @@ package enrichmentworker
 import (
 	"context"
 	"encoding/json"
-	"fmt"
 	"log/slog"
 
 	"github.com/jackc/pgx/v5/pgtype"
@@ -62,7 +61,7 @@ func EnqueueDependents(
 
 		if err := jobSvc.Enqueue(ctx, sbomID, architecture, buildDate, dep); err != nil {
 			logger.Error("enricher worker: dependent enqueue failed",
-				"sbom_id", uuidToHex(sbomID), "enricher", dep, "err", err,
+				"sbom_id", sbomID.String(), "enricher", dep, "err", err,
 			)
 			continue
 		}
@@ -71,7 +70,7 @@ func EnqueueDependents(
 }
 
 func publishHint(ctx context.Context, js hintPublisher, streamName string, sbomID pgtype.UUID, logger *slog.Logger) {
-	jobID := uuidToHex(sbomID)
+	jobID := sbomID.String()
 	hint, err := json.Marshal(struct {
 		ID string `json:"id"`
 	}{ID: jobID})
@@ -86,13 +85,4 @@ func publishHint(ctx context.Context, js hintPublisher, streamName string, sbomI
 			"sbom_id", jobID, "err", err,
 		)
 	}
-}
-
-func uuidToHex(u pgtype.UUID) string {
-	if !u.Valid {
-		return ""
-	}
-	b := u.Bytes
-	return fmt.Sprintf("%08x-%04x-%04x-%04x-%012x",
-		b[0:4], b[4:6], b[6:8], b[8:10], b[10:16])
 }

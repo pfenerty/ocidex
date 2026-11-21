@@ -11,6 +11,7 @@ import (
 
 	"github.com/pfenerty/ocidex/internal/oci"
 	"github.com/pfenerty/ocidex/internal/repository"
+	"github.com/pfenerty/ocidex/internal/uuidx"
 )
 
 // Where an unknown image stands. Every state but ready is reported rather than
@@ -378,7 +379,7 @@ func pageOf[T any](all []T, limit, offset int32) []T {
 // flag — where the listing needs only its name; running one resolver for both
 // is what keeps the gap list's promise and the ingest attempt from drifting.
 func (s *clusterService) resolveUnknownImages(ctx context.Context, clusterID string, filter VisibilityFilter) ([]UnknownImage, map[string]Registry, error) {
-	cid, err := parseUUID(clusterID)
+	cid, err := uuidx.Parse(clusterID)
 	if err != nil {
 		return nil, nil, ErrNotFound
 	}
@@ -401,7 +402,7 @@ func (s *clusterService) resolveUnknownImages(ctx context.Context, clusterID str
 		return nil, nil, nil
 	}
 
-	nsID, err := parseUUID(cluster.NamespaceID)
+	nsID, err := uuidx.Parse(cluster.NamespaceID)
 	if err != nil {
 		return nil, nil, ErrNotFound
 	}
@@ -507,9 +508,9 @@ var jobReasonRank = map[string]int{
 
 func jobAttribution(j repository.ListScanJobsForDigestsRow) string {
 	if j.ClusterID.Valid {
-		return uuidToStr(j.ClusterID)
+		return j.ClusterID.String()
 	}
-	return uuidToStr(j.RegistryID)
+	return j.RegistryID.String()
 }
 
 // jobStateReason maps one job to the image state it implies, "" for one that

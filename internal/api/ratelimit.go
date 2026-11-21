@@ -207,7 +207,7 @@ func (l *rateLimiter) Huma(api huma.API) func(huma.Context, func(huma.Context)) 
 // keep a user ID from ever colliding with an address.
 func (h *Handler) principalKey(r *http.Request) string {
 	if user, ok := UserFromContext(r.Context()); ok {
-		return "user:" + uuidToStr(user.ID)
+		return "user:" + user.ID.String()
 	}
 	return "ip:" + h.clientIPs.ClientIP(r)
 }

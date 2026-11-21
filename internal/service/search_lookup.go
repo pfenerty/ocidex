@@ -62,7 +62,7 @@ func (s *searchService) LookupArtifact(ctx context.Context, query ArtifactLookup
 	candidates := make([]LookupCandidate, 0, len(rows))
 	for _, row := range rows {
 		candidates = append(candidates, LookupCandidate{
-			ID: uuidToString(row.ID),
+			ID: row.ID.String(),
 			Qualifiers: map[string]string{
 				qualifierName:  row.Name,
 				qualifierType:  row.Type,
@@ -125,7 +125,7 @@ func (s *searchService) LookupSBOM(ctx context.Context, query SBOMLookupQuery, v
 	candidates := make([]LookupCandidate, 0, len(rows))
 	for _, row := range rows {
 		candidates = append(candidates, LookupCandidate{
-			ID: uuidToString(row.ID),
+			ID: row.ID.String(),
 			Qualifiers: map[string]string{
 				qualifierArtifact: row.ArtifactName.String,
 				qualifierVersion:  row.VersionKey.String,

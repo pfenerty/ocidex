@@ -62,7 +62,7 @@ func (s *searchService) GetSBOM(ctx context.Context, id pgtype.UUID, includeRaw 
 
 	detail := SBOMDetail{
 		SBOMSummary: SBOMSummary{
-			ID:             uuidToString(row.ID),
+			ID:             row.ID.String(),
 			SerialNumber:   textToPtr(row.SerialNumber),
 			SpecVersion:    row.SpecVersion,
 			Version:        row.Version,
@@ -210,7 +210,7 @@ func (s *searchService) ListSBOMDriftHistory(ctx context.Context, sbomID pgtype.
 	items := make([]ProvenanceDriftSummary, len(rows))
 	for i, r := range rows {
 		items[i] = ProvenanceDriftSummary{
-			ID:             uuidToString(r.ID),
+			ID:             r.ID.String(),
 			PreviousStatus: r.PreviousStatus,
 			NewStatus:      r.NewStatus,
 			Reason:         r.Reason,
@@ -250,13 +250,13 @@ func (s *searchService) ListRecentProvenanceDrift(ctx context.Context, page Drif
 	for i, r := range rows {
 		items[i] = RecentDriftEntry{
 			ProvenanceDriftSummary: ProvenanceDriftSummary{
-				ID:             uuidToString(r.ID),
+				ID:             r.ID.String(),
 				PreviousStatus: r.PreviousStatus,
 				NewStatus:      r.NewStatus,
 				Reason:         r.Reason,
 				DetectedAt:     r.DetectedAt.Time,
 			},
-			SBOMID:       uuidToString(r.SbomID),
+			SBOMID:       r.SbomID.String(),
 			RegistryID:   uuidToPtr(r.SourceID),
 			RegistryName: textToPtr(r.SourceName),
 			ArtifactID:   uuidToPtr(r.ArtifactID),
@@ -300,11 +300,11 @@ func (s *searchService) ListOwnedActivity(ctx context.Context, ownerID pgtype.UU
 	items := make([]ActivityEntry, len(rows))
 	for i, r := range rows {
 		items[i] = ActivityEntry{
-			SBOMID:         uuidToString(r.ID),
+			SBOMID:         r.ID.String(),
 			Digest:         textToPtr(r.Digest),
 			SubjectVersion: textToPtr(r.SubjectVersion),
 			CreatedAt:      r.CreatedAt.Time,
-			NamespaceID:    uuidToString(r.NamespaceID),
+			NamespaceID:    r.NamespaceID.String(),
 			NamespaceName:  r.NamespaceName,
 			SourceID:       uuidToPtr(r.SourceID),
 			SourceName:     textToPtr(r.SourceName),
@@ -568,7 +568,7 @@ func (s *searchService) ListSBOMs(ctx context.Context, filter SBOMFilter) (Curso
 	items := make([]SBOMSummary, 0, len(rows))
 	for _, row := range rows {
 		items = append(items, SBOMSummary{
-			ID:             uuidToString(row.ID),
+			ID:             row.ID.String(),
 			SerialNumber:   textToPtr(row.SerialNumber),
 			SpecVersion:    row.SpecVersion,
 			Version:        row.Version,
@@ -606,11 +606,11 @@ func (s *searchService) ListSBOMsByArtifact(ctx context.Context, artifactID pgty
 		rows = rows[:page.Limit]
 	}
 
-	artifactIDStr := uuidToString(artifactID)
+	artifactIDStr := artifactID.String()
 	items := make([]SBOMSummary, 0, len(rows))
 	for _, row := range rows {
 		summary := SBOMSummary{
-			ID:             uuidToString(row.ID),
+			ID:             row.ID.String(),
 			SerialNumber:   textToPtr(row.SerialNumber),
 			SpecVersion:    row.SpecVersion,
 			Version:        row.Version,
@@ -666,7 +666,7 @@ func (s *searchService) ListSBOMsByDigest(ctx context.Context, digest string, li
 	for _, row := range rows {
 		total = row.TotalCount
 		items = append(items, SBOMSummary{
-			ID:             uuidToString(row.ID),
+			ID:             row.ID.String(),
 			SerialNumber:   textToPtr(row.SerialNumber),
 			SpecVersion:    row.SpecVersion,
 			Version:        row.Version,

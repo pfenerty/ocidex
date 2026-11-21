@@ -37,6 +37,6 @@ func TestStatsCacheKeyByScope(t *testing.T) {
 
 	is.Equal(statsCacheKey(VisibilityFilter{IsAdmin: true}), "admin")
 	is.Equal(statsCacheKey(VisibilityFilter{IsAdmin: true, UserID: uid}), "admin")
-	is.Equal(statsCacheKey(VisibilityFilter{UserID: uid}), "u:"+uuidToString(uid))
+	is.Equal(statsCacheKey(VisibilityFilter{UserID: uid}), "u:"+uid.String())
 	is.Equal(statsCacheKey(VisibilityFilter{}), "anon")
 }

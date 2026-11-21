@@ -15,7 +15,6 @@ import (
 	"syscall"
 	"time"
 
-	"github.com/jackc/pgx/v5/pgtype"
 	"github.com/jackc/pgx/v5/pgxpool"
 
 	"github.com/pfenerty/ocidex/internal/config"
@@ -29,6 +28,7 @@ import (
 	"github.com/pfenerty/ocidex/internal/repository"
 	"github.com/pfenerty/ocidex/internal/service"
 	"github.com/pfenerty/ocidex/internal/tracing"
+	"github.com/pfenerty/ocidex/internal/uuidx"
 )
 
 // RunConfig scopes a worker to a specific enricher queue partition.
@@ -209,8 +209,8 @@ func RunOnce(ctx context.Context, pool *pgxpool.Pool, factory EnricherFactory, a
 	start := time.Now()
 	slog.Info("enrichment started", "sbom_id", sbomIDStr)
 
-	var sbomID pgtype.UUID
-	if err := sbomID.Scan(sbomIDStr); err != nil {
+	sbomID, err := uuidx.Parse(sbomIDStr)
+	if err != nil {
 		return fmt.Errorf("parsing ENRICH_SBOM_ID %q: %w", sbomIDStr, err)
 	}
 

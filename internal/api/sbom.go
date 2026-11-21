@@ -109,7 +109,7 @@ func (h *Handler) IngestSBOM(ctx context.Context, input *IngestSBOMInput) (*Inge
 	}
 
 	out := &IngestSBOMOutput{}
-	out.Body.ID = fmt.Sprintf("%x-%x-%x-%x-%x", sbomID.Bytes[0:4], sbomID.Bytes[4:6], sbomID.Bytes[6:8], sbomID.Bytes[8:10], sbomID.Bytes[10:16])
+	out.Body.ID = sbomID.String()
 	out.Body.Status = "accepted"
 	out.Body.SpecVersion = bom.SpecVersion.String()
 	out.Body.SerialNumber = bom.SerialNumber
@@ -159,7 +159,7 @@ func (h *Handler) DeleteArtifact(ctx context.Context, input *DeleteArtifactInput
 	}
 	var mine []pgtype.UUID
 	for _, ns := range all {
-		if can(user, uuidToStr(ns), authz.CapDeleteArtifact) {
+		if can(user, ns.String(), authz.CapDeleteArtifact) {
 			mine = append(mine, ns)
 		}
 	}

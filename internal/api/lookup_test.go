@@ -3,7 +3,6 @@ package api_test
 import (
 	"context"
 	"encoding/json"
-	"fmt"
 	"net/http"
 	"net/http/httptest"
 	"net/url"
@@ -70,12 +69,8 @@ func (f *lookupSearchService) LookupArtifact(_ context.Context, q service.Artifa
 // resolver picked, not merely that some artifact came back.
 func (f *lookupSearchService) GetArtifact(_ context.Context, id pgtype.UUID, _ service.VisibilityFilter) (service.ArtifactDetail, error) {
 	return service.ArtifactDetail{
-		ArtifactSummary: service.ArtifactSummary{ID: uuidString(id), Type: "container", Name: "resolved"},
+		ArtifactSummary: service.ArtifactSummary{ID: id.String(), Type: "container", Name: "resolved"},
 	}, nil
-}
-
-func uuidString(u pgtype.UUID) string {
-	return fmt.Sprintf("%x-%x-%x-%x-%x", u.Bytes[0:4], u.Bytes[4:6], u.Bytes[6:8], u.Bytes[8:10], u.Bytes[10:16])
 }
 
 // lookupFixture is the table every artifact lookup test resolves against.
@@ -235,7 +230,7 @@ func (f *lookupSBOMSearchService) LookupSBOM(_ context.Context, q service.SBOMLo
 
 // GetSBOM echoes the requested id so a 200 identifies which candidate won.
 func (f *lookupSBOMSearchService) GetSBOM(_ context.Context, id pgtype.UUID, _ bool, _ service.VisibilityFilter) (service.SBOMDetail, error) {
-	return service.SBOMDetail{SBOMSummary: service.SBOMSummary{ID: uuidString(id), SpecVersion: "1.5", Version: 1}}, nil
+	return service.SBOMDetail{SBOMSummary: service.SBOMSummary{ID: id.String(), SpecVersion: "1.5", Version: 1}}, nil
 }
 
 func sbomLookupFixture() *lookupSBOMSearchService {

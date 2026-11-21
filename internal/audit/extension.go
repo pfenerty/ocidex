@@ -4,7 +4,6 @@ package audit
 
 import (
 	"context"
-	"fmt"
 	"log/slog"
 
 	"github.com/jackc/pgx/v5/pgtype"
@@ -94,7 +93,7 @@ func (e *Extension) handleUserLoggedIn(ctx context.Context, ev event.Event) {
 	// The session is created by this very request, so the middleware had no
 	// user to attribute it to: the actor is the user signing in.
 	if _, ok := event.ActorFromContext(ctx); !ok {
-		ctx = event.WithActor(ctx, event.Actor{Kind: event.ActorUser, ID: uuidToString(data.UserID)})
+		ctx = event.WithActor(ctx, event.Actor{Kind: event.ActorUser, ID: data.UserID.String()})
 	}
 	e.record(ctx, string(event.UserLoggedIn), "user", data.UserID, data)
 }
@@ -112,7 +111,7 @@ func (e *Extension) record(ctx context.Context, eventType, resourceType string, 
 	e.logger.InfoContext(ctx, "audit",
 		"event_type", eventType,
 		"resource_type", resourceType,
-		"resource_id", uuidToString(resourceID),
+		"resource_id", resourceID.String(),
 		actorAttr(ctx),
 		"metadata", payload,
 	)
@@ -134,13 +133,4 @@ func actorAttr(ctx context.Context) slog.Attr {
 		attrs = append(attrs, slog.String("api_key_id", a.APIKeyID))
 	}
 	return slog.Attr{Key: "actor", Value: slog.GroupValue(attrs...)}
-}
-
-func uuidToString(u pgtype.UUID) string {
-	if !u.Valid {
-		return ""
-	}
-	b := u.Bytes
-	return fmt.Sprintf("%08x-%04x-%04x-%04x-%012x",
-		b[0:4], b[4:6], b[6:8], b[8:10], b[10:16])
 }

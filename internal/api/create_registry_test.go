@@ -77,8 +77,8 @@ func createRegistryAuthService() *fakeAuthService {
 			"admin-token":     {ID: adminUUID, Role: "admin", APIKeyAuth: true, APIKeyCaps: allCaps},
 		},
 		grants: map[string]map[string]authz.Role{
-			uuidString(ownerUUID):     {testNamespaceID: authz.RoleOwner},
-			uuidString(developerUUID): {testNamespaceID: authz.RoleDeveloper},
+			ownerUUID.String():     {testNamespaceID: authz.RoleOwner},
+			developerUUID.String(): {testNamespaceID: authz.RoleDeveloper},
 		},
 	}
 }
@@ -178,7 +178,7 @@ func TestRegistryURLValidatedOnCreateAndUpdate(t *testing.T) {
 		users: map[string]service.AuthUser{
 			"owner-token": {ID: ownerUUID, Role: "member", APIKeyAuth: true, APIKeyCaps: authz.AllCapabilities()},
 		},
-		grants: map[string]map[string]authz.Role{uuidString(ownerUUID): {mwNamespaceID: authz.RoleOwner}},
+		grants: map[string]map[string]authz.Role{ownerUUID.String(): {mwNamespaceID: authz.RoleOwner}},
 	}
 	regSvc := &recordingRegistryService{fakeRegistryService: fakeRegistryService{registry: testRegistry}}
 	h := api.NewHandler(nil, nil, authSvc, regSvc, &namedNamespaceService{}, nil, nil, nil, nil, nil, &fakePinger{}, nil, &config.Config{})

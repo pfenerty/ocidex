@@ -506,7 +506,7 @@ func TestUUIDToString(t *testing.T) {
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			is := is.New(t)
-			is.Equal(uuidToString(tt.id), tt.want)
+			is.Equal(tt.id.String(), tt.want)
 		})
 	}
 }

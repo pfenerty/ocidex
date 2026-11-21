@@ -58,7 +58,7 @@ func TestNormalizeStatsScopeKeepsOwnersOfPrivateRegistries(t *testing.T) {
 
 	got := svc.normalizeStatsScope(context.Background(), VisibilityFilter{UserID: uid})
 
-	is.Equal(statsCacheKey(got), "u:"+uuidToString(uid))
+	is.Equal(statsCacheKey(got), "u:"+uid.String())
 }
 
 // Widening a viewer's scope on a failed ownership check could serve them
@@ -70,7 +70,7 @@ func TestNormalizeStatsScopeFailsClosed(t *testing.T) {
 
 	got := svc.normalizeStatsScope(context.Background(), VisibilityFilter{UserID: uid})
 
-	is.Equal(statsCacheKey(got), "u:"+uuidToString(uid))
+	is.Equal(statsCacheKey(got), "u:"+uid.String())
 }
 
 func TestNormalizeStatsScopeLeavesAdminAndAnonAlone(t *testing.T) {

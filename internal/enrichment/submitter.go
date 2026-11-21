@@ -3,10 +3,8 @@ package enrichment
 import (
 	"context"
 	"encoding/json"
-	"fmt"
 	"log/slog"
 
-	"github.com/jackc/pgx/v5/pgtype"
 	"github.com/nats-io/nats.go"
 
 	"github.com/pfenerty/ocidex/internal/event"
@@ -55,7 +53,7 @@ func (s *NATSSubmitter) handle(ctx context.Context, ev event.Event) {
 		return
 	}
 
-	jobID := enrichUUIDToString(d.SBOMID)
+	jobID := d.SBOMID.String()
 	hint, err := json.Marshal(struct {
 		ID string `json:"id"`
 	}{ID: jobID})
@@ -70,13 +68,4 @@ func (s *NATSSubmitter) handle(ctx context.Context, ev event.Event) {
 			"sbom_id", d.SBOMID, "err", err,
 		)
 	}
-}
-
-func enrichUUIDToString(u pgtype.UUID) string {
-	if !u.Valid {
-		return ""
-	}
-	b := u.Bytes
-	return fmt.Sprintf("%08x-%04x-%04x-%04x-%012x",
-		b[0:4], b[4:6], b[6:8], b[8:10], b[10:16])
 }

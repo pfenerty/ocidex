@@ -13,6 +13,7 @@ import (
 	"github.com/pfenerty/ocidex/internal/enrichment/names"
 	"github.com/pfenerty/ocidex/internal/repository"
 	"github.com/pfenerty/ocidex/internal/tracing"
+	"github.com/pfenerty/ocidex/internal/uuidx"
 )
 
 // EnrichJobClaim is the "ready-to-enrich" projection a worker receives after
@@ -139,7 +140,7 @@ func enrichJobParams(ctx context.Context, sbomID pgtype.UUID, architecture, buil
 	// the UNIQUE (sbom_id, enricher_name) constraint and keeps re-enqueues idempotent.
 	return repository.InsertEnrichmentJobParams{
 		SbomID:         sbomID,
-		IdempotencyKey: pgtype.Text{String: uuidToStr(sbomID) + ":" + enricherName, Valid: true},
+		IdempotencyKey: pgtype.Text{String: sbomID.String() + ":" + enricherName, Valid: true},
 		Architecture:   pgtype.Text{String: architecture, Valid: architecture != ""},
 		BuildDate:      pgtype.Text{String: buildDate, Valid: buildDate != ""},
 		EnricherName:   enricherName,
@@ -166,7 +167,7 @@ func enqueueRootEnrichments(ctx context.Context, q *repository.Queries, sbomID p
 }
 
 func (s *enrichJobService) ClaimByID(ctx context.Context, id, workerID string) (EnrichJobClaim, bool, error) {
-	uid, err := parseUUID(id)
+	uid, err := uuidx.Parse(id)
 	if err != nil {
 		return EnrichJobClaim{}, false, nil //nolint:nilerr // not-found is signalled by the bool, not the error.
 	}
@@ -198,7 +199,7 @@ func (s *enrichJobService) ClaimNext(ctx context.Context, workerID string) (Enri
 }
 
 func (s *enrichJobService) FinishByID(ctx context.Context, id string) error {
-	uid, err := parseUUID(id)
+	uid, err := uuidx.Parse(id)
 	if err != nil {
 		return fmt.Errorf("invalid enrichment job id: %w", err)
 	}
@@ -206,7 +207,7 @@ func (s *enrichJobService) FinishByID(ctx context.Context, id string) error {
 }
 
 func (s *enrichJobService) FailOrRequeue(ctx context.Context, id, lastError string, maxAttempts int32) (string, error) {
-	uid, err := parseUUID(id)
+	uid, err := uuidx.Parse(id)
 	if err != nil {
 		return "", fmt.Errorf("invalid enrichment job id: %w", err)
 	}
@@ -294,7 +295,7 @@ func (s *enrichJobService) Summary(ctx context.Context, vis VisibilityFilter) ([
 }
 
 func (s *enrichJobService) Retry(ctx context.Context, id string) error {
-	uid, err := parseUUID(id)
+	uid, err := uuidx.Parse(id)
 	if err != nil {
 		return fmt.Errorf("invalid job id: %w", err)
 	}
@@ -307,14 +308,14 @@ func (s *enrichJobService) RetryAllFailed(ctx context.Context, enricherName stri
 
 func fromEnrichJobRow(r repository.ListEnrichmentJobsRow) EnrichJob {
 	j := EnrichJob{
-		ID:           uuidToStr(r.ID),
+		ID:           r.ID.String(),
 		EnricherName: r.EnricherName,
 		State:        r.State,
 		Attempts:     r.Attempts,
 		CreatedAt:    r.CreatedAt.Time,
 	}
 	if r.SbomID.Valid {
-		v := uuidToStr(r.SbomID)
+		v := r.SbomID.String()
 		j.SbomID = &v
 	}
 	if r.LastError.Valid {
@@ -346,7 +347,7 @@ func fromEnrichJobRow(r repository.ListEnrichmentJobsRow) EnrichJob {
 
 func enrichClaimFromRow(r repository.ClaimEnrichmentJobByIDRow) EnrichJobClaim {
 	return EnrichJobClaim{
-		ID:             uuidToStr(r.ID),
+		ID:             r.ID.String(),
 		SBOMId:         r.SbomID,
 		Attempts:       r.Attempts,
 		Architecture:   r.Architecture,
@@ -364,7 +365,7 @@ func enrichClaimFromRow(r repository.ClaimEnrichmentJobByIDRow) EnrichJobClaim {
 
 func enrichClaimFromNextRow(r repository.ClaimNextEnrichmentJobRow) EnrichJobClaim {
 	return EnrichJobClaim{
-		ID:             uuidToStr(r.ID),
+		ID:             r.ID.String(),
 		SBOMId:         r.SbomID,
 		Attempts:       r.Attempts,
 		EnricherName:   r.EnricherName,

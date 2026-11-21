@@ -157,8 +157,8 @@ func (s *searchService) GetComponentVersions(ctx context.Context, filter Compone
 	var purls []string
 	for _, row := range rows {
 		entry := ComponentVersionEntry{
-			ID:             uuidToString(row.ID),
-			SbomID:         uuidToString(row.SbomID),
+			ID:             row.ID.String(),
+			SbomID:         row.SbomID.String(),
 			Type:           row.Type,
 			Name:           row.Name,
 			Group:          textToPtr(row.GroupName),

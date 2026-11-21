@@ -100,7 +100,7 @@ func TestRegistryCredentials_LegacyPlaintextReads(t *testing.T) {
 	}}
 	svc := &registryService{repo: store.repo(), box: testBox(t)}
 
-	got, err := svc.Get(context.Background(), uuidToStr(id))
+	got, err := svc.Get(context.Background(), id.String())
 	is.NoErr(err)
 	is.Equal(*got.AuthToken, "legacy-token")
 	is.Equal(*got.WebhookSecret, "legacy-secret")
@@ -110,13 +110,13 @@ func TestRegistryCredentials_LegacyPlaintextReads(t *testing.T) {
 func TestRegistryCredentials_BoundToRow(t *testing.T) {
 	is := is.New(t)
 	box := testBox(t)
-	stored, err := sealCredential(box, colAuthToken, uuidToStr(pgtype.UUID{Bytes: [16]byte{1}, Valid: true}), ptr("tok"))
+	stored, err := sealCredential(box, colAuthToken, pgtype.UUID{Bytes: [16]byte{1}, Valid: true}.String(), ptr("tok"))
 	is.NoErr(err)
 
 	other := pgtype.UUID{Bytes: [16]byte{2}, Valid: true}
 	store := &fakeStore{row: repository.Registry{ID: other, AuthToken: stored}}
 	svc := &registryService{repo: store.repo(), box: box}
-	_, err = svc.Get(context.Background(), uuidToStr(other))
+	_, err = svc.Get(context.Background(), other.String())
 	is.True(err != nil)
 }
 

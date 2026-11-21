@@ -506,7 +506,7 @@ func TestGetComponent_Success(t *testing.T) {
 	is.NoErr(err)
 	is.Equal(detail.Name, "openssl")
 	is.Equal(detail.Type, "library")
-	is.Equal(detail.SbomID, uuidToString(sbomID))
+	is.Equal(detail.SbomID, sbomID.String())
 	is.Equal(len(detail.Hashes), 0)
 	is.Equal(len(detail.Licenses), 0)
 	is.Equal(len(detail.ExternalRefs), 0)

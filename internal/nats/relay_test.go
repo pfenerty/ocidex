@@ -20,13 +20,13 @@ func TestUUIDToString(t *testing.T) {
 		Bytes: [16]byte{0x01, 0x23, 0x45, 0x67, 0x89, 0xab, 0xcd, 0xef, 0x01, 0x23, 0x45, 0x67, 0x89, 0xab, 0xcd, 0xef},
 		Valid: true,
 	}
-	got := uuidToString(u)
+	got := u.String()
 	is.Equal(got, "01234567-89ab-cdef-0123-456789abcdef")
 }
 
 func TestUUIDToString_Invalid(t *testing.T) {
 	is := is.New(t)
-	is.Equal(uuidToString(pgtype.UUID{}), "")
+	is.Equal(pgtype.UUID{}.String(), "")
 }
 
 func TestSubjectMap_AllEventTypes(t *testing.T) {
@@ -119,7 +119,7 @@ func TestMarshalPayload_UnknownType(t *testing.T) {
 
 func TestMsgIDForEvent(t *testing.T) {
 	uuid1 := makeUUID([16]byte{0x01, 0x02, 0x03, 0x04, 0x05, 0x06, 0x07, 0x08, 0x09, 0x0a, 0x0b, 0x0c, 0x0d, 0x0e, 0x0f, 0x10})
-	uuid1str := uuidToString(uuid1)
+	uuid1str := uuid1.String()
 
 	tests := []struct {
 		name    string

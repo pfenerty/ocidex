@@ -112,7 +112,7 @@ func EncryptRegistrySecrets(ctx context.Context, repo RegistrySecretsRepository,
 }
 
 func rewriteRow(ctx context.Context, repo RegistrySecretsRepository, box *secretbox.Box, row repository.ListRegistrySecretsPageRow, dryRun bool, res *EncryptSecretsResult) error {
-	id := uuidToStr(row.ID)
+	id := row.ID.String()
 	newToken, tokenChanged := reseal(box, colAuthToken, id, row.AuthToken, res)
 	newSecret, secretChanged := reseal(box, colWebhookSecret, id, row.WebhookSecret, res)
 	if (!tokenChanged && !secretChanged) || dryRun {

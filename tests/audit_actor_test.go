@@ -93,7 +93,7 @@ func TestAuditLineNamesAPIKeyActor(t *testing.T) {
 	resp.Body.Close()
 	is.Equal(resp.StatusCode, http.StatusNoContent)
 
-	want := map[string]string{"kind": "user", "id": uuidString(t, userID), "api_key_id": uuidString(t, keyID)}
+	want := map[string]string{"kind": "user", "id": userID.String(), "api_key_id": keyID.String()}
 	seen := map[string]bool{}
 	for _, l := range auditLines(t, out.String()) {
 		if l.ResourceID != sbomID {

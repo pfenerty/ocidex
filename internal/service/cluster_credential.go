@@ -10,6 +10,7 @@ import (
 	"github.com/jackc/pgx/v5/pgtype"
 
 	"github.com/pfenerty/ocidex/internal/repository"
+	"github.com/pfenerty/ocidex/internal/uuidx"
 )
 
 // ClusterCredential is an agent credential bound to one cluster
@@ -32,7 +33,7 @@ type ClusterCredential struct {
 
 // CreateCredential mints a credential bound to clusterID and owned by userID.
 func (s *clusterService) CreateCredential(ctx context.Context, clusterID string, userID pgtype.UUID, name string) (ClusterCredential, error) {
-	cid, err := parseUUID(clusterID)
+	cid, err := uuidx.Parse(clusterID)
 	if err != nil {
 		return ClusterCredential{}, ErrNotFound
 	}
@@ -51,11 +52,11 @@ func (s *clusterService) CreateCredential(ctx context.Context, clusterID string,
 		return ClusterCredential{}, fmt.Errorf("creating cluster credential: %w", err)
 	}
 	return ClusterCredential{
-		ID:        uuidToStr(row.ID),
+		ID:        row.ID.String(),
 		Name:      row.Name,
 		Prefix:    row.Prefix,
 		CreatedAt: row.CreatedAt.Time,
-		OwnerID:   uuidToStr(userID),
+		OwnerID:   userID.String(),
 		Plaintext: plaintext,
 	}, nil
 }
@@ -63,7 +64,7 @@ func (s *clusterService) CreateCredential(ctx context.Context, clusterID string,
 // ListCredentials lists every credential bound to the cluster, whoever minted
 // it: the namespace's cluster managers manage them together.
 func (s *clusterService) ListCredentials(ctx context.Context, clusterID string) ([]ClusterCredential, error) {
-	cid, err := parseUUID(clusterID)
+	cid, err := uuidx.Parse(clusterID)
 	if err != nil {
 		return nil, ErrNotFound
 	}
@@ -74,11 +75,11 @@ func (s *clusterService) ListCredentials(ctx context.Context, clusterID string) 
 	out := make([]ClusterCredential, len(rows))
 	for i, r := range rows {
 		c := ClusterCredential{
-			ID:        uuidToStr(r.ID),
+			ID:        r.ID.String(),
 			Name:      r.Name,
 			Prefix:    r.Prefix,
 			CreatedAt: r.CreatedAt.Time,
-			OwnerID:   uuidToStr(r.UserID),
+			OwnerID:   r.UserID.String(),
 			OwnerName: displayName(r.DisplayName),
 		}
 		if r.LastUsedAt.Valid {
@@ -93,11 +94,11 @@ func (s *clusterService) ListCredentials(ctx context.Context, clusterID string) 
 // RevokeCredential deletes one of the cluster's credentials. ErrNotFound when
 // the id is not a credential of this cluster.
 func (s *clusterService) RevokeCredential(ctx context.Context, clusterID, credentialID string) error {
-	cid, err := parseUUID(clusterID)
+	cid, err := uuidx.Parse(clusterID)
 	if err != nil {
 		return ErrNotFound
 	}
-	kid, err := parseUUID(credentialID)
+	kid, err := uuidx.Parse(credentialID)
 	if err != nil {
 		return ErrNotFound
 	}
@@ -116,11 +117,11 @@ func (s *clusterService) RevokeCredential(ctx context.Context, clusterID, creden
 // stops authenticating until it is given the new key: rotation for overlap is
 // CreateCredential, roll the agent, then RevokeCredential.
 func (s *clusterService) RotateCredential(ctx context.Context, clusterID, credentialID string, userID pgtype.UUID) (ClusterCredential, error) {
-	cid, err := parseUUID(clusterID)
+	cid, err := uuidx.Parse(clusterID)
 	if err != nil {
 		return ClusterCredential{}, ErrNotFound
 	}
-	kid, err := parseUUID(credentialID)
+	kid, err := uuidx.Parse(credentialID)
 	if err != nil {
 		return ClusterCredential{}, ErrNotFound
 	}
@@ -142,11 +143,11 @@ func (s *clusterService) RotateCredential(ctx context.Context, clusterID, creden
 		return ClusterCredential{}, fmt.Errorf("rotating cluster credential: %w", err)
 	}
 	return ClusterCredential{
-		ID:        uuidToStr(row.ID),
+		ID:        row.ID.String(),
 		Name:      row.Name,
 		Prefix:    row.Prefix,
 		CreatedAt: row.CreatedAt.Time,
-		OwnerID:   uuidToStr(userID),
+		OwnerID:   userID.String(),
 		Plaintext: plaintext,
 	}, nil
 }
@@ -165,7 +166,7 @@ type ConnectClusterParams struct {
 // transaction (ocidex-70eo.6), so the connect flow can never leave a cluster
 // behind with no key to install.
 func (s *clusterService) Connect(ctx context.Context, p ConnectClusterParams) (Cluster, ClusterCredential, error) {
-	nsID, err := parseUUID(p.NamespaceID)
+	nsID, err := uuidx.Parse(p.NamespaceID)
 	if err != nil {
 		return Cluster{}, ClusterCredential{}, ErrNotFound
 	}
@@ -207,11 +208,11 @@ func (s *clusterService) Connect(ctx context.Context, p ConnectClusterParams) (C
 		return Cluster{}, ClusterCredential{}, fmt.Errorf("committing connect: %w", err)
 	}
 	return clusterFromRepo(row), ClusterCredential{
-		ID:        uuidToStr(cred.ID),
+		ID:        cred.ID.String(),
 		Name:      cred.Name,
 		Prefix:    cred.Prefix,
 		CreatedAt: cred.CreatedAt.Time,
-		OwnerID:   uuidToStr(p.Owner),
+		OwnerID:   p.Owner.String(),
 		Plaintext: plaintext,
 	}, nil
 }
