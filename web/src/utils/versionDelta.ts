@@ -87,3 +87,36 @@ export function sameVariantAsNewest(rows: readonly SeverityPoint[]): SeverityPoi
     const variant = variantOf(scanned[0].versionKey);
     return scanned.filter((r) => variantOf(r.versionKey) === variant);
 }
+
+const SMALL = ["Zero", "One", "Two", "Three", "Four", "Five", "Six", "Seven", "Eight", "Nine", "Ten"];
+
+/**
+ * A short entry written from the data, the way a dex entry describes a
+ * species: how many versions are on record, whether critical findings ever
+ * rose between releases, and the largest single drop. Every clause is a fact
+ * the version list supports; nothing is said about versions without findings
+ * data. Undefined when there are fewer than two comparable versions.
+ */
+export function entryText(rows: readonly SeverityPoint[], versionCount: number): string | undefined {
+    const line = sameVariantAsNewest(rows).slice().reverse();
+    if (line.length < 2) return undefined;
+    const first = line[0];
+    const last = line[line.length - 1];
+    let rose = false;
+    let drop = { amount: 0, version: "" };
+    for (let i = 1; i < line.length; i++) {
+        const d = (line[i].critical ?? 0) - (line[i - 1].critical ?? 0);
+        if (d > 0) rose = true;
+        if (-d > drop.amount) drop = { amount: -d, version: line[i].versionKey };
+    }
+    const count = versionCount <= 10 ? SMALL[versionCount] : versionCount.toLocaleString();
+    const parts = [`${count} version${versionCount === 1 ? "" : "s"} on record.`];
+    const span = `${(first.critical ?? 0).toLocaleString()} in ${first.versionKey}, ${(last.critical ?? 0).toLocaleString()} in ${last.versionKey}`;
+    parts.push(
+        rose
+            ? `Critical findings rose in at least one release: ${span}.`
+            : `Critical findings have not gone up in any release since ${first.versionKey}: ${span}.`,
+    );
+    if (drop.amount > 0) parts.push(`${drop.version} shed the most at once, ${drop.amount.toLocaleString()}.`);
+    return parts.join(" ");
+}

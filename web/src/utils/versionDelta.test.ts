@@ -1,5 +1,5 @@
 import { describe, it, expect } from "vitest";
-import { formatDelta, latestVerdict, variantOf, versionDeltas } from "./versionDelta";
+import { entryText, formatDelta, latestVerdict, variantOf, versionDeltas } from "./versionDelta";
 
 const py = [
     { versionKey: "3.15.2", critical: 33, high: 252 },
@@ -70,5 +70,29 @@ describe("formatDelta", () => {
         expect(formatDelta(-2)).toBe("−2");
         expect(formatDelta(1270)).toBe("+1,270");
         expect(formatDelta(0)).toBe("±0");
+    });
+});
+
+describe("entryText", () => {
+    const line = [
+        { versionKey: "3.15.2", critical: 33 },
+        { versionKey: "3.14.10", critical: 35 },
+        { versionKey: "3.14.6", critical: 286 },
+        { versionKey: "3.14.4", critical: 451 },
+    ];
+
+    it("summarises a falling history", () => {
+        expect(entryText(line, 9)).toBe(
+            "Nine versions on record. Critical findings have not gone up in any release since 3.14.4: 451 in 3.14.4, 33 in 3.15.2. 3.14.10 shed the most at once, 251.",
+        );
+    });
+
+    it("says when findings rose", () => {
+        const rising = [{ versionKey: "2", critical: 5 }, { versionKey: "1", critical: 3 }];
+        expect(entryText(rising, 2)).toBe("Two versions on record. Critical findings rose in at least one release: 3 in 1, 5 in 2.");
+    });
+
+    it("says nothing with one comparable version", () => {
+        expect(entryText([line[0]], 1)).toBeUndefined();
     });
 });

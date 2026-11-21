@@ -46,6 +46,9 @@
 .page-header p {
     color: var(--color-text-muted);
     margin-top: 0.25rem;
+    /* A reading measure, so a long subtitle wraps rather than pushing the
+       header's actions onto a line of their own. */
+    max-width: 72ch;
 }
 
 .page-header-row {

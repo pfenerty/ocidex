@@ -4,7 +4,7 @@ import { A } from "@solidjs/router";
 import type { ArtifactDetail } from "~/api/client";
 import PurlLink from "~/components/PurlLink";
 import { Sprite } from "~/components/Sprite";
-import type { SeverityPoint } from "~/utils/versionDelta";
+import { entryText, type SeverityPoint } from "~/utils/versionDelta";
 import CopyShareLink, { artifactLookupPath } from "~/components/CopyShareLink";
 import WatchStar from "~/components/WatchStar";
 import { Button, ButtonGroup, Card, DetailField, DetailGrid, EntryLine, PageHeader, TitleWithPrefix, TypeBadge } from "~/components/ui";
@@ -48,6 +48,8 @@ export function ArtifactHeader(props: { artifact: ArtifactDetail; breadcrumb?: J
                     </span>
                 </span>
             }
+            /* The entry: a two-line summary written from the version data. */
+            subtitle={entryText(props.points ?? [], a().versionCount)}
             actions={
                 <ButtonGroup>
                     <WatchStar artifactId={a().id} watched={a().watched} />
