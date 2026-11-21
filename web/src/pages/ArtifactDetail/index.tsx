@@ -2,6 +2,7 @@ import type { ArtifactDetail } from "~/api/client";
 import "~/components/DetailSection.css";
 import { createSignal, Show } from "solid-js";
 import { useParams, useSearchParams } from "@solidjs/router";
+import NotFound from "~/pages/NotFound";
 import {
     useArtifact,
     useArtifactVersions,
@@ -38,7 +39,7 @@ function one(v: string | string[] | undefined): string | undefined {
     return Array.isArray(v) ? v[0] : v;
 }
 
-export default function ArtifactDetail() {
+function ArtifactDetailPage() {
     const params = useParams<{ id: string }>();
     const [searchParams, setSearchParams] = useSearchParams();
     const [versionOffset, setVersionOffset] = createSignal(0);
@@ -435,5 +436,21 @@ export default function ArtifactDetail() {
                         )}
             </QueryBoundary>
         </>
+    );
+}
+
+const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+
+/**
+ * An id that is not a UUID can never name an artifact: the API answers 422,
+ * which the page used to show raw. It is a mistyped or guessed URL, so it gets
+ * the not-found page, which offers search and a did-you-mean.
+ */
+export default function ArtifactDetail() {
+    const params = useParams<{ id: string }>();
+    return (
+        <Show when={UUID_RE.test(params.id)} fallback={<NotFound />}>
+            <ArtifactDetailPage />
+        </Show>
     );
 }
