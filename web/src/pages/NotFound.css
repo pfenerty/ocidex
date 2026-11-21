@@ -1,0 +1,47 @@
+/* The not-found page: an empty bar chart for grass, then the encounter line. */
+.not-found-grass {
+    display: flex;
+    align-items: flex-end;
+    gap: 2px;
+    height: 26px;
+    margin-bottom: 0.75rem;
+}
+
+.not-found-grass i {
+    display: block;
+    width: 3px;
+    background: var(--color-border-hover);
+}
+
+.grass-8 { height: 8px; }
+.grass-9 { height: 9px; }
+.grass-10 { height: 10px; }
+.grass-11 { height: 11px; }
+.grass-12 { height: 12px; }
+.grass-13 { height: 13px; }
+.grass-14 { height: 14px; }
+.grass-15 { height: 15px; }
+.grass-16 { height: 16px; }
+.grass-17 { height: 17px; }
+.grass-19 { height: 19px; }
+.grass-20 { height: 20px; }
+.grass-22 { height: 22px; }
+.grass-24 { height: 24px; }
+
+.not-found-title {
+    font-family: var(--font-display);
+    font-stretch: 75%;
+    font-size: 2.75rem;
+    font-weight: 800;
+    color: var(--color-text);
+    line-height: 1;
+    margin-bottom: 0.5rem;
+}
+
+.not-found-actions {
+    display: flex;
+    flex-wrap: wrap;
+    justify-content: center;
+    gap: 0.5rem;
+    margin-top: 1.5rem;
+}

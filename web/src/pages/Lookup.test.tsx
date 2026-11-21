@@ -1,5 +1,6 @@
 // @vitest-environment happy-dom
 import { describe, it, expect, vi, beforeEach } from "vitest";
+import type * as SearchModule from "~/api/queries/search";
 import { Router, Route } from "@solidjs/router";
 import { render, waitFor } from "@solidjs/testing-library";
 import { APIClientError } from "~/api/client";
@@ -10,6 +11,12 @@ import { artifactLookupPath } from "~/components/CopyShareLink";
 
 // Only the two fetching hooks are stubbed — conflictCandidates and isNotFound
 // are the logic under test on the error paths, so they run for real.
+// NotFound offers a "did you mean" from artifact search; nothing to suggest here.
+vi.mock("~/api/queries/search", async (importOriginal) => ({
+    ...(await importOriginal<typeof SearchModule>()),
+    useArtifactSearch: () => ({ data: undefined }),
+}));
+
 vi.mock("~/api/queries/lookup", async (importOriginal) => ({
     ...(await importOriginal<typeof LookupQueries>()),
     useArtifactLookup: vi.fn(),
@@ -149,7 +156,7 @@ describe("ArtifactLookup", () => {
 
         const { getByText } = renderAt("/artifacts/lookup?name=nope");
 
-        expect(getByText("Page not found")).toBeTruthy();
+        expect(getByText("A wild 404 appeared.")).toBeTruthy();
     });
 
     it("explains what is missing when name is absent", () => {
