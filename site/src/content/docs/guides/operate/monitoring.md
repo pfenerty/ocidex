@@ -72,8 +72,8 @@ What to do when each fires is in [Troubleshooting](/guides/operate/troubleshooti
 
 ## Audit log
 
-OCIDex keeps no audit table. With `AUDIT_LOG_ENABLED` on (the default), the API writes one JSON
-line to stdout for each audited event, and your cluster's log pipeline makes it durable. That can be
+OCIDex keeps no audit table. With `AUDIT_LOG_ENABLED` on (the default), the API and the scanner
+worker each write one JSON line to stdout for each audited event, and your cluster's log pipeline makes it durable. That can be
 Fluent Bit, Vector or Grafana Alloy, shipping to Loki, Elasticsearch or a SIEM. Keep the audit lines
 for as long as your audit policy requires, which is usually longer than ordinary logs.
 
@@ -94,7 +94,7 @@ Every audit line has `"msg":"audit"`:
 Route on the `msg` field to send audit lines to their own stream. In Loki, for example:
 
 ```text
-{namespace="ocidex", container="api"} | json | msg="audit"
+{namespace="ocidex", container=~"api|scanner-worker"} | json | msg="audit"
 ```
 
 What the log does and doesn't guarantee:
@@ -104,8 +104,6 @@ What the log does and doesn't guarantee:
   accepted.
 - A line reaches storage only if your log pipeline delivers it. Use a collector that buffers to
   disk, so a collector restart doesn't drop lines.
-- The scanner worker doesn't write audit lines yet, so SBOMs ingested by registry scans have none
-  (ocidex-5fiq).
 - Lines don't record who acted (ocidex-n9na).
 
 ## Tracing

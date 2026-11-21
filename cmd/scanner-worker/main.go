@@ -19,6 +19,7 @@ import (
 
 	"github.com/jackc/pgx/v5/pgxpool"
 
+	"github.com/pfenerty/ocidex/internal/audit"
 	"github.com/pfenerty/ocidex/internal/config"
 	"github.com/pfenerty/ocidex/internal/enrichment"
 	"github.com/pfenerty/ocidex/internal/event"
@@ -116,12 +117,9 @@ func run() error {
 	sc := engine.NewSyftScanner(logger, cfg.ScannerGoSymbols)
 	dispatcher := engine.NewDispatcher(sc, scannerSbomSvc, cfg.ScannerMaxImageBytes, cfg.EgressPolicy, logger)
 
-	// Ingest commits each registry-scanned SBOM's root enrichment jobs in its own
-	// transaction (ocidex-n1z4.1). The submitter, driven off the in-process
-	// SBOMIngested event that fires here (not in the API), publishes the
-	// enrich.hint so per-enricher workers pick the jobs up without waiting for
-	// their poll loop.
-	registry.Register(enrichment.NewNATSSubmitter(natsClient, cfg.NATSStreamName, logger))
+	for _, ext := range ingestExtensions(cfg, natsClient, logger) {
+		registry.Register(ext)
+	}
 
 	tracerProvider, stopTracing := tracing.Start(ctx, "ocidex-scanner-worker")
 	defer stopTracing()
@@ -220,11 +218,12 @@ func runOnce(ctx context.Context, pool *pgxpool.Pool, natsClient *natspkg.Client
 	sbomSvc := service.NewSBOMService(pool, bus, nil)
 	sc := engine.NewSyftScanner(logger, cfg.ScannerGoSymbols)
 
-	// Ingest commits the root enrichment jobs itself (ocidex-n1z4.1); wire the
-	// submitter onto the bus before ingest so the synchronous SBOMIngested event
-	// also publishes the enrich.hint — same mechanism as the long-running worker.
-	if err := enrichment.NewNATSSubmitter(natsClient, cfg.NATSStreamName, logger).Init(bus); err != nil {
-		return fmt.Errorf("wiring enrichment submitter: %w", err)
+	// Wired before ingest so the synchronous SBOMIngested event reaches them —
+	// the same extensions as the long-running worker.
+	for _, ext := range ingestExtensions(cfg, natsClient, logger) {
+		if err := ext.Init(bus); err != nil {
+			return fmt.Errorf("wiring %s extension: %w", ext.Name(), err)
+		}
 	}
 
 	req := scanner.ScanRequest{
@@ -249,6 +248,23 @@ func runOnce(ctx context.Context, pool *pgxpool.Pool, natsClient *natspkg.Client
 
 	slog.Info("ingest complete", "image", imageRef, "total_duration_ms", time.Since(start).Milliseconds()) //nolint:gosec // G706: imageRef is a trusted env var
 	return nil
+}
+
+// ingestExtensions are the bus extensions that react to this process's
+// SBOMIngested events. The scanner worker, not the API, ingests every
+// registry-scanned SBOM, so both have to live here:
+//   - the enrichment submitter publishes the enrich.hint for the root
+//     enrichment jobs Ingest committed in its transaction (ocidex-n1z4.1), so
+//     per-enricher workers start without waiting for their poll loop;
+//   - the audit extension writes the sbom.ingested audit line
+//     (AUDIT_LOG_ENABLED). Without it, registry scans leave no audit trail
+//     (ocidex-5fiq).
+func ingestExtensions(cfg *config.Config, natsClient *natspkg.Client, logger *slog.Logger) []extension.Extension {
+	exts := []extension.Extension{enrichment.NewNATSSubmitter(natsClient, cfg.NATSStreamName, logger)}
+	if cfg.AuditLogEnabled {
+		exts = append(exts, audit.NewExtension(logger))
+	}
+	return exts
 }
 
 // parseImageRef parses an OCI image reference into its components.
