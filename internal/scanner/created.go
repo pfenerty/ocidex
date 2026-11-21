@@ -102,7 +102,7 @@ func parseCreated(s string) (time.Time, bool) {
 func ociIndexCreated(ctx context.Context, c *http.Client, baseURL, repo, indexDigest string) (created, first string, err error) {
 	req, _ := http.NewRequestWithContext(ctx, http.MethodGet, baseURL+"/v2/"+repo+"/manifests/"+indexDigest, nil)
 	req.Header.Set("Accept", strings.Join([]string{mediaTypeOCIIndex, mediaTypeDockerList}, ","))
-	resp, err := c.Do(req) //nolint:gosec
+	resp, err := c.Do(req)
 	if err != nil {
 		return "", "", err
 	}

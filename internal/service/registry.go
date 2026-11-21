@@ -566,7 +566,7 @@ func (s *registryService) Create(ctx context.Context, params CreateRegistryParam
 		TrustIssuer:         toNullText(params.TrustIssuer),
 		ManagedBy:           toNullText(params.ManagedBy),
 		ManagedRef:          toNullText(params.ManagedRef),
-		TagLimit:            int32(tagLimit), //nolint:gosec // G115: validated non-negative; the API bounds it
+		TagLimit:            int32(tagLimit), // validated non-negative; the API bounds it
 		TagOrder:            pgtype.Text{String: params.TagOrder, Valid: params.TagOrder != ""},
 		MaxTagAgeDays:       pgtype.Int4{Int32: int32(params.MaxTagAgeDays), Valid: params.MaxTagAgeDays > 0}, //nolint:gosec // G115: as above
 	})

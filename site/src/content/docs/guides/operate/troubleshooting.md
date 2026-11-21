@@ -75,15 +75,21 @@ Filter the **Jobs** page to `failed`. Each job shows the error that stopped it:
 **Retry** puts a failed job back in the queue. A registry poll won't retry it for you, so a
 permanently broken image doesn't re-run on every poll.
 
-### Re-scan one image
+### Re-scan a registry
 
 ```sh
 curl -X POST "https://ocidex.example.com/api/v1/registries/$REGISTRY_ID/scan" \
-  -H "Authorization: Bearer $OCIDEX_API_KEY" -H "Content-Type: application/json" \
-  -d '{"repository":"acme/api","digest":"sha256:…","tag":"1.4.2"}'
+  -H "Authorization: Bearer $OCIDEX_API_KEY"
 ```
 
-A scan of a digest that's already queued or running isn't duplicated.
+This walks the registry's catalog and queues a scan for each image in its scan window that
+hasn't been scanned yet. Add `?force=true` to queue every image again, including digests already
+ingested. It's the same as **Scan** and **Re-scan all** on the registry's row under **Admin →
+Sources**.
+
+The request returns `202` once the walk is queued, and the walk runs in the background. While a
+walk of that registry is queued or running, another request gets `409`. A scan of a digest that's
+already queued or running isn't duplicated.
 
 ## The operator
 

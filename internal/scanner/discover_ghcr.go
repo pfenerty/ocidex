@@ -60,7 +60,7 @@ func (g *ghcrDiscoverer) listVersions(ctx context.Context, client *http.Client, 
 			req.Header.Set("Authorization", "Bearer "+g.authToken)
 		}
 
-		resp, err := client.Do(req) //nolint:gosec
+		resp, err := client.Do(req)
 		if err != nil {
 			return nil, fmt.Errorf("github packages request: %w", err)
 		}

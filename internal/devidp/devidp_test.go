@@ -48,7 +48,7 @@ func authorize(t *testing.T, srv *httptest.Server, challenge string) string {
 	client := &http.Client{CheckRedirect: func(*http.Request, []*http.Request) error {
 		return http.ErrUseLastResponse
 	}}
-	resp, err := client.Get(srv.URL + "/authorize?" + q.Encode()) //nolint:noctx // test helper
+	resp, err := client.Get(srv.URL + "/authorize?" + q.Encode())
 	if err != nil {
 		t.Fatalf("authorize: %v", err)
 	}
@@ -72,7 +72,7 @@ func authorize(t *testing.T, srv *httptest.Server, challenge string) string {
 func redeem(t *testing.T, srv *httptest.Server, form url.Values) (int, map[string]any) {
 	t.Helper()
 
-	resp, err := srv.Client().PostForm(srv.URL+"/token", form) //nolint:noctx // test helper
+	resp, err := srv.Client().PostForm(srv.URL+"/token", form)
 	if err != nil {
 		t.Fatalf("token: %v", err)
 	}
@@ -90,7 +90,7 @@ func TestDiscoveryAdvertisesItsOwnIssuer(t *testing.T) {
 	is := is.New(t)
 	srv := newTestIssuer(t)
 
-	resp, err := srv.Client().Get(srv.URL + "/.well-known/openid-configuration") //nolint:noctx // test
+	resp, err := srv.Client().Get(srv.URL + "/.well-known/openid-configuration")
 	is.NoErr(err)
 	defer resp.Body.Close()
 
@@ -107,7 +107,7 @@ func TestAuthorizeWithoutHintOffersPersonas(t *testing.T) {
 	is := is.New(t)
 	srv := newTestIssuer(t)
 
-	resp, err := srv.Client().Get(srv.URL + //nolint:noctx // test
+	resp, err := srv.Client().Get(srv.URL +
 		"/authorize?redirect_uri=http://client.test/cb&state=s")
 	is.NoErr(err)
 	defer resp.Body.Close()

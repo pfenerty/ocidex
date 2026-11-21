@@ -132,6 +132,12 @@ func run() error {
 	// the ClaimNext partition name is empty (see NewEnrichJobService).
 	enrichJobSvc := service.NewEnrichJobService(pool, "")
 	scanSubmitter := setupScannerExt(cfg, pool, bus, reg, natsClient, logger, jobSvc)
+	adhocWalks := scanner.NewAdhocWalks(adhocWalkConcurrency, adhocWalkTimeout, logger)
+	reg.Register(adhocWalks)
+	// Its own coordinator, so a burst of cluster snapshots can't hold up a
+	// registry scan someone just clicked, or the reverse.
+	clusterIngests := scanner.NewAdhocWalks(clusterIngestConcurrency, clusterIngestTimeout, logger).Named("cluster-ingests")
+	reg.Register(clusterIngests)
 	setupEnrichmentSubmitter(cfg, reg, natsClient, logger)
 
 	if err := reg.InitAll(); err != nil {
@@ -147,7 +153,9 @@ func run() error {
 
 	handler := api.NewHandler(sbomSvc, searchSvc, authSvc, registrySvc, namespaceSvc, sourceSvc, jobSvc, enrichJobSvc, watchSvc, clusterSvc, pool, scanSubmitter, cfg).
 		WithMeterProvider(meterProvider).
-		WithTracerProvider(tracerProvider)
+		WithTracerProvider(tracerProvider).
+		WithAdhocWalks(adhocWalks).
+		WithClusterIngests(clusterIngests)
 	router := api.NewRouter(handler, cfg.CORSAllowedOrigins, cfg.FrontendURL, cfg.APIBaseURL)
 
 	extCtx, extCancel := context.WithCancel(context.Background())
@@ -161,7 +169,7 @@ func run() error {
 		poller := scanner.NewPoller(registrySvc, walker, logger)
 		h := fnv.New64a()
 		h.Write([]byte("ocidex-poller"))
-		pollerKey := int64(h.Sum64()) //nolint:gosec
+		pollerKey := int64(h.Sum64()) //nolint:gosec // G115: an advisory lock key is an opaque 64-bit token
 		go service.LeaderElect(extCtx, pool, pollerKey, poller.Run)
 		slog.Info("registry poller election started", "lock_key", pollerKey)
 	} else {
@@ -172,7 +180,7 @@ func run() error {
 		reverifier := enrichment.NewReverifier(repository.New(pool), cfg.ProvenanceRecheckInterval, logger)
 		rh := fnv.New64a()
 		rh.Write([]byte("ocidex-reverifier"))
-		reverifierKey := int64(rh.Sum64()) //nolint:gosec
+		reverifierKey := int64(rh.Sum64()) //nolint:gosec // G115: an advisory lock key is an opaque 64-bit token
 		go service.LeaderElect(extCtx, pool, reverifierKey, reverifier.Run)
 		slog.Info("provenance reverifier election started", "lock_key", reverifierKey, "interval", cfg.ProvenanceRecheckInterval)
 	} else {
@@ -234,6 +242,22 @@ func run() error {
 	slog.Info("server stopped")
 	return nil
 }
+
+// Ad-hoc registry walks (POST /registries/{id}/scan) run under
+// scanner.AdhocWalks: at most adhocWalkConcurrency at a time across registries,
+// each bounded by adhocWalkTimeout (ocidex-89c9.2).
+const (
+	adhocWalkConcurrency = 2
+	adhocWalkTimeout     = 5 * time.Minute
+)
+
+// Cluster auto-ingest after an inventory snapshot runs under its own
+// scanner.AdhocWalks: one per cluster, at most clusterIngestConcurrency across
+// clusters, each bounded by clusterIngestTimeout (ocidex-89c9.6).
+const (
+	clusterIngestConcurrency = 4
+	clusterIngestTimeout     = 5 * time.Minute
+)
 
 // backgroundPoolMaxConns bounds the pool used by out-of-band work (the stats
 // warmer and rollup refresher). It is deliberately tiny and separate from the

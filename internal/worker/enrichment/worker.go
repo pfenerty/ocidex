@@ -207,7 +207,7 @@ func RunOnce(ctx context.Context, pool *pgxpool.Pool, factory EnricherFactory, a
 	}
 
 	start := time.Now()
-	slog.Info("enrichment started", "sbom_id", sbomIDStr) //nolint:gosec // G706: sbomIDStr is a trusted env var
+	slog.Info("enrichment started", "sbom_id", sbomIDStr)
 
 	var sbomID pgtype.UUID
 	if err := sbomID.Scan(sbomIDStr); err != nil {
@@ -226,7 +226,7 @@ func RunOnce(ctx context.Context, pool *pgxpool.Pool, factory EnricherFactory, a
 		return fmt.Errorf("getting artifact for SBOM %s: %w", sbomIDStr, err)
 	}
 
-	slog.Info("enriching SBOM", "sbom_id", sbomIDStr, "artifact_name", artifact.Name) //nolint:gosec // G706: sbomIDStr is a trusted env var
+	slog.Info("enriching SBOM", "sbom_id", sbomIDStr, "artifact_name", artifact.Name)
 
 	ref := enrichment.SubjectRef{
 		SBOMId:         sbomID,
@@ -249,6 +249,6 @@ func RunOnce(ctx context.Context, pool *pgxpool.Pool, factory EnricherFactory, a
 		return fmt.Errorf("enriching SBOM: %w", err)
 	}
 
-	slog.Info("enrichment complete", "sbom_id", sbomIDStr, "duration_ms", time.Since(start).Milliseconds()) //nolint:gosec // G706: sbomIDStr is a trusted env var
+	slog.Info("enrichment complete", "sbom_id", sbomIDStr, "duration_ms", time.Since(start).Milliseconds())
 	return nil
 }

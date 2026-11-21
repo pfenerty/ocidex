@@ -2,6 +2,7 @@ package api
 
 import (
 	"context"
+	"errors"
 	"log/slog"
 	"time"
 
@@ -264,14 +265,19 @@ func toAgentInfo(a *InventoryAgent) *service.AgentInfo {
 // autoIngestAfterSnapshot queues scans for the images the snapshot just
 // revealed as unscanned, when the cluster has auto-ingest on.
 //
-// It runs detached from the request. A snapshot names every container in the
-// cluster, so ingest can mean hundreds of registry round-trips, and an agent
-// pushing its inventory must not block on them — nor should a slow registry
-// turn a successful snapshot into a failed push. Anything that goes wrong is
-// logged and dropped: the next snapshot retries it, and the submitter's
-// (registry, digest) key makes that retry free.
+// It runs in the background, past the end of the request. A snapshot names
+// every container in the cluster, so ingest can mean hundreds of registry
+// round-trips, and an agent pushing its inventory must not block on them — nor
+// should a slow registry turn a successful snapshot into a failed push.
+// Anything that goes wrong is logged and dropped: the next snapshot retries
+// it, and the submitter's (registry, digest) key makes that retry free.
+//
+// The clusterIngests coordinator owns it (ocidex-89c9.6): one ingest per
+// cluster, so a snapshot that lands while the last one's ingest is still
+// running skips rather than stacking a second; a bound across clusters; a
+// deadline; and cancellation on shutdown.
 func (h *Handler) autoIngestAfterSnapshot(ctx context.Context, clusterID string) {
-	if h.scanSubmitter == nil {
+	if h.scanSubmitter == nil || h.clusterIngests == nil {
 		return
 	}
 	cluster, err := h.clusterService.Get(ctx, clusterID)
@@ -279,9 +285,7 @@ func (h *Handler) autoIngestAfterSnapshot(ctx context.Context, clusterID string)
 		return
 	}
 	vis := visibilityFilterFromContext(ctx)
-	go func() { //nolint:gosec
-		ingestCtx, cancel := context.WithTimeout(context.WithoutCancel(ctx), 5*time.Minute)
-		defer cancel()
+	err = h.clusterIngests.Run(ctx, clusterID, func(ingestCtx context.Context) {
 		ingestor := scanner.NewClusterIngestor(h.scanSubmitter, h.egress(), slog.Default())
 		res, err := h.clusterService.IngestUnknown(ingestCtx, clusterID, ingestor, service.IngestUnknownParams{}, vis)
 		if err != nil {
@@ -301,7 +305,13 @@ func (h *Handler) autoIngestAfterSnapshot(ctx context.Context, clusterID string)
 			"registry_disabled", res.SkippedRegistryDisabled,
 			"unparseable_ref", res.SkippedUnparseableRef,
 			"failed", res.Failed)
-	}()
+	})
+	switch {
+	case errors.Is(err, scanner.ErrWalkInProgress):
+		slog.DebugContext(ctx, "cluster auto-ingest already running; this snapshot skips it", "cluster", cluster.Name)
+	case err != nil:
+		slog.WarnContext(ctx, "cluster auto-ingest not started", "cluster", cluster.Name, "err", err)
+	}
 }
 
 // IngestUnknown queues scans for the cluster's unscanned running images and

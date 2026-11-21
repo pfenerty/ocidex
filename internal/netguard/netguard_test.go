@@ -128,7 +128,7 @@ func TestTransport(t *testing.T) {
 	t.Run("loopback refused", func(t *testing.T) {
 		is := is.New(t)
 		client := &http.Client{Transport: netguard.Policy{}.Transport()}
-		resp, err := client.Get(srv.URL) //nolint:noctx // test
+		resp, err := client.Get(srv.URL)
 		if err == nil {
 			resp.Body.Close()
 		}
@@ -137,7 +137,7 @@ func TestTransport(t *testing.T) {
 	t.Run("loopback allowed by CIDR", func(t *testing.T) {
 		is := is.New(t)
 		client := &http.Client{Transport: netguard.Policy{AllowCIDRs: prefixes(t, "127.0.0.0/8")}.Transport()}
-		resp, err := client.Get(srv.URL) //nolint:noctx // test
+		resp, err := client.Get(srv.URL)
 		is.NoErr(err)
 		resp.Body.Close()
 		is.Equal(resp.StatusCode, http.StatusNoContent)

@@ -163,7 +163,7 @@ func (o *registryOpts) secrets() (authToken, webhookSecret, trustPublicKey strin
 		if s.path == "" {
 			continue
 		}
-		data, readErr := os.ReadFile(s.path) //nolint:gosec // the path is the user's own argument
+		data, readErr := os.ReadFile(s.path)
 		if readErr != nil {
 			return "", "", "", fmt.Errorf("reading %s: %w", s.path, readErr)
 		}

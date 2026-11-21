@@ -1,6 +1,6 @@
 import { For, Show, type Accessor } from "solid-js";
 import type { Column } from "~/components/DataTable";
-import type { Registry } from "~/api/client";
+import { APIClientError, type Registry } from "~/api/client";
 import type { components } from "~/types/openapi";
 import { A } from "@solidjs/router";
 
@@ -39,6 +39,16 @@ export function registryColumns(opts: {
     const deleteReg = useDeleteRegistry();
     const scanReg = useScanRegistry();
     const regenSecret = useRegenerateWebhookSecret();
+
+    // 409: a scan of this registry is already queued or running, so this
+    // click changed nothing (ocidex-89c9.2). Say so, not "failed".
+    const reportScanFailure = (err: unknown) => {
+        if (err instanceof APIClientError && err.status === 409) {
+            toast("A scan of this registry is already in progress", "info");
+            return;
+        }
+        toast("Failed to start scan", "error");
+    };
 
     const copyWebhookURL = (url: string) => {
         void copyText(url).then(() => {
@@ -231,7 +241,7 @@ export function registryColumns(opts: {
                                     title="Scan new/changed images; already-scanned digests are skipped"
                                     onClick={() => scanReg.mutate({ id: reg.id }, {
                                         onSuccess: (data) => toast(data.message, "success"),
-                                        onError: () => toast("Failed to start scan", "error"),
+                                        onError: (err) => reportScanFailure(err),
                                     })}
                                     disabled={scanReg.isPending}
                                 >
@@ -250,7 +260,7 @@ export function registryColumns(opts: {
                                         if (!ok) return;
                                         scanReg.mutate({ id: reg.id, force: true }, {
                                             onSuccess: (data) => toast(data.message, "success"),
-                                            onError: () => toast("Failed to start scan", "error"),
+                                            onError: (err) => reportScanFailure(err),
                                         });
                                     })()}
                                     disabled={scanReg.isPending}

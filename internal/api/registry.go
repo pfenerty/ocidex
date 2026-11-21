@@ -716,7 +716,7 @@ func (h *Handler) TestRegistryConnection(ctx context.Context, in *TestRegistryCo
 		req.SetBasicAuth(username, *in.Body.AuthToken)
 	}
 
-	resp, err := c.Do(req) //nolint:gosec
+	resp, err := c.Do(req)
 	out := &TestRegistryConnectionOutput{}
 	if err != nil {
 		out.Body.Reachable = false
@@ -738,13 +738,14 @@ func (h *Handler) ScanRegistry(ctx context.Context, in *ScanRegistryInput) (*Sca
 	if err != nil {
 		return nil, huma.Error404NotFound("registry not found")
 	}
-	if h.scanSubmitter == nil {
+	if h.scanSubmitter == nil || h.adhocWalks == nil {
 		return nil, huma.Error503ServiceUnavailable("scanner not enabled")
 	}
 	force := in.Force
-	go func() { //nolint:gosec
-		walkCtx, cancel := context.WithTimeout(context.Background(), 5*time.Minute)
-		defer cancel()
+	// The walk outlives the request, so it runs under the coordinator, not
+	// under ctx: deduplicated per registry, bounded across registries, given a
+	// deadline, and cancelled on shutdown (ocidex-89c9.2).
+	err = h.adhocWalks.Run(ctx, reg.ID, func(walkCtx context.Context) {
 		// Skip already-scanned digests at the walk level (same as the scheduled
 		// scanner) so a re-scan only re-pulls new/changed images. force=true passes
 		// nil so every digest is re-walked and re-queued via the InsertScanJob upsert
@@ -766,9 +767,15 @@ func (h *Handler) ScanRegistry(ctx context.Context, in *ScanRegistryInput) (*Sca
 			return
 		}
 		slog.Info("ad-hoc registry scan complete", "registry", reg.Name, "queued", queued, "force", force)
-	}()
+	})
+	switch {
+	case errors.Is(err, scanner.ErrWalkInProgress):
+		return nil, huma.Error409Conflict(fmt.Sprintf("a scan of registry %q is already in progress", reg.Name))
+	case err != nil:
+		return nil, huma.Error503ServiceUnavailable("the server is shutting down; try again")
+	}
 	out := &ScanRegistryOutput{}
-	out.Body.Message = fmt.Sprintf("scan started for registry %q", reg.Name)
+	out.Body.Message = fmt.Sprintf("scan accepted for registry %q", reg.Name)
 	return out, nil
 }
 

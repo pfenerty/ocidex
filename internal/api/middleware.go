@@ -64,19 +64,16 @@ func OptionalAuthenticate(authSvc service.AuthService) func(http.Handler) http.H
 	return func(next http.Handler) http.Handler {
 		return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 			var (
-				user   service.AuthUser
-				err    error
-				method authMethod
+				user service.AuthUser
+				err  error
 			)
 
-			if auth := r.Header.Get("Authorization"); strings.HasPrefix(auth, "Bearer ") {
-				token := strings.TrimPrefix(auth, "Bearer ")
-				user, err = authSvc.ValidateAPIKey(r.Context(), token)
-				method = authMethodBearer
-			} else if c, cerr := r.Cookie("ocidex_session"); cerr == nil {
-				user, err = authSvc.ValidateSession(r.Context(), c.Value)
-				method = authMethodCookie
-			} else {
+			switch method, secret := presentedCredential(r); method {
+			case authMethodBearer:
+				user, err = authSvc.ValidateAPIKey(r.Context(), secret)
+			case authMethodCookie:
+				user, err = authSvc.ValidateSession(r.Context(), secret)
+			case authMethodNone:
 				// No credentials — continue without user context.
 				next.ServeHTTP(w, r)
 				return
@@ -133,7 +130,6 @@ func OptionalAuthenticate(authSvc service.AuthService) func(http.Handler) http.H
 			user.Grants = grants
 
 			ctx := context.WithValue(r.Context(), ctxKeyUser{}, user)
-			ctx = context.WithValue(ctx, ctxKeyAuthMethod{}, method)
 			ctx = event.WithActor(ctx, actorFor(user))
 			next.ServeHTTP(w, r.WithContext(ctx))
 		})

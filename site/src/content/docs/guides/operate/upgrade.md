@@ -139,6 +139,12 @@ Newest first. Each entry names the issue that made the change.
 
 **Behavior changes to check after upgrading:**
 
+- **A registry scan request answers 409 while that registry is already being walked
+  (ocidex-89c9.2).** Each `POST /api/v1/registries/{id}/scan` used to start its own catalog walk,
+  so repeated clicks walked the same registry several times at once. Now one walk per registry
+  runs at a time, two across registries, and shutdown cancels them. A script that triggers scans
+  should treat `409` as "already running", not as a failure.
+
 - **A database fault during sign-in checks answers 503, not 401 (ocidex-n1z4.4).** An API key
   or session that couldn't be looked up used to be treated as unknown, so a database outage
   looked like bad credentials. It now fails the request with `503 Service Unavailable`. An

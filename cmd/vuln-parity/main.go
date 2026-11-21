@@ -54,7 +54,7 @@ func run() error {
 
 	ctx := context.Background()
 	for _, path := range flag.Args() {
-		doc, err := os.ReadFile(path) //nolint:gosec // G304: operator-supplied path
+		doc, err := os.ReadFile(path)
 		if err != nil {
 			return err
 		}

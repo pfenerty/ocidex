@@ -145,7 +145,7 @@ func (o *pushOpts) resolveFileFlags() error {
 		if f.path == "" {
 			continue
 		}
-		data, err := os.ReadFile(f.path) //nolint:gosec // the path is the user's own argument
+		data, err := os.ReadFile(f.path)
 		if err != nil {
 			return fmt.Errorf("reading %s: %w", f.flag, err)
 		}
@@ -174,7 +174,7 @@ func runSBOMPush(cmd *cobra.Command, cfg *rootConfig, o *pushOpts, sbomPath stri
 		return err
 	}
 
-	data, err := os.ReadFile(sbomPath) //nolint:gosec // the path is the user's own argument
+	data, err := os.ReadFile(sbomPath)
 	if err != nil {
 		return fmt.Errorf("reading SBOM: %w", err)
 	}
@@ -365,7 +365,7 @@ func validateBuildDate(date string) error {
 // fileDigest returns the sha256 of the artifact file, prefixed the way the
 // server records container digests so both kinds of subject read the same.
 func fileDigest(path string) (string, error) {
-	f, err := os.Open(path) //nolint:gosec // the path is the user's own argument
+	f, err := os.Open(path)
 	if err != nil {
 		return "", fmt.Errorf("reading artifact: %w", err)
 	}

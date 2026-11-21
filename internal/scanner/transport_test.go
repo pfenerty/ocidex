@@ -163,7 +163,7 @@ func TestOCITokenTransport_PassThrough(t *testing.T) {
 
 	transport := newOCITokenTransport(http.DefaultTransport, "user", "pass")
 	client := &http.Client{Transport: transport}
-	resp, err := client.Get(srv.URL + "/v2/repo/tags/list") //nolint:noctx
+	resp, err := client.Get(srv.URL + "/v2/repo/tags/list")
 	is.NoErr(err)
 	resp.Body.Close()
 	is.Equal(resp.StatusCode, http.StatusOK)
@@ -195,7 +195,7 @@ func TestOCITokenTransport_BearerAuth(t *testing.T) {
 
 	transport := newOCITokenTransport(http.DefaultTransport, "user", "pass")
 	client := &http.Client{Transport: transport}
-	resp, err := client.Get(srv.URL + "/v2/repo/tags/list") //nolint:noctx
+	resp, err := client.Get(srv.URL + "/v2/repo/tags/list")
 	is.NoErr(err)
 	resp.Body.Close()
 	is.Equal(resp.StatusCode, http.StatusOK)
@@ -229,7 +229,7 @@ func TestOCITokenTransport_BearerAuth_AccessToken(t *testing.T) {
 
 	transport := newOCITokenTransport(http.DefaultTransport, "user", "pass")
 	client := &http.Client{Transport: transport}
-	resp, err := client.Get(srv.URL + "/v2/repo") //nolint:noctx
+	resp, err := client.Get(srv.URL + "/v2/repo")
 	is.NoErr(err)
 	resp.Body.Close()
 	is.Equal(resp.StatusCode, http.StatusOK)
@@ -254,7 +254,7 @@ func TestOCITokenTransport_BasicAuth(t *testing.T) {
 
 	transport := newOCITokenTransport(http.DefaultTransport, "myuser", "mypass")
 	client := &http.Client{Transport: transport}
-	resp, err := client.Get(srv.URL + "/v2/repo/tags/list") //nolint:noctx
+	resp, err := client.Get(srv.URL + "/v2/repo/tags/list")
 	is.NoErr(err)
 	resp.Body.Close()
 	is.Equal(resp.StatusCode, http.StatusOK)
@@ -273,7 +273,7 @@ func TestOCITokenTransport_BasicAuth_Anonymous(t *testing.T) {
 
 	transport := newOCITokenTransport(http.DefaultTransport, "", "") // anonymous — no credentials
 	client := &http.Client{Transport: transport}
-	resp, err := client.Get(srv.URL + "/v2/repo") //nolint:noctx
+	resp, err := client.Get(srv.URL + "/v2/repo")
 	is.NoErr(err)
 	resp.Body.Close()
 	is.Equal(resp.StatusCode, http.StatusUnauthorized)
@@ -290,7 +290,7 @@ func TestOCITokenTransport_UnknownChallenge(t *testing.T) {
 
 	transport := newOCITokenTransport(http.DefaultTransport, "user", "pass")
 	client := &http.Client{Transport: transport}
-	resp, err := client.Get(srv.URL + "/test") //nolint:noctx
+	resp, err := client.Get(srv.URL + "/test")
 	is.NoErr(err)
 	resp.Body.Close()
 	is.Equal(resp.StatusCode, http.StatusUnauthorized)

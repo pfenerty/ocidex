@@ -42,7 +42,7 @@ func ImageLayerBytes(ctx context.Context, req ScanRequest, egress netguard.Polic
 		mediaTypeDockerManifest,
 	}, ","))
 
-	resp, err := client.Do(httpReq) //nolint:gosec
+	resp, err := client.Do(httpReq)
 	if errors.Is(err, netguard.ErrDenied) {
 		return 0, false, err
 	}

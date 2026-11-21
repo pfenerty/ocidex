@@ -160,7 +160,7 @@ func TestDevSessionMintsResolvableCookie(t *testing.T) {
 	router.ServeHTTP(rec, req)
 	is.Equal(rec.Code, http.StatusOK) // minting a session for a seeded persona
 
-	cookies := rec.Result().Cookies() //nolint:bodyclose // httptest recorder
+	cookies := rec.Result().Cookies()
 	var session *http.Cookie
 	for _, c := range cookies {
 		if c.Name == "ocidex_session" {

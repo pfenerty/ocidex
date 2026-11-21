@@ -135,7 +135,7 @@ func (v *Validator) ValidateDigest(ctx context.Context, imageName, digest string
 // previous go-containerregistry-based Validator didn't accept credentials
 // either, so private images were already unsupported by ingest validation.
 func (v *Validator) do(ctx context.Context, req *http.Request) (*http.Response, error) {
-	resp, err := v.client.Do(req) //nolint:gosec // G704: req.URL is built from imageName, intentionally caller-controlled
+	resp, err := v.client.Do(req)
 	if err != nil {
 		return nil, err
 	}
@@ -159,7 +159,7 @@ func (v *Validator) do(ctx context.Context, req *http.Request) (*http.Response, 
 
 	retry := req.Clone(ctx)
 	retry.Header.Set("Authorization", "Bearer "+token)
-	return v.client.Do(retry) //nolint:gosec // G704: see comment above
+	return v.client.Do(retry)
 }
 
 func (v *Validator) fetchAnonymousToken(ctx context.Context, realm, svc, scope string) (string, error) {
@@ -170,11 +170,11 @@ func (v *Validator) fetchAnonymousToken(ctx context.Context, realm, svc, scope s
 	if scope != "" {
 		u += "scope=" + scope
 	}
-	req, err := http.NewRequestWithContext(ctx, http.MethodGet, u, nil) //nolint:gosec // G704: realm URL comes from registry's WWW-Authenticate header, not arbitrary user input
+	req, err := http.NewRequestWithContext(ctx, http.MethodGet, u, nil)
 	if err != nil {
 		return "", err
 	}
-	resp, err := v.client.Do(req) //nolint:gosec // G704: see comment above
+	resp, err := v.client.Do(req)
 	if err != nil {
 		return "", err
 	}

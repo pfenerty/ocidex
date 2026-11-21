@@ -216,7 +216,7 @@ func runOnce(ctx context.Context, pool *pgxpool.Pool, natsClient *natspkg.Client
 	}
 
 	start := time.Now()
-	slog.Info("scan started", "image", imageRef, "repo", repo, "digest", digest, "tag", tag) //nolint:gosec // G706: imageRef is a trusted env var
+	slog.Info("scan started", "image", imageRef, "repo", repo, "digest", digest, "tag", tag)
 
 	logger := slog.Default()
 	bus := event.NewBus(logger)
@@ -251,7 +251,7 @@ func runOnce(ctx context.Context, pool *pgxpool.Pool, natsClient *natspkg.Client
 		return fmt.Errorf("processing scan: %w", err)
 	}
 
-	slog.Info("ingest complete", "image", imageRef, "total_duration_ms", time.Since(start).Milliseconds()) //nolint:gosec // G706: imageRef is a trusted env var
+	slog.Info("ingest complete", "image", imageRef, "total_duration_ms", time.Since(start).Milliseconds())
 	return nil
 }
 

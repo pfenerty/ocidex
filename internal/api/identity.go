@@ -69,7 +69,7 @@ func (h *Handler) finishIdentityLink(
 
 	// The destination is the configured frontend URL with a fixed path and a
 	// fixed query; nothing from the request reaches it.
-	http.Redirect(w, r, frontendURL+accountPath+"?link="+outcome, http.StatusSeeOther) //nolint:gosec // G710
+	http.Redirect(w, r, frontendURL+accountPath+"?link="+outcome, http.StatusSeeOther)
 }
 
 // ListAuthProviders lists the issuers this deployment is configured with.

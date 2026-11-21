@@ -134,7 +134,7 @@ func redirectLegacySchema(w http.ResponseWriter, req *http.Request) {
 		return
 	}
 	target := apiSchemasPath + "/" + url.PathEscape(name)
-	http.Redirect(w, req, target, http.StatusMovedPermanently) //nolint:gosec // G710: fixed same-origin prefix, validated name
+	http.Redirect(w, req, target, http.StatusMovedPermanently)
 }
 
 // schemaNameRx matches a huma schema file name: ErrorModel.json, ListSBOMsOutputBody.json.
@@ -189,12 +189,15 @@ func NewRouter(h *Handler, corsOrigins, frontendURL, apiBaseURL string) chi.Rout
 		AllowCredentials: true,
 		MaxAge:           300,
 	}))
-	// Outside authentication, so a push refused there is still recorded
-	// against its cluster (ocidex-70eo.4).
+	// Push recording sits outside authentication so a push refused there is
+	// still recorded against its cluster (ocidex-70eo.4). The cross-origin
+	// guard needs only headers, so it rejects a forged write before any
+	// credential lookup, and authentication runs inside the request timeout so
+	// its database calls carry the request's deadline (ocidex-89c9.4).
 	r.Use(RecordInventoryPushes(h.pushRecorder()))
-	r.Use(OptionalAuthenticate(h.authService))
 	r.Use(CrossOriginGuard(allowedOrigins, apiBaseURL))
 	r.Use(middleware.Timeout(30 * time.Second))
+	r.Use(OptionalAuthenticate(h.authService))
 
 	config := huma.DefaultConfig("OCIDex API", ContractVersion)
 	config.Info.Description = apiIntro
@@ -205,7 +208,7 @@ func NewRouter(h *Handler, corsOrigins, frontendURL, apiBaseURL string) chi.Rout
 		config.Components = &huma.Components{}
 	}
 	config.Components.SecuritySchemes = map[string]*huma.SecurityScheme{
-		securitySchemeBearer: { //nolint:gosec
+		securitySchemeBearer: { //nolint:gosec // G101: the name of an auth scheme, not a credential
 			Type:         "http",
 			Scheme:       "bearer",
 			BearerFormat: "ocidex_<token>",

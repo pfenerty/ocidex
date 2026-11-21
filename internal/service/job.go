@@ -501,7 +501,7 @@ func nullStr(s string) *string {
 func optionalUUID(id string) pgtype.UUID {
 	var u pgtype.UUID
 	if id != "" {
-		_ = u.Scan(id) //nolint:errcheck // invalid UUID → NULL, as before
+		_ = u.Scan(id) // invalid UUID → NULL, as before
 	}
 	return u
 }
