@@ -50,6 +50,16 @@ type Queue[C Claim] interface {
 	RequeueStuckRunning(ctx context.Context, threshold time.Duration, maxAttempts int32) error
 }
 
+// Database calls the worker makes around a job, each bounded so a stuck
+// connection can't hang a worker or Stop (ocidex-89c9.3). A claim is a single
+// UPDATE ... RETURNING and the outcome a single UPDATE; the sweep touches only
+// rows past the stuck threshold.
+const (
+	claimTimeout   = 10 * time.Second
+	outcomeTimeout = 10 * time.Second
+	sweepTimeout   = 30 * time.Second
+)
+
 // Config holds tunable parameters for a Worker.
 type Config struct {
 	WorkerID string
@@ -125,9 +135,7 @@ func (w *Worker[C]) Init(_ *event.Bus) error { return nil }
 // Start provisions the NATS hint consumer, runs a startup stuck sweep,
 // launches the worker pool, and starts the periodic stuck sweep.
 func (w *Worker[C]) Start(ctx context.Context) error {
-	if err := w.queue.RequeueStuckRunning(ctx, w.cfg.StuckThreshold, w.cfg.MaxAttempts); err != nil {
-		w.logger.Warn(w.name+": startup stuck sweep failed", "err", err)
-	}
+	w.sweepOnce(ctx, "startup stuck sweep failed")
 
 	provCtx, cancel := context.WithTimeout(ctx, 10*time.Second)
 	defer cancel()
@@ -167,12 +175,15 @@ func (w *Worker[C]) Start(ctx context.Context) error {
 
 	sweepCtx, sweepCancel := context.WithCancel(context.Background()) //nolint:gosec // G118: cancel stored on the worker and invoked in Stop().
 	w.sweepCancel = sweepCancel
+	w.wg.Add(1)
 	go w.runStuckSweep(sweepCtx)
 
 	return nil
 }
 
-// Stop cancels the NATS subscription and waits for in-flight jobs.
+// Stop cancels the NATS subscription and waits for in-flight jobs. Claims and
+// sweeps run on contexts Stop cancels, so a blocked query doesn't hold it up;
+// a job's outcome write is bounded by outcomeTimeout.
 func (w *Worker[C]) Stop() error {
 	if w.consume != nil {
 		w.consume.Stop()
@@ -225,8 +236,13 @@ func (w *Worker[C]) workerLoop(ctx context.Context) {
 }
 
 func (w *Worker[C]) processByID(ctx context.Context, id string) {
-	claim, ok, err := w.queue.ClaimByID(context.Background(), id, w.cfg.WorkerID)
+	claimCtx, cancel := context.WithTimeout(ctx, claimTimeout)
+	claim, ok, err := w.queue.ClaimByID(claimCtx, id, w.cfg.WorkerID)
+	cancel()
 	if err != nil {
+		if ctx.Err() != nil {
+			return // stopping
+		}
 		w.logger.Error(w.name+": claim by id", "id", id, "err", err)
 		return
 	}
@@ -241,8 +257,11 @@ func (w *Worker[C]) drainPoll(ctx context.Context) {
 		if ctx.Err() != nil {
 			return
 		}
-		claim, ok, err := w.queue.ClaimNext(context.Background(), w.cfg.WorkerID)
+		claim, ok, err := w.claimNext(ctx)
 		if err != nil {
+			if ctx.Err() != nil {
+				return // stopping
+			}
 			w.logger.Error(w.name+": claim next", "err", err)
 			return
 		}
@@ -251,6 +270,15 @@ func (w *Worker[C]) drainPoll(ctx context.Context) {
 		}
 		w.run(ctx, claim)
 	}
+}
+
+// claimNext claims the next queued row on the worker's ctx, so Stop interrupts
+// it, bounded by claimTimeout. A claim the database committed after the ctx
+// gave up leaves its row running; the stuck sweep requeues it.
+func (w *Worker[C]) claimNext(ctx context.Context) (C, bool, error) {
+	ctx, cancel := context.WithTimeout(ctx, claimTimeout)
+	defer cancel()
+	return w.queue.ClaimNext(ctx, w.cfg.WorkerID)
 }
 
 // failNow is the max-attempts budget passed to FailOrRequeue for a permanent
@@ -285,7 +313,13 @@ func (w *Worker[C]) run(ctx context.Context, claim C) {
 	if permanent {
 		maxAttempts = failNow
 	}
-	state, ferr := w.queue.FailOrRequeue(context.Background(), claim.JobID(), err.Error(), maxAttempts)
+	// The outcome is recorded even when the job failed because ctx was
+	// cancelled (a timeout, or Stop), so it runs detached from ctx's
+	// cancellation, keeping its values (the span) — but bounded, so a stuck
+	// connection can't hold up Stop (ocidex-89c9.3).
+	outcomeCtx, cancelOutcome := context.WithTimeout(context.WithoutCancel(ctx), outcomeTimeout)
+	defer cancelOutcome()
+	state, ferr := w.queue.FailOrRequeue(outcomeCtx, claim.JobID(), err.Error(), maxAttempts)
 	// A failed requeue leaves the row running; the stuck sweep retries it.
 	outcome := outcomeRetry
 	if ferr == nil && state == "failed" {
@@ -303,16 +337,24 @@ func (w *Worker[C]) run(ctx context.Context, claim C) {
 }
 
 func (w *Worker[C]) runStuckSweep(ctx context.Context) {
+	defer w.wg.Done()
 	ticker := time.NewTicker(w.cfg.StuckThreshold / 3)
 	defer ticker.Stop()
 	for {
 		select {
 		case <-ticker.C:
-			if err := w.queue.RequeueStuckRunning(ctx, w.cfg.StuckThreshold, w.cfg.MaxAttempts); err != nil && ctx.Err() == nil {
-				w.logger.Warn(w.name+": stuck sweep failed", "err", err)
-			}
+			w.sweepOnce(ctx, "stuck sweep failed")
 		case <-ctx.Done():
 			return
 		}
+	}
+}
+
+// sweepOnce requeues rows stuck in running, bounded by sweepTimeout.
+func (w *Worker[C]) sweepOnce(ctx context.Context, failMsg string) {
+	sweepCtx, cancel := context.WithTimeout(ctx, sweepTimeout)
+	defer cancel()
+	if err := w.queue.RequeueStuckRunning(sweepCtx, w.cfg.StuckThreshold, w.cfg.MaxAttempts); err != nil && ctx.Err() == nil {
+		w.logger.Warn(w.name+": "+failMsg, "err", err)
 	}
 }
