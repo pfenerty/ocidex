@@ -172,8 +172,8 @@ LEFT JOIN license_rollup lr ON lr.license_id = l.id
 -- who typed the whole license name — every prefix on the way to "Apache-2.0"
 -- reported that no such license exists. Tolerable behind a submit button;
 -- actively misleading now that the box filters as you type (ocidex-ag4q.31).
-WHERE (sqlc.narg('spdx_id')::text IS NULL OR l.spdx_id ILIKE '%' || sqlc.narg('spdx_id')::text || '%')
-  AND (sqlc.narg('name')::text IS NULL OR l.name ILIKE '%' || sqlc.narg('name')::text || '%')
+WHERE (sqlc.narg('spdx_id')::text IS NULL OR l.spdx_id ILIKE like_contains(sqlc.narg('spdx_id')::text))
+  AND (sqlc.narg('name')::text IS NULL OR l.name ILIKE like_contains(sqlc.narg('name')::text))
   AND (sqlc.narg('category')::text IS NULL OR license_category(l.spdx_id) = sqlc.narg('category')::text)
 GROUP BY l.id, l.spdx_id, l.name, l.url
 ORDER BY component_count DESC, l.name, l.id
@@ -389,7 +389,7 @@ SELECT r.name, r.group_name, r.type,
 FROM component_rollup r
 LEFT JOIN LATERAL unnest(r.versions) WITH ORDINALITY AS v(version, ord) ON true
 LEFT JOIN LATERAL unnest(r.purl_types) WITH ORDINALITY AS p(purl_type, ord) ON true
-WHERE (sqlc.narg('name')::text IS NULL OR r.name ILIKE sqlc.narg('name'))
+WHERE (sqlc.narg('name')::text IS NULL OR r.name ILIKE like_contains(sqlc.narg('name')::text))
   AND (sqlc.narg('group_name')::text IS NULL OR r.group_name = sqlc.narg('group_name'))
   AND (sqlc.narg('type')::text IS NULL OR r.type = sqlc.narg('type'))
   AND (sqlc.narg('purl_type')::text IS NULL OR sqlc.narg('purl_type')::text = ANY(r.purl_types))

@@ -41,7 +41,7 @@ const countArtifacts = `-- name: CountArtifacts :one
 SELECT COUNT(*)::bigint
 FROM artifact a
 WHERE ($1::text IS NULL OR a.type = $1)
-  AND ($2::text IS NULL OR a.name ILIKE '%' || $2::text || '%')
+  AND ($2::text IS NULL OR a.name ILIKE like_contains($2::text))
   AND ($3::boolean IS NULL
        OR NOT $3::boolean
        OR EXISTS (SELECT 1 FROM sbom s2 WHERE s2.artifact_id = a.id AND s2.enrichment_sufficient))
@@ -573,7 +573,7 @@ LEFT JOIN LATERAL (
     LIMIT 1
 ) vr ON TRUE
 WHERE ($1::text IS NULL OR a.type = $1)
-  AND ($2::text IS NULL OR a.name ILIKE '%' || $2::text || '%')
+  AND ($2::text IS NULL OR a.name ILIKE like_contains($2::text))
   AND ($3::boolean IS NULL
        OR NOT $3::boolean
        OR EXISTS (SELECT 1 FROM sbom s2 WHERE s2.artifact_id = a.id AND s2.enrichment_sufficient))

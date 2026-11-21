@@ -846,8 +846,8 @@ FROM license l
 LEFT JOIN license_rollup lr ON lr.license_id = l.id
   AND (lr.namespace_id IN (
         SELECT visible_namespace_ids($1::uuid, $2::boolean)))
-WHERE ($3::text IS NULL OR l.spdx_id ILIKE '%' || $3::text || '%')
-  AND ($4::text IS NULL OR l.name ILIKE '%' || $4::text || '%')
+WHERE ($3::text IS NULL OR l.spdx_id ILIKE like_contains($3::text))
+  AND ($4::text IS NULL OR l.name ILIKE like_contains($4::text))
   AND ($5::text IS NULL OR license_category(l.spdx_id) = $5::text)
 GROUP BY l.id, l.spdx_id, l.name, l.url
 ORDER BY component_count DESC, l.name, l.id
@@ -1551,7 +1551,7 @@ SELECT r.name, r.group_name, r.type,
 FROM component_rollup r
 LEFT JOIN LATERAL unnest(r.versions) WITH ORDINALITY AS v(version, ord) ON true
 LEFT JOIN LATERAL unnest(r.purl_types) WITH ORDINALITY AS p(purl_type, ord) ON true
-WHERE ($1::text IS NULL OR r.name ILIKE $1)
+WHERE ($1::text IS NULL OR r.name ILIKE like_contains($1::text))
   AND ($2::text IS NULL OR r.group_name = $2)
   AND ($3::text IS NULL OR r.type = $3)
   AND ($4::text IS NULL OR $4::text = ANY(r.purl_types))

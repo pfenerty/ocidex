@@ -51,10 +51,8 @@ func (s *searchService) SearchComponents(ctx context.Context, filter ComponentFi
 func (s *searchService) SearchDistinctComponents(ctx context.Context, filter ComponentFilter) (PagedResult[DistinctComponentSummary], error) {
 	q := repository.New(s.db)
 
-	var namePat pgtype.Text
-	if filter.Name != "" {
-		namePat = pgtype.Text{String: "%" + filter.Name + "%", Valid: true}
-	}
+	// The query makes it a literal substring pattern (like_contains).
+	namePat := textOrNull(filter.Name)
 	sortBy := columnName(filter.Sort)
 	switch sortBy {
 	// "severity" (ocidex-unn8.10) orders by the rollup's five per-severity

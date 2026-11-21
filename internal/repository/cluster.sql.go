@@ -38,9 +38,9 @@ FROM (
       AND ($4::text IS NULL OR w.k8s_namespace = $4::text)
       AND ($5::text IS NULL OR ms.state = $5::text)
       AND ($6::text IS NULL OR (
-            w.workload_name  ILIKE '%' || $6::text || '%'
-         OR w.container_name ILIKE '%' || $6::text || '%'
-         OR w.image_ref      ILIKE '%' || $6::text || '%'))
+            w.workload_name  ILIKE like_contains($6::text)
+         OR w.container_name ILIKE like_contains($6::text)
+         OR w.image_ref      ILIKE like_contains($6::text)))
     GROUP BY w.image_ref, w.image_digest
 ) grouped
 `
@@ -144,9 +144,9 @@ WHERE w.cluster_id = $1
   AND ($4::text IS NULL OR w.k8s_namespace = $4::text)
   AND ($5::text IS NULL OR ms.state = $5::text)
   AND ($6::text IS NULL OR (
-        w.workload_name  ILIKE '%' || $6::text || '%'
-     OR w.container_name ILIKE '%' || $6::text || '%'
-     OR w.image_ref      ILIKE '%' || $6::text || '%'))
+        w.workload_name  ILIKE like_contains($6::text)
+     OR w.container_name ILIKE like_contains($6::text)
+     OR w.image_ref      ILIKE like_contains($6::text)))
 `
 
 type CountClusterWorkloadsParams struct {
@@ -482,9 +482,9 @@ WITH img AS (
       AND c.namespace_id IN (SELECT visible_namespace_ids($7::uuid, $8::boolean))
       AND ($9::text IS NULL OR w.k8s_namespace = $9::text)
       AND ($10::text IS NULL OR (
-            w.workload_name  ILIKE '%' || $10::text || '%'
-         OR w.container_name ILIKE '%' || $10::text || '%'
-         OR w.image_ref      ILIKE '%' || $10::text || '%'))
+            w.workload_name  ILIKE like_contains($10::text)
+         OR w.container_name ILIKE like_contains($10::text)
+         OR w.image_ref      ILIKE like_contains($10::text)))
     GROUP BY w.image_ref, w.image_digest, c.namespace_id
 )
 SELECT
@@ -1060,9 +1060,9 @@ WHERE w.cluster_id = $1
   AND ($4::text IS NULL OR w.k8s_namespace = $4::text)
   AND ($5::text IS NULL OR ms.state = $5::text)
   AND ($6::text IS NULL OR (
-        w.workload_name  ILIKE '%' || $6::text || '%'
-     OR w.container_name ILIKE '%' || $6::text || '%'
-     OR w.image_ref      ILIKE '%' || $6::text || '%'))
+        w.workload_name  ILIKE like_contains($6::text)
+     OR w.container_name ILIKE like_contains($6::text)
+     OR w.image_ref      ILIKE like_contains($6::text)))
 ORDER BY
     -- Numeric keys share one term; the direction flips the sign.
     CASE $7::text

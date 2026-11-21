@@ -87,7 +87,7 @@ WHERE a.id = $1;
 SELECT COUNT(*)::bigint
 FROM artifact a
 WHERE (sqlc.narg('type')::text IS NULL OR a.type = sqlc.narg('type'))
-  AND (sqlc.narg('name')::text IS NULL OR a.name ILIKE '%' || sqlc.narg('name')::text || '%')
+  AND (sqlc.narg('name')::text IS NULL OR a.name ILIKE like_contains(sqlc.narg('name')::text))
   AND (sqlc.narg('require_sufficient')::boolean IS NULL
        OR NOT sqlc.narg('require_sufficient')::boolean
        OR EXISTS (SELECT 1 FROM sbom s2 WHERE s2.artifact_id = a.id AND s2.enrichment_sufficient))
@@ -188,7 +188,7 @@ LEFT JOIN LATERAL (
     LIMIT 1
 ) vr ON TRUE
 WHERE (sqlc.narg('type')::text IS NULL OR a.type = sqlc.narg('type'))
-  AND (sqlc.narg('name')::text IS NULL OR a.name ILIKE '%' || sqlc.narg('name')::text || '%')
+  AND (sqlc.narg('name')::text IS NULL OR a.name ILIKE like_contains(sqlc.narg('name')::text))
   AND (sqlc.narg('require_sufficient')::boolean IS NULL
        OR NOT sqlc.narg('require_sufficient')::boolean
        OR EXISTS (SELECT 1 FROM sbom s2 WHERE s2.artifact_id = a.id AND s2.enrichment_sufficient))

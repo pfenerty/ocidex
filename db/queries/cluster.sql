@@ -200,9 +200,9 @@ WHERE w.cluster_id = $1
   AND (sqlc.narg('k8s_namespace')::text IS NULL OR w.k8s_namespace = sqlc.narg('k8s_namespace')::text)
   AND (sqlc.narg('match_state')::text IS NULL OR ms.state = sqlc.narg('match_state')::text)
   AND (sqlc.narg('q')::text IS NULL OR (
-        w.workload_name  ILIKE '%' || sqlc.narg('q')::text || '%'
-     OR w.container_name ILIKE '%' || sqlc.narg('q')::text || '%'
-     OR w.image_ref      ILIKE '%' || sqlc.narg('q')::text || '%'))
+        w.workload_name  ILIKE like_contains(sqlc.narg('q')::text)
+     OR w.container_name ILIKE like_contains(sqlc.narg('q')::text)
+     OR w.image_ref      ILIKE like_contains(sqlc.narg('q')::text)))
 -- Sorting is parameterised because the list is server-paginated: reordering
 -- only the rows that happen to be on the current page would misrepresent the
 -- whole cluster (same argument as ListTopVulnerabilities).
@@ -281,9 +281,9 @@ WITH img AS (
       AND c.namespace_id IN (SELECT visible_namespace_ids(sqlc.narg('user_id')::uuid, sqlc.narg('is_admin')::boolean))
       AND (sqlc.narg('k8s_namespace')::text IS NULL OR w.k8s_namespace = sqlc.narg('k8s_namespace')::text)
       AND (sqlc.narg('q')::text IS NULL OR (
-            w.workload_name  ILIKE '%' || sqlc.narg('q')::text || '%'
-         OR w.container_name ILIKE '%' || sqlc.narg('q')::text || '%'
-         OR w.image_ref      ILIKE '%' || sqlc.narg('q')::text || '%'))
+            w.workload_name  ILIKE like_contains(sqlc.narg('q')::text)
+         OR w.container_name ILIKE like_contains(sqlc.narg('q')::text)
+         OR w.image_ref      ILIKE like_contains(sqlc.narg('q')::text)))
     GROUP BY w.image_ref, w.image_digest, c.namespace_id
 )
 SELECT
@@ -398,9 +398,9 @@ FROM (
       AND (sqlc.narg('k8s_namespace')::text IS NULL OR w.k8s_namespace = sqlc.narg('k8s_namespace')::text)
       AND (sqlc.narg('match_state')::text IS NULL OR ms.state = sqlc.narg('match_state')::text)
       AND (sqlc.narg('q')::text IS NULL OR (
-            w.workload_name  ILIKE '%' || sqlc.narg('q')::text || '%'
-         OR w.container_name ILIKE '%' || sqlc.narg('q')::text || '%'
-         OR w.image_ref      ILIKE '%' || sqlc.narg('q')::text || '%'))
+            w.workload_name  ILIKE like_contains(sqlc.narg('q')::text)
+         OR w.container_name ILIKE like_contains(sqlc.narg('q')::text)
+         OR w.image_ref      ILIKE like_contains(sqlc.narg('q')::text)))
     GROUP BY w.image_ref, w.image_digest
 ) grouped;
 
@@ -432,9 +432,9 @@ WHERE w.cluster_id = $1
   AND (sqlc.narg('k8s_namespace')::text IS NULL OR w.k8s_namespace = sqlc.narg('k8s_namespace')::text)
   AND (sqlc.narg('match_state')::text IS NULL OR ms.state = sqlc.narg('match_state')::text)
   AND (sqlc.narg('q')::text IS NULL OR (
-        w.workload_name  ILIKE '%' || sqlc.narg('q')::text || '%'
-     OR w.container_name ILIKE '%' || sqlc.narg('q')::text || '%'
-     OR w.image_ref      ILIKE '%' || sqlc.narg('q')::text || '%'));
+        w.workload_name  ILIKE like_contains(sqlc.narg('q')::text)
+     OR w.container_name ILIKE like_contains(sqlc.narg('q')::text)
+     OR w.image_ref      ILIKE like_contains(sqlc.narg('q')::text)));
 
 -- name: ListClusterK8sNamespaces :many
 -- The namespace facet for the workload filter. It exists because the list is
