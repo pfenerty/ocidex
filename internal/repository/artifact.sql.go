@@ -205,7 +205,7 @@ func (q *Queries) DeleteSBOMsByArtifact(ctx context.Context, artifactID pgtype.U
 }
 
 const getArtifact = `-- name: GetArtifact :one
-SELECT a.id, a.type, a.name, a.group_name, a.purl, a.cpe, a.created_at,
+SELECT a.id, a.type, a.name, a.group_name, a.purl, a.cpe, a.created_at, a.entry_number,
        (SELECT CASE
            WHEN EXISTS (
                SELECT 1 FROM enrichment pe JOIN sbom sx ON sx.id = pe.sbom_id
@@ -241,6 +241,7 @@ type GetArtifactRow struct {
 	Purl          pgtype.Text        `json:"purl"`
 	Cpe           pgtype.Text        `json:"cpe"`
 	CreatedAt     pgtype.Timestamptz `json:"created_at"`
+	EntryNumber   int64              `json:"entry_number"`
 	SigningStatus string             `json:"signing_status"`
 }
 
@@ -281,6 +282,7 @@ func (q *Queries) GetArtifact(ctx context.Context, id pgtype.UUID) (GetArtifactR
 		&i.Purl,
 		&i.Cpe,
 		&i.CreatedAt,
+		&i.EntryNumber,
 		&i.SigningStatus,
 	)
 	return i, err
@@ -311,6 +313,28 @@ func (q *Queries) GetArtifactByIdentity(ctx context.Context, arg GetArtifactById
 	var i GetArtifactByIdentityRow
 	err := row.Scan(&i.ID, &i.Purl, &i.Cpe)
 	return i, err
+}
+
+const getArtifactIDByEntryNumber = `-- name: GetArtifactIDByEntryNumber :one
+SELECT a.id
+FROM artifact a
+WHERE a.entry_number = $1::bigint
+  AND artifact_visible(a.id, $2::uuid, $3::boolean)
+`
+
+type GetArtifactIDByEntryNumberParams struct {
+	EntryNumber int64       `json:"entry_number"`
+	UserID      pgtype.UUID `json:"user_id"`
+	IsAdmin     pgtype.Bool `json:"is_admin"`
+}
+
+// Resolves "#12" from search. artifact_visible() applies, so a private
+// artifact's number resolves to nothing for a caller who cannot see it.
+func (q *Queries) GetArtifactIDByEntryNumber(ctx context.Context, arg GetArtifactIDByEntryNumberParams) (pgtype.UUID, error) {
+	row := q.db.QueryRow(ctx, getArtifactIDByEntryNumber, arg.EntryNumber, arg.UserID, arg.IsAdmin)
+	var id pgtype.UUID
+	err := row.Scan(&id)
+	return id, err
 }
 
 const listArtifactNamespaceIDs = `-- name: ListArtifactNamespaceIDs :many
@@ -493,7 +517,7 @@ func (q *Queries) ListArtifactVersions(ctx context.Context, arg ListArtifactVers
 }
 
 const listArtifacts = `-- name: ListArtifacts :many
-SELECT a.id, a.type, a.name, a.group_name, a.purl, a.cpe, a.created_at,
+SELECT a.id, a.type, a.name, a.group_name, a.purl, a.cpe, a.created_at, a.entry_number,
        COUNT(s.id) AS sbom_count,
        COUNT(s.id) FILTER (WHERE s.enrichment_sufficient) AS sufficient_sbom_count,
        (SELECT CASE
@@ -630,6 +654,7 @@ type ListArtifactsRow struct {
 	Purl                pgtype.Text        `json:"purl"`
 	Cpe                 pgtype.Text        `json:"cpe"`
 	CreatedAt           pgtype.Timestamptz `json:"created_at"`
+	EntryNumber         int64              `json:"entry_number"`
 	SbomCount           int64              `json:"sbom_count"`
 	SufficientSbomCount int64              `json:"sufficient_sbom_count"`
 	SigningStatus       string             `json:"signing_status"`
@@ -698,6 +723,7 @@ func (q *Queries) ListArtifacts(ctx context.Context, arg ListArtifactsParams) ([
 			&i.Purl,
 			&i.Cpe,
 			&i.CreatedAt,
+			&i.EntryNumber,
 			&i.SbomCount,
 			&i.SufficientSbomCount,
 			&i.SigningStatus,

@@ -522,6 +522,14 @@ func registerArtifactOps(api huma.API, h *Handler) {
 	}, h.LookupArtifact)
 
 	huma.Register(api, huma.Operation{
+		OperationID: "get-artifact-by-entry-number",
+		Method:      http.MethodGet,
+		Path:        "/api/v1/artifacts/by-number/{number}",
+		Summary:     "Get an artifact by its entry number",
+		Tags:        []string{tagArtifacts},
+	}, h.GetArtifactByEntryNumber)
+
+	huma.Register(api, huma.Operation{
 		OperationID: "get-artifact",
 		Method:      http.MethodGet,
 		Path:        "/api/v1/artifacts/{id}",

@@ -32,7 +32,7 @@ export function ArtifactHeader(props: { artifact: ArtifactDetail; breadcrumb?: J
                first-tracked date are tiles in ArtifactBand. */
             eyebrow={
                 <>
-                    <EntryLine kind="Artifact" id={a().id} />
+                    <EntryLine kind="Artifact" id={a().id} number={a().entryNumber} />
                     <TypeBadge type={a().type} />
                 </>
             }

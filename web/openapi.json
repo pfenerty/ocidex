@@ -141,6 +141,11 @@
             "format": "date-time",
             "type": "string"
           },
+          "entryNumber": {
+            "description": "Sequential number in the order the artifact was first indexed. Never reused.",
+            "format": "int64",
+            "type": "integer"
+          },
           "group": {
             "type": "string"
           },
@@ -187,7 +192,8 @@
           "name",
           "sbomCount",
           "sufficientSbomCount",
-          "signingStatus"
+          "signingStatus",
+          "entryNumber"
         ],
         "type": "object"
       },
@@ -243,6 +249,11 @@
       "ArtifactSummary": {
         "additionalProperties": false,
         "properties": {
+          "entryNumber": {
+            "description": "Sequential number in the order the artifact was first indexed. Never reused.",
+            "format": "int64",
+            "type": "integer"
+          },
           "group": {
             "type": "string"
           },
@@ -276,7 +287,8 @@
           "name",
           "sbomCount",
           "sufficientSbomCount",
-          "signingStatus"
+          "signingStatus",
+          "entryNumber"
         ],
         "type": "object"
       },
@@ -8139,6 +8151,51 @@
           }
         },
         "summary": "List artifacts",
+        "tags": [
+          "Artifacts"
+        ]
+      }
+    },
+    "/api/v1/artifacts/by-number/{number}": {
+      "get": {
+        "operationId": "get-artifact-by-entry-number",
+        "parameters": [
+          {
+            "description": "The artifact's entry number, as shown in the header",
+            "in": "path",
+            "name": "number",
+            "required": true,
+            "schema": {
+              "description": "The artifact's entry number, as shown in the header",
+              "format": "int64",
+              "minimum": 1,
+              "type": "integer"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ArtifactDetail"
+                }
+              }
+            },
+            "description": "OK"
+          },
+          "default": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorModel"
+                }
+              }
+            },
+            "description": "Error"
+          }
+        },
+        "summary": "Get an artifact by its entry number",
         "tags": [
           "Artifacts"
         ]

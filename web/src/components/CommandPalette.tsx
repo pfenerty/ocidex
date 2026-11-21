@@ -8,6 +8,7 @@ import {
     createUniqueId,
     onCleanup,
 } from "solid-js";
+import { formatEntryNumber } from "~/utils/format";
 import { useNavigate } from "@solidjs/router";
 import { Search } from "lucide-solid";
 import { useAuth } from "~/context/auth";
@@ -121,10 +122,18 @@ interface Row {
  * Components are excluded from the resolvers (they are SBOM-scoped), so a purl
  * goes to the occurrence list at /components?purl= instead, per the same ADR.
  */
+const ENTRY_RE = /^[#\u2116]\s*0*([1-9]\d{0,8})$/;
+
 function lookupRows(term: string): Row[] {
     const row = (key: string, label: string, path: string): Row[] => [
         { key: `lookup:${key}`, label, sub: path, path, group: LOOKUP_GROUP },
     ];
+    // "#12" or "№12": the artifact with that entry number.
+    const entry = ENTRY_RE.exec(term);
+    if (entry !== null) {
+        const n = Number(entry[1]);
+        return row("entry", `Open artifact ${formatEntryNumber(n)}`, `/artifacts/by-number/${n}`);
+    }
     if (term.length < MIN_SEARCH_TERM) return [];
     if (DIGEST_RE.test(term)) {
         // Registry UIs copy the hex with and without the algorithm prefix; the

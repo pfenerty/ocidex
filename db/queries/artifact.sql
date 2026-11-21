@@ -53,7 +53,7 @@ RETURNING id;
 -- See ocidex-goh.16 and, in tests/artifact_rollup_scope_test.go,
 -- TestArtifactRollupSigningStatus_ArtifactMissingDominates and
 -- TestArtifactRollupSigningStatus_FailureBeatsVerified.
-SELECT a.id, a.type, a.name, a.group_name, a.purl, a.cpe, a.created_at,
+SELECT a.id, a.type, a.name, a.group_name, a.purl, a.cpe, a.created_at, a.entry_number,
        (SELECT CASE
            WHEN EXISTS (
                SELECT 1 FROM enrichment pe JOIN sbom sx ON sx.id = pe.sbom_id
@@ -80,6 +80,14 @@ SELECT a.id, a.type, a.name, a.group_name, a.purl, a.cpe, a.created_at,
 FROM artifact a
 WHERE a.id = $1;
 
+-- name: GetArtifactIDByEntryNumber :one
+-- Resolves "#12" from search. artifact_visible() applies, so a private
+-- artifact's number resolves to nothing for a caller who cannot see it.
+SELECT a.id
+FROM artifact a
+WHERE a.entry_number = @entry_number::bigint
+  AND artifact_visible(a.id, sqlc.narg('user_id')::uuid, sqlc.narg('is_admin')::boolean);
+
 -- name: CountArtifacts :one
 -- The total behind ListArtifacts' first page, under the same filters and
 -- visibility rule, so the list can say "20 of 126". Keyset
@@ -105,7 +113,7 @@ WHERE (sqlc.narg('type')::text IS NULL OR a.type = sqlc.narg('type'))
 -- query's comment. The two ladders are duplicated rather than shared, so a
 -- change to one that is not made to the other is how they drift; both are
 -- asserted together in TestArtifactRollupSigningStatus_FailureBeatsVerified.
-SELECT a.id, a.type, a.name, a.group_name, a.purl, a.cpe, a.created_at,
+SELECT a.id, a.type, a.name, a.group_name, a.purl, a.cpe, a.created_at, a.entry_number,
        COUNT(s.id) AS sbom_count,
        COUNT(s.id) FILTER (WHERE s.enrichment_sufficient) AS sufficient_sbom_count,
        (SELECT CASE

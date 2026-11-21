@@ -51,6 +51,11 @@ type GetArtifactInput struct {
 	ID string `path:"id" doc:"Artifact UUID" format:"uuid"`
 }
 
+// GetArtifactByEntryNumberInput is the request for GET /api/v1/artifacts/by-number/{number}.
+type GetArtifactByEntryNumberInput struct {
+	Number int64 `path:"number" minimum:"1" doc:"The artifact's entry number, as shown in the header"`
+}
+
 // GetArtifactOutput is the response for GET /api/v1/artifacts/{id}.
 type GetArtifactOutput struct {
 	Body service.ArtifactDetail

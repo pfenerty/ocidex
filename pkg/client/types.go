@@ -1688,9 +1688,12 @@ type AffectedComponent struct {
 // ArtifactDetail defines model for ArtifactDetail.
 type ArtifactDetail struct {
 	// Schema A URL to the JSON Schema for this object.
-	Schema              *string      `json:"$schema,omitempty"`
-	Cpe                 *string      `json:"cpe,omitempty"`
-	CreatedAt           time.Time    `json:"createdAt"`
+	Schema    *string   `json:"$schema,omitempty"`
+	Cpe       *string   `json:"cpe,omitempty"`
+	CreatedAt time.Time `json:"createdAt"`
+
+	// EntryNumber Sequential number in the order the artifact was first indexed. Never reused.
+	EntryNumber         int64        `json:"entryNumber"`
 	Group               *string      `json:"group,omitempty"`
 	Id                  string       `json:"id"`
 	Name                string       `json:"name"`
@@ -1722,6 +1725,8 @@ type ArtifactRelation struct {
 
 // ArtifactSummary defines model for ArtifactSummary.
 type ArtifactSummary struct {
+	// EntryNumber Sequential number in the order the artifact was first indexed. Never reused.
+	EntryNumber         int64        `json:"entryNumber"`
 	Group               *string      `json:"group,omitempty"`
 	Id                  string       `json:"id"`
 	Name                string       `json:"name"`

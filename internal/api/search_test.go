@@ -75,6 +75,10 @@ func (f *fakeSearchService) ListComponentsByLicense(_ context.Context, _ string,
 	}, nil
 }
 
+func (f *fakeSearchService) ResolveArtifactEntryNumber(_ context.Context, _ int64, _ service.VisibilityFilter) (string, error) {
+	return "", service.ErrNotFound
+}
+
 func (f *fakeSearchService) GetArtifact(_ context.Context, _ string, _ service.VisibilityFilter) (service.ArtifactDetail, error) {
 	return service.ArtifactDetail{
 		ArtifactSummary: service.ArtifactSummary{ID: "art1", Type: "container", Name: "ubuntu", SbomCount: 2},
@@ -689,7 +693,7 @@ func TestListArtifacts(t *testing.T) {
 	var resp cursorBody
 	is.NoErr(json.Unmarshal(w.Body.Bytes(), &resp))
 	is.Equal(resp.Pagination.HasMore, false)
-	is.Equal(string(resp.Data), `[{"id":"art1","type":"container","name":"ubuntu","sbomCount":2,"sufficientSbomCount":0,"signingStatus":""}]`)
+	is.Equal(string(resp.Data), `[{"id":"art1","type":"container","name":"ubuntu","sbomCount":2,"sufficientSbomCount":0,"signingStatus":"","entryNumber":0}]`)
 }
 
 func TestGetArtifact(t *testing.T) {
@@ -710,6 +714,42 @@ func TestGetArtifact(t *testing.T) {
 			router := newTestRouter(&fakeSBOMService{}, tt.search)
 
 			r := httptest.NewRequest(http.MethodGet, "/api/v1/artifacts/"+tt.id, nil)
+			w := httptest.NewRecorder()
+			router.ServeHTTP(w, r)
+
+			is.Equal(w.Code, tt.wantStatus)
+		})
+	}
+}
+
+// entryNumberSearchService resolves entry 12 and nothing else.
+type entryNumberSearchService struct{ fakeSearchService }
+
+func (f *entryNumberSearchService) ResolveArtifactEntryNumber(_ context.Context, n int64, _ service.VisibilityFilter) (string, error) {
+	if n == 12 {
+		return "3e671687-395b-41f5-a30f-a58921a69b79", nil
+	}
+	return "", service.ErrNotFound
+}
+
+func TestGetArtifactByEntryNumber(t *testing.T) {
+	tests := []struct {
+		name       string
+		number     string
+		wantStatus int
+	}{
+		{"resolves", "12", http.StatusOK},
+		{"unknown or invisible", "13", http.StatusNotFound},
+		{"zero", "0", http.StatusUnprocessableEntity},
+		{"not a number", "twelve", http.StatusUnprocessableEntity},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			is := is.New(t)
+			router := newTestRouter(&fakeSBOMService{}, &entryNumberSearchService{})
+
+			r := httptest.NewRequest(http.MethodGet, "/api/v1/artifacts/by-number/"+tt.number, nil)
 			w := httptest.NewRecorder()
 			router.ServeHTTP(w, r)
 

@@ -25,7 +25,7 @@ import Login from "~/pages/Login";
 import Admin from "~/pages/Admin";
 import NotFound from "~/pages/NotFound";
 import About from "~/pages/About";
-import { ArtifactLookup, SBOMLookup } from "~/pages/Lookup";
+import { ArtifactByNumber, ArtifactLookup, SBOMLookup } from "~/pages/Lookup";
 
 const queryClient = new QueryClient({
     defaultOptions: {
@@ -50,6 +50,7 @@ export default function App() {
                 {/* Resolver routes (ADR-042 R7) — declared before the :id routes
                     they redirect into so the literal segment reads as such. */}
                 <Route path="/artifacts/lookup" component={ArtifactLookup} />
+                <Route path="/artifacts/by-number/:number" component={ArtifactByNumber} />
                 <Route path="/sboms/lookup" component={SBOMLookup} />
                 <Route path="/artifacts/:id" component={ArtifactDetail} />
                 <Route path="/artifacts/:id/versions/:version" component={ArtifactVersionHistory} />

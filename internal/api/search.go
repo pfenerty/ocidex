@@ -503,6 +503,22 @@ func (h *Handler) GetArtifact(ctx context.Context, input *GetArtifactInput) (*Ge
 	return out, nil
 }
 
+// GetArtifactByEntryNumber handles GET /api/v1/artifacts/by-number/{number}.
+func (h *Handler) GetArtifactByEntryNumber(ctx context.Context, input *GetArtifactByEntryNumberInput) (*GetArtifactOutput, error) {
+	vis := visibilityFilterFromContext(ctx)
+	id, err := h.artifacts.ResolveArtifactEntryNumber(ctx, input.Number, vis)
+	if err != nil {
+		return nil, mapServiceError(err)
+	}
+	detail, err := h.artifacts.GetArtifact(ctx, id, vis)
+	if err != nil {
+		return nil, mapServiceError(err)
+	}
+	out := &GetArtifactOutput{}
+	out.Body = detail
+	return out, nil
+}
+
 // ListArtifactSBOMs handles GET /api/v1/artifacts/{id}/sboms.
 func (h *Handler) ListArtifactSBOMs(ctx context.Context, input *ListArtifactSBOMsInput) (*ListArtifactSBOMsOutput, error) {
 	id, err := requireUUID(input.ID)

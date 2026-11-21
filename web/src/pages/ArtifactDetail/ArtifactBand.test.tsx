@@ -16,6 +16,7 @@ const ARTIFACT: ArtifactDetail = {
     createdAt: "2026-07-14T12:00:50Z",
     versionCount: 60,
     watched: false,
+    entryNumber: 12,
 };
 
 const VULNS: VulnSummary = { total: 85, critical: 12, high: 30, medium: 40, low: 3, unknown: 0 };

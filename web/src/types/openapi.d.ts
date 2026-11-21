@@ -158,6 +158,23 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/v1/artifacts/by-number/{number}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Get an artifact by its entry number */
+        get: operations["get-artifact-by-entry-number"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/v1/artifacts/lookup": {
         parameters: {
             query?: never;
@@ -2010,6 +2027,11 @@ export interface components {
             cpe?: string;
             /** Format: date-time */
             createdAt: string;
+            /**
+             * Format: int64
+             * @description Sequential number in the order the artifact was first indexed. Never reused.
+             */
+            entryNumber: number;
             group?: string;
             id: string;
             name: string;
@@ -2041,6 +2063,11 @@ export interface components {
             subjectVersion?: string;
         };
         ArtifactSummary: {
+            /**
+             * Format: int64
+             * @description Sequential number in the order the artifact was first indexed. Never reused.
+             */
+            entryNumber: number;
             group?: string;
             id: string;
             name: string;
@@ -5154,6 +5181,38 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["ListArtifactsOutputBody"];
+                };
+            };
+            /** @description Error */
+            default: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["ErrorModel"];
+                };
+            };
+        };
+    };
+    "get-artifact-by-entry-number": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                /** @description The artifact's entry number, as shown in the header */
+                number: number;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description OK */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ArtifactDetail"];
                 };
             };
             /** @description Error */

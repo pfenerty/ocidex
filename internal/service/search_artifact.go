@@ -94,6 +94,7 @@ func (s *searchService) GetArtifact(ctx context.Context, idStr string, vis Visib
 			SbomCount:           sbomCount,
 			SufficientSbomCount: sufficientCount,
 			SigningStatus:       row.SigningStatus,
+			EntryNumber:         row.EntryNumber,
 		},
 		Purl:         textToPtr(row.Purl),
 		Cpe:          textToPtr(row.Cpe),
@@ -373,6 +374,7 @@ func (s *searchService) ListArtifacts(ctx context.Context, filter ArtifactFilter
 			SbomCount:           row.SbomCount,
 			SufficientSbomCount: row.SufficientSbomCount,
 			SigningStatus:       row.SigningStatus,
+			EntryNumber:         row.EntryNumber,
 			// Zero total means sbom_vuln_rollup had no row for the newest
 			// SBOM, since the rollup only records SBOMs with at least one
 			// finding. That is "no known vulnerabilities" or "never scanned"
@@ -698,4 +700,22 @@ func attachArtifactVulnVersions(ctx context.Context, q *repository.Queries, arti
 		}
 	}
 	return nil
+}
+
+// ResolveArtifactEntryNumber returns the id of the visible artifact with this
+// entry number, or ErrNotFound. Invisible and missing are the same answer, so
+// a number does not reveal a private artifact.
+func (s *searchService) ResolveArtifactEntryNumber(ctx context.Context, entryNumber int64, vis VisibilityFilter) (string, error) {
+	id, err := repository.New(s.db).GetArtifactIDByEntryNumber(ctx, repository.GetArtifactIDByEntryNumberParams{
+		EntryNumber: entryNumber,
+		UserID:      uuidOrNull(vis.UserID),
+		IsAdmin:     visAdminBool(vis),
+	})
+	if err != nil {
+		if errors.Is(err, pgx.ErrNoRows) {
+			return "", ErrNotFound
+		}
+		return "", fmt.Errorf("resolving entry number: %w", err)
+	}
+	return id.String(), nil
 }

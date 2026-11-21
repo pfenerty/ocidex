@@ -53,6 +53,7 @@ type SearchService interface {
 	ListRecentProvenanceDrift(ctx context.Context, page DriftPage, vis VisibilityFilter) (CursorPage[RecentDriftEntry], error)
 	ListOwnedActivity(ctx context.Context, ownerID string, page FeedPage) (CursorPage[ActivityEntry], error)
 	LookupArtifact(ctx context.Context, query ArtifactLookupQuery, vis VisibilityFilter) ([]LookupCandidate, error)
+	ResolveArtifactEntryNumber(ctx context.Context, entryNumber int64, vis VisibilityFilter) (string, error)
 	LookupSBOM(ctx context.Context, query SBOMLookupQuery, vis VisibilityFilter) ([]LookupCandidate, error)
 	LookupLicense(ctx context.Context, spdxID string, vis VisibilityFilter) (LicenseCount, error)
 }
@@ -593,6 +594,9 @@ type ArtifactSummary struct {
 	SbomCount           int64   `json:"sbomCount"`
 	SufficientSbomCount int64   `json:"sufficientSbomCount"`
 	SigningStatus       string  `json:"signingStatus"`
+	// EntryNumber is the artifact's place in indexing order, shown as "№ 012".
+	// Never reused, so a deleted artifact leaves a gap.
+	EntryNumber int64 `json:"entryNumber" doc:"Sequential number in the order the artifact was first indexed. Never reused."`
 
 	// Vulns is nil when the artifact's newest SBOM has no sbom_vuln_rollup
 	// row, which means "no known vulnerabilities" or "never scanned" without
