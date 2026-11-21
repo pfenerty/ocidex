@@ -142,13 +142,10 @@ export default function Layout(props: ParentProps) {
                 >
                     {drawerOpen() ? <X size={18} /> : <Menu size={18} />}
                 </button>
-                {/* The mark carries the only brand red in the shell: its LED
-                    (ocidex-iz0r.3). The red slab that used to hold the
-                    wordmark read as an error banner on every page. */}
                 <A href="/" end class="topbar-brand" aria-label="OCIDex home">
-                    <BrandMark size={28} />
+                    <BrandMark size={22} />
                     <div>
-                        <h1 class="brand">OCIDex</h1>
+                        <h1 class="brand">ocidex</h1>
                         <p>Supply-chain catalog</p>
                     </div>
                 </A>

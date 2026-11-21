@@ -53,7 +53,7 @@ describe("Login", () => {
         withProviders([github]);
         const { getByRole } = render(() => <Login />);
         const heading = getByRole("heading", { level: 1 });
-        expect(heading.textContent).toBe("OCIDex");
+        expect(heading.textContent).toBe("ocidex");
     });
 
     it("renders the sign-in prompt text", () => {

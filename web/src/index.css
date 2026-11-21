@@ -823,15 +823,10 @@
     .tone-fill-off { background: var(--color-text-muted); }
     .tone-fill-unknown { background: var(--color-border-hover); }
 
-    /* The mark's lens-LED (components/BrandMark.tsx): the one sanctioned use of
-       brand red. The body is currentColor, so the mark follows whatever text
-       colour it sits in. */
+    /* The mark (components/BrandMark.tsx) is currentColor, so it follows
+       whatever text colour it sits in. */
     .brand-mark {
         flex-shrink: 0;
-    }
-
-    .brand-mark-led {
-        fill: var(--color-brand);
     }
 
     /* Buttons — class variants */

@@ -24,7 +24,7 @@ export default function Login() {
                 <div class="flex flex-col items-center gap-3 text-center text-[var(--color-text)]">
                     <BrandMark size={44} />
                     <div>
-                        <h1 class="brand text-3xl font-bold tracking-tight leading-none mb-1.5">OCIDex</h1>
+                        <h1 class="brand text-3xl font-bold tracking-tight leading-none mb-1.5">ocidex</h1>
                         <p class="font-mono text-[0.8125rem] text-[var(--color-text-muted)]">Supply-chain catalog</p>
                     </div>
                 </div>

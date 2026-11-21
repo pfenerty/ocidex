@@ -32,25 +32,21 @@ function sources(dir = SRC, acc: string[] = []): string[] {
     return acc;
 }
 
-// Brand red is the mark's LED and nothing else (ocidex-iz0r). index.css
-// defines the token and the one rule that uses it (.brand-mark-led); no other
-// stylesheet or component may reach for it. The sidebar slab, the wordmark's
-// red "Dex", the H1 underline and the spinner each used to, and each read as
-// "error" or "click" rather than "OCIDex".
-const BRAND_FILES = ["index.css"];
-
-describe("brand red stays on the mark", () => {
-    it("is used by exactly one rule in index.css, the mark's LED", () => {
+// The brand token belongs to the mark, and the mark is now one ink colour, so
+// nothing paints with it. Each past use (the sidebar slab, a red "Dex" in the
+// wordmark, an H1 underline, the spinner) read as "error" or "click".
+describe("brand red is not used", () => {
+    it("by any rule in index.css", () => {
         const css = read("index.css");
         const uses = [...css.matchAll(/([^{}]+)\{[^{}]*var\(--color-brand[^)]*\)[^{}]*\}/g)].map((m) =>
             m[1].replace(/\/\*[\s\S]*?\*\//g, "").trim(),
         );
-        expect(uses).toEqual([".brand-mark-led"]);
+        expect(uses).toEqual([]);
     });
 
-    it("is not reachable from any other file", () => {
+    it("by any other file", () => {
         const offenders = sources()
-            .filter((f) => !BRAND_FILES.some((b) => f.endsWith(b)))
+            .filter((f) => !f.endsWith("index.css"))
             .filter((f) => readFileSync(f, "utf-8").includes("--color-brand"))
             .map((f) => f.slice(SRC.length + 1));
         expect(offenders).toEqual([]);
