@@ -70,6 +70,44 @@ groups:
 
 What to do when each fires is in [Troubleshooting](/guides/operate/troubleshooting/).
 
+## Audit log
+
+OCIDex keeps no audit table. With `AUDIT_LOG_ENABLED` on (the default), the API writes one JSON
+line to stdout for each audited event, and your cluster's log pipeline makes it durable. That can be
+Fluent Bit, Vector or Grafana Alloy, shipping to Loki, Elasticsearch or a SIEM. Keep the audit lines
+for as long as your audit policy requires, which is usually longer than ordinary logs.
+
+Every audit line has `"msg":"audit"`:
+
+```json
+{"time":"2026-11-20T14:03:11Z","level":"INFO","msg":"audit","event_type":"sbom.ingested","resource_type":"sbom","resource_id":"0b7e…","metadata":{"SBOMID":"0b7e…","ArtifactType":"container","ArtifactName":"ghcr.io/acme/api","Digest":"sha256:…","SubjectVersion":"1.4.2","Architecture":"amd64","BuildDate":"…"}}
+```
+
+| `event_type` | `resource_type` | Written when |
+| --- | --- | --- |
+| `sbom.ingested` | `sbom` | An SBOM is stored. |
+| `sbom.deleted` | `sbom` | An SBOM is deleted, on its own or with its artifact. |
+| `artifact.deleted` | `artifact` | An artifact and its SBOMs are deleted. |
+| `user.logged_in`, `user.logged_out` | `user` | A session starts or ends. |
+| `retention.swept` | `sbom` | A retention sweep runs. One line per sweep, with counts, not one per SBOM. |
+
+Route on the `msg` field to send audit lines to their own stream. In Loki, for example:
+
+```text
+{namespace="ocidex", container="api"} | json | msg="audit"
+```
+
+What the log does and doesn't guarantee:
+
+- The line is written right after the database commit, in the same request. A client that hangs up
+  doesn't lose it. A process crash between the commit and the write does, and that window is
+  accepted.
+- A line reaches storage only if your log pipeline delivers it. Use a collector that buffers to
+  disk, so a collector restart doesn't drop lines.
+- The scanner worker doesn't write audit lines yet, so SBOMs ingested by registry scans have none
+  (ocidex-5fiq).
+- Lines don't record who acted (ocidex-n9na).
+
 ## Tracing
 
 Tracing is off by default. Turn it on with `monitoring.otel.tracesExporter: otlp` and

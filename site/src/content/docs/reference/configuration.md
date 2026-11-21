@@ -160,7 +160,7 @@ A variable marked **required** stops the process at startup when it is missing.
 
 | Variable | Default | Description |
 | --- | --- | --- |
-| <code>AUDIT_<wbr>LOG_<wbr>ENABLED</code> | `true` | Emit structured audit log entries for mutating API operations. |
+| <code>AUDIT_<wbr>LOG_<wbr>ENABLED</code> | `true` | Write a structured `audit` log line to stdout for each SBOM ingest and delete, artifact delete, login, logout and retention sweep. See [Monitoring](/guides/operate/monitoring/#audit-log). |
 
 ## Metrics
 
