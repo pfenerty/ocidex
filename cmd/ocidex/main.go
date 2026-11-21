@@ -132,6 +132,8 @@ func run() error {
 	// the ClaimNext partition name is empty (see NewEnrichJobService).
 	enrichJobSvc := service.NewEnrichJobService(pool, "")
 	scanSubmitter := setupScannerExt(cfg, pool, bus, reg, natsClient, logger, jobSvc)
+	adhocWalks := scanner.NewAdhocWalks(adhocWalkConcurrency, adhocWalkTimeout, logger)
+	reg.Register(adhocWalks)
 	setupEnrichmentSubmitter(cfg, reg, natsClient, logger)
 
 	if err := reg.InitAll(); err != nil {
@@ -147,7 +149,8 @@ func run() error {
 
 	handler := api.NewHandler(sbomSvc, searchSvc, authSvc, registrySvc, namespaceSvc, sourceSvc, jobSvc, enrichJobSvc, watchSvc, clusterSvc, pool, scanSubmitter, cfg).
 		WithMeterProvider(meterProvider).
-		WithTracerProvider(tracerProvider)
+		WithTracerProvider(tracerProvider).
+		WithAdhocWalks(adhocWalks)
 	router := api.NewRouter(handler, cfg.CORSAllowedOrigins, cfg.FrontendURL, cfg.APIBaseURL)
 
 	extCtx, extCancel := context.WithCancel(context.Background())
@@ -234,6 +237,14 @@ func run() error {
 	slog.Info("server stopped")
 	return nil
 }
+
+// Ad-hoc registry walks (POST /registries/{id}/scan) run under
+// scanner.AdhocWalks: at most adhocWalkConcurrency at a time across registries,
+// each bounded by adhocWalkTimeout (ocidex-89c9.2).
+const (
+	adhocWalkConcurrency = 2
+	adhocWalkTimeout     = 5 * time.Minute
+)
 
 // backgroundPoolMaxConns bounds the pool used by out-of-band work (the stats
 // warmer and rollup refresher). It is deliberately tiny and separate from the

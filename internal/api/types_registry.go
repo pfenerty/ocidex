@@ -176,7 +176,7 @@ type ScanRegistryInput struct {
 // ScanRegistryOutput is the response for POST /api/v1/registries/{id}/scan.
 type ScanRegistryOutput struct {
 	Body struct {
-		Message string `json:"message" doc:"Confirmation that ad-hoc scan has been initiated"`
+		Message string `json:"message" doc:"Confirmation that the ad-hoc scan was accepted. It runs in the background; a second request while it is queued or running answers 409"`
 	}
 }
 

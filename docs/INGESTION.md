@@ -46,9 +46,9 @@ Query params take priority over anything extracted from the BOM (see §3 for the
 
 ### Path B: Registry Catalog Scan
 
-**Trigger:** `POST /api/v1/registries/{id}/scan` (admin) — runs async; periodic scans are a planned future feature.
+**Trigger:** `POST /api/v1/registries/{id}/scan` (`trigger_scan`), or the registry poller. An ad-hoc walk answers 202 and runs in the background under `scanner.AdhocWalks`. That allows one walk per registry (a second request gets 409) and two across registries, with a 5-minute deadline, and the walk is cancelled on shutdown (ocidex-89c9.2).
 
-**Code:** `internal/api/registry.go` → `ScanRegistry()` → `walkRegistryCatalog()`
+**Code:** `internal/api/registry.go` → `ScanRegistry()` → `scanner.AdhocWalks.Run` → `scanner.WalkRegistryStats()`
 
 Walk sequence:
 1. `ociListCatalog()` — `GET /v2/_catalog` → list of repository names.

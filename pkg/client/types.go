@@ -3863,7 +3863,7 @@ type ScanRegistryOutputBody struct {
 	// Schema A URL to the JSON Schema for this object.
 	Schema *string `json:"$schema,omitempty"`
 
-	// Message Confirmation that ad-hoc scan has been initiated
+	// Message Confirmation that the ad-hoc scan was accepted. It runs in the background; a second request while it is queued or running answers 409
 	Message string `json:"message"`
 }
 

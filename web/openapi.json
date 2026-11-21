@@ -6438,7 +6438,7 @@
             "type": "string"
           },
           "message": {
-            "description": "Confirmation that ad-hoc scan has been initiated",
+            "description": "Confirmation that the ad-hoc scan was accepted. It runs in the background; a second request while it is queued or running answers 409",
             "type": "string"
           }
         },

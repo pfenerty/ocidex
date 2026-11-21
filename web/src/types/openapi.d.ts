@@ -4357,7 +4357,7 @@ export interface components {
              * @example https://example.com/api/schemas/ScanRegistryOutputBody.json
              */
             readonly $schema?: string;
-            /** @description Confirmation that ad-hoc scan has been initiated */
+            /** @description Confirmation that the ad-hoc scan was accepted. It runs in the background; a second request while it is queued or running answers 409 */
             message: string;
         };
         ScannerStatus: {

@@ -40,6 +40,7 @@ type Handler struct {
 	db               DBPinger
 	api              huma.API
 	scanSubmitter    ScanSubmitter
+	adhocWalks       *scanner.AdhocWalks
 	cfg              *config.Config
 	stateCookie      *securecookie.SecureCookie
 	clientIPs        *ClientIPResolver
@@ -80,6 +81,14 @@ func NewHandler(sbomSvc service.SBOMService, searchSvc service.SearchService, au
 		meterProvider:    noop.NewMeterProvider(),
 		tracerProvider:   tracenoop.NewTracerProvider(),
 	}
+}
+
+// WithAdhocWalks sets the coordinator that runs ad-hoc registry walks
+// (POST /registries/{id}/scan). Without it the route answers 503, as it does
+// with no scan submitter (ocidex-89c9.2).
+func (h *Handler) WithAdhocWalks(w *scanner.AdhocWalks) *Handler {
+	h.adhocWalks = w
+	return h
 }
 
 // WithTracerProvider sets the provider the router records request spans on
