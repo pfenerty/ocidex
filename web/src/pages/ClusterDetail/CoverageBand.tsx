@@ -69,7 +69,13 @@ export function CoverageBand(props: {
                     }
                     activeClass="coverage-segment-route"
                 >
-                    {plural(props.coverage.total, "workload container")} · {plural(props.coverage.pods, "pod")}
+                    {/* Seen is everything running; caught is what has an SBOM. */}
+                    {plural(props.coverage.total, "workload container")} seen ·{" "}
+                    {props.coverage.matched.toLocaleString()} caught
+                    <Show when={props.coverage.total > 0}>
+                        {" "}({Math.round((props.coverage.matched / props.coverage.total) * 100)}%)
+                    </Show>{" "}
+                    · {plural(props.coverage.pods, "pod")}
                 </A>
                 <Show when={props.coverage.total > 0}>
                     <span class="text-muted text-sm">
