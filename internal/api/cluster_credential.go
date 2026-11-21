@@ -19,7 +19,7 @@ func (h *Handler) ListClusterCredentials(ctx context.Context, in *ListClusterCre
 	if err := h.clusterCapabilityCheck(ctx, in.ID, authz.CapManageCluster); err != nil {
 		return nil, err
 	}
-	creds, err := h.clusterService.ListCredentials(ctx, in.ID)
+	creds, err := h.clusterAgents.ListCredentials(ctx, in.ID)
 	if err != nil {
 		return nil, mapServiceError(err)
 	}
@@ -38,7 +38,7 @@ func (h *Handler) CreateClusterCredential(ctx context.Context, in *CreateCluster
 	if !ok {
 		return nil, huma.Error401Unauthorized("not authenticated")
 	}
-	cluster, err := h.clusterService.Get(ctx, in.ID)
+	cluster, err := h.clusters.Get(ctx, in.ID)
 	if err != nil {
 		return nil, huma.Error404NotFound("cluster not found")
 	}
@@ -54,7 +54,7 @@ func (h *Handler) CreateClusterCredential(ctx context.Context, in *CreateCluster
 	if name == "" {
 		name = cluster.Name + "-agent"
 	}
-	cred, err := h.clusterService.CreateCredential(ctx, in.ID, user.ID, name)
+	cred, err := h.clusterAgents.CreateCredential(ctx, in.ID, user.ID.String(), name)
 	if err != nil {
 		return nil, mapServiceError(err)
 	}
@@ -70,7 +70,7 @@ func (h *Handler) RotateClusterCredential(ctx context.Context, in *ClusterCreden
 	if !ok {
 		return nil, huma.Error401Unauthorized("not authenticated")
 	}
-	cluster, err := h.clusterService.Get(ctx, in.ID)
+	cluster, err := h.clusters.Get(ctx, in.ID)
 	if err != nil {
 		return nil, huma.Error404NotFound("cluster not found")
 	}
@@ -80,7 +80,7 @@ func (h *Handler) RotateClusterCredential(ctx context.Context, in *ClusterCreden
 	if err := h.requireNamespaceCapability(ctx, user, cluster.NamespaceID, authz.CapPushInventory); err != nil {
 		return nil, err
 	}
-	cred, err := h.clusterService.RotateCredential(ctx, in.ID, in.CredentialID, user.ID)
+	cred, err := h.clusterAgents.RotateCredential(ctx, in.ID, in.CredentialID, user.ID.String())
 	if err != nil {
 		return nil, mapServiceError(err)
 	}
@@ -106,7 +106,7 @@ func (h *Handler) ConnectCluster(ctx context.Context, in *ConnectClusterInput) (
 	if in.Body.AutoIngest != nil {
 		auto = *in.Body.AutoIngest
 	}
-	cluster, cred, err := h.clusterService.Connect(ctx, service.ConnectClusterParams{
+	cluster, cred, err := h.clusters.Connect(ctx, service.ConnectClusterParams{
 		NamespaceID: in.Body.NamespaceID,
 		Name:        in.Body.Name,
 		Description: in.Body.Description,
@@ -128,7 +128,7 @@ func (h *Handler) RevokeClusterCredential(ctx context.Context, in *ClusterCreden
 	if err := h.clusterCapabilityCheck(ctx, in.ID, authz.CapManageCluster); err != nil {
 		return nil, err
 	}
-	if err := h.clusterService.RevokeCredential(ctx, in.ID, in.CredentialID); err != nil {
+	if err := h.clusterAgents.RevokeCredential(ctx, in.ID, in.CredentialID); err != nil {
 		return nil, mapServiceError(err)
 	}
 	return nil, nil

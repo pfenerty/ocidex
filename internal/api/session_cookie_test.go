@@ -34,14 +34,20 @@ func TestSessionCookieSameSite(t *testing.T) {
 		t.Run(tt.name, func(t *testing.T) {
 			is := is.New(t)
 
-			h := api.NewHandler(nil, nil, &fakeAuthService{}, nil, nil, nil, nil, nil, nil, nil, &fakePinger{}, nil,
-				&config.Config{
+			authSvc := &fakeAuthService{}
+			h := api.NewHandler(api.Deps{
+				Authenticator: authSvc,
+				Logins:        authSvc,
+				Accounts:      authSvc,
+				DB:            &fakePinger{},
+				Config: &config.Config{
 					Environment:           tt.env,
 					SessionSecret:         strings.Repeat("k", 32),
 					SessionMaxAgeDays:     7,
 					SessionCookieSameSite: tt.sameSite,
 					FrontendURL:           "http://localhost:3000",
-				})
+				},
+			})
 			router := api.NewRouter(h, "*", "", "")
 
 			w := httptest.NewRecorder()

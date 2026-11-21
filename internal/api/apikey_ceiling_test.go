@@ -32,22 +32,22 @@ var (
 type keyMgmtAuthService struct {
 	fakeAuthService
 	created [][]authz.Capability
-	deleted []pgtype.UUID
+	deleted []string
 }
 
-func (f *keyMgmtAuthService) CreateExpiringAPIKey(_ context.Context, _ pgtype.UUID, _ string, caps []authz.Capability, _ time.Time) (string, error) {
+func (f *keyMgmtAuthService) CreateExpiringAPIKey(_ context.Context, _ string, _ string, caps []authz.Capability, _ time.Time) (string, error) {
 	f.created = append(f.created, caps)
 	return "ocidex_new", nil
 }
 
-func (f *keyMgmtAuthService) ListAPIKeys(_ context.Context, _ pgtype.UUID) ([]service.APIKeyMeta, error) {
+func (f *keyMgmtAuthService) ListAPIKeys(_ context.Context, _ string) ([]service.APIKeyMeta, error) {
 	return []service.APIKeyMeta{
 		{ID: wideKeyID, Capabilities: authz.AllCapabilities()},
 		{ID: scanKeyID, Capabilities: []authz.Capability{authz.CapTriggerScan}},
 	}, nil
 }
 
-func (f *keyMgmtAuthService) DeleteAPIKey(_ context.Context, _ pgtype.UUID, id pgtype.UUID) error {
+func (f *keyMgmtAuthService) DeleteAPIKey(_ context.Context, _ string, id string) error {
 	f.deleted = append(f.deleted, id)
 	return nil
 }

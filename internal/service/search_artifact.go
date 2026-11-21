@@ -13,7 +13,11 @@ import (
 	"github.com/pfenerty/ocidex/internal/repository"
 )
 
-func (s *searchService) GetArtifact(ctx context.Context, id pgtype.UUID, vis VisibilityFilter) (ArtifactDetail, error) {
+func (s *searchService) GetArtifact(ctx context.Context, idStr string, vis VisibilityFilter) (ArtifactDetail, error) {
+	id, err := parseID(idStr)
+	if err != nil {
+		return ArtifactDetail{}, err
+	}
 	q := repository.New(s.db)
 
 	// Access check.
@@ -100,7 +104,11 @@ func (s *searchService) GetArtifact(ctx context.Context, id pgtype.UUID, vis Vis
 	}, nil
 }
 
-func (s *searchService) ListVersionsByArtifact(ctx context.Context, artifactID pgtype.UUID, limit, offset int32, mode VersionSortMode, colSort VersionColumnSort, vis VisibilityFilter) (ArtifactVersionsPage, error) {
+func (s *searchService) ListVersionsByArtifact(ctx context.Context, artifactIDStr string, limit int32, offset int32, mode VersionSortMode, colSort VersionColumnSort, vis VisibilityFilter) (ArtifactVersionsPage, error) {
+	artifactID, err := parseID(artifactIDStr)
+	if err != nil {
+		return ArtifactVersionsPage{}, err
+	}
 	q := repository.New(s.db)
 
 	// Semver ordering can't be expressed in SQL, so fetch every distinct version
@@ -418,7 +426,11 @@ type ArtifactLicenseSummary struct {
 
 // GetArtifactLicenseSummary returns aggregated license counts for an artifact's
 // most recently ingested SBOM, and names that SBOM.
-func (s *searchService) GetArtifactLicenseSummary(ctx context.Context, artifactID pgtype.UUID, vis VisibilityFilter) (ArtifactLicenseSummary, error) {
+func (s *searchService) GetArtifactLicenseSummary(ctx context.Context, artifactIDStr string, vis VisibilityFilter) (ArtifactLicenseSummary, error) {
+	artifactID, err := parseID(artifactIDStr)
+	if err != nil {
+		return ArtifactLicenseSummary{}, err
+	}
 	q := repository.New(s.db)
 
 	// Access check.
@@ -479,7 +491,11 @@ type ArtifactVulnSummary struct {
 
 // GetArtifactVulnSummary returns per-severity vuln counts for the newest SBOM
 // of an artifact's highest version, and which version that is.
-func (s *searchService) GetArtifactVulnSummary(ctx context.Context, artifactID pgtype.UUID, vis VisibilityFilter) (ArtifactVulnSummary, error) {
+func (s *searchService) GetArtifactVulnSummary(ctx context.Context, artifactIDStr string, vis VisibilityFilter) (ArtifactVulnSummary, error) {
+	artifactID, err := parseID(artifactIDStr)
+	if err != nil {
+		return ArtifactVulnSummary{}, err
+	}
 	q := repository.New(s.db)
 
 	visible, err := q.IsArtifactVisible(ctx, repository.IsArtifactVisibleParams{
@@ -539,7 +555,11 @@ func (s *searchService) GetArtifactVulnSummary(ctx context.Context, artifactID p
 // artifact's true version count come back on the page so the tab can say which
 // slice of history the numbers describe — an unstated truncation would be worse
 // than the timeout it replaces.
-func (s *searchService) ListArtifactVulns(ctx context.Context, artifactID pgtype.UUID, params ArtifactVulnParams, vis VisibilityFilter) (ArtifactVulnPage, error) {
+func (s *searchService) ListArtifactVulns(ctx context.Context, artifactIDStr string, params ArtifactVulnParams, vis VisibilityFilter) (ArtifactVulnPage, error) {
+	artifactID, err := parseID(artifactIDStr)
+	if err != nil {
+		return ArtifactVulnPage{}, err
+	}
 	q := repository.New(s.db)
 
 	visible, err := q.IsArtifactVisible(ctx, repository.IsArtifactVisibleParams{

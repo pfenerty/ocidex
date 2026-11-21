@@ -46,8 +46,8 @@ func (h *Handler) APIVersion(ctx context.Context, _ *struct{}) (*VersionOutput, 
 	out.Body.Build, out.Body.Commit, out.Body.BuiltAt = version.Info()
 	// The database age is best-effort: About still says which build is
 	// running when the database cannot be read.
-	if h.searchService != nil {
-		if built, err := h.searchService.VulnDBBuiltAt(ctx); err == nil {
+	if h.insights != nil {
+		if built, err := h.insights.VulnDBBuiltAt(ctx); err == nil {
 			out.Body.VulnDBBuiltAt = built
 		}
 	}

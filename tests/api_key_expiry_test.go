@@ -33,7 +33,7 @@ func TestAPIKeyExpiryAndLastUsedThrottle(t *testing.T) {
 		return resp.StatusCode
 	}
 
-	live, err := authSvc.CreateExpiringAPIKey(ctx, userID, "live", nil, time.Now().Add(time.Hour))
+	live, err := authSvc.CreateExpiringAPIKey(ctx, userID.String(), "live", nil, time.Now().Add(time.Hour))
 	is.NoErr(err)
 	is.Equal(status(live), http.StatusOK)
 
@@ -44,7 +44,7 @@ func TestAPIKeyExpiryAndLastUsedThrottle(t *testing.T) {
 
 	// Throttle: after the first use stamps last_used_at, further uses within a
 	// minute leave it untouched.
-	never, err := authSvc.CreateAPIKey(ctx, userID, "never", nil)
+	never, err := authSvc.CreateAPIKey(ctx, userID.String(), "never", nil)
 	is.NoErr(err)
 	is.Equal(status(never), http.StatusOK)
 	var first, after time.Time

@@ -392,10 +392,10 @@ type ClusterService interface {
 	// may only push its inventory. Callers authorize manage_cluster first.
 	// Connect registers a cluster with its first credential, atomically.
 	Connect(ctx context.Context, p ConnectClusterParams) (Cluster, ClusterCredential, error)
-	CreateCredential(ctx context.Context, clusterID string, userID pgtype.UUID, name string) (ClusterCredential, error)
+	CreateCredential(ctx context.Context, clusterID string, userID string, name string) (ClusterCredential, error)
 	ListCredentials(ctx context.Context, clusterID string) ([]ClusterCredential, error)
 	RevokeCredential(ctx context.Context, clusterID, credentialID string) error
-	RotateCredential(ctx context.Context, clusterID, credentialID string, userID pgtype.UUID) (ClusterCredential, error)
+	RotateCredential(ctx context.Context, clusterID, credentialID string, userID string) (ClusterCredential, error)
 
 	// Push history (ocidex-70eo.4). RecordPush ignores an unknown cluster id.
 	RecordPush(ctx context.Context, clusterID string, p PushAttempt) error

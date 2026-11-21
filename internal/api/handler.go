@@ -28,15 +28,23 @@ type ScanSubmitter interface {
 // Handler holds dependencies for HTTP handlers.
 type Handler struct {
 	sbomService      service.SBOMService
-	searchService    service.SearchService
-	authService      service.AuthService
-	registryService  service.RegistryService
+	sbomQueries      SBOMReader
+	components       ComponentReader
+	artifacts        ArtifactReader
+	artifactInsights ArtifactInsights
+	insights         InsightReader
+	authenticator    Authenticator
+	logins           LoginFlow
+	accounts         AccountAdmin
+	registryService  RegistryStore
 	namespaceService service.NamespaceService
 	sourceService    service.SourceService
-	jobService       service.JobService
+	jobService       JobAdmin
 	enrichJobService service.EnrichJobService
 	watchService     service.WatchService
-	clusterService   service.ClusterService
+	clusters         ClusterAdmin
+	clusterAgents    ClusterAgent
+	clusterInventory ClusterInventory
 	db               DBPinger
 	api              huma.API
 	scanSubmitter    ScanSubmitter
@@ -51,32 +59,69 @@ type Handler struct {
 	tracerProvider   trace.TracerProvider
 }
 
-// NewHandler creates a new Handler with the given dependencies.
-func NewHandler(sbomSvc service.SBOMService, searchSvc service.SearchService, authSvc service.AuthService, registrySvc service.RegistryService, namespaceSvc service.NamespaceService, sourceSvc service.SourceService, jobSvc service.JobService, enrichJobSvc service.EnrichJobService, watchSvc service.WatchService, clusterSvc service.ClusterService, db DBPinger, sc ScanSubmitter, cfg *config.Config) *Handler {
+// Deps is what a Handler is built from (ocidex-8xij.3). Fields are named, so
+// two dependencies of the same kind can't be swapped by position, and each is
+// a consumer-sized view (deps.go): a test sets only the ones its routes use.
+// cmd/ocidex hands one service to every view of it, e.g. the search service to
+// SBOMQueries, Components, Artifacts, ArtifactInsights and Insights.
+type Deps struct {
+	SBOMs            service.SBOMService
+	SBOMQueries      SBOMReader
+	Components       ComponentReader
+	Artifacts        ArtifactReader
+	ArtifactInsights ArtifactInsights
+	Insights         InsightReader
+	Authenticator    Authenticator
+	Logins           LoginFlow
+	Accounts         AccountAdmin
+	Registries       RegistryStore
+	Namespaces       service.NamespaceService
+	Sources          service.SourceService
+	Jobs             JobAdmin
+	EnrichJobs       service.EnrichJobService
+	Watches          service.WatchService
+	Clusters         ClusterAdmin
+	ClusterAgents    ClusterAgent
+	ClusterInventory ClusterInventory
+	DB               DBPinger
+	Scans            ScanSubmitter
+	Config           *config.Config
+}
+
+// NewHandler creates a new Handler from its dependencies.
+func NewHandler(d Deps) *Handler {
 	var sc2 *securecookie.SecureCookie
 	var clientIPs ClientIPPolicy
-	if cfg != nil {
-		sc2 = securecookie.New([]byte(cfg.SessionSecret), nil)
+	if d.Config != nil {
+		sc2 = securecookie.New([]byte(d.Config.SessionSecret), nil)
 		clientIPs = ClientIPPolicy{
-			TrustedProxies: cfg.TrustedProxies,
-			TrustedHops:    cfg.TrustedProxyHops,
-			Header:         cfg.ClientIPHeader,
+			TrustedProxies: d.Config.TrustedProxies,
+			TrustedHops:    d.Config.TrustedProxyHops,
+			Header:         d.Config.ClientIPHeader,
 		}
 	}
 	return &Handler{
-		sbomService:      sbomSvc,
-		searchService:    searchSvc,
-		authService:      authSvc,
-		registryService:  registrySvc,
-		namespaceService: namespaceSvc,
-		sourceService:    sourceSvc,
-		jobService:       jobSvc,
-		enrichJobService: enrichJobSvc,
-		watchService:     watchSvc,
-		clusterService:   clusterSvc,
-		db:               db,
-		scanSubmitter:    sc,
-		cfg:              cfg,
+		sbomService:      d.SBOMs,
+		sbomQueries:      d.SBOMQueries,
+		components:       d.Components,
+		artifacts:        d.Artifacts,
+		artifactInsights: d.ArtifactInsights,
+		insights:         d.Insights,
+		authenticator:    d.Authenticator,
+		logins:           d.Logins,
+		accounts:         d.Accounts,
+		registryService:  d.Registries,
+		namespaceService: d.Namespaces,
+		sourceService:    d.Sources,
+		jobService:       d.Jobs,
+		enrichJobService: d.EnrichJobs,
+		watchService:     d.Watches,
+		clusters:         d.Clusters,
+		clusterAgents:    d.ClusterAgents,
+		clusterInventory: d.ClusterInventory,
+		db:               d.DB,
+		scanSubmitter:    d.Scans,
+		cfg:              d.Config,
 		stateCookie:      sc2,
 		clientIPs:        NewClientIPResolver(clientIPs),
 		meterProvider:    noop.NewMeterProvider(),

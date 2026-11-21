@@ -230,7 +230,7 @@ func TestCreateSession_ReturnsNonEmptyToken(t *testing.T) {
 	}
 	svc := newTestAuthService(repo)
 
-	token, err := svc.CreateSession(context.Background(), pgtype.UUID{Valid: true})
+	token, err := svc.CreateSession(context.Background(), pgtype.UUID{Valid: true}.String())
 
 	is.NoErr(err)
 	is.True(token != "")
@@ -247,7 +247,7 @@ func TestCreateSession_RepoError(t *testing.T) {
 	}
 	svc := newTestAuthService(repo)
 
-	_, err := svc.CreateSession(context.Background(), pgtype.UUID{Valid: true})
+	_, err := svc.CreateSession(context.Background(), pgtype.UUID{Valid: true}.String())
 	is.True(err != nil)
 }
 
@@ -344,7 +344,7 @@ func TestCreateAPIKey_PrefixAndFormat(t *testing.T) {
 	}
 	svc := newTestAuthService(repo)
 
-	key, err := svc.CreateAPIKey(context.Background(), pgtype.UUID{Valid: true}, "ci", nil)
+	key, err := svc.CreateAPIKey(context.Background(), pgtype.UUID{Valid: true}.String(), "ci", nil)
 
 	is.NoErr(err)
 	is.True(strings.HasPrefix(key, "ocidex_")) // plaintext starts with prefix
@@ -362,7 +362,7 @@ func TestCreateAPIKey_RepoError(t *testing.T) {
 	}
 	svc := newTestAuthService(repo)
 
-	_, err := svc.CreateAPIKey(context.Background(), pgtype.UUID{Valid: true}, "ci", nil)
+	_, err := svc.CreateAPIKey(context.Background(), pgtype.UUID{Valid: true}.String(), "ci", nil)
 	is.True(err != nil)
 }
 
@@ -438,7 +438,7 @@ func TestUpdateUserRole_ValidRoles(t *testing.T) {
 			}
 			svc := newTestAuthService(repo)
 
-			user, err := svc.UpdateUserRole(context.Background(), pgtype.UUID{Valid: true}, role)
+			user, err := svc.UpdateUserRole(context.Background(), pgtype.UUID{Valid: true}.String(), role)
 			is.NoErr(err)
 			is.Equal(user.Role, role)
 		})
@@ -450,7 +450,7 @@ func TestUpdateUserRole_InvalidRole(t *testing.T) {
 	repo := &fakeAuthRepo{}
 	svc := newTestAuthService(repo)
 
-	_, err := svc.UpdateUserRole(context.Background(), pgtype.UUID{Valid: true}, "superuser")
+	_, err := svc.UpdateUserRole(context.Background(), pgtype.UUID{Valid: true}.String(), "superuser")
 	is.True(err != nil)
 }
 
@@ -492,7 +492,7 @@ func TestListAPIKeys_ReturnsKeys(t *testing.T) {
 	}
 	svc := newTestAuthService(repo)
 
-	keys, err := svc.ListAPIKeys(context.Background(), userID)
+	keys, err := svc.ListAPIKeys(context.Background(), userID.String())
 	is.NoErr(err)
 	is.Equal(len(keys), 1)
 	is.Equal(keys[0].Name, "ci")
@@ -507,7 +507,7 @@ func TestListAPIKeys_RepoError(t *testing.T) {
 	}
 	svc := newTestAuthService(repo)
 
-	_, err := svc.ListAPIKeys(context.Background(), pgtype.UUID{Valid: true})
+	_, err := svc.ListAPIKeys(context.Background(), pgtype.UUID{Valid: true}.String())
 	is.True(err != nil)
 }
 
@@ -524,7 +524,7 @@ func TestDeleteAPIKey_Found(t *testing.T) {
 	}
 	svc := newTestAuthService(repo)
 
-	err := svc.DeleteAPIKey(context.Background(), pgtype.UUID{Valid: true}, pgtype.UUID{Valid: true})
+	err := svc.DeleteAPIKey(context.Background(), pgtype.UUID{Valid: true}.String(), pgtype.UUID{Valid: true}.String())
 	is.NoErr(err)
 }
 
@@ -537,7 +537,7 @@ func TestDeleteAPIKey_NotFound(t *testing.T) {
 	}
 	svc := newTestAuthService(repo)
 
-	err := svc.DeleteAPIKey(context.Background(), pgtype.UUID{Valid: true}, pgtype.UUID{Valid: true})
+	err := svc.DeleteAPIKey(context.Background(), pgtype.UUID{Valid: true}.String(), pgtype.UUID{Valid: true}.String())
 	is.True(err != nil)
 }
 
@@ -559,7 +559,7 @@ func TestGetUser_Found(t *testing.T) {
 	}
 	svc := newTestAuthService(repo)
 
-	user, err := svc.GetUser(context.Background(), userID)
+	user, err := svc.GetUser(context.Background(), userID.String())
 	is.NoErr(err)
 	is.Equal(user.DisplayName, "carol")
 	is.Equal(user.Role, "viewer")
@@ -574,7 +574,7 @@ func TestGetUser_NotFound(t *testing.T) {
 	}
 	svc := newTestAuthService(repo)
 
-	_, err := svc.GetUser(context.Background(), pgtype.UUID{Valid: true})
+	_, err := svc.GetUser(context.Background(), pgtype.UUID{Valid: true}.String())
 	is.True(err != nil)
 }
 
@@ -677,7 +677,7 @@ func TestCreateAPIKey_CapabilityCeiling(t *testing.T) {
 			}
 			svc := newTestAuthService(repo)
 
-			_, err := svc.CreateAPIKey(context.Background(), pgtype.UUID{Valid: true}, "ci", tt.caps)
+			_, err := svc.CreateAPIKey(context.Background(), pgtype.UUID{Valid: true}.String(), "ci", tt.caps)
 
 			if tt.wantErr {
 				var verr *ValidationError
@@ -749,16 +749,16 @@ func TestCreateExpiringAPIKey(t *testing.T) {
 	ctx := context.Background()
 
 	at := time.Now().Add(24 * time.Hour)
-	_, err := svc.CreateExpiringAPIKey(ctx, pgtype.UUID{Valid: true}, "ci", nil, at)
+	_, err := svc.CreateExpiringAPIKey(ctx, pgtype.UUID{Valid: true}.String(), "ci", nil, at)
 	is.NoErr(err)
 	is.True(stored.ExpiresAt.Valid)
 	is.True(stored.ExpiresAt.Time.Equal(at))
 
-	_, err = svc.CreateAPIKey(ctx, pgtype.UUID{Valid: true}, "ci", nil)
+	_, err = svc.CreateAPIKey(ctx, pgtype.UUID{Valid: true}.String(), "ci", nil)
 	is.NoErr(err)
 	is.True(!stored.ExpiresAt.Valid) // no expiry means never
 
-	_, err = svc.CreateExpiringAPIKey(ctx, pgtype.UUID{Valid: true}, "ci", nil, time.Now().Add(-time.Minute))
+	_, err = svc.CreateExpiringAPIKey(ctx, pgtype.UUID{Valid: true}.String(), "ci", nil, time.Now().Add(-time.Minute))
 	var ve *ValidationError
 	is.True(errors.As(err, &ve)) // an expiry in the past is refused
 }

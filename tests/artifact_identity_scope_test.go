@@ -44,10 +44,10 @@ func TestSharedArtifactIdentityIsNotRewrittenByAnotherNamespace(t *testing.T) {
 	ctx := t.Context()
 
 	aID := seedUser(t, pool, 7901, "ident-a", "member")
-	aKey, err := authSvc.CreateAPIKey(ctx, aID, "ident-a", nil)
+	aKey, err := authSvc.CreateAPIKey(ctx, aID.String(), "ident-a", nil)
 	is.NoErr(err)
 	bID := seedUser(t, pool, 7902, "ident-b", "member")
-	bKey, err := authSvc.CreateAPIKey(ctx, bID, "ident-b", nil)
+	bKey, err := authSvc.CreateAPIKey(ctx, bID.String(), "ident-b", nil)
 	is.NoErr(err)
 
 	aNS := seedNamespace(t, pool, "ident-a-ns", aID, "private")

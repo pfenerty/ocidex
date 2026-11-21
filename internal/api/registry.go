@@ -235,7 +235,7 @@ func (h *Handler) listRecentDrift(ctx context.Context, in CursorParams, vis serv
 		return nil, huma.Error400BadRequest(err.Error())
 	}
 
-	result, err := h.searchService.ListRecentProvenanceDrift(ctx, service.DriftPage{
+	result, err := h.insights.ListRecentProvenanceDrift(ctx, service.DriftPage{
 		Limit:            in.Limit,
 		HasCursor:        hasCursor,
 		CursorDetectedAt: cur.CreatedAt,

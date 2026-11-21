@@ -52,7 +52,11 @@ func (s *searchService) ListLicenses(ctx context.Context, filter LicenseFilter) 
 	}, nil
 }
 
-func (s *searchService) ListComponentsByLicense(ctx context.Context, licenseID pgtype.UUID, limit, offset int32, vis VisibilityFilter) (PagedResult[ComponentSummary], error) {
+func (s *searchService) ListComponentsByLicense(ctx context.Context, licenseIDStr string, limit int32, offset int32, vis VisibilityFilter) (PagedResult[ComponentSummary], error) {
+	licenseID, err := parseID(licenseIDStr)
+	if err != nil {
+		return PagedResult[ComponentSummary]{}, err
+	}
 	q := repository.New(s.db)
 
 	rows, err := q.ListComponentsByLicense(ctx, repository.ListComponentsByLicenseParams{

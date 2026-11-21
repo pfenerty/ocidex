@@ -229,14 +229,14 @@ func TestDiscoverExcludesPrivateNamespaces(t *testing.T) {
 	is := is.New(t)
 
 	publicOwner := seedUser(t, pool, 7301, "discover-public-owner", "member")
-	publicKey, err := authSvc.CreateAPIKey(t.Context(), publicOwner, "public", nil)
+	publicKey, err := authSvc.CreateAPIKey(t.Context(), publicOwner.String(), "public", nil)
 	is.NoErr(err)
 	privateOwner := seedUser(t, pool, 7302, "discover-private-owner", "member")
-	privateKey, err := authSvc.CreateAPIKey(t.Context(), privateOwner, "private", nil)
+	privateKey, err := authSvc.CreateAPIKey(t.Context(), privateOwner.String(), "private", nil)
 	is.NoErr(err)
 	// Owns nothing in this fixture: the authenticated-non-owner caller.
 	outsider := seedUser(t, pool, 7303, "discover-outsider", "member")
-	outsiderKey, err := authSvc.CreateAPIKey(t.Context(), outsider, "outsider", nil)
+	outsiderKey, err := authSvc.CreateAPIKey(t.Context(), outsider.String(), "outsider", nil)
 	is.NoErr(err)
 
 	publicSrc := discoverNS(t, pool, "discover-pub", publicOwner, "public")
@@ -357,7 +357,7 @@ func TestDiscoverFeaturedConfiguredNames(t *testing.T) {
 	is := is.New(t)
 
 	owner := seedUser(t, pool, 7321, "discover-featured-owner", "member")
-	key, err := authSvc.CreateAPIKey(t.Context(), owner, "featured", nil)
+	key, err := authSvc.CreateAPIKey(t.Context(), owner.String(), "featured", nil)
 	is.NoErr(err)
 	publicSrc := discoverNS(t, pool, "discover-feat-pub", owner, "public")
 	privateSrc := discoverNS(t, pool, "discover-feat-priv", owner, "private")
@@ -402,7 +402,7 @@ func TestDiscoverEmptyWhenAllContentIsPrivate(t *testing.T) {
 	is := is.New(t)
 
 	owner := seedUser(t, pool, 7311, "discover-only-private", "member")
-	ownerKey, err := authSvc.CreateAPIKey(t.Context(), owner, "private-only", nil)
+	ownerKey, err := authSvc.CreateAPIKey(t.Context(), owner.String(), "private-only", nil)
 	is.NoErr(err)
 
 	privateSrc := discoverNS(t, pool, "discover-allpriv", owner, "private")

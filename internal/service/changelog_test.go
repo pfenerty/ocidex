@@ -572,7 +572,7 @@ func TestGetArtifactChangelog_NotVisible(t *testing.T) {
 	svc := NewSearchService(db)
 	uid := pgtype.UUID{Bytes: [16]byte{1}, Valid: true}
 
-	_, err := svc.GetArtifactChangelog(context.Background(), uid, ChangelogQuery{}, VisibilityFilter{})
+	_, err := svc.GetArtifactChangelog(context.Background(), uid.String(), ChangelogQuery{}, VisibilityFilter{})
 	is.Equal(err, ErrNotFound)
 }
 
@@ -598,7 +598,7 @@ func TestGetArtifactChangelog_EmptyChangelog(t *testing.T) {
 	svc := NewSearchService(db)
 	uid := pgtype.UUID{Bytes: [16]byte{2}, Valid: true}
 
-	cl, err := svc.GetArtifactChangelog(context.Background(), uid, ChangelogQuery{}, VisibilityFilter{IsAdmin: true})
+	cl, err := svc.GetArtifactChangelog(context.Background(), uid.String(), ChangelogQuery{}, VisibilityFilter{IsAdmin: true})
 	is.NoErr(err)
 	is.Equal(len(cl.Entries), 0)
 }
@@ -620,7 +620,7 @@ func TestDiffSBOMs_NotVisible(t *testing.T) {
 	svc := NewSearchService(db)
 	uid := pgtype.UUID{Bytes: [16]byte{1}, Valid: true}
 
-	_, err := svc.DiffSBOMs(context.Background(), uid, uid, VisibilityFilter{})
+	_, err := svc.DiffSBOMs(context.Background(), uid.String(), uid.String(), VisibilityFilter{})
 	is.Equal(err, ErrNotFound)
 }
 
@@ -636,7 +636,7 @@ func TestDiffSBOMs_DBError(t *testing.T) {
 	svc := NewSearchService(db)
 	uid := pgtype.UUID{Bytes: [16]byte{2}, Valid: true}
 
-	_, err := svc.DiffSBOMs(context.Background(), uid, uid, VisibilityFilter{})
+	_, err := svc.DiffSBOMs(context.Background(), uid.String(), uid.String(), VisibilityFilter{})
 	is.True(err != nil)
 }
 

@@ -53,7 +53,7 @@ func newAutoIngestHandler(t *testing.T) (*Handler, *autoIngestClusters, *scanner
 	if err := walks.Start(context.Background()); err != nil {
 		t.Fatal(err)
 	}
-	h := &Handler{clusterService: clusters, scanSubmitter: noopSubmitter{}, clusterIngests: walks}
+	h := &Handler{clusters: clusters, clusterInventory: clusters, scanSubmitter: noopSubmitter{}, clusterIngests: walks}
 	return h, clusters, walks
 }
 

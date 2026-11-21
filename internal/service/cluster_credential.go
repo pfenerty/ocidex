@@ -32,7 +32,11 @@ type ClusterCredential struct {
 }
 
 // CreateCredential mints a credential bound to clusterID and owned by userID.
-func (s *clusterService) CreateCredential(ctx context.Context, clusterID string, userID pgtype.UUID, name string) (ClusterCredential, error) {
+func (s *clusterService) CreateCredential(ctx context.Context, clusterID string, userIDStr string, name string) (ClusterCredential, error) {
+	userID, err := parseID(userIDStr)
+	if err != nil {
+		return ClusterCredential{}, err
+	}
 	cid, err := uuidx.Parse(clusterID)
 	if err != nil {
 		return ClusterCredential{}, ErrNotFound
@@ -116,7 +120,11 @@ func (s *clusterService) RevokeCredential(ctx context.Context, clusterID, creden
 // owned by userID, and revokes the old one in the same statement. The agent
 // stops authenticating until it is given the new key: rotation for overlap is
 // CreateCredential, roll the agent, then RevokeCredential.
-func (s *clusterService) RotateCredential(ctx context.Context, clusterID, credentialID string, userID pgtype.UUID) (ClusterCredential, error) {
+func (s *clusterService) RotateCredential(ctx context.Context, clusterID string, credentialID string, userIDStr string) (ClusterCredential, error) {
+	userID, err := parseID(userIDStr)
+	if err != nil {
+		return ClusterCredential{}, err
+	}
 	cid, err := uuidx.Parse(clusterID)
 	if err != nil {
 		return ClusterCredential{}, ErrNotFound

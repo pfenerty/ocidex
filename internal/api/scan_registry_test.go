@@ -24,8 +24,16 @@ func scanRegistryRouter(t *testing.T, walks *scanner.AdhocWalks) http.Handler {
 		// Nothing listens here, so a walk the test lets run fails fast.
 		URL: "127.0.0.1:1", Type: "generic",
 	}}
-	h := api.NewHandler(nil, nil, createRegistryAuthService(), regSvc, nil, nil, nil, nil, nil, nil,
-		&fakePinger{}, &recordingScanSubmitter{}, &config.Config{})
+	authSvc := createRegistryAuthService()
+	h := api.NewHandler(api.Deps{
+		Authenticator: authSvc,
+		Logins:        authSvc,
+		Accounts:      authSvc,
+		Registries:    regSvc,
+		DB:            &fakePinger{},
+		Scans:         &recordingScanSubmitter{},
+		Config:        &config.Config{},
+	})
 	if walks != nil {
 		h = h.WithAdhocWalks(walks)
 	}

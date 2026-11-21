@@ -92,7 +92,7 @@ func TestDashboardStatsFromRollupsMatchTheComponentAggregates(t *testing.T) {
 	is := is.New(t)
 
 	ownerID := seedUser(t, pool, 8407, "stats-rollup-owner", "member")
-	ownerKey, err := authSvc.CreateAPIKey(t.Context(), ownerID, "stats-rollup-owner", nil)
+	ownerKey, err := authSvc.CreateAPIKey(t.Context(), ownerID.String(), "stats-rollup-owner", nil)
 	is.NoErr(err)
 	publicSrc := discoverNS(t, pool, "stats-rollup-public", ownerID, "public")
 	privateSrc := discoverNS(t, pool, "stats-rollup-private", ownerID, "private")

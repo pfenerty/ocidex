@@ -13,7 +13,6 @@ import (
 	"github.com/go-chi/chi/v5"
 	"github.com/go-chi/chi/v5/middleware"
 	"github.com/go-chi/cors"
-	"github.com/jackc/pgx/v5/pgtype"
 
 	"github.com/pfenerty/ocidex/internal/authz"
 )
@@ -23,18 +22,17 @@ import (
 // ownership middleware already performed, lifted out so that the rule above it
 // is written once (ocidex-y0hg.5).
 //
-// A nil service yields an invalid UUID rather than an error, preserving the
-// pass-through the old middlewares gave tests that wire no service: an invalid
-// UUID lands on RequireCapability's un-namespaced arm, which admits a member.
+// They need their service: a handler wired without one fails the request
+// rather than guessing a namespace (ocidex-8xij.2). Where a resolver does
+// return an invalid UUID (a registry with no namespace), RequireCapability
+// checks the capability against namespace "", which no membership covers, so
+// only an admin passes.
 
 // sbomNamespace resolves the {id} path param to the SBOM's namespace.
-func (h *Handler) sbomNamespace(ctx huma.Context) (pgtype.UUID, error) {
-	if h.sbomService == nil {
-		return pgtype.UUID{}, nil
-	}
-	id, err := parseUUID(ctx.Param("id"))
+func (h *Handler) sbomNamespace(ctx huma.Context) (string, error) {
+	id, err := requireUUID(ctx.Param("id"))
 	if err != nil {
-		return pgtype.UUID{}, err
+		return "", err
 	}
 	return h.sbomService.GetSBOMNamespaceID(ctx.Context(), id)
 }
@@ -42,11 +40,8 @@ func (h *Handler) sbomNamespace(ctx huma.Context) (pgtype.UUID, error) {
 // artifactNamespaces resolves the {id} path param to every namespace the
 // artifact hangs from. An artifact is shared by name across namespaces with
 // different members, so no single one of them speaks for the others.
-func (h *Handler) artifactNamespaces(ctx huma.Context) ([]pgtype.UUID, error) {
-	if h.sbomService == nil {
-		return nil, nil
-	}
-	id, err := parseUUID(ctx.Param("id"))
+func (h *Handler) artifactNamespaces(ctx huma.Context) ([]string, error) {
+	id, err := requireUUID(ctx.Param("id"))
 	if err != nil {
 		return nil, err
 	}
@@ -58,31 +53,25 @@ func (h *Handler) artifactNamespaces(ctx huma.Context) ([]pgtype.UUID, error) {
 // the namespace rather than merely parsing the id so that a member operation on
 // a namespace that is not there answers 404, the same way requireNamespaceCapability
 // does for the body-named case.
-func (h *Handler) namespaceParam(ctx huma.Context) (pgtype.UUID, error) {
-	if h.namespaceService == nil {
-		return pgtype.UUID{}, nil
-	}
+func (h *Handler) namespaceParam(ctx huma.Context) (string, error) {
 	ns, err := h.namespaceService.Get(ctx.Context(), ctx.Param("id"))
 	if err != nil {
-		return pgtype.UUID{}, err
+		return "", err
 	}
-	return parseUUID(ns.ID)
+	return requireUUID(ns.ID)
 }
 
 // registryNamespace resolves the {id} path param to the registry's namespace,
 // reached through its source row.
-func (h *Handler) registryNamespace(ctx huma.Context) (pgtype.UUID, error) {
-	if h.registryService == nil {
-		return pgtype.UUID{}, nil
-	}
+func (h *Handler) registryNamespace(ctx huma.Context) (string, error) {
 	reg, err := h.registryService.Get(ctx.Context(), ctx.Param("id"))
 	if err != nil {
-		return pgtype.UUID{}, err
+		return "", err
 	}
 	if reg.NamespaceID == "" {
-		return pgtype.UUID{}, nil
+		return "", nil
 	}
-	return parseUUID(reg.NamespaceID)
+	return requireUUID(reg.NamespaceID)
 }
 
 const maxSBOMBodyBytes int64 = 10 << 20 // 10 MB
@@ -197,7 +186,7 @@ func NewRouter(h *Handler, corsOrigins, frontendURL, apiBaseURL string) chi.Rout
 	r.Use(RecordInventoryPushes(h.pushRecorder()))
 	r.Use(CrossOriginGuard(allowedOrigins, apiBaseURL))
 	r.Use(middleware.Timeout(30 * time.Second))
-	r.Use(OptionalAuthenticate(h.authService))
+	r.Use(OptionalAuthenticate(h.authenticator))
 
 	config := huma.DefaultConfig("OCIDex API", ContractVersion)
 	config.Info.Description = apiIntro

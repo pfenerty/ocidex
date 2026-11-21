@@ -67,7 +67,7 @@ func newLookupConflict(resource string, candidates []service.LookupCandidate) *L
 func (h *Handler) LookupArtifact(ctx context.Context, input *LookupArtifactInput) (*GetArtifactOutput, error) {
 	vis := visibilityFilterFromContext(ctx)
 
-	candidates, err := h.searchService.LookupArtifact(ctx, service.ArtifactLookupQuery{
+	candidates, err := h.artifacts.LookupArtifact(ctx, service.ArtifactLookupQuery{
 		Name:  input.Name,
 		Type:  input.Type,
 		Group: input.Group,
@@ -83,11 +83,11 @@ func (h *Handler) LookupArtifact(ctx context.Context, input *LookupArtifactInput
 		return nil, newLookupConflict("artifact", candidates)
 	}
 
-	id, err := parseUUID(candidates[0].ID)
+	id, err := requireUUID(candidates[0].ID)
 	if err != nil {
 		return nil, err
 	}
-	detail, err := h.searchService.GetArtifact(ctx, id, vis)
+	detail, err := h.artifacts.GetArtifact(ctx, id, vis)
 	if err != nil {
 		return nil, mapServiceError(err)
 	}
@@ -102,7 +102,7 @@ func (h *Handler) LookupArtifact(ctx context.Context, input *LookupArtifactInput
 // spdx_id is a natural key, so this is a straight lookup: 200 or 404, with no
 // qualifier ladder and no 409 (ADR-042 R3).
 func (h *Handler) LookupLicense(ctx context.Context, input *LookupLicenseInput) (*LookupLicenseOutput, error) {
-	license, err := h.searchService.LookupLicense(ctx, input.SpdxID, visibilityFilterFromContext(ctx))
+	license, err := h.components.LookupLicense(ctx, input.SpdxID, visibilityFilterFromContext(ctx))
 	if err != nil {
 		return nil, mapServiceError(err)
 	}
@@ -124,7 +124,7 @@ func (h *Handler) LookupSBOM(ctx context.Context, input *LookupSBOMInput) (*GetS
 
 	vis := visibilityFilterFromContext(ctx)
 
-	candidates, err := h.searchService.LookupSBOM(ctx, service.SBOMLookupQuery{
+	candidates, err := h.sbomQueries.LookupSBOM(ctx, service.SBOMLookupQuery{
 		Artifact: input.Artifact,
 		Version:  input.Version,
 		Arch:     input.Arch,
@@ -142,11 +142,11 @@ func (h *Handler) LookupSBOM(ctx context.Context, input *LookupSBOMInput) (*GetS
 		return nil, newLookupConflict("sbom", candidates)
 	}
 
-	id, err := parseUUID(candidates[0].ID)
+	id, err := requireUUID(candidates[0].ID)
 	if err != nil {
 		return nil, err
 	}
-	detail, err := h.searchService.GetSBOM(ctx, id, input.Include == "raw", vis)
+	detail, err := h.sbomQueries.GetSBOM(ctx, id, input.Include == "raw", vis)
 	if err != nil {
 		return nil, mapServiceError(err)
 	}

@@ -57,7 +57,13 @@ func rosterRouter(nsSvc service.NamespaceService, role authz.Role) http.Handler 
 			ownerIDStr:     {ID: ownerUUID, DisplayName: "devowner"},
 		},
 	}
-	h := api.NewHandler(nil, nil, authSvc, nil, nsSvc, nil, nil, nil, nil, nil, &fakePinger{}, nil, nil)
+	h := api.NewHandler(api.Deps{
+		Authenticator: authSvc,
+		Logins:        authSvc,
+		Accounts:      authSvc,
+		Namespaces:    nsSvc,
+		DB:            &fakePinger{},
+	})
 	return api.NewRouter(h, "*", "", "")
 }
 

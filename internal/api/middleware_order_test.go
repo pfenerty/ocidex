@@ -42,7 +42,13 @@ func (f *lookupCountingAuthService) ValidateAPIKey(ctx context.Context, token st
 }
 
 func orderRouter(authSvc service.AuthService) http.Handler {
-	h := api.NewHandler(nil, nil, authSvc, nil, nil, nil, nil, nil, nil, nil, &fakePinger{}, nil, &config.Config{})
+	h := api.NewHandler(api.Deps{
+		Authenticator: authSvc,
+		Logins:        authSvc,
+		Accounts:      authSvc,
+		DB:            &fakePinger{},
+		Config:        &config.Config{},
+	})
 	return api.NewRouter(h, "https://ocidex.example", "", "https://api.ocidex.example")
 }
 

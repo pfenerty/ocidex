@@ -108,7 +108,7 @@ func TestArtifactChangelogPaging(t *testing.T) {
 	is := is.New(t)
 
 	memberID := seedUser(t, pool, 8402, "changelog-paging-member", "member")
-	memberKey, err := authSvc.CreateAPIKey(t.Context(), memberID, "changelog-paging", nil)
+	memberKey, err := authSvc.CreateAPIKey(t.Context(), memberID.String(), "changelog-paging", nil)
 	is.NoErr(err)
 	path := ingestPath(t, pool, memberID)
 

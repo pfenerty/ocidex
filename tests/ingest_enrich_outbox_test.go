@@ -52,7 +52,7 @@ func TestIngestCommitsRootEnrichmentJobs(t *testing.T) {
 
 	bom, raw := licenseOrderSBOM(t, 9100, []string{"MIT"})
 	id, err := svc.Ingest(ctx, bom, raw, service.IngestParams{
-		SourceID: source, Architecture: "amd64", BuildDate: "2026-01-01T00:00:00Z",
+		SourceID: source.String(), Architecture: "amd64", BuildDate: "2026-01-01T00:00:00Z",
 	})
 	is.NoErr(err)
 	is.Equal(pub.publishedN, 1)

@@ -440,7 +440,7 @@ func TestGetComponent_NotFound(t *testing.T) {
 	}
 
 	svc := NewSearchService(db)
-	_, err := svc.GetComponent(context.Background(), newUUID(t), VisibilityFilter{})
+	_, err := svc.GetComponent(context.Background(), newUUID(t).String(), VisibilityFilter{})
 	is.True(errors.Is(err, ErrNotFound))
 }
 
@@ -468,7 +468,7 @@ func TestGetComponent_VisibilityDenied(t *testing.T) {
 	}
 
 	svc := NewSearchService(db)
-	_, err := svc.GetComponent(context.Background(), compID, VisibilityFilter{})
+	_, err := svc.GetComponent(context.Background(), compID.String(), VisibilityFilter{})
 	is.True(errors.Is(err, ErrNotFound))
 }
 
@@ -501,7 +501,7 @@ func TestGetComponent_Success(t *testing.T) {
 	}
 
 	svc := NewSearchService(db)
-	detail, err := svc.GetComponent(context.Background(), compID, VisibilityFilter{})
+	detail, err := svc.GetComponent(context.Background(), compID.String(), VisibilityFilter{})
 
 	is.NoErr(err)
 	is.Equal(detail.Name, "openssl")
@@ -554,7 +554,7 @@ func TestGetComponent_FoundByAndConfidence(t *testing.T) {
 			}
 
 			svc := NewSearchService(db)
-			detail, err := svc.GetComponent(context.Background(), compID, VisibilityFilter{})
+			detail, err := svc.GetComponent(context.Background(), compID.String(), VisibilityFilter{})
 
 			is.NoErr(err)
 			is.Equal(deref(detail.FoundBy), deref(tc.wantFoundBy))
@@ -656,7 +656,7 @@ func TestGetComponent_Layer(t *testing.T) {
 			}
 
 			svc := NewSearchService(db)
-			detail, err := svc.GetComponent(context.Background(), compID, VisibilityFilter{})
+			detail, err := svc.GetComponent(context.Background(), compID.String(), VisibilityFilter{})
 
 			is.NoErr(err)
 			is.Equal(deref(detail.LayerID), deref(tc.wantLayerID))

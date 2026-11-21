@@ -10,7 +10,6 @@ import (
 	"testing"
 	"time"
 
-	"github.com/jackc/pgx/v5/pgtype"
 	"github.com/matryer/is"
 	"github.com/pfenerty/ocidex/internal/service"
 )
@@ -21,7 +20,7 @@ type fakeSearchService struct {
 	discovery *service.Discovery
 }
 
-func (f *fakeSearchService) GetSBOM(_ context.Context, _ pgtype.UUID, _ bool, _ service.VisibilityFilter) (service.SBOMDetail, error) {
+func (f *fakeSearchService) GetSBOM(_ context.Context, _ string, _ bool, _ service.VisibilityFilter) (service.SBOMDetail, error) {
 	return service.SBOMDetail{
 		SBOMSummary: service.SBOMSummary{
 			ID:          "3e671687-395b-41f5-a30f-a58921a69b79",
@@ -48,7 +47,7 @@ func (f *fakeSearchService) SearchComponents(_ context.Context, filter service.C
 	}, nil
 }
 
-func (f *fakeSearchService) GetComponent(_ context.Context, _ pgtype.UUID, _ service.VisibilityFilter) (service.ComponentDetail, error) {
+func (f *fakeSearchService) GetComponent(_ context.Context, _ string, _ service.VisibilityFilter) (service.ComponentDetail, error) {
 	return service.ComponentDetail{
 		ComponentSummary: service.ComponentSummary{ID: "comp1", Name: "test-lib", Type: "library"},
 		Hashes:           []service.HashEntry{},
@@ -67,7 +66,7 @@ func (f *fakeSearchService) ListLicenses(_ context.Context, filter service.Licen
 	}, nil
 }
 
-func (f *fakeSearchService) ListComponentsByLicense(_ context.Context, _ pgtype.UUID, limit, offset int32, _ service.VisibilityFilter) (service.PagedResult[service.ComponentSummary], error) {
+func (f *fakeSearchService) ListComponentsByLicense(_ context.Context, _ string, limit int32, offset int32, _ service.VisibilityFilter) (service.PagedResult[service.ComponentSummary], error) {
 	return service.PagedResult[service.ComponentSummary]{
 		Data:   []service.ComponentSummary{{ID: "comp1", Name: "test-lib", Type: "library"}},
 		Total:  1,
@@ -76,7 +75,7 @@ func (f *fakeSearchService) ListComponentsByLicense(_ context.Context, _ pgtype.
 	}, nil
 }
 
-func (f *fakeSearchService) GetArtifact(_ context.Context, _ pgtype.UUID, _ service.VisibilityFilter) (service.ArtifactDetail, error) {
+func (f *fakeSearchService) GetArtifact(_ context.Context, _ string, _ service.VisibilityFilter) (service.ArtifactDetail, error) {
 	return service.ArtifactDetail{
 		ArtifactSummary: service.ArtifactSummary{ID: "art1", Type: "container", Name: "ubuntu", SbomCount: 2},
 		CreatedAt:       time.Date(2025, 1, 1, 0, 0, 0, 0, time.UTC),
@@ -89,13 +88,13 @@ func (f *fakeSearchService) ListArtifacts(_ context.Context, _ service.ArtifactF
 	}, nil
 }
 
-func (f *fakeSearchService) ListSBOMsByArtifact(_ context.Context, _ pgtype.UUID, _, _ string, _ service.SBOMByArtifactPage, _ service.VisibilityFilter) (service.CursorPage[service.SBOMSummary], error) {
+func (f *fakeSearchService) ListSBOMsByArtifact(_ context.Context, _ string, _ string, _ string, _ service.SBOMByArtifactPage, _ service.VisibilityFilter) (service.CursorPage[service.SBOMSummary], error) {
 	return service.CursorPage[service.SBOMSummary]{
 		Data: []service.SBOMSummary{{ID: "sbom1", SpecVersion: "1.5", Version: 1, CreatedAt: time.Date(2025, 1, 1, 0, 0, 0, 0, time.UTC)}},
 	}, nil
 }
 
-func (f *fakeSearchService) GetArtifactChangelog(_ context.Context, _ pgtype.UUID, _ service.ChangelogQuery, _ service.VisibilityFilter) (service.Changelog, error) {
+func (f *fakeSearchService) GetArtifactChangelog(_ context.Context, _ string, _ service.ChangelogQuery, _ service.VisibilityFilter) (service.Changelog, error) {
 	return service.Changelog{
 		ArtifactID: "art1",
 		Entries:    []service.ChangelogEntry{},
@@ -112,7 +111,7 @@ func (f *fakeSearchService) ListSBOMsByDigest(_ context.Context, _ string, limit
 	}, nil
 }
 
-func (f *fakeSearchService) DiffSBOMs(_ context.Context, _, _ pgtype.UUID, _ service.VisibilityFilter) (service.ChangelogEntry, error) {
+func (f *fakeSearchService) DiffSBOMs(_ context.Context, _ string, _ string, _ service.VisibilityFilter) (service.ChangelogEntry, error) {
 	return service.ChangelogEntry{
 		From:    service.SBOMRef{ID: "from1"},
 		To:      service.SBOMRef{ID: "to1"},
@@ -121,7 +120,7 @@ func (f *fakeSearchService) DiffSBOMs(_ context.Context, _, _ pgtype.UUID, _ ser
 	}, nil
 }
 
-func (f *fakeSearchService) DiffSBOMsWithTree(_ context.Context, _, _ pgtype.UUID, _ service.VisibilityFilter) (service.DiffTree, error) {
+func (f *fakeSearchService) DiffSBOMsWithTree(_ context.Context, _ string, _ string, _ service.VisibilityFilter) (service.DiffTree, error) {
 	return service.DiffTree{
 		From:    service.SBOMRef{ID: "from1"},
 		To:      service.SBOMRef{ID: "to1"},
@@ -132,14 +131,14 @@ func (f *fakeSearchService) DiffSBOMsWithTree(_ context.Context, _, _ pgtype.UUI
 	}, nil
 }
 
-func (f *fakeSearchService) GetArtifactLicenseSummary(_ context.Context, _ pgtype.UUID, _ service.VisibilityFilter) (service.ArtifactLicenseSummary, error) {
+func (f *fakeSearchService) GetArtifactLicenseSummary(_ context.Context, _ string, _ service.VisibilityFilter) (service.ArtifactLicenseSummary, error) {
 	mit := "MIT"
 	return service.ArtifactLicenseSummary{Licenses: []service.LicenseCount{
 		{ID: "lic1", SpdxID: &mit, Name: "MIT License", ComponentCount: 42, Category: "permissive"},
 	}}, nil
 }
 
-func (f *fakeSearchService) GetSBOMDependencies(_ context.Context, _ pgtype.UUID, _ service.VisibilityFilter) (service.DependencyGraph, error) {
+func (f *fakeSearchService) GetSBOMDependencies(_ context.Context, _ string, _ service.VisibilityFilter) (service.DependencyGraph, error) {
 	return service.DependencyGraph{
 		Nodes: []service.ComponentSummary{{ID: "comp1", Name: "test-lib", Type: "library"}},
 		Edges: []service.DependencyEdge{{From: "ref-a", To: "ref-b"}},
@@ -184,13 +183,13 @@ func (f *fakeSearchService) ListComponentVersionSummaries(_ context.Context, fil
 	}, nil
 }
 
-func (f *fakeSearchService) ListSBOMComponents(_ context.Context, _ pgtype.UUID, _ service.VisibilityFilter) ([]service.ComponentSummary, error) {
+func (f *fakeSearchService) ListSBOMComponents(_ context.Context, _ string, _ service.VisibilityFilter) ([]service.ComponentSummary, error) {
 	return []service.ComponentSummary{
 		{ID: "comp1", SbomID: "sbom1", Name: "test-lib", Type: "library"},
 	}, nil
 }
 
-func (f *fakeSearchService) ListSBOMComponentsPage(_ context.Context, _ pgtype.UUID, _ service.ComponentPage, _ service.VisibilityFilter) (service.CursorPage[service.ComponentSummary], error) {
+func (f *fakeSearchService) ListSBOMComponentsPage(_ context.Context, _ string, _ service.ComponentPage, _ service.VisibilityFilter) (service.CursorPage[service.ComponentSummary], error) {
 	return service.CursorPage[service.ComponentSummary]{
 		Data: []service.ComponentSummary{{ID: "comp1", SbomID: "sbom1", Name: "test-lib", Type: "library"}},
 	}, nil
@@ -219,7 +218,7 @@ func (f *fakeSearchService) WarmDiscovery(_ context.Context) (*service.Discovery
 	return &service.Discovery{}, nil
 }
 
-func (f *fakeSearchService) ListVersionsByArtifact(_ context.Context, _ pgtype.UUID, limit, offset int32, _ service.VersionSortMode, _ service.VersionColumnSort, _ service.VisibilityFilter) (service.ArtifactVersionsPage, error) {
+func (f *fakeSearchService) ListVersionsByArtifact(_ context.Context, _ string, limit int32, offset int32, _ service.VersionSortMode, _ service.VersionColumnSort, _ service.VisibilityFilter) (service.ArtifactVersionsPage, error) {
 	return service.ArtifactVersionsPage{
 		PagedResult: service.PagedResult[service.ArtifactVersion]{
 			Data:   []service.ArtifactVersion{{VersionKey: "v1.0.0", SbomID: "sbom1", Architectures: []string{"amd64"}}},
@@ -244,15 +243,15 @@ func (f *fakeSearchService) VulnDBBuiltAt(_ context.Context) (*time.Time, error)
 	return nil, nil
 }
 
-func (f *fakeSearchService) GetArtifactVulnSummary(_ context.Context, _ pgtype.UUID, _ service.VisibilityFilter) (service.ArtifactVulnSummary, error) {
+func (f *fakeSearchService) GetArtifactVulnSummary(_ context.Context, _ string, _ service.VisibilityFilter) (service.ArtifactVulnSummary, error) {
 	return service.ArtifactVulnSummary{}, nil
 }
 
-func (f *fakeSearchService) GetArtifactUsages(_ context.Context, _ pgtype.UUID, _ service.VisibilityFilter) ([]service.ArtifactRelation, error) {
+func (f *fakeSearchService) GetArtifactUsages(_ context.Context, _ string, _ service.VisibilityFilter) ([]service.ArtifactRelation, error) {
 	return nil, nil
 }
 
-func (f *fakeSearchService) GetArtifactContains(_ context.Context, _ pgtype.UUID, _ service.VisibilityFilter) ([]service.ArtifactRelation, error) {
+func (f *fakeSearchService) GetArtifactContains(_ context.Context, _ string, _ service.VisibilityFilter) ([]service.ArtifactRelation, error) {
 	return nil, nil
 }
 
@@ -265,11 +264,11 @@ func (f *fakeSearchService) GetVulnerabilityDetail(_ context.Context, _ string, 
 	}, nil
 }
 
-func (f *fakeSearchService) GetComponentVulns(_ context.Context, _ pgtype.UUID, _ service.VisibilityFilter) ([]service.ComponentVulnEntry, error) {
+func (f *fakeSearchService) GetComponentVulns(_ context.Context, _ string, _ service.VisibilityFilter) ([]service.ComponentVulnEntry, error) {
 	return []service.ComponentVulnEntry{}, nil
 }
 
-func (f *fakeSearchService) ListSBOMVulns(_ context.Context, _ pgtype.UUID, _ service.SBOMVulnParams, _ service.VisibilityFilter) (service.PagedResult[service.SBOMVulnEntry], error) {
+func (f *fakeSearchService) ListSBOMVulns(_ context.Context, _ string, _ service.SBOMVulnParams, _ service.VisibilityFilter) (service.PagedResult[service.SBOMVulnEntry], error) {
 	return service.PagedResult[service.SBOMVulnEntry]{
 		Data: []service.SBOMVulnEntry{{
 			ID:                   "GHSA-xxxx",
@@ -287,7 +286,7 @@ func (f *fakeSearchService) ListSBOMVulns(_ context.Context, _ pgtype.UUID, _ se
 	}, nil
 }
 
-func (f *fakeSearchService) ListArtifactVulns(_ context.Context, _ pgtype.UUID, _ service.ArtifactVulnParams, _ service.VisibilityFilter) (service.ArtifactVulnPage, error) {
+func (f *fakeSearchService) ListArtifactVulns(_ context.Context, _ string, _ service.ArtifactVulnParams, _ service.VisibilityFilter) (service.ArtifactVulnPage, error) {
 	return service.ArtifactVulnPage{
 		VersionScope:  20,
 		TotalVersions: 2,
@@ -310,7 +309,7 @@ func (f *fakeSearchService) ListArtifactVulns(_ context.Context, _ pgtype.UUID, 
 	}, nil
 }
 
-func (f *fakeSearchService) ListSBOMDriftHistory(_ context.Context, _ pgtype.UUID, _ service.DriftPage, _ service.VisibilityFilter) (service.CursorPage[service.ProvenanceDriftSummary], error) {
+func (f *fakeSearchService) ListSBOMDriftHistory(_ context.Context, _ string, _ service.DriftPage, _ service.VisibilityFilter) (service.CursorPage[service.ProvenanceDriftSummary], error) {
 	return service.CursorPage[service.ProvenanceDriftSummary]{}, nil
 }
 
@@ -318,7 +317,7 @@ func (f *fakeSearchService) ListRecentProvenanceDrift(_ context.Context, _ servi
 	return service.CursorPage[service.RecentDriftEntry]{}, nil
 }
 
-func (f *fakeSearchService) ListOwnedActivity(_ context.Context, _ pgtype.UUID, _ service.FeedPage) (service.CursorPage[service.ActivityEntry], error) {
+func (f *fakeSearchService) ListOwnedActivity(_ context.Context, _ string, _ service.FeedPage) (service.CursorPage[service.ActivityEntry], error) {
 	return service.CursorPage[service.ActivityEntry]{}, nil
 }
 
@@ -347,27 +346,27 @@ func (f *fakeSearchService) LookupLicense(_ context.Context, spdxID string, _ se
 // notFoundSearchService returns ErrNotFound for single-item lookups.
 type notFoundSearchService struct{ fakeSearchService }
 
-func (f *notFoundSearchService) GetSBOM(_ context.Context, _ pgtype.UUID, _ bool, _ service.VisibilityFilter) (service.SBOMDetail, error) {
+func (f *notFoundSearchService) GetSBOM(_ context.Context, _ string, _ bool, _ service.VisibilityFilter) (service.SBOMDetail, error) {
 	return service.SBOMDetail{}, service.ErrNotFound
 }
 
-func (f *notFoundSearchService) GetComponent(_ context.Context, _ pgtype.UUID, _ service.VisibilityFilter) (service.ComponentDetail, error) {
+func (f *notFoundSearchService) GetComponent(_ context.Context, _ string, _ service.VisibilityFilter) (service.ComponentDetail, error) {
 	return service.ComponentDetail{}, service.ErrNotFound
 }
 
-func (f *notFoundSearchService) GetArtifact(_ context.Context, _ pgtype.UUID, _ service.VisibilityFilter) (service.ArtifactDetail, error) {
+func (f *notFoundSearchService) GetArtifact(_ context.Context, _ string, _ service.VisibilityFilter) (service.ArtifactDetail, error) {
 	return service.ArtifactDetail{}, service.ErrNotFound
 }
 
-func (f *notFoundSearchService) GetComponentVulns(_ context.Context, _ pgtype.UUID, _ service.VisibilityFilter) ([]service.ComponentVulnEntry, error) {
+func (f *notFoundSearchService) GetComponentVulns(_ context.Context, _ string, _ service.VisibilityFilter) ([]service.ComponentVulnEntry, error) {
 	return nil, service.ErrNotFound
 }
 
-func (f *notFoundSearchService) ListSBOMVulns(_ context.Context, _ pgtype.UUID, _ service.SBOMVulnParams, _ service.VisibilityFilter) (service.PagedResult[service.SBOMVulnEntry], error) {
+func (f *notFoundSearchService) ListSBOMVulns(_ context.Context, _ string, _ service.SBOMVulnParams, _ service.VisibilityFilter) (service.PagedResult[service.SBOMVulnEntry], error) {
 	return service.PagedResult[service.SBOMVulnEntry]{}, service.ErrNotFound
 }
 
-func (f *notFoundSearchService) ListArtifactVulns(_ context.Context, _ pgtype.UUID, _ service.ArtifactVulnParams, _ service.VisibilityFilter) (service.ArtifactVulnPage, error) {
+func (f *notFoundSearchService) ListArtifactVulns(_ context.Context, _ string, _ service.ArtifactVulnParams, _ service.VisibilityFilter) (service.ArtifactVulnPage, error) {
 	return service.ArtifactVulnPage{}, service.ErrNotFound
 }
 
@@ -1043,7 +1042,7 @@ type componentSortSpy struct {
 	rows    int
 }
 
-func (f *componentSortSpy) ListSBOMComponentsPage(_ context.Context, _ pgtype.UUID, page service.ComponentPage, _ service.VisibilityFilter) (service.CursorPage[service.ComponentSummary], error) {
+func (f *componentSortSpy) ListSBOMComponentsPage(_ context.Context, _ string, page service.ComponentPage, _ service.VisibilityFilter) (service.CursorPage[service.ComponentSummary], error) {
 	f.got = page
 	data := make([]service.ComponentSummary, f.rows)
 	for i := range data {

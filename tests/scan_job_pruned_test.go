@@ -77,10 +77,10 @@ func TestExplicitDeleteLeavesPrunedTombstone(t *testing.T) {
 	is.NoErr(err)
 	var bom cdx.BOM
 	is.NoErr(json.Unmarshal([]byte(relImageSBOM), &bom))
-	sbomID, err := sbomSvc.Ingest(ctx, &bom, []byte(relImageSBOM), service.IngestParams{SourceID: sourceID, Digest: digest})
+	sbomID, err := sbomSvc.Ingest(ctx, &bom, []byte(relImageSBOM), service.IngestParams{SourceID: sourceID.String(), Digest: digest})
 	is.NoErr(err)
 
-	is.NoErr(sbomSvc.DeleteSBOM(ctx, sbomID))
+	is.NoErr(sbomSvc.DeleteSBOM(ctx, sbomID.String()))
 	is.Equal(scanJobState(t, pool, reg.ID), "pruned")
 
 	// The next walk no longer knows the digest, so it submits it again.
@@ -96,12 +96,12 @@ func TestExplicitDeleteLeavesPrunedTombstone(t *testing.T) {
 		is := is.New(t)
 		_, err := pool.Exec(ctx, `UPDATE scan_jobs SET state = 'succeeded' WHERE nats_msg_id = $1`, reg.ID+"@"+digest)
 		is.NoErr(err)
-		sbomID, err := sbomSvc.Ingest(ctx, &bom, []byte(relImageSBOM), service.IngestParams{SourceID: sourceID, Digest: digest})
+		sbomID, err := sbomSvc.Ingest(ctx, &bom, []byte(relImageSBOM), service.IngestParams{SourceID: sourceID.String(), Digest: digest})
 		is.NoErr(err)
 		var artifactID pgtype.UUID
 		is.NoErr(pool.QueryRow(ctx, `SELECT artifact_id FROM sbom WHERE id = $1`, sbomID).Scan(&artifactID))
 
-		is.NoErr(sbomSvc.DeleteArtifact(ctx, artifactID))
+		is.NoErr(sbomSvc.DeleteArtifact(ctx, artifactID.String()))
 		is.Equal(scanJobState(t, pool, reg.ID), "pruned")
 	})
 }

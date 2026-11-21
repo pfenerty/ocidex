@@ -10,7 +10,7 @@ import (
 // carries, re-headed for the site: its H1 and generator comment are dropped and
 // its repo-relative links point at GitHub.
 func authorizationPage() string {
-	h := api.NewHandler(nil, nil, nil, nil, nil, nil, nil, nil, nil, nil, nil, nil, nil)
+	h := api.NewHandler(api.Deps{})
 	_ = api.NewRouter(h, "*", "", "")
 	md := api.AuthMatrixMarkdown(h.API().OpenAPI())
 

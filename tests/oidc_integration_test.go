@@ -87,12 +87,30 @@ func setupOIDCRig(t *testing.T, pool *pgxpool.Pool) string {
 		auth.NewGitHubProvider("test-client", "test-secret", apiURL+"/auth/callback"),
 		oidcProvider,
 	})
-	handler := api.NewHandler(
-		service.NewSBOMService(pool, nil, nil), service.NewSearchService(pool), authSvc,
-		service.NewRegistryService(pool, nil), service.NewNamespaceService(pool),
-		service.NewSourceService(pool), service.NewJobService(pool, nil),
-		service.NewEnrichJobService(pool, ""), service.NewWatchService(pool),
-		service.NewClusterService(pool, nil), pool, nil, cfg)
+	searchSvc := service.NewSearchService(pool)
+	clusterSvc := service.NewClusterService(pool, nil)
+	handler := api.NewHandler(api.Deps{
+		SBOMs:            service.NewSBOMService(pool, nil, nil),
+		SBOMQueries:      searchSvc,
+		Components:       searchSvc,
+		Artifacts:        searchSvc,
+		ArtifactInsights: searchSvc,
+		Insights:         searchSvc,
+		Authenticator:    authSvc,
+		Logins:           authSvc,
+		Accounts:         authSvc,
+		Registries:       service.NewRegistryService(pool, nil),
+		Namespaces:       service.NewNamespaceService(pool),
+		Sources:          service.NewSourceService(pool),
+		Jobs:             service.NewJobService(pool, nil),
+		EnrichJobs:       service.NewEnrichJobService(pool, ""),
+		Watches:          service.NewWatchService(pool),
+		Clusters:         clusterSvc,
+		ClusterAgents:    clusterSvc,
+		ClusterInventory: clusterSvc,
+		DB:               pool,
+		Config:           cfg,
+	})
 
 	srv := httptest.NewUnstartedServer(api.NewRouter(handler, "*", "", ""))
 	if err := srv.Listener.Close(); err != nil {

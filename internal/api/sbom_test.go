@@ -7,7 +7,6 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/jackc/pgx/v5/pgtype"
 	"github.com/matryer/is"
 
 	"github.com/pfenerty/ocidex/internal/authz"
@@ -243,26 +242,17 @@ type multiNSSBOMService struct {
 	deletedIn  []string
 }
 
-func (f *multiNSSBOMService) ListArtifactNamespaceIDs(_ context.Context, _ pgtype.UUID) ([]pgtype.UUID, error) {
-	out := make([]pgtype.UUID, len(f.namespaces))
-	for i, ns := range f.namespaces {
-		if err := out[i].Scan(ns); err != nil {
-			return nil, err
-		}
-	}
-	return out, nil
+func (f *multiNSSBOMService) ListArtifactNamespaceIDs(_ context.Context, _ string) ([]string, error) {
+	return f.namespaces, nil
 }
 
-func (f *multiNSSBOMService) DeleteArtifact(_ context.Context, _ pgtype.UUID) error {
+func (f *multiNSSBOMService) DeleteArtifact(_ context.Context, _ string) error {
 	f.deletedAll = true
 	return nil
 }
 
-func (f *multiNSSBOMService) DeleteArtifactFromNamespaces(_ context.Context, _ pgtype.UUID, ids []pgtype.UUID) error {
-	for _, id := range ids {
-		b, _ := id.Value()
-		f.deletedIn = append(f.deletedIn, b.(string))
-	}
+func (f *multiNSSBOMService) DeleteArtifactFromNamespaces(_ context.Context, _ string, ids []string) error {
+	f.deletedIn = append(f.deletedIn, ids...)
 	return nil
 }
 

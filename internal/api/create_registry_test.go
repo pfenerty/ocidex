@@ -61,7 +61,16 @@ var (
 )
 
 func createRegistryRouter(nsSvc service.NamespaceService, regSvc service.RegistryService) http.Handler {
-	h := api.NewHandler(nil, nil, createRegistryAuthService(), regSvc, nsSvc, nil, nil, nil, nil, nil, &fakePinger{}, nil, &config.Config{})
+	authSvc := createRegistryAuthService()
+	h := api.NewHandler(api.Deps{
+		Authenticator: authSvc,
+		Logins:        authSvc,
+		Accounts:      authSvc,
+		Registries:    regSvc,
+		Namespaces:    nsSvc,
+		DB:            &fakePinger{},
+		Config:        &config.Config{},
+	})
 	return api.NewRouter(h, "*", "", "")
 }
 
@@ -160,8 +169,15 @@ func TestNamespaceCreationRestricted(t *testing.T) {
 				"token": {ID: strangerUUID, Role: tt.role, APIKeyAuth: true, APIKeyCaps: authz.AllCapabilities()},
 			}}
 			regSvc := &recordingRegistryService{}
-			h := api.NewHandler(nil, nil, authSvc, regSvc, &namedNamespaceService{}, nil, nil, nil, nil, nil,
-				&fakePinger{}, nil, &config.Config{RestrictNamespaceCreation: tt.restrict})
+			h := api.NewHandler(api.Deps{
+				Authenticator: authSvc,
+				Logins:        authSvc,
+				Accounts:      authSvc,
+				Registries:    regSvc,
+				Namespaces:    &namedNamespaceService{},
+				DB:            &fakePinger{},
+				Config:        &config.Config{RestrictNamespaceCreation: tt.restrict},
+			})
 			router := api.NewRouter(h, "*", "", "")
 
 			w := memberRequest(router, http.MethodPost, tt.path, tt.body, "token")
@@ -181,7 +197,15 @@ func TestRegistryURLValidatedOnCreateAndUpdate(t *testing.T) {
 		grants: map[string]map[string]authz.Role{ownerUUID.String(): {mwNamespaceID: authz.RoleOwner}},
 	}
 	regSvc := &recordingRegistryService{fakeRegistryService: fakeRegistryService{registry: testRegistry}}
-	h := api.NewHandler(nil, nil, authSvc, regSvc, &namedNamespaceService{}, nil, nil, nil, nil, nil, &fakePinger{}, nil, &config.Config{})
+	h := api.NewHandler(api.Deps{
+		Authenticator: authSvc,
+		Logins:        authSvc,
+		Accounts:      authSvc,
+		Registries:    regSvc,
+		Namespaces:    &namedNamespaceService{},
+		DB:            &fakePinger{},
+		Config:        &config.Config{},
+	})
 	router := api.NewRouter(h, "*", "", "")
 
 	t.Run("create", func(t *testing.T) {

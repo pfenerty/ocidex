@@ -36,11 +36,11 @@ type copyFromer interface {
 // IngestParams carries supplemental metadata for SBOM ingestion.
 // Fields take precedence over BOM-extracted values when set.
 type IngestParams struct {
-	Version      string      // image tag / subject version
-	Architecture string      // e.g. "amd64"
-	BuildDate    string      // RFC3339 or date string
-	SourceID     pgtype.UUID // ingest channel the SBOM arrived through; required (ADR-039)
-	IndexDigest  string      // multi-arch index this child was scanned from; empty for single-arch
+	Version      string // image tag / subject version
+	Architecture string // e.g. "amd64"
+	BuildDate    string // RFC3339 or date string
+	SourceID     string // ingest channel (source ID) the SBOM arrived through; required (ADR-039)
+	IndexDigest  string // multi-arch index this child was scanned from; empty for single-arch
 
 	// Caller-declared subject identity (ADR-040). A `syft dir:` BOM describes
 	// the scratch directory it walked, so a non-container uploader must state
@@ -62,25 +62,25 @@ type IngestParams struct {
 // SBOMService defines the business logic for SBOM ingestion and management.
 type SBOMService interface {
 	Ingest(ctx context.Context, bom *cdx.BOM, rawJSON []byte, params IngestParams) (pgtype.UUID, error)
-	DeleteSBOM(ctx context.Context, id pgtype.UUID) error
+	DeleteSBOM(ctx context.Context, id string) error
 	// DeleteArtifact removes an artifact and every SBOM under it, in every
 	// namespace. Only an installation admin may reach it.
-	DeleteArtifact(ctx context.Context, id pgtype.UUID) error
+	DeleteArtifact(ctx context.Context, id string) error
 	// DeleteArtifactFromNamespaces removes the artifact from the given
 	// namespaces only: their SBOMs of it and their links to it. The artifact row
 	// goes too once no namespace holds it. Other namespaces' SBOMs of the same
 	// artifact are untouched. Returns ErrNotFound when namespaceIDs is empty.
-	DeleteArtifactFromNamespaces(ctx context.Context, id pgtype.UUID, namespaceIDs []pgtype.UUID) error
+	DeleteArtifactFromNamespaces(ctx context.Context, id string, namespaceIDs []string) error
 	ListDigestsBySource(ctx context.Context, sourceID string) (map[string]bool, error)
 	// GetSBOMNamespaceID returns the namespace_id for the given SBOM.
 	// Returns a zero UUID (with Valid=false) when the SBOM has no registry association.
 	// Returns ErrNotFound if no SBOM with that ID exists.
-	GetSBOMNamespaceID(ctx context.Context, id pgtype.UUID) (pgtype.UUID, error)
+	GetSBOMNamespaceID(ctx context.Context, id string) (string, error)
 	// ListArtifactNamespaceIDs returns every namespace the artifact hangs from,
 	// so a capability check can ask its question of each one. Empty when the
 	// artifact hangs from none. Returns ErrNotFound if no artifact with that ID
 	// exists.
-	ListArtifactNamespaceIDs(ctx context.Context, id pgtype.UUID) ([]pgtype.UUID, error)
+	ListArtifactNamespaceIDs(ctx context.Context, id string) ([]string, error)
 }
 
 // DigestValidator validates that a container image digest points to a single
@@ -289,7 +289,7 @@ func unchanged(next, stored pgtype.Text) bool {
 // Ingest decomposes a CycloneDX BOM and persists it in a single transaction.
 func (s *sbomService) Ingest(ctx context.Context, bom *cdx.BOM, rawJSON []byte, params IngestParams) (pgtype.UUID, error) {
 	// An SBOM cannot exist unowned, so resolve the owner before doing any work.
-	namespaceID, err := s.resolveIngestNamespace(ctx, params.SourceID)
+	sourceID, namespaceID, err := s.resolveIngestNamespace(ctx, params.SourceID)
 	if err != nil {
 		return pgtype.UUID{}, err
 	}
@@ -332,7 +332,7 @@ func (s *sbomService) Ingest(ctx context.Context, bom *cdx.BOM, rawJSON []byte, 
 		SubjectVersion: info.subjectVersion,
 		Digest:         info.digest,
 		NamespaceID:    namespaceID,
-		SourceID:       params.SourceID,
+		SourceID:       sourceID,
 		Flavor:         pgtype.Text{String: flavor, Valid: true},
 		IndexDigest:    pgtype.Text{String: params.IndexDigest, Valid: params.IndexDigest != ""},
 	})
@@ -522,20 +522,24 @@ func validateContainerRequired(bom *cdx.BOM, info artifactInfo, arch, bd string)
 //
 // A missing or unknown source is a ValidationError, which the API layer renders
 // as 400. Since 00054 the column is NOT NULL, so there is no unowned fallback.
-func (s *sbomService) resolveIngestNamespace(ctx context.Context, sourceID pgtype.UUID) (pgtype.UUID, error) {
-	if !sourceID.Valid {
-		return pgtype.UUID{}, &ValidationError{
+func (s *sbomService) resolveIngestNamespace(ctx context.Context, sourceIDStr string) (sourceID, namespaceID pgtype.UUID, err error) {
+	if sourceIDStr == "" {
+		return pgtype.UUID{}, pgtype.UUID{}, &ValidationError{
 			Message: "sbom ingest requires a source; pass ?source=<uuid|namespace/name> so the SBOM lands in a namespace that owns it",
 		}
+	}
+	sourceID, err = parseID(sourceIDStr)
+	if err != nil {
+		return pgtype.UUID{}, pgtype.UUID{}, err
 	}
 	src, err := repository.New(s.pool).GetSource(ctx, sourceID)
 	if err != nil {
 		if errors.Is(err, pgx.ErrNoRows) {
-			return pgtype.UUID{}, &ValidationError{Message: "ingest source not found"}
+			return pgtype.UUID{}, pgtype.UUID{}, &ValidationError{Message: "ingest source not found"}
 		}
-		return pgtype.UUID{}, fmt.Errorf("resolving ingest source: %w", err)
+		return pgtype.UUID{}, pgtype.UUID{}, fmt.Errorf("resolving ingest source: %w", err)
 	}
-	return src.NamespaceID, nil
+	return sourceID, src.NamespaceID, nil
 }
 
 // validateUploadRequired returns a ValidationError if a non-container SBOM is
@@ -611,7 +615,11 @@ func linkArtifactNamespace(ctx context.Context, q *repository.Queries, artifactI
 // licenses, dependencies, external references) via ON DELETE CASCADE. A
 // registry-sourced SBOM's scan job is tombstoned in the same transaction, so
 // the next catalog walk does not scan the digest again (ADR-0053 S6).
-func (s *sbomService) DeleteSBOM(ctx context.Context, id pgtype.UUID) error {
+func (s *sbomService) DeleteSBOM(ctx context.Context, idStr string) error {
+	id, err := parseID(idStr)
+	if err != nil {
+		return err
+	}
 	tx, err := s.pool.Begin(ctx)
 	if err != nil {
 		return fmt.Errorf("beginning transaction: %w", err)
@@ -641,7 +649,11 @@ func (s *sbomService) DeleteSBOM(ctx context.Context, id pgtype.UUID) error {
 
 // DeleteArtifact removes an artifact and all its SBOMs in a transaction.
 // SBOMs are deleted first since the FK does not cascade.
-func (s *sbomService) DeleteArtifact(ctx context.Context, id pgtype.UUID) error {
+func (s *sbomService) DeleteArtifact(ctx context.Context, idStr string) error {
+	id, err := parseID(idStr)
+	if err != nil {
+		return err
+	}
 	tx, err := s.pool.Begin(ctx)
 	if err != nil {
 		return fmt.Errorf("beginning transaction: %w", err)
@@ -677,7 +689,15 @@ func (s *sbomService) DeleteArtifact(ctx context.Context, id pgtype.UUID) error 
 	return nil
 }
 
-func (s *sbomService) DeleteArtifactFromNamespaces(ctx context.Context, id pgtype.UUID, namespaceIDs []pgtype.UUID) error {
+func (s *sbomService) DeleteArtifactFromNamespaces(ctx context.Context, idStr string, namespaceIDsStr []string) error {
+	id, err := parseID(idStr)
+	if err != nil {
+		return err
+	}
+	namespaceIDs, err := parseIDs(namespaceIDsStr)
+	if err != nil {
+		return err
+	}
 	if len(namespaceIDs) == 0 {
 		return ErrNotFound
 	}
@@ -747,16 +767,24 @@ func (s *sbomService) ListDigestsBySource(ctx context.Context, sourceID string) 
 	return out, nil
 }
 
-func (s *sbomService) GetSBOMNamespaceID(ctx context.Context, id pgtype.UUID) (pgtype.UUID, error) {
+func (s *sbomService) GetSBOMNamespaceID(ctx context.Context, idStr string) (string, error) {
+	id, err := parseID(idStr)
+	if err != nil {
+		return "", err
+	}
 	q := repository.New(s.pool)
 	row, err := q.GetSBOM(ctx, id)
 	if err != nil {
-		return pgtype.UUID{}, ErrNotFound
+		return "", ErrNotFound
 	}
-	return row.NamespaceID, nil
+	return row.NamespaceID.String(), nil
 }
 
-func (s *sbomService) ListArtifactNamespaceIDs(ctx context.Context, id pgtype.UUID) ([]pgtype.UUID, error) {
+func (s *sbomService) ListArtifactNamespaceIDs(ctx context.Context, idStr string) ([]string, error) {
+	id, err := parseID(idStr)
+	if err != nil {
+		return nil, err
+	}
 	q := repository.New(s.pool)
 	if _, err := q.GetArtifact(ctx, id); err != nil {
 		return nil, ErrNotFound
@@ -765,7 +793,11 @@ func (s *sbomService) ListArtifactNamespaceIDs(ctx context.Context, id pgtype.UU
 	if err != nil {
 		return nil, fmt.Errorf("listing artifact namespaces: %w", err)
 	}
-	return ids, nil
+	out := make([]string, len(ids))
+	for i, ns := range ids {
+		out[i] = ns.String()
+	}
+	return out, nil
 }
 
 // Ensure *Queries satisfies the SBOMRepository and ArtifactRepository interfaces.

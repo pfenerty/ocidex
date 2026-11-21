@@ -104,7 +104,7 @@ func TestArtifactVulnsVersionScope(t *testing.T) {
 	is := is.New(t)
 
 	memberID := seedUser(t, pool, 8403, "vuln-scope-member", "member")
-	memberKey, err := authSvc.CreateAPIKey(t.Context(), memberID, "vuln-scope", nil)
+	memberKey, err := authSvc.CreateAPIKey(t.Context(), memberID.String(), "vuln-scope", nil)
 	is.NoErr(err)
 	path := ingestPath(t, pool, memberID)
 

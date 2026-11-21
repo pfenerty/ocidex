@@ -180,7 +180,7 @@ func (f *fakeAuthService) ExchangeCodeForUser(_ context.Context, provider, code,
 	return service.AuthUser{}, errors.New("not implemented")
 }
 
-func (f *fakeAuthService) CreateSession(_ context.Context, _ pgtype.UUID) (string, error) {
+func (f *fakeAuthService) CreateSession(_ context.Context, _ string) (string, error) {
 	return "", errors.New("not implemented")
 }
 
@@ -192,24 +192,24 @@ func (f *fakeAuthService) DeleteSession(_ context.Context, _ string) error {
 	return errors.New("not implemented")
 }
 
-func (f *fakeAuthService) CreateAPIKey(_ context.Context, _ pgtype.UUID, _ string, _ []authz.Capability) (string, error) {
+func (f *fakeAuthService) CreateAPIKey(_ context.Context, _ string, _ string, _ []authz.Capability) (string, error) {
 	return "", errors.New("not implemented")
 }
 
-func (f *fakeAuthService) CreateExpiringAPIKey(_ context.Context, _ pgtype.UUID, _ string, _ []authz.Capability, _ time.Time) (string, error) {
+func (f *fakeAuthService) CreateExpiringAPIKey(_ context.Context, _ string, _ string, _ []authz.Capability, _ time.Time) (string, error) {
 	return "", errors.New("not implemented")
 }
 
-func (f *fakeAuthService) ListAPIKeys(_ context.Context, _ pgtype.UUID) ([]service.APIKeyMeta, error) {
+func (f *fakeAuthService) ListAPIKeys(_ context.Context, _ string) ([]service.APIKeyMeta, error) {
 	return nil, errors.New("not implemented")
 }
 
-func (f *fakeAuthService) DeleteAPIKey(_ context.Context, _ pgtype.UUID, _ pgtype.UUID) error {
+func (f *fakeAuthService) DeleteAPIKey(_ context.Context, _ string, _ string) error {
 	return errors.New("not implemented")
 }
 
-func (f *fakeAuthService) GetUser(_ context.Context, id pgtype.UUID) (service.AuthUser, error) {
-	if u, ok := f.usersByID[id.String()]; ok {
+func (f *fakeAuthService) GetUser(_ context.Context, id string) (service.AuthUser, error) {
+	if u, ok := f.usersByID[id]; ok {
 		return u, nil
 	}
 	return service.AuthUser{}, errors.New("no such user")
@@ -226,7 +226,7 @@ func (f *fakeAuthService) ListUsers(_ context.Context) ([]service.AuthUser, erro
 	return out, nil
 }
 
-func (f *fakeAuthService) UpdateUserRole(_ context.Context, _ pgtype.UUID, _ string) (service.AuthUser, error) {
+func (f *fakeAuthService) UpdateUserRole(_ context.Context, _ string, _ string) (service.AuthUser, error) {
 	return service.AuthUser{}, errors.New("not implemented")
 }
 
@@ -234,13 +234,11 @@ func (f *fakeAuthService) CleanExpiredSessions(_ context.Context) error {
 	return nil
 }
 
-func (f *fakeAuthService) ListIdentities(_ context.Context, _ pgtype.UUID) ([]service.LinkedIdentity, error) {
+func (f *fakeAuthService) ListIdentities(_ context.Context, _ string) ([]service.LinkedIdentity, error) {
 	return f.identities, nil
 }
 
-func (f *fakeAuthService) LinkIdentity(
-	_ context.Context, _ pgtype.UUID, provider, _, _ string,
-) (service.LinkedIdentity, error) {
+func (f *fakeAuthService) LinkIdentity(_ context.Context, _ string, provider string, _ string, _ string) (service.LinkedIdentity, error) {
 	if f.linkErr != nil {
 		return service.LinkedIdentity{}, f.linkErr
 	}
@@ -248,12 +246,12 @@ func (f *fakeAuthService) LinkIdentity(
 	return service.LinkedIdentity{Provider: provider}, nil
 }
 
-func (f *fakeAuthService) UnlinkIdentity(_ context.Context, _, _ pgtype.UUID) error {
+func (f *fakeAuthService) UnlinkIdentity(_ context.Context, _ string, _ string) error {
 	return f.unlinkErr
 }
 
-func (f *fakeAuthService) LoadGrants(_ context.Context, userID pgtype.UUID) (map[string]authz.Role, error) {
-	if g, ok := f.grants[userID.String()]; ok {
+func (f *fakeAuthService) LoadGrants(_ context.Context, userID string) (map[string]authz.Role, error) {
+	if g, ok := f.grants[userID]; ok {
 		return g, nil
 	}
 	return map[string]authz.Role{}, nil
@@ -264,7 +262,13 @@ func (f *fakeAuthService) LoadGrants(_ context.Context, userID pgtype.UUID) (map
 // authz.CapManageSource, which owner and maintainer hold and security,
 // developer and viewer do not.
 func newCapabilityTestRouter(regSvc service.RegistryService, authSvc service.AuthService) http.Handler {
-	h := api.NewHandler(nil, nil, authSvc, regSvc, nil, nil, nil, nil, nil, nil, &fakePinger{}, nil, nil)
+	h := api.NewHandler(api.Deps{
+		Authenticator: authSvc,
+		Logins:        authSvc,
+		Accounts:      authSvc,
+		Registries:    regSvc,
+		DB:            &fakePinger{},
+	})
 	return api.NewRouter(h, "*", "", "")
 }
 

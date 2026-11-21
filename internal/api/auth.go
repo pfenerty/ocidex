@@ -15,7 +15,6 @@ import (
 	"github.com/danielgtaylor/huma/v2"
 	"github.com/go-chi/chi/v5"
 	"github.com/google/uuid"
-	"github.com/jackc/pgx/v5/pgtype"
 
 	"github.com/pfenerty/ocidex/internal/auth"
 	"github.com/pfenerty/ocidex/internal/authz"
@@ -151,7 +150,7 @@ func (h *Handler) beginOAuth(r *http.Request, provider string, extra map[string]
 		return "", "", fmt.Errorf("encoding state: %w", err)
 	}
 
-	authURL, err = h.authService.BuildAuthURL(provider, state, verifier)
+	authURL, err = h.logins.BuildAuthURL(provider, state, verifier)
 	if err != nil {
 		return "", "", err
 	}
@@ -229,7 +228,7 @@ func (h *Handler) HandleCallback(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	user, err := h.authService.ExchangeCodeForUser(r.Context(), provider, code, stateData["verifier"])
+	user, err := h.logins.ExchangeCodeForUser(r.Context(), provider, code, stateData["verifier"])
 	if errors.Is(err, service.ErrSignupClosed) {
 		http.Error(w, "sign-up is closed on this installation: ask an administrator for access", http.StatusUnauthorized)
 		return
@@ -239,7 +238,7 @@ func (h *Handler) HandleCallback(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	token, err := h.authService.CreateSession(r.Context(), user.ID)
+	token, err := h.logins.CreateSession(r.Context(), user.ID.String())
 	if err != nil {
 		http.Error(w, "internal error", http.StatusInternalServerError)
 		return
@@ -290,7 +289,7 @@ func (h *Handler) authRateLimit() int {
 func (h *Handler) HandleLogout(w http.ResponseWriter, r *http.Request) {
 	c, err := r.Cookie(sessionCookieName)
 	if err == nil {
-		_ = h.authService.DeleteSession(r.Context(), c.Value)
+		_ = h.logins.DeleteSession(r.Context(), c.Value)
 	}
 	// Built by the same helper as HandleCallback's setter, so the clear
 	// carries matching attributes and the browser accepts it.
@@ -612,7 +611,7 @@ func (h *Handler) GetMe(ctx context.Context, _ *struct{}) (*MeOutput, error) {
 func meCursorList[T any](
 	ctx context.Context,
 	in CursorParams,
-	fetch func(userID pgtype.UUID, page service.FeedPage) (service.CursorPage[T], error),
+	fetch func(user service.AuthUser, page service.FeedPage) (service.CursorPage[T], error),
 	next func(T) string,
 ) ([]T, CursorMeta, error) {
 	user, ok := UserFromContext(ctx)
@@ -623,7 +622,7 @@ func meCursorList[T any](
 	if err != nil {
 		return nil, CursorMeta{}, huma.Error400BadRequest(err.Error())
 	}
-	result, err := fetch(user.ID, service.FeedPage{
+	result, err := fetch(user, service.FeedPage{
 		Limit:           in.Limit,
 		HasCursor:       hasCursor,
 		CursorCreatedAt: cur.CreatedAt,
@@ -641,8 +640,8 @@ func meCursorList[T any](
 // straight to the ownership-keyed service call (ocidex-998g.2).
 func (h *Handler) ListMyActivity(ctx context.Context, in *ListMyActivityInput) (*ListMyActivityOutput, error) {
 	data, meta, err := meCursorList(ctx, in.CursorParams,
-		func(userID pgtype.UUID, page service.FeedPage) (service.CursorPage[service.ActivityEntry], error) {
-			return h.searchService.ListOwnedActivity(ctx, userID, page)
+		func(u service.AuthUser, page service.FeedPage) (service.CursorPage[service.ActivityEntry], error) {
+			return h.insights.ListOwnedActivity(ctx, u.ID.String(), page)
 		},
 		func(a service.ActivityEntry) string { return encodeTimeIDCursor(a.CreatedAt, a.SBOMID) },
 	)
@@ -658,8 +657,8 @@ func (h *Handler) ListMyActivity(ctx context.Context, in *ListMyActivityInput) (
 // ListMyWatches returns the caller's watchlist, newest watch first.
 func (h *Handler) ListMyWatches(ctx context.Context, in *ListMyWatchesInput) (*ListMyWatchesOutput, error) {
 	data, meta, err := meCursorList(ctx, in.CursorParams,
-		func(userID pgtype.UUID, page service.FeedPage) (service.CursorPage[service.WatchEntry], error) {
-			return h.watchService.List(ctx, userID, page)
+		func(u service.AuthUser, page service.FeedPage) (service.CursorPage[service.WatchEntry], error) {
+			return h.watchService.List(ctx, u.ID.String(), page)
 		},
 		func(w service.WatchEntry) string { return encodeTimeIDCursor(w.WatchedAt, w.ArtifactID) },
 	)
@@ -679,8 +678,8 @@ func (h *Handler) ListMyWatches(ctx context.Context, in *ListMyWatchesInput) (*L
 func (h *Handler) ListMyWatchFeed(ctx context.Context, in *ListMyWatchFeedInput) (*ListMyWatchFeedOutput, error) {
 	vis := visibilityFilterFromContext(ctx)
 	data, meta, err := meCursorList(ctx, in.CursorParams,
-		func(userID pgtype.UUID, page service.FeedPage) (service.CursorPage[service.WatchEvent], error) {
-			return h.watchService.Feed(ctx, userID, vis, page)
+		func(u service.AuthUser, page service.FeedPage) (service.CursorPage[service.WatchEvent], error) {
+			return h.watchService.Feed(ctx, u.ID.String(), vis, page)
 		},
 		func(e service.WatchEvent) string { return encodeTimeIDCursor(e.OccurredAt, e.ID) },
 	)
@@ -702,7 +701,7 @@ func (h *Handler) WatchArtifact(ctx context.Context, in *WatchArtifactInput) (*s
 	if !ok {
 		return nil, huma.Error401Unauthorized("not authenticated")
 	}
-	if err := h.watchService.Watch(ctx, user.ID, in.ArtifactID, visibilityFilterFromContext(ctx)); err != nil {
+	if err := h.watchService.Watch(ctx, user.ID.String(), in.ArtifactID, visibilityFilterFromContext(ctx)); err != nil {
 		return nil, mapServiceError(err)
 	}
 	return nil, nil
@@ -714,7 +713,7 @@ func (h *Handler) UnwatchArtifact(ctx context.Context, in *WatchArtifactInput) (
 	if !ok {
 		return nil, huma.Error401Unauthorized("not authenticated")
 	}
-	if err := h.watchService.Unwatch(ctx, user.ID, in.ArtifactID); err != nil {
+	if err := h.watchService.Unwatch(ctx, user.ID.String(), in.ArtifactID); err != nil {
 		return nil, mapServiceError(err)
 	}
 	return nil, nil
@@ -736,7 +735,7 @@ func (h *Handler) CreateAPIKey(ctx context.Context, in *CreateAPIKeyInput) (*Cre
 	if in.Body.ExpiresAt != nil {
 		expiresAt = *in.Body.ExpiresAt
 	}
-	plaintext, err := h.authService.CreateExpiringAPIKey(ctx, user.ID, in.Body.Name, caps, expiresAt)
+	plaintext, err := h.accounts.CreateExpiringAPIKey(ctx, user.ID.String(), in.Body.Name, caps, expiresAt)
 	if err != nil {
 		return nil, mapServiceError(err)
 	}
@@ -750,7 +749,7 @@ func (h *Handler) ListAPIKeys(ctx context.Context, _ *struct{}) (*ListAPIKeysOut
 	if !ok {
 		return nil, huma.Error401Unauthorized("not authenticated")
 	}
-	keys, err := h.authService.ListAPIKeys(ctx, user.ID)
+	keys, err := h.accounts.ListAPIKeys(ctx, user.ID.String())
 	if err != nil {
 		return nil, huma.Error500InternalServerError(fmt.Sprintf("listing keys: %v", err))
 	}
@@ -776,7 +775,7 @@ func (h *Handler) DeleteAPIKey(ctx context.Context, in *DeleteAPIKeyInput) (*str
 	if !ok {
 		return nil, huma.Error401Unauthorized("not authenticated")
 	}
-	keyID, err := parseUUID(in.ID)
+	keyID, err := requireUUID(in.ID)
 	if err != nil {
 		return nil, huma.Error400BadRequest("invalid key id")
 	}
@@ -789,7 +788,7 @@ func (h *Handler) DeleteAPIKey(ctx context.Context, in *DeleteAPIKeyInput) (*str
 			return nil, huma.Error403Forbidden("an API key can only delete keys whose capabilities it holds itself")
 		}
 	}
-	if err := h.authService.DeleteAPIKey(ctx, user.ID, keyID); err != nil {
+	if err := h.accounts.DeleteAPIKey(ctx, user.ID.String(), keyID); err != nil {
 		return nil, huma.Error404NotFound("key not found")
 	}
 	return nil, nil
@@ -817,13 +816,13 @@ func keyCovers(user service.AuthUser, caps []authz.Capability) bool {
 }
 
 // ownAPIKey returns one of the caller's keys, or 404.
-func (h *Handler) ownAPIKey(ctx context.Context, user service.AuthUser, keyID pgtype.UUID) (service.APIKeyMeta, error) {
-	keys, err := h.authService.ListAPIKeys(ctx, user.ID)
+func (h *Handler) ownAPIKey(ctx context.Context, user service.AuthUser, keyID string) (service.APIKeyMeta, error) {
+	keys, err := h.accounts.ListAPIKeys(ctx, user.ID.String())
 	if err != nil {
 		return service.APIKeyMeta{}, mapServiceError(err)
 	}
 	for _, k := range keys {
-		if k.ID == keyID {
+		if k.ID.String() == keyID {
 			return k, nil
 		}
 	}
@@ -831,7 +830,7 @@ func (h *Handler) ownAPIKey(ctx context.Context, user service.AuthUser, keyID pg
 }
 
 func (h *Handler) ListUsers(ctx context.Context, _ *struct{}) (*ListUsersOutput, error) {
-	users, err := h.authService.ListUsers(ctx)
+	users, err := h.accounts.ListUsers(ctx)
 	if err != nil {
 		return nil, huma.Error500InternalServerError(fmt.Sprintf("listing users: %v", err))
 	}
@@ -848,11 +847,11 @@ func (h *Handler) ListUsers(ctx context.Context, _ *struct{}) (*ListUsersOutput,
 }
 
 func (h *Handler) UpdateUserRole(ctx context.Context, in *UpdateUserRoleInput) (*UpdateUserRoleOutput, error) {
-	targetID, err := parseUUID(in.ID)
+	targetID, err := requireUUID(in.ID)
 	if err != nil {
 		return nil, huma.Error400BadRequest("invalid user id")
 	}
-	u, err := h.authService.UpdateUserRole(ctx, targetID, in.Body.Role)
+	u, err := h.accounts.UpdateUserRole(ctx, targetID, in.Body.Role)
 	if err != nil {
 		return nil, huma.Error400BadRequest(fmt.Sprintf("updating role: %v", err))
 	}

@@ -38,9 +38,9 @@ func (f *sessionAuthService) ListUsers(_ context.Context) ([]service.AuthUser, e
 	return f.roster, nil
 }
 
-func (f *sessionAuthService) CreateSession(_ context.Context, userID pgtype.UUID) (string, error) {
+func (f *sessionAuthService) CreateSession(_ context.Context, userID string) (string, error) {
 	for _, u := range f.roster {
-		if u.ID == userID {
+		if u.ID.String() == userID {
 			f.minted++
 			token := "session-" + u.DisplayName
 			f.sessions[token] = u
@@ -93,16 +93,24 @@ func devConfig(env string) *config.Config {
 }
 
 func newDevRouter(authSvc service.AuthService, env string) http.Handler {
-	h := api.NewHandler(nil, nil, authSvc, nil, &fakeNamespaceService{}, &fakeSourceService{},
-		nil, nil, nil, nil, &fakePinger{}, nil, devConfig(env))
+	h := api.NewHandler(api.Deps{
+		Authenticator: authSvc,
+		Logins:        authSvc,
+		Accounts:      authSvc,
+		Namespaces:    &fakeNamespaceService{},
+		Sources:       &fakeSourceService{},
+		DB:            &fakePinger{},
+		Config:        devConfig(env),
+	})
 	return api.NewRouter(h, "*", "", "")
 }
 
 // devSpec is the OpenAPI spec of a router built with a development config —
 // the counterpart to conformanceSpec, which builds one with no config at all.
 func devSpec() *huma.OpenAPI {
-	h := api.NewHandler(nil, nil, nil, nil, nil, nil, nil, nil, nil, nil, nil, nil,
-		devConfig("development"))
+	h := api.NewHandler(api.Deps{
+		Config: devConfig("development"),
+	})
 	_ = api.NewRouter(h, "*", "", "")
 	return h.API().OpenAPI()
 }
@@ -206,8 +214,16 @@ func TestDevSessionAbsentWithoutFlag(t *testing.T) {
 
 	cfg := devConfig("development")
 	cfg.DevAuthEnabled = false
-	h := api.NewHandler(nil, nil, newDevAuthService(), nil, &fakeNamespaceService{}, &fakeSourceService{},
-		nil, nil, nil, nil, &fakePinger{}, nil, cfg)
+	authSvc := newDevAuthService()
+	h := api.NewHandler(api.Deps{
+		Authenticator: authSvc,
+		Logins:        authSvc,
+		Accounts:      authSvc,
+		Namespaces:    &fakeNamespaceService{},
+		Sources:       &fakeSourceService{},
+		DB:            &fakePinger{},
+		Config:        cfg,
+	})
 	router := api.NewRouter(h, "*", "", "")
 
 	rec := httptest.NewRecorder()

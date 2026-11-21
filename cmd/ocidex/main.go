@@ -150,7 +150,29 @@ func run() error {
 	meterProvider, stopMetrics := setupMetrics(ctx, cfg, pool, bgPool, natsClient, registrySvc, clusterSvc)
 	defer stopMetrics()
 
-	handler := api.NewHandler(sbomSvc, searchSvc, authSvc, registrySvc, namespaceSvc, sourceSvc, jobSvc, enrichJobSvc, watchSvc, clusterSvc, pool, scanSubmitter, cfg).
+	handler := api.NewHandler(api.Deps{
+		SBOMs:            sbomSvc,
+		SBOMQueries:      searchSvc,
+		Components:       searchSvc,
+		Artifacts:        searchSvc,
+		ArtifactInsights: searchSvc,
+		Insights:         searchSvc,
+		Authenticator:    authSvc,
+		Logins:           authSvc,
+		Accounts:         authSvc,
+		Registries:       registrySvc,
+		Namespaces:       namespaceSvc,
+		Sources:          sourceSvc,
+		Jobs:             jobSvc,
+		EnrichJobs:       enrichJobSvc,
+		Watches:          watchSvc,
+		Clusters:         clusterSvc,
+		ClusterAgents:    clusterSvc,
+		ClusterInventory: clusterSvc,
+		DB:               pool,
+		Scans:            scanSubmitter,
+		Config:           cfg,
+	}).
 		WithMeterProvider(meterProvider).
 		WithTracerProvider(tracerProvider).
 		WithAdhocWalks(adhocWalks).

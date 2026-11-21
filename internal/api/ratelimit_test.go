@@ -125,14 +125,20 @@ func TestClientIPHeader(t *testing.T) {
 }
 
 func newRateLimitedRouter(limit int, trusted []netip.Prefix) http.Handler {
-	h := api.NewHandler(nil, nil, &fakeAuthService{}, nil, nil, nil, nil, nil, nil, nil, &fakePinger{}, nil,
-		&config.Config{
+	authSvc := &fakeAuthService{}
+	h := api.NewHandler(api.Deps{
+		Authenticator: authSvc,
+		Logins:        authSvc,
+		Accounts:      authSvc,
+		DB:            &fakePinger{},
+		Config: &config.Config{
 			Environment:    "development",
 			SessionSecret:  strings.Repeat("k", 32),
 			FrontendURL:    "http://localhost:3000",
 			AuthRateLimit:  limit,
 			TrustedProxies: trusted,
-		})
+		},
+	})
 	return api.NewRouter(h, "*", "", "")
 }
 
@@ -189,13 +195,18 @@ func newAPILimitedRouter(ingest, heavy int) http.Handler {
 		"alice": {ID: ownerUUID, Role: "member"},
 		"bob":   {ID: otherUUID, Role: "member"},
 	}}
-	h := api.NewHandler(nil, nil, authSvc, nil, nil, nil, nil, nil, nil, nil, &fakePinger{}, nil,
-		&config.Config{
+	h := api.NewHandler(api.Deps{
+		Authenticator: authSvc,
+		Logins:        authSvc,
+		Accounts:      authSvc,
+		DB:            &fakePinger{},
+		Config: &config.Config{
 			Environment:        "development",
 			SessionSecret:      strings.Repeat("k", 32),
 			APIRateLimitIngest: ingest,
 			APIRateLimitHeavy:  heavy,
-		})
+		},
+	})
 	return api.NewRouter(h, "*", "", "")
 }
 

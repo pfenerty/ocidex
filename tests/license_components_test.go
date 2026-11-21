@@ -73,10 +73,10 @@ func TestLicenseComponentsFromRollup(t *testing.T) {
 	defer srv.Close()
 
 	owner := seedUser(t, pool, 9301, "license-owner", "member")
-	ownerKey, err := authSvc.CreateAPIKey(t.Context(), owner, "license-owner", nil)
+	ownerKey, err := authSvc.CreateAPIKey(t.Context(), owner.String(), "license-owner", nil)
 	is.NoErr(err)
 	outsider := seedUser(t, pool, 9302, "license-outsider", "member")
-	outsiderKey, err := authSvc.CreateAPIKey(t.Context(), outsider, "license-outsider", nil)
+	outsiderKey, err := authSvc.CreateAPIKey(t.Context(), outsider.String(), "license-outsider", nil)
 	is.NoErr(err)
 	public := discoverNS(t, pool, "lic-public", owner, "public")
 	private := discoverNS(t, pool, "lic-private", owner, "private")

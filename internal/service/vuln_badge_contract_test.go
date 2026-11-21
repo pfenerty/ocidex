@@ -47,28 +47,28 @@ func TestVulnBadgeSurfaces_CarryCounts(t *testing.T) {
 		{
 			name: "SBOM component list (SBOMDetail/PackagesTab, unpaged)",
 			call: func(svc *searchService) ([]vulnBadge, error) {
-				items, err := svc.ListSBOMComponents(context.Background(), fixtureSbomID, VisibilityFilter{})
+				items, err := svc.ListSBOMComponents(context.Background(), fixtureSbomID.String(), VisibilityFilter{})
 				return componentVulnBadges(items), err
 			},
 		},
 		{
 			name: "SBOM component list (SBOMDetail/PackagesTab, keyset page)",
 			call: func(svc *searchService) ([]vulnBadge, error) {
-				page, err := svc.ListSBOMComponentsPage(context.Background(), fixtureSbomID, ComponentPage{Limit: 10}, VisibilityFilter{})
+				page, err := svc.ListSBOMComponentsPage(context.Background(), fixtureSbomID.String(), ComponentPage{Limit: 10}, VisibilityFilter{})
 				return componentVulnBadges(page.Data), err
 			},
 		},
 		{
 			name: "SBOM dependency graph (SBOMDetail/DependencyTreeView)",
 			call: func(svc *searchService) ([]vulnBadge, error) {
-				graph, err := svc.GetSBOMDependencies(context.Background(), fixtureSbomID, VisibilityFilter{})
+				graph, err := svc.GetSBOMDependencies(context.Background(), fixtureSbomID.String(), VisibilityFilter{})
 				return componentVulnBadges(graph.Nodes), err
 			},
 		},
 		{
 			name: "SBOM vulnerabilities tab (ocidex-unn8.4)",
 			call: func(svc *searchService) ([]vulnBadge, error) {
-				res, err := svc.ListSBOMVulns(context.Background(), fixtureSbomID, SBOMVulnParams{Limit: 10}, VisibilityFilter{})
+				res, err := svc.ListSBOMVulns(context.Background(), fixtureSbomID.String(), SBOMVulnParams{Limit: 10}, VisibilityFilter{})
 				out := make([]vulnBadge, 0, len(res.Data))
 				for _, v := range res.Data {
 					out = append(out, vulnBadge{key: v.CanonicalID, count: v.AffectedPackageCount, severity: v.Severity})
@@ -79,7 +79,7 @@ func TestVulnBadgeSurfaces_CarryCounts(t *testing.T) {
 		{
 			name: "artifact vulnerabilities tab (ocidex-unn8.6)",
 			call: func(svc *searchService) ([]vulnBadge, error) {
-				res, err := svc.ListArtifactVulns(context.Background(), fixtureArtifactID, ArtifactVulnParams{Limit: 10}, VisibilityFilter{})
+				res, err := svc.ListArtifactVulns(context.Background(), fixtureArtifactID.String(), ArtifactVulnParams{Limit: 10}, VisibilityFilter{})
 				out := make([]vulnBadge, 0, len(res.Data))
 				for _, v := range res.Data {
 					// The artifact tab's distinguishing badge is the version

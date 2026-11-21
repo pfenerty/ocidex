@@ -154,10 +154,10 @@ func TestArtifactWatchlist(t *testing.T) {
 	is := is.New(t)
 
 	watcherID := seedUser(t, pool, 7601, "watch-watcher", "member")
-	watcherKey, err := authSvc.CreateAPIKey(t.Context(), watcherID, "watcher", nil)
+	watcherKey, err := authSvc.CreateAPIKey(t.Context(), watcherID.String(), "watcher", nil)
 	is.NoErr(err)
 	otherID := seedUser(t, pool, 7602, "watch-other", "member")
-	otherKey, err := authSvc.CreateAPIKey(t.Context(), otherID, "other", nil)
+	otherKey, err := authSvc.CreateAPIKey(t.Context(), otherID.String(), "other", nil)
 	is.NoErr(err)
 
 	// The other tenant owns both artifacts. The watcher owns neither, which is

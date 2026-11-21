@@ -10,7 +10,6 @@ import (
 
 	"github.com/danielgtaylor/huma/v2"
 	"github.com/go-chi/chi/v5/middleware"
-	"github.com/jackc/pgx/v5/pgtype"
 
 	"github.com/pfenerty/ocidex/internal/authz"
 	"github.com/pfenerty/ocidex/internal/event"
@@ -57,7 +56,7 @@ func requestFromContext(ctx context.Context) (*http.Request, bool) {
 // API key is present, but allows unauthenticated requests through (user will
 // be absent from context). Use this for browse endpoints that should be
 // accessible to the public but can show more data to authenticated users.
-func OptionalAuthenticate(authSvc service.AuthService) func(http.Handler) http.Handler {
+func OptionalAuthenticate(authSvc Authenticator) func(http.Handler) http.Handler {
 	if authSvc == nil {
 		return func(next http.Handler) http.Handler { return next }
 	}
@@ -123,7 +122,7 @@ func OptionalAuthenticate(authSvc service.AuthService) func(http.Handler) http.H
 				return
 			}
 
-			grants, gerr := authSvc.LoadGrants(r.Context(), user.ID)
+			grants, gerr := authSvc.LoadGrants(r.Context(), user.ID.String())
 			if gerr != nil {
 				slog.WarnContext(r.Context(), "loading namespace grants", "error", gerr)
 			}
@@ -246,7 +245,7 @@ func RequireAdmin(api huma.API) func(huma.Context, func(huma.Context)) {
 //     registry, artifact and namespace resolvers read NOT NULL columns or
 //     inner joins (ocidex-avsz.3).
 func RequireCapability(api huma.API, c authz.Capability,
-	resolve func(huma.Context) (pgtype.UUID, error),
+	resolve func(huma.Context) (string, error),
 ) func(huma.Context, func(huma.Context)) {
 	return func(ctx huma.Context, next func(huma.Context)) {
 		user, ok := UserFromContext(ctx.Context())
@@ -259,7 +258,7 @@ func RequireCapability(api huma.API, c authz.Capability,
 			_ = huma.WriteErr(api, ctx, http.StatusNotFound, "not found")
 			return
 		}
-		if !can(user, namespaceID.String(), c) {
+		if !can(user, namespaceID, c) {
 			_ = huma.WriteErr(api, ctx, http.StatusForbidden, "forbidden")
 			return
 		}
@@ -277,7 +276,7 @@ func RequireCapability(api huma.API, c authz.Capability,
 // resolve fails, 403 when no namespace grants c. A resource hanging from no
 // namespace is admin-only.
 func RequireCapabilityInAny(api huma.API, c authz.Capability,
-	resolve func(huma.Context) ([]pgtype.UUID, error),
+	resolve func(huma.Context) ([]string, error),
 ) func(huma.Context, func(huma.Context)) {
 	return func(ctx huma.Context, next func(huma.Context)) {
 		user, ok := UserFromContext(ctx.Context())
@@ -291,10 +290,10 @@ func RequireCapabilityInAny(api huma.API, c authz.Capability,
 			return
 		}
 		if len(namespaceIDs) == 0 {
-			namespaceIDs = []pgtype.UUID{{}}
+			namespaceIDs = []string{""}
 		}
 		for _, ns := range namespaceIDs {
-			if can(user, ns.String(), c) {
+			if can(user, ns, c) {
 				next(ctx)
 				return
 			}

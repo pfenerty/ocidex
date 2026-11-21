@@ -31,10 +31,10 @@ func TestSBOMDigestDedupeIsPerNamespace(t *testing.T) {
 	q := repository.New(pool)
 
 	aID := seedUser(t, pool, 7801, "digest-a", "member")
-	aKey, err := authSvc.CreateAPIKey(ctx, aID, "digest-a", nil)
+	aKey, err := authSvc.CreateAPIKey(ctx, aID.String(), "digest-a", nil)
 	is.NoErr(err)
 	bID := seedUser(t, pool, 7802, "digest-b", "member")
-	bKey, err := authSvc.CreateAPIKey(ctx, bID, "digest-b", nil)
+	bKey, err := authSvc.CreateAPIKey(ctx, bID.String(), "digest-b", nil)
 	is.NoErr(err)
 
 	aNS := seedNamespace(t, pool, "digest-a-ns", aID, "private")

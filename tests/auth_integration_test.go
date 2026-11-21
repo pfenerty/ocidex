@@ -70,8 +70,28 @@ func setupServerWithPublisher(t *testing.T, pool *pgxpool.Pool, pub event.Publis
 	enrichJobSvc := service.NewEnrichJobService(pool, "")
 	watchSvc := service.NewWatchService(pool)
 	clusterSvc := service.NewClusterService(pool, nil)
-	handler := api.NewHandler(sbomSvc, searchSvc, authSvc, registrySvc,
-		namespaceSvc, sourceSvc, jobSvc, enrichJobSvc, watchSvc, clusterSvc, pool, nil, cfg)
+	handler := api.NewHandler(api.Deps{
+		SBOMs:            sbomSvc,
+		SBOMQueries:      searchSvc,
+		Components:       searchSvc,
+		Artifacts:        searchSvc,
+		ArtifactInsights: searchSvc,
+		Insights:         searchSvc,
+		Authenticator:    authSvc,
+		Logins:           authSvc,
+		Accounts:         authSvc,
+		Registries:       registrySvc,
+		Namespaces:       namespaceSvc,
+		Sources:          sourceSvc,
+		Jobs:             jobSvc,
+		EnrichJobs:       enrichJobSvc,
+		Watches:          watchSvc,
+		Clusters:         clusterSvc,
+		ClusterAgents:    clusterSvc,
+		ClusterInventory: clusterSvc,
+		DB:               pool,
+		Config:           cfg,
+	})
 	router := api.NewRouter(handler, "*", "", "")
 	return httptest.NewServer(router), authSvc, searchSvc
 }
@@ -190,11 +210,11 @@ func TestAuthBoundaries(t *testing.T) {
 	memberID := seedUser(t, pool, 1002, "test-member", "member")
 	viewerID := seedUser(t, pool, 1003, "test-viewer", "viewer")
 
-	adminKey, err := authSvc.CreateAPIKey(ctx, adminID, "test", nil)
+	adminKey, err := authSvc.CreateAPIKey(ctx, adminID.String(), "test", nil)
 	is.NoErr(err)
-	memberKey, err := authSvc.CreateAPIKey(ctx, memberID, "test", nil)
+	memberKey, err := authSvc.CreateAPIKey(ctx, memberID.String(), "test", nil)
 	is.NoErr(err)
-	viewerKey, err := authSvc.CreateAPIKey(ctx, viewerID, "test", nil)
+	viewerKey, err := authSvc.CreateAPIKey(ctx, viewerID.String(), "test", nil)
 	is.NoErr(err)
 
 	// Create a registry owned by member; used for owner-middleware cases.

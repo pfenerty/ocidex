@@ -8,7 +8,6 @@ import (
 	"net/url"
 	"testing"
 
-	"github.com/jackc/pgx/v5/pgtype"
 	"github.com/matryer/is"
 
 	"github.com/pfenerty/ocidex/internal/service"
@@ -67,9 +66,9 @@ func (f *lookupSearchService) LookupArtifact(_ context.Context, q service.Artifa
 
 // GetArtifact echoes back the requested id so a 200 proves which candidate the
 // resolver picked, not merely that some artifact came back.
-func (f *lookupSearchService) GetArtifact(_ context.Context, id pgtype.UUID, _ service.VisibilityFilter) (service.ArtifactDetail, error) {
+func (f *lookupSearchService) GetArtifact(_ context.Context, id string, _ service.VisibilityFilter) (service.ArtifactDetail, error) {
 	return service.ArtifactDetail{
-		ArtifactSummary: service.ArtifactSummary{ID: id.String(), Type: "container", Name: "resolved"},
+		ArtifactSummary: service.ArtifactSummary{ID: id, Type: "container", Name: "resolved"},
 	}, nil
 }
 
@@ -229,8 +228,8 @@ func (f *lookupSBOMSearchService) LookupSBOM(_ context.Context, q service.SBOMLo
 }
 
 // GetSBOM echoes the requested id so a 200 identifies which candidate won.
-func (f *lookupSBOMSearchService) GetSBOM(_ context.Context, id pgtype.UUID, _ bool, _ service.VisibilityFilter) (service.SBOMDetail, error) {
-	return service.SBOMDetail{SBOMSummary: service.SBOMSummary{ID: id.String(), SpecVersion: "1.5", Version: 1}}, nil
+func (f *lookupSBOMSearchService) GetSBOM(_ context.Context, id string, _ bool, _ service.VisibilityFilter) (service.SBOMDetail, error) {
+	return service.SBOMDetail{SBOMSummary: service.SBOMSummary{ID: id, SpecVersion: "1.5", Version: 1}}, nil
 }
 
 func sbomLookupFixture() *lookupSBOMSearchService {

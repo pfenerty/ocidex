@@ -31,7 +31,7 @@ func (h *Handler) ListClusters(ctx context.Context, in *ListClustersInput) (*Lis
 		if ns.Visibility == visibilityPrivate && !canReadPrivate(ctx, ns) {
 			return nil, huma.Error404NotFound("namespace not found")
 		}
-		rows, err := h.clusterService.ListByNamespace(ctx, in.NamespaceID)
+		rows, err := h.clusters.ListByNamespace(ctx, in.NamespaceID)
 		if err != nil {
 			return nil, mapServiceError(err)
 		}
@@ -56,7 +56,7 @@ func (h *Handler) ListMyClusters(ctx context.Context, _ *ListMyClustersInput) (*
 }
 
 func (h *Handler) listClusters(ctx context.Context, vis service.VisibilityFilter) (*ListClustersOutput, error) {
-	rows, err := h.clusterService.List(ctx, vis)
+	rows, err := h.clusters.List(ctx, vis)
 	if err != nil {
 		return nil, mapServiceError(err)
 	}
@@ -78,12 +78,12 @@ func (h *Handler) clusterSummary(ctx context.Context, c service.Cluster, vis ser
 	if c.LastSeenAt == nil {
 		return nil
 	}
-	cov, err := h.clusterService.Coverage(ctx, c.ID, vis)
+	cov, err := h.clusterInventory.Coverage(ctx, c.ID, vis)
 	if err != nil {
 		slog.WarnContext(ctx, "cluster summary coverage", "cluster_id", c.ID, "err", err)
 		return nil
 	}
-	crit, err := h.clusterService.RunningVulns(ctx, c.ID, service.RunningVulnParams{Severity: "CRITICAL", Limit: 1}, vis)
+	crit, err := h.clusterInventory.RunningVulns(ctx, c.ID, service.RunningVulnParams{Severity: "CRITICAL", Limit: 1}, vis)
 	if err != nil {
 		slog.WarnContext(ctx, "cluster summary criticals", "cluster_id", c.ID, "err", err)
 		return nil
@@ -109,7 +109,7 @@ func (h *Handler) CreateCluster(ctx context.Context, in *CreateClusterInput) (*C
 	if err := h.requireNamespaceCapability(ctx, user, in.Body.NamespaceID, authz.CapManageCluster); err != nil {
 		return nil, err
 	}
-	cluster, err := h.clusterService.Create(ctx, service.CreateClusterParams{
+	cluster, err := h.clusters.Create(ctx, service.CreateClusterParams{
 		NamespaceID: in.Body.NamespaceID,
 		Name:        in.Body.Name,
 		Description: in.Body.Description,
@@ -125,7 +125,7 @@ func (h *Handler) UpdateCluster(ctx context.Context, in *UpdateClusterInput) (*U
 	if err := h.clusterCapabilityCheck(ctx, in.ID, authz.CapManageCluster); err != nil {
 		return nil, err
 	}
-	cluster, err := h.clusterService.Update(ctx, service.UpdateClusterParams{
+	cluster, err := h.clusters.Update(ctx, service.UpdateClusterParams{
 		ID:          in.ID,
 		Name:        in.Body.Name,
 		Description: in.Body.Description,
@@ -145,7 +145,7 @@ func (h *Handler) DeleteCluster(ctx context.Context, in *DeleteClusterInput) (*s
 	if err := h.clusterCapabilityCheck(ctx, in.ID, authz.CapManageCluster); err != nil {
 		return nil, err
 	}
-	if err := h.clusterService.Delete(ctx, in.ID); err != nil {
+	if err := h.clusters.Delete(ctx, in.ID); err != nil {
 		return nil, mapServiceError(err)
 	}
 	return nil, nil
@@ -160,7 +160,7 @@ func (h *Handler) PutInventory(ctx context.Context, in *PutInventoryInput) (*Put
 	if err := h.clusterCapabilityCheck(ctx, in.ID, authz.CapPushInventory); err != nil {
 		return nil, err
 	}
-	if c, err := h.clusterService.Get(ctx, in.ID); err == nil && c.PausedAt != nil {
+	if c, err := h.clusters.Get(ctx, in.ID); err == nil && c.PausedAt != nil {
 		return nil, huma.Error409Conflict("cluster is paused: snapshots are refused until it is resumed")
 	}
 
@@ -178,7 +178,7 @@ func (h *Handler) PutInventory(ctx context.Context, in *PutInventoryInput) (*Put
 	}
 
 	agent := toAgentInfo(in.Body.Agent)
-	pruned, err := h.clusterService.ReplaceInventory(ctx, in.ID, workloads, agent)
+	pruned, err := h.clusterAgents.ReplaceInventory(ctx, in.ID, workloads, agent)
 	if err != nil {
 		return nil, mapServiceError(err)
 	}
@@ -190,7 +190,7 @@ func (h *Handler) PutInventory(ctx context.Context, in *PutInventoryInput) (*Put
 	}
 	// The snapshot is already committed; a failure to log it is not a
 	// failure of the push.
-	if err := h.clusterService.RecordPush(ctx, in.ID, attempt); err != nil {
+	if err := h.clusterAgents.RecordPush(ctx, in.ID, attempt); err != nil {
 		slog.WarnContext(ctx, "recording accepted push", "cluster_id", in.ID, "err", err)
 	}
 
@@ -213,7 +213,7 @@ func (h *Handler) ListClusterPushes(ctx context.Context, in *ListClusterPushesIn
 	if _, err := h.visibleCluster(ctx, in.ID); err != nil {
 		return nil, err
 	}
-	pushes, err := h.clusterService.ListPushes(ctx, in.ID, in.Limit)
+	pushes, err := h.clusterAgents.ListPushes(ctx, in.ID, in.Limit)
 	if err != nil {
 		return nil, mapServiceError(err)
 	}
@@ -232,13 +232,13 @@ func (h *Handler) ListClusterPushes(ctx context.Context, in *ListClusterPushesIn
 	return out, nil
 }
 
-// pushRecorder is nil-safe: a Handler built without a cluster service records
+// pushRecorder is nil-safe: a Handler built without ClusterAgents records
 // nothing.
 func (h *Handler) pushRecorder() pushRecorder {
-	if h.clusterService == nil {
+	if h.clusterAgents == nil {
 		return nil
 	}
-	return h.clusterService
+	return h.clusterAgents
 }
 
 func toAgentInfo(a *InventoryAgent) *service.AgentInfo {
@@ -280,14 +280,14 @@ func (h *Handler) autoIngestAfterSnapshot(ctx context.Context, clusterID string)
 	if h.scanSubmitter == nil || h.clusterIngests == nil {
 		return
 	}
-	cluster, err := h.clusterService.Get(ctx, clusterID)
+	cluster, err := h.clusters.Get(ctx, clusterID)
 	if err != nil || !cluster.AutoIngest {
 		return
 	}
 	vis := visibilityFilterFromContext(ctx)
 	err = h.clusterIngests.Run(ctx, clusterID, func(ingestCtx context.Context) {
 		ingestor := scanner.NewClusterIngestor(h.scanSubmitter, h.egress(), slog.Default())
-		res, err := h.clusterService.IngestUnknown(ingestCtx, clusterID, ingestor, service.IngestUnknownParams{}, vis)
+		res, err := h.clusterInventory.IngestUnknown(ingestCtx, clusterID, ingestor, service.IngestUnknownParams{}, vis)
 		if err != nil {
 			slog.Error("cluster auto-ingest failed", "cluster", cluster.Name, "err", err)
 			return
@@ -329,7 +329,7 @@ func (h *Handler) IngestUnknown(ctx context.Context, in *IngestUnknownInput) (*I
 		return nil, huma.Error503ServiceUnavailable("scanner not enabled")
 	}
 	ingestor := scanner.NewClusterIngestor(h.scanSubmitter, h.egress(), slog.Default())
-	res, err := h.clusterService.IngestUnknown(ctx, in.ID, ingestor,
+	res, err := h.clusterInventory.IngestUnknown(ctx, in.ID, ingestor,
 		service.IngestUnknownParams{ImageDigests: in.Body.ImageDigests}, visibilityFilterFromContext(ctx))
 	if err != nil {
 		return nil, mapServiceError(err)
@@ -352,7 +352,7 @@ func (h *Handler) ListClusterWorkloads(ctx context.Context, in *ListClusterWorkl
 	out := &ListClusterWorkloadsOutput{}
 	data, coverage, page, err := listClusterInventory(ctx, h, in.ID,
 		func(ctx context.Context, vis service.VisibilityFilter) (service.PagedResult[service.ClusterWorkload], error) {
-			return h.clusterService.ListWorkloads(ctx, in.ID, service.WorkloadParams{
+			return h.clusterInventory.ListWorkloads(ctx, in.ID, service.WorkloadParams{
 				K8sNamespace: in.K8sNamespace,
 				MatchState:   in.MatchState,
 				Query:        in.Q,
@@ -376,7 +376,7 @@ func (h *Handler) ListClusterImages(ctx context.Context, in *ListClusterImagesIn
 	out := &ListClusterImagesOutput{}
 	data, coverage, page, err := listClusterInventory(ctx, h, in.ID,
 		func(ctx context.Context, vis service.VisibilityFilter) (service.PagedResult[service.ClusterImage], error) {
-			return h.clusterService.ListImages(ctx, in.ID, service.ImageParams{
+			return h.clusterInventory.ListImages(ctx, in.ID, service.ImageParams{
 				K8sNamespace: in.K8sNamespace,
 				MatchState:   in.MatchState,
 				Query:        in.Q,
@@ -416,7 +416,7 @@ func listClusterInventory[T, R any](
 	if err != nil {
 		return nil, WorkloadCoverageResponse{}, PaginationMeta{}, mapServiceError(err)
 	}
-	coverage, err := h.clusterService.Coverage(ctx, clusterID, vis)
+	coverage, err := h.clusterInventory.Coverage(ctx, clusterID, vis)
 	if err != nil {
 		return nil, WorkloadCoverageResponse{}, PaginationMeta{}, mapServiceError(err)
 	}
@@ -433,7 +433,7 @@ func (h *Handler) ListClusterNamespaces(ctx context.Context, in *ListClusterName
 	if _, err := h.visibleCluster(ctx, in.ID); err != nil {
 		return nil, err
 	}
-	facets, err := h.clusterService.NamespaceFacets(ctx, in.ID, visibilityFilterFromContext(ctx))
+	facets, err := h.clusterInventory.NamespaceFacets(ctx, in.ID, visibilityFilterFromContext(ctx))
 	if err != nil {
 		return nil, mapServiceError(err)
 	}
@@ -457,7 +457,7 @@ func (h *Handler) ListClusterVulns(ctx context.Context, in *ListClusterVulnsInpu
 	}
 	vis := visibilityFilterFromContext(ctx)
 
-	page, err := h.clusterService.RunningVulns(ctx, in.ID, service.RunningVulnParams{
+	page, err := h.clusterInventory.RunningVulns(ctx, in.ID, service.RunningVulnParams{
 		Severity: in.Severity,
 		SortBy:   in.Sort,
 		SortDir:  in.Dir,
@@ -467,7 +467,7 @@ func (h *Handler) ListClusterVulns(ctx context.Context, in *ListClusterVulnsInpu
 	if err != nil {
 		return nil, mapServiceError(err)
 	}
-	coverage, err := h.clusterService.Coverage(ctx, in.ID, vis)
+	coverage, err := h.clusterInventory.Coverage(ctx, in.ID, vis)
 	if err != nil {
 		return nil, mapServiceError(err)
 	}
@@ -500,7 +500,7 @@ func (h *Handler) ListClusterUnknownImages(ctx context.Context, in *ListClusterU
 	if _, err := h.visibleCluster(ctx, in.ID); err != nil {
 		return nil, err
 	}
-	page, err := h.clusterService.UnknownImages(ctx, in.ID, in.Limit, in.Offset, visibilityFilterFromContext(ctx))
+	page, err := h.clusterInventory.UnknownImages(ctx, in.ID, in.Limit, in.Offset, visibilityFilterFromContext(ctx))
 	if err != nil {
 		return nil, mapServiceError(err)
 	}
@@ -565,7 +565,7 @@ func (h *Handler) ListClusterUnknownImages(ctx context.Context, in *ListClusterU
 // so this needs no cluster pre-check: a cluster the caller cannot see
 // contributes no rows rather than an error that would confirm it exists.
 func (h *Handler) ListVulnWorkloads(ctx context.Context, in *ListVulnWorkloadsInput) (*ListVulnWorkloadsOutput, error) {
-	rows, err := h.clusterService.WorkloadsForVulnerability(ctx, in.ID, in.ClusterID, in.Limit, visibilityFilterFromContext(ctx))
+	rows, err := h.clusterInventory.WorkloadsForVulnerability(ctx, in.ID, in.ClusterID, in.Limit, visibilityFilterFromContext(ctx))
 	if err != nil {
 		return nil, mapServiceError(err)
 	}
@@ -587,7 +587,7 @@ func (h *Handler) ListRegistryGaps(ctx context.Context, _ *struct{}) (*ListRegis
 	if _, ok := UserFromContext(ctx); !ok {
 		return nil, huma.Error401Unauthorized("not authenticated")
 	}
-	gaps, err := h.clusterService.RegistryGaps(ctx, visibilityFilterFromContext(ctx))
+	gaps, err := h.clusterInventory.RegistryGaps(ctx, visibilityFilterFromContext(ctx))
 	if err != nil {
 		return nil, mapServiceError(err)
 	}
@@ -606,7 +606,7 @@ func (h *Handler) ListRegistryGaps(ctx context.Context, _ *struct{}) (*ListRegis
 // version of an artifact is running (ocidex-70eo.8). Visibility is the query's,
 // as for ListVulnWorkloads: invisible clusters contribute nothing.
 func (h *Handler) ListArtifactWorkloads(ctx context.Context, in *ListArtifactWorkloadsInput) (*ListVulnWorkloadsOutput, error) {
-	rows, err := h.clusterService.WorkloadsForArtifact(ctx, in.ID, in.Limit, visibilityFilterFromContext(ctx))
+	rows, err := h.clusterInventory.WorkloadsForArtifact(ctx, in.ID, in.Limit, visibilityFilterFromContext(ctx))
 	if err != nil {
 		return nil, mapServiceError(err)
 	}
@@ -629,7 +629,7 @@ func (h *Handler) visibleCluster(ctx context.Context, id string) (service.Cluste
 	if !ok {
 		return service.Cluster{}, huma.Error401Unauthorized("not authenticated")
 	}
-	cluster, err := h.clusterService.Get(ctx, id)
+	cluster, err := h.clusters.Get(ctx, id)
 	if err != nil {
 		return service.Cluster{}, huma.Error404NotFound("cluster not found")
 	}
@@ -661,7 +661,7 @@ func (h *Handler) clusterCapabilityCheck(ctx context.Context, id string, c authz
 	if !ok {
 		return huma.Error401Unauthorized("not authenticated")
 	}
-	cluster, err := h.clusterService.Get(ctx, id)
+	cluster, err := h.clusters.Get(ctx, id)
 	if err != nil {
 		return huma.Error404NotFound("cluster not found")
 	}
