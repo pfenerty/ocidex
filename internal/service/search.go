@@ -85,12 +85,24 @@ type DashboardStats struct {
 	TopPackages           []PackageSummary
 	VulnCount             int64
 	VulnSeverity          VulnSeverityBreakdown
+	ArtifactMaxima        ArtifactMaxima
 
 	// Warming reports that no computed snapshot was available and every count
 	// above is a zero placeholder. Clients must render their loading state
 	// rather than "0 artifacts" — the stats are computed out-of-band by the
 	// background warmer and appear on a later poll.
 	Warming bool
+}
+
+// ArtifactMaxima is the largest value of each artifact stat-block figure across
+// the visible catalog, read from each artifact's latest version.
+type ArtifactMaxima struct {
+	Packages      int64 `json:"packages"`
+	Versions      int64 `json:"versions"`
+	SBOMs         int64 `json:"sboms"`
+	Architectures int64 `json:"architectures"`
+	Critical      int64 `json:"critical"`
+	High          int64 `json:"high"`
 }
 
 // ArtifactTypeCount is the number of tracked artifacts of one CycloneDX type.
@@ -623,6 +635,8 @@ type ArtifactDetail struct {
 	Cpe          *string   `json:"cpe,omitempty"`
 	CreatedAt    time.Time `json:"createdAt"`
 	VersionCount int64     `json:"versionCount"`
+	// PackageCount is the component count of the latest version's newest SBOM.
+	PackageCount int64 `json:"packageCount"`
 	// Watched reports whether the calling user has this artifact on their
 	// watchlist. It rides along with the detail response so the star renders
 	// in its final state on first paint rather than flipping in after a

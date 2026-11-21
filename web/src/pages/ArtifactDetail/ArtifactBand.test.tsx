@@ -17,6 +17,7 @@ const ARTIFACT: ArtifactDetail = {
     versionCount: 60,
     watched: false,
     entryNumber: 12,
+    packageCount: 1200,
 };
 
 const VULNS: VulnSummary = { total: 85, critical: 12, high: 30, medium: 40, low: 3, unknown: 0 };

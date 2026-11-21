@@ -769,6 +769,7 @@ func (h *Handler) GetDashboardStats(ctx context.Context, _ *struct{}) (*Dashboar
 	out.Body.TopPackages = pkgs
 	out.Body.Warming = stats.Warming
 	out.Body.VulnCount = stats.VulnCount
+	out.Body.ArtifactMaxima = stats.ArtifactMaxima
 	out.Body.VulnSeverity = VulnSeverityEntry{
 		Critical: stats.VulnSeverity.Critical,
 		High:     stats.VulnSeverity.High,

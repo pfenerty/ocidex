@@ -1700,6 +1700,7 @@ type ArtifactDetail struct {
 	Group               *string      `json:"group,omitempty"`
 	Id                  string       `json:"id"`
 	Name                string       `json:"name"`
+	PackageCount        int64        `json:"packageCount"`
 	Purl                *string      `json:"purl,omitempty"`
 	SbomCount           int64        `json:"sbomCount"`
 	SigningStatus       string       `json:"signingStatus"`
@@ -1708,6 +1709,16 @@ type ArtifactDetail struct {
 	VersionCount        int64        `json:"versionCount"`
 	Vulns               *VulnSummary `json:"vulns,omitempty"`
 	Watched             bool         `json:"watched"`
+}
+
+// ArtifactMaxima defines model for ArtifactMaxima.
+type ArtifactMaxima struct {
+	Architectures int64 `json:"architectures"`
+	Critical      int64 `json:"critical"`
+	High          int64 `json:"high"`
+	Packages      int64 `json:"packages"`
+	Sboms         int64 `json:"sboms"`
+	Versions      int64 `json:"versions"`
 }
 
 // ArtifactRelation defines model for ArtifactRelation.
@@ -2430,6 +2441,7 @@ type DashboardStatsOutputBody struct {
 	// Schema A URL to the JSON Schema for this object.
 	Schema                *string                   `json:"$schema,omitempty"`
 	ArtifactCount         int64                     `json:"artifactCount"`
+	ArtifactMaxima        ArtifactMaxima            `json:"artifactMaxima"`
 	ArtifactTypes         *[]ArtifactTypeCountEntry `json:"artifactTypes"`
 	IngestionTimeline     *[]DailyCountEntry        `json:"ingestionTimeline"`
 	LicenseCategories     *[]CategoryCountEntry     `json:"licenseCategories"`

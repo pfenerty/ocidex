@@ -88,6 +88,21 @@ FROM artifact a
 WHERE a.entry_number = @entry_number::bigint
   AND artifact_visible(a.id, sqlc.narg('user_id')::uuid, sqlc.narg('is_admin')::boolean);
 
+-- name: CountLatestVersionPackages :one
+-- Components in the artifact's newest visible SBOM of its latest version,
+-- picked the way ListArtifacts picks it. Zero when nothing is visible.
+SELECT COALESCE((
+    SELECT COUNT(*) FROM component c WHERE c.sbom_id = (
+        SELECT s.id FROM sbom s
+        WHERE s.artifact_id = @artifact_id
+          AND s.namespace_id IN (SELECT visible_namespace_ids(sqlc.narg('user_id')::uuid, sqlc.narg('is_admin')::boolean))
+        ORDER BY s.version_major DESC NULLS LAST,
+                 s.version_minor DESC NULLS LAST,
+                 s.version_patch DESC NULLS LAST,
+                 s.created_at DESC, s.id DESC
+        LIMIT 1)
+), 0)::bigint AS package_count;
+
 -- name: CountArtifacts :one
 -- The total behind ListArtifacts' first page, under the same filters and
 -- visibility rule, so the list can say "20 of 126". Keyset

@@ -81,6 +81,35 @@ func (q *Queries) CountArtifacts(ctx context.Context, arg CountArtifactsParams) 
 	return column_1, err
 }
 
+const countLatestVersionPackages = `-- name: CountLatestVersionPackages :one
+SELECT COALESCE((
+    SELECT COUNT(*) FROM component c WHERE c.sbom_id = (
+        SELECT s.id FROM sbom s
+        WHERE s.artifact_id = $1
+          AND s.namespace_id IN (SELECT visible_namespace_ids($2::uuid, $3::boolean))
+        ORDER BY s.version_major DESC NULLS LAST,
+                 s.version_minor DESC NULLS LAST,
+                 s.version_patch DESC NULLS LAST,
+                 s.created_at DESC, s.id DESC
+        LIMIT 1)
+), 0)::bigint AS package_count
+`
+
+type CountLatestVersionPackagesParams struct {
+	ArtifactID pgtype.UUID `json:"artifact_id"`
+	UserID     pgtype.UUID `json:"user_id"`
+	IsAdmin    pgtype.Bool `json:"is_admin"`
+}
+
+// Components in the artifact's newest visible SBOM of its latest version,
+// picked the way ListArtifacts picks it. Zero when nothing is visible.
+func (q *Queries) CountLatestVersionPackages(ctx context.Context, arg CountLatestVersionPackagesParams) (int64, error) {
+	row := q.db.QueryRow(ctx, countLatestVersionPackages, arg.ArtifactID, arg.UserID, arg.IsAdmin)
+	var package_count int64
+	err := row.Scan(&package_count)
+	return package_count, err
+}
+
 const countSBOMsByArtifact = `-- name: CountSBOMsByArtifact :one
 SELECT COUNT(*)
 FROM sbom s

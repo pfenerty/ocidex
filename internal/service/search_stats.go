@@ -73,6 +73,7 @@ func (s *searchService) WarmDashboardStats(ctx context.Context, vis VisibilityFi
 	verP := repository.GetVersionGrowthTimelineParams{UserID: uuidOrNull(vis.UserID), IsAdmin: isAdmin}
 	topP := repository.GetTopPackagesByVersionCountParams{TopN: 10, UserID: uuidOrNull(vis.UserID), IsAdmin: isAdmin}
 	vulnP := repository.GetVulnStatsParams{UserID: uuidOrNull(vis.UserID), IsAdmin: isAdmin}
+	maxP := repository.GetArtifactMaximaParams{UserID: uuidOrNull(vis.UserID), IsAdmin: isAdmin}
 
 	var (
 		counts    repository.GetSummaryCountsRow
@@ -83,6 +84,7 @@ func (s *searchService) WarmDashboardStats(ctx context.Context, vis VisibilityFi
 		verGrowth []repository.GetVersionGrowthTimelineRow
 		topRows   []repository.GetTopPackagesByVersionCountRow
 		vulnStats repository.GetVulnStatsRow
+		maxima    repository.GetArtifactMaximaRow
 	)
 
 	g, gctx := errgroup.WithContext(ctx)
@@ -157,11 +159,28 @@ func (s *searchService) WarmDashboardStats(ctx context.Context, vis VisibilityFi
 		return nil
 	})
 
+	g.Go(func() error {
+		var err error
+		maxima, err = q.GetArtifactMaxima(gctx, maxP)
+		if err != nil {
+			return fmt.Errorf("getting artifact maxima: %w", err)
+		}
+		return nil
+	})
+
 	if err := g.Wait(); err != nil {
 		return nil, err
 	}
 
 	stats := buildDashboardStats(counts, typeRows, cats, timeline, pkgGrowth, verGrowth, topRows, vulnStats)
+	stats.ArtifactMaxima = ArtifactMaxima{
+		Packages:      maxima.MaxPackages,
+		Versions:      maxima.MaxVersions,
+		SBOMs:         maxima.MaxSboms,
+		Architectures: maxima.MaxArchitectures,
+		Critical:      maxima.MaxCritical,
+		High:          maxima.MaxHigh,
+	}
 
 	if s.statsCache != nil {
 		s.statsCache.set(statsCacheKey(vis), stats)

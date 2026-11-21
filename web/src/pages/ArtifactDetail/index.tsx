@@ -1,3 +1,4 @@
+import type { ArtifactDetail } from "~/api/client";
 import "~/components/DetailSection.css";
 import { createSignal, Show } from "solid-js";
 import { useParams, useSearchParams } from "@solidjs/router";
@@ -9,6 +10,7 @@ import {
     useArtifactUsages,
     useArtifactVulnSummary,
     useArtifactWorkloads,
+    useDashboardStats,
 } from "~/api/queries";
 import { useAuth } from "~/context/auth";
 import { StatusPill } from "~/components/ui";
@@ -22,6 +24,7 @@ import { artifactDisplayName, plural } from "~/utils/format";
 import { ArtifactHeader, ArtifactIdentity } from "./ArtifactHeader";
 import { ArtifactBand, type ArtifactTab } from "./ArtifactBand";
 import { ChangeVerdict, VersionChart, severityPoints } from "./ArtifactChange";
+import { StatBlock, type StatRow } from "./StatBlock";
 import { VersionsTab } from "./VersionsTab";
 import { LicensesTab } from "./LicensesTab";
 import { ChangelogTab } from "./ChangelogTab";
@@ -137,6 +140,26 @@ export default function ArtifactDetail() {
         () => ({ limit: versionLimit, offset: 0, mode: viewMode() }),
     );
     const latestPoints = () => severityPoints(latestVersionsQuery.data?.data);
+
+    // Catalog maximums come from the warmed stats snapshot; until it is warm
+    // there is nothing to scale against and the block stays hidden.
+    const catalogStats = useDashboardStats();
+    const statRows = (a: ArtifactDetail): StatRow[] => {
+        const m = catalogStats.data?.warming === false ? catalogStats.data.artifactMaxima : undefined;
+        if (m === undefined) return [];
+        const vulns = vulnSummaryQuery.data?.summary;
+        const latestArch = latestVersionsQuery.data?.data[0]?.architectures?.length;
+        return [
+            { label: "PKG", title: "Packages in the latest version", value: a.packageCount, max: m.packages },
+            { label: "VER", title: "Versions", value: a.versionCount, max: m.versions },
+            { label: "SBM", title: "SBOMs", value: a.sbomCount, max: m.sboms },
+            ...(isContainer()
+                ? [{ label: "ARC", title: "Architectures in the latest version", value: latestArch, max: m.architectures }]
+                : []),
+            { label: "CRT", title: "Critical findings, latest version", value: vulns?.critical, max: m.critical, tone: "critical" },
+            { label: "HGH", title: "High findings, latest version", value: vulns?.high, max: m.high, tone: "high" },
+        ];
+    };
 
     // Sorting reorders the whole result set server-side, so the current page
     // number means nothing afterwards.
@@ -270,6 +293,8 @@ export default function ArtifactDetail() {
                                         onSelect={setTab}
                                     />
                                 </div>
+
+                                <StatBlock rows={statRows(a())} />
 
                                 <ArtifactIdentity artifact={a()} />
 

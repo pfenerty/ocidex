@@ -2037,6 +2037,8 @@ export interface components {
             group?: string;
             id: string;
             name: string;
+            /** Format: int64 */
+            packageCount: number;
             purl?: string;
             /** Format: int64 */
             sbomCount: number;
@@ -2048,6 +2050,20 @@ export interface components {
             versionCount: number;
             vulns?: components["schemas"]["VulnSummary"];
             watched: boolean;
+        };
+        ArtifactMaxima: {
+            /** Format: int64 */
+            architectures: number;
+            /** Format: int64 */
+            critical: number;
+            /** Format: int64 */
+            high: number;
+            /** Format: int64 */
+            packages: number;
+            /** Format: int64 */
+            sboms: number;
+            /** Format: int64 */
+            versions: number;
         };
         ArtifactRelation: {
             artifactGroup?: string;
@@ -2794,6 +2810,8 @@ export interface components {
             readonly $schema?: string;
             /** Format: int64 */
             artifactCount: number;
+            /** @description Largest value of each artifact stat-block figure across the visible catalog, for scaling its bars */
+            artifactMaxima: components["schemas"]["ArtifactMaxima"];
             artifactTypes: components["schemas"]["ArtifactTypeCountEntry"][] | null;
             ingestionTimeline: components["schemas"]["DailyCountEntry"][] | null;
             licenseCategories: components["schemas"]["CategoryCountEntry"][] | null;

@@ -184,3 +184,49 @@ SELECT
     )::bigint AS unknown_count
 FROM reachable r
 JOIN canonical c ON c.canonical_id = r.canonical_id;
+
+-- name: GetArtifactMaxima :one
+-- The largest value of each stat-block figure across visible artifacts, so an
+-- artifact page can draw its bars against the catalog. Per artifact, figures
+-- are read from its latest version the way ListArtifacts picks it (version
+-- parts, then created_at); versions and SBOMs count the whole artifact.
+-- Computed by the stats warmer, never on a request.
+WITH visible_artifact AS (
+    SELECT a.id FROM artifact a
+    WHERE artifact_visible(a.id, sqlc.narg('user_id')::uuid, sqlc.narg('is_admin')::boolean)
+),
+latest AS (
+    SELECT DISTINCT ON (s.artifact_id) s.artifact_id, s.id AS sbom_id, s.subject_version
+    FROM sbom s
+    WHERE s.artifact_id IN (SELECT id FROM visible_artifact)
+      AND s.namespace_id IN (SELECT visible_namespace_ids(sqlc.narg('user_id')::uuid, sqlc.narg('is_admin')::boolean))
+    ORDER BY s.artifact_id,
+             s.version_major DESC NULLS LAST,
+             s.version_minor DESC NULLS LAST,
+             s.version_patch DESC NULLS LAST,
+             s.created_at DESC, s.id DESC
+),
+per_artifact AS (
+    SELECT l.artifact_id,
+           (SELECT COUNT(*) FROM component c WHERE c.sbom_id = l.sbom_id) AS packages,
+           (SELECT COUNT(DISTINCT COALESCE(s.subject_version, s.id::text)) FROM sbom s
+              WHERE s.artifact_id = l.artifact_id
+                AND s.namespace_id IN (SELECT visible_namespace_ids(sqlc.narg('user_id')::uuid, sqlc.narg('is_admin')::boolean))) AS versions,
+           (SELECT COUNT(*) FROM sbom s
+              WHERE s.artifact_id = l.artifact_id
+                AND s.namespace_id IN (SELECT visible_namespace_ids(sqlc.narg('user_id')::uuid, sqlc.narg('is_admin')::boolean))) AS sboms,
+           (SELECT COUNT(DISTINCT e.data->>'architecture') FROM sbom s
+              JOIN enrichment e ON e.sbom_id = s.id AND e.enricher_name = 'oci-metadata' AND e.status = 'success'
+              WHERE s.artifact_id = l.artifact_id AND s.subject_version IS NOT DISTINCT FROM l.subject_version) AS architectures,
+           COALESCE(r.critical, 0) AS critical,
+           COALESCE(r.high, 0) AS high
+    FROM latest l
+    LEFT JOIN sbom_vuln_rollup r ON r.sbom_id = l.sbom_id
+)
+SELECT COALESCE(MAX(packages), 0)::bigint      AS max_packages,
+       COALESCE(MAX(versions), 0)::bigint      AS max_versions,
+       COALESCE(MAX(sboms), 0)::bigint         AS max_sboms,
+       COALESCE(MAX(architectures), 0)::bigint AS max_architectures,
+       COALESCE(MAX(critical), 0)::bigint      AS max_critical,
+       COALESCE(MAX(high), 0)::bigint          AS max_high
+FROM per_artifact;

@@ -72,6 +72,15 @@ func (s *searchService) GetArtifact(ctx context.Context, idStr string, vis Visib
 		return ArtifactDetail{}, fmt.Errorf("counting versions: %w", err)
 	}
 
+	packageCount, err := q.CountLatestVersionPackages(ctx, repository.CountLatestVersionPackagesParams{
+		ArtifactID: id,
+		UserID:     uuidOrNull(vis.UserID),
+		IsAdmin:    visAdminBool(vis),
+	})
+	if err != nil {
+		return ArtifactDetail{}, fmt.Errorf("counting packages: %w", err)
+	}
+
 	// The watch flag is per-caller, so it is skipped entirely when there is no
 	// caller — an anonymous request has no watchlist to be on.
 	var watched bool
@@ -100,6 +109,7 @@ func (s *searchService) GetArtifact(ctx context.Context, idStr string, vis Visib
 		Cpe:          textToPtr(row.Cpe),
 		CreatedAt:    row.CreatedAt.Time,
 		VersionCount: versionCount,
+		PackageCount: packageCount,
 		Watched:      watched,
 	}, nil
 }
