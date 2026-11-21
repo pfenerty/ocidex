@@ -70,6 +70,10 @@ type PushAttempt struct {
 	Reason       string
 	Workloads    *int32
 	AgentVersion string
+	// Unauthenticated marks a rejection whose caller presented no credential
+	// that resolved to a key. Anyone who knows a cluster id can produce one,
+	// so a run of identical ones is kept as a single history row.
+	Unauthenticated bool
 }
 
 // Health derives the cluster's agent health at now.
@@ -138,6 +142,17 @@ func (s *clusterService) RecordPush(ctx context.Context, clusterID string, p Pus
 	if p.Workloads != nil {
 		params.Workloads = pgtype.Int4{Int32: *p.Workloads, Valid: true}
 	}
+	if p.Unauthenticated && !p.Accepted {
+		n, err := s.repo.RefreshRepeatedClusterPush(ctx, repository.RefreshRepeatedClusterPushParams{
+			ClusterID: cid, Status: params.Status, Reason: p.Reason,
+		})
+		if err != nil {
+			return fmt.Errorf("refreshing repeated push: %w", err)
+		}
+		if n > 0 {
+			return s.markPushError(ctx, cid, p.Reason)
+		}
+	}
 	n, err := s.repo.RecordClusterPush(ctx, params)
 	if err != nil {
 		return fmt.Errorf("recording push: %w", err)
@@ -149,11 +164,16 @@ func (s *clusterService) RecordPush(ctx context.Context, clusterID string, p Pus
 		return fmt.Errorf("pruning push history: %w", err)
 	}
 	if !p.Accepted {
-		if err := s.repo.MarkClusterPushError(ctx, repository.MarkClusterPushErrorParams{
-			ID: cid, LastPushError: pgtype.Text{String: p.Reason, Valid: true},
-		}); err != nil {
-			return fmt.Errorf("marking push error: %w", err)
-		}
+		return s.markPushError(ctx, cid, p.Reason)
+	}
+	return nil
+}
+
+func (s *clusterService) markPushError(ctx context.Context, cid pgtype.UUID, reason string) error {
+	if err := s.repo.MarkClusterPushError(ctx, repository.MarkClusterPushErrorParams{
+		ID: cid, LastPushError: pgtype.Text{String: reason, Valid: true},
+	}); err != nil {
+		return fmt.Errorf("marking push error: %w", err)
 	}
 	return nil
 }

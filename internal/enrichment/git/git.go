@@ -11,6 +11,7 @@ import (
 	"io"
 	"net/http"
 	"net/url"
+	"regexp"
 	"strings"
 	"time"
 
@@ -178,6 +179,15 @@ func (e *Enricher) Enrich(ctx context.Context, ref enrichment.SubjectRef) ([]byt
 	if host != githubHost {
 		return json.Marshal(commitMetadata{Reason: "unsupported host"})
 	}
+	// owner, repo and revision come from image labels, which whoever built the
+	// image controls. Refuse anything that isn't a plain GitHub name or ref, so
+	// none of them can steer the request to another API endpoint.
+	if !githubOwnerRe.MatchString(owner) || !validGitHubRepo(repo) {
+		return json.Marshal(commitMetadata{Reason: "invalid GitHub owner or repository name"})
+	}
+	if !validRevision(revision) {
+		return json.Marshal(commitMetadata{Reason: "invalid revision"})
+	}
 
 	commit, err := e.fetchCommit(ctx, host, owner, repo, revision)
 	if err != nil {
@@ -217,8 +227,9 @@ func (e *Enricher) Enrich(ctx context.Context, ref enrichment.SubjectRef) ([]byt
 // response. Non-2xx responses (404 not found, 403 forbidden/rate-limited)
 // are returned as errors.
 func (e *Enricher) fetchCommit(ctx context.Context, host, owner, repo, revision string) (*githubCommit, error) {
-	url := fmt.Sprintf("%s/repos/%s/%s/commits/%s", e.baseURL, owner, repo, revision)
-	req, err := http.NewRequestWithContext(ctx, http.MethodGet, url, nil)
+	reqURL := fmt.Sprintf("%s/repos/%s/%s/commits/%s", e.baseURL,
+		url.PathEscape(owner), url.PathEscape(repo), url.PathEscape(revision))
+	req, err := http.NewRequestWithContext(ctx, http.MethodGet, reqURL, nil)
 	if err != nil {
 		return nil, fmt.Errorf("git: build request: %w", err)
 	}
@@ -271,6 +282,29 @@ func (e *Enricher) fetchCommit(ctx context.Context, host, owner, repo, revision 
 		return nil, fmt.Errorf("git: decode commit %s/%s@%s: %w", owner, repo, revision, err)
 	}
 	return &commit, nil
+}
+
+var (
+	// GitHub user and organization names: alphanumerics and single hyphens,
+	// up to 39 characters, not starting with a hyphen.
+	githubOwnerRe = regexp.MustCompile(`^[A-Za-z0-9][A-Za-z0-9-]{0,38}$`)
+	githubRepoRe  = regexp.MustCompile(`^[A-Za-z0-9._-]{1,100}$`)
+	// A full or abbreviated commit SHA (SHA-1 or SHA-256).
+	commitSHARe = regexp.MustCompile(`^[0-9a-fA-F]{7,64}$`)
+	// A single-segment branch or tag name. Slashes are refused: the commits
+	// endpoint would read them as path separators.
+	refNameRe = regexp.MustCompile(`^[A-Za-z0-9_][A-Za-z0-9._-]{0,254}$`)
+)
+
+func validGitHubRepo(repo string) bool {
+	return githubRepoRe.MatchString(repo) && repo != "." && repo != ".."
+}
+
+func validRevision(rev string) bool {
+	if commitSHARe.MatchString(rev) {
+		return true
+	}
+	return refNameRe.MatchString(rev) && !strings.Contains(rev, "..") && !strings.HasSuffix(rev, ".lock")
 }
 
 // parseSourceURL extracts host, owner, repo from a source-code URL such as

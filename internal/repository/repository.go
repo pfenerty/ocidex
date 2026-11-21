@@ -146,6 +146,7 @@ type ClusterRepository interface {
 	ListWorkloadsForArtifact(ctx context.Context, arg ListWorkloadsForArtifactParams) ([]ListWorkloadsForArtifactRow, error)
 	RecordClusterPush(ctx context.Context, arg RecordClusterPushParams) (int64, error)
 	PruneClusterPushes(ctx context.Context, arg PruneClusterPushesParams) error
+	RefreshRepeatedClusterPush(ctx context.Context, arg RefreshRepeatedClusterPushParams) (int64, error)
 	MarkClusterPushError(ctx context.Context, arg MarkClusterPushErrorParams) error
 	ListClusterPushes(ctx context.Context, arg ListClusterPushesParams) ([]ClusterPush, error)
 	DeleteCluster(ctx context.Context, id pgtype.UUID) (int64, error)

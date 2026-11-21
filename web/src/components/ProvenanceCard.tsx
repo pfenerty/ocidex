@@ -11,6 +11,7 @@ import { LinkedField } from "./metadata/LinkedField";
 import { Card, CardHeader } from "~/components/ui";
 import DataTable from "~/components/DataTable";
 import type { Column } from "~/components/DataTable";
+import { safeHref } from "~/utils/links";
 
 const historyColumns: Column<ProvenanceDriftSummary>[] = [
     { header: "Detected", class: "text-sm", render: (e) => formatDateTime(e.detectedAt) },
@@ -225,7 +226,7 @@ export default function ProvenanceCard(props: {
                             <span class="detail-value font-mono text-sm">
                                 <Show when={commitUrl()} fallback={commit().substring(0, 12)}>
                                     {(url) => (
-                                        <a href={url()} target="_blank" rel="noopener noreferrer" class="purl-link">
+                                        <a href={safeHref(url())} target="_blank" rel="noopener noreferrer" class="purl-link">
                                             <GitHubIcon />
                                             {commit().substring(0, 12)}
                                             <ExternalLinkIcon />

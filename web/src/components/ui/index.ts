@@ -5,6 +5,7 @@ export * from "./ButtonGroup";
 export * from "./Card";
 export * from "./Combobox";
 export * from "./DetailGrid";
+export * from "./ExternalAnchor";
 export * from "./FormField";
 export * from "./Modal";
 export * from "./PageHeader";

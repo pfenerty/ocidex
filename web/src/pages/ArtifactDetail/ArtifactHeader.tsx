@@ -9,6 +9,7 @@ import { Button, ButtonGroup, Card, DetailField, DetailGrid, EntryLine, PageHead
 import { purlToRegistryUrl, purlTypeLabel } from "~/utils/purl";
 import { artifactDisplayName, formatDateTime } from "~/utils/format";
 import { containerRegistryUrl, detectRegistry } from "~/utils/oci";
+import { safeHref } from "~/utils/links";
 
 /**
  * ArtifactHeader is the title row: entry line, name, actions (ocidex-iz0r.6).
@@ -46,7 +47,7 @@ export function ArtifactHeader(props: { artifact: ArtifactDetail; breadcrumb?: J
                                 {(purl) => (
                                     <Button
                                         as="a"
-                                        href={purlToRegistryUrl(purl()) ?? ""}
+                                        href={safeHref(purlToRegistryUrl(purl()))}
                                         target="_blank"
                                         rel="noopener noreferrer"
                                         size="sm"
@@ -59,7 +60,7 @@ export function ArtifactHeader(props: { artifact: ArtifactDetail; breadcrumb?: J
                     >
                         <Button
                             as="a"
-                            href={containerRegistryUrl(a().name)}
+                            href={safeHref(containerRegistryUrl(a().name))}
                             target="_blank"
                             rel="noopener noreferrer"
                             size="sm"

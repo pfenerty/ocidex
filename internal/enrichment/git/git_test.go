@@ -220,6 +220,15 @@ func TestEnricher_Enrich_Unresolved(t *testing.T) {
 	}{
 		{name: "empty revision", sourceURL: "https://github.com/owner/repo", revision: ""},
 		{name: "unparsable source URL", sourceURL: "", revision: "deadbeef"},
+		{name: "dot-dot repo", sourceURL: "https://github.com/owner/../users", revision: "deadbeef"},
+		{name: "dot-dot owner", sourceURL: "https://github.com/../repo", revision: "deadbeef"},
+		{name: "encoded dot-dot repo", sourceURL: "https://github.com/owner/%2e%2e", revision: "deadbeef"},
+		{name: "owner with query", sourceURL: "github.com/own?er/repo", revision: "deadbeef"},
+		{name: "revision with query", sourceURL: "https://github.com/owner/repo", revision: "deadbeef?x=1"},
+		{name: "revision with fragment", sourceURL: "https://github.com/owner/repo", revision: "deadbeef#x"},
+		{name: "revision with slash", sourceURL: "https://github.com/owner/repo", revision: "../../users/x"},
+		{name: "revision with encoded slash", sourceURL: "https://github.com/owner/repo", revision: "a%2Fb"},
+		{name: "revision dot-dot", sourceURL: "https://github.com/owner/repo", revision: "a..b"},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
@@ -252,6 +261,41 @@ func TestEnricher_Enrich_Unresolved(t *testing.T) {
 				t.Error("Reason is empty, want a reason string")
 			}
 		})
+	}
+}
+
+func TestEnricher_Enrich_RefRevision(t *testing.T) {
+	var gotPath string
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		gotPath = r.URL.EscapedPath()
+		w.Header().Set("Content-Type", "application/json")
+		_, _ = w.Write([]byte(testCommitJSON))
+	}))
+	defer srv.Close()
+
+	e := NewEnricher(
+		WithOCIDataReader(fakeOCIReader("https://github.com/my-org/my.repo_x", "v1.2.3", nil)),
+		WithHTTPClient(srv.Client()),
+	)
+	e.baseURL = srv.URL
+	if _, err := e.Enrich(context.Background(), enrichment.SubjectRef{Digest: "sha256:abc"}); err != nil {
+		t.Fatalf("Enrich() error = %v", err)
+	}
+	if want := "/repos/my-org/my.repo_x/commits/v1.2.3"; gotPath != want {
+		t.Errorf("request path = %q, want %q", gotPath, want)
+	}
+}
+
+func TestValidRevision(t *testing.T) {
+	for rev, want := range map[string]bool{
+		"deadbeef": true, "0123456789abcdef0123456789abcdef01234567": true,
+		"main": true, "v1.2.3": true, "release-1_0": true,
+		"": false, "a/b": false, "a..b": false, ".hidden": false, "-x": false,
+		"x?y": false, "x#y": false, "x%2Fy": false, "x y": false, "main.lock": false,
+	} {
+		if got := validRevision(rev); got != want {
+			t.Errorf("validRevision(%q) = %v, want %v", rev, got, want)
+		}
 	}
 }
 

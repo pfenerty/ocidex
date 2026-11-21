@@ -68,6 +68,57 @@ func TestClusterPushHistoryAndHealth(t *testing.T) {
 	is.NoErr(svc.RecordPush(ctx, "00000000-0000-0000-0000-000000000000", service.PushAttempt{Status: 401, Reason: "x"}))
 }
 
+// TestClusterPushFloodKeepsHistory: a flood of unauthenticated rejections
+// for a known cluster id folds into one history row, so the genuine agent's
+// last push stays visible.
+func TestClusterPushFloodKeepsHistory(t *testing.T) {
+	if testing.Short() {
+		t.Skip("skipping integration test in short mode")
+	}
+	requireTestInfra(t)
+
+	pool, cleanup := setupTestDB(t)
+	defer cleanup()
+
+	ctx := t.Context()
+	is := is.New(t)
+	svc := service.NewClusterService(pool, nil)
+
+	owner := seedUser(t, pool, 9032, "flood-owner", "member")
+	nsID := seedNamespace(t, pool, "flood-ns", owner, "private")
+	clusterID := seedCluster(t, pool, nsID, "prod")
+
+	// The genuine agent: one failure it caused, then an accepted push.
+	is.NoErr(svc.RecordPush(ctx, clusterID, service.PushAttempt{Status: 422, Reason: "snapshot failed validation"}))
+	n := int32(3)
+	is.NoErr(svc.RecordPush(ctx, clusterID, service.PushAttempt{Accepted: true, Status: 200, Workloads: &n, AgentVersion: "v1"}))
+
+	const anon = "The agent's API key was not accepted: it was revoked, rotated or mistyped."
+	for range 1000 {
+		is.NoErr(svc.RecordPush(ctx, clusterID, service.PushAttempt{Status: 401, Reason: anon, Unauthenticated: true}))
+	}
+
+	pushes, err := svc.ListPushes(ctx, clusterID, 50)
+	is.NoErr(err)
+	is.Equal(len(pushes), 3) // one folded anonymous row, then both genuine ones
+	is.Equal(pushes[0].Reason, anon)
+	is.True(pushes[1].Accepted)
+	is.Equal(pushes[1].AgentVersion, "v1")
+	is.Equal(pushes[2].Reason, "snapshot failed validation")
+
+	// The rejection still reaches the cluster's health, as a revoked key must.
+	c, err := svc.Get(ctx, clusterID)
+	is.NoErr(err)
+	is.Equal(c.Health(time.Now()).State, service.HealthErroring)
+
+	// A genuine push breaks the run; the next anonymous rejection is a new row.
+	is.NoErr(svc.RecordPush(ctx, clusterID, service.PushAttempt{Accepted: true, Status: 200, Workloads: &n}))
+	is.NoErr(svc.RecordPush(ctx, clusterID, service.PushAttempt{Status: 401, Reason: anon, Unauthenticated: true}))
+	pushes, err = svc.ListPushes(ctx, clusterID, 50)
+	is.NoErr(err)
+	is.Equal(len(pushes), 5)
+}
+
 // TestClusterPauseAndResume pins ocidex-70eo.9: pausing is reported as its own
 // state, and resuming clears the refusals the pause itself caused.
 func TestClusterPauseAndResume(t *testing.T) {

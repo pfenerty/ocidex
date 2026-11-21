@@ -122,8 +122,8 @@ A variable marked **required** stops the process at startup when it is missing.
 
 | Variable | Default | Description |
 | --- | --- | --- |
-| <code>EGRESS_<wbr>ALLOW_<wbr>PRIVATE</code> | `false` | Allow private addresses: `10/8`, `172.16/12`, `192.168/16`, `100.64/10` (CGNAT), `fc00::/7`. Needed to scan a registry inside the cluster or LAN; prefer `EGRESS_ALLOW_CIDRS` naming just that host. |
-| <code>EGRESS_<wbr>ALLOW_<wbr>CIDRS</code> | — | Comma-separated CIDRs (or bare IPs) always reachable. The only way to reach loopback, link-local (`169.254/16`, including cloud metadata) or multicast, which are otherwise always refused. |
+| <code>EGRESS_<wbr>ALLOW_<wbr>PRIVATE</code> | `false` | Allow private addresses: `10/8`, `172.16/12`, `192.168/16`, `100.64/10` (CGNAT), `198.18/15`, `fc00::/7`, and the NAT64 local-use prefix `64:ff9b:1::/48`. This opens everything on the cluster network too (the Kubernetes API, Postgres, NATS, OCIDex's own pods). Prefer `EGRESS_ALLOW_CIDRS` naming just the registry. |
+| <code>EGRESS_<wbr>ALLOW_<wbr>CIDRS</code> | — | Comma-separated CIDRs (or bare IPs) always reachable. The preferred way to reach an in-cluster or LAN registry. Also the only way to reach the always-refused ranges: loopback, link-local (`169.254/16`, including cloud metadata), multicast, reserved and IETF-assigned IPv4 ranges, and Teredo. |
 | <code>EGRESS_<wbr>DENY_<wbr>CIDRS</code> | — | Comma-separated CIDRs refused in addition to the built-in ranges, e.g. the cluster's service CIDR when `EGRESS_ALLOW_PRIVATE=true`. An allow entry still wins. |
 
 ## Provenance Reverification

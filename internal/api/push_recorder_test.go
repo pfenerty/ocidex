@@ -33,29 +33,31 @@ func TestRecordInventoryPushes(t *testing.T) {
 		status     int
 		body       string
 		bound      string
+		authed     bool
 		wantCount  int
 		wantReason string
 	}{
-		{"accepted push is left to the handler", http.MethodPost, "/api/v1/clusters/" + pushCluster + "/inventory", 200, `{}`, "", 0, ""},
-		{"other routes ignored", http.MethodPost, "/api/v1/sboms", 401, `{}`, "", 0, ""},
-		{"bad key", http.MethodPost, "/api/v1/clusters/" + pushCluster + "/inventory", 401, `{"detail":"not authenticated"}`, "", 1,
+		{"accepted push is left to the handler", http.MethodPost, "/api/v1/clusters/" + pushCluster + "/inventory", 200, `{}`, "", false, 0, ""},
+		{"other routes ignored", http.MethodPost, "/api/v1/sboms", 401, `{}`, "", false, 0, ""},
+		{"bad key", http.MethodPost, "/api/v1/clusters/" + pushCluster + "/inventory", 401, `{"detail":"not authenticated"}`, "", false, 1,
 			"The agent's API key was not accepted: it was revoked, rotated or mistyped."},
-		{"missing capability", http.MethodPost, "/api/v1/clusters/" + pushCluster + "/inventory", 403, `{"detail":"missing push_inventory"}`, "", 1,
+		{"missing capability", http.MethodPost, "/api/v1/clusters/" + pushCluster + "/inventory", 403, `{"detail":"missing push_inventory"}`, "", true, 1,
 			"The agent's key may not push here: missing push_inventory"},
 		{"validation", http.MethodPost, "/api/v1/clusters/" + pushCluster + "/inventory", 422,
-			`{"detail":"validation failed","errors":[{"message":"expected string","location":"body.workloads[0].imageRef"}]}`, "", 1,
+			`{"detail":"validation failed","errors":[{"message":"expected string","location":"body.workloads[0].imageRef"}]}`, "", true, 1,
 			"The snapshot failed validation: validation failed; body.workloads[0].imageRef expected string"},
-		{"oversized", http.MethodPost, "/api/v1/clusters/" + pushCluster + "/inventory", 413, ``, "", 1,
+		{"oversized", http.MethodPost, "/api/v1/clusters/" + pushCluster + "/inventory", 413, ``, "", false, 1,
 			"The snapshot was larger than the server accepts."},
-		{"credential for another cluster", http.MethodPost, "/api/v1/clusters/22e457b6-3338-4526-8af3-66435dd9eb1a/inventory", 403, `{}`, pushCluster, 2, ""},
+		{"credential for another cluster", http.MethodPost, "/api/v1/clusters/22e457b6-3338-4526-8af3-66435dd9eb1a/inventory", 403, `{}`, pushCluster, true, 2, ""},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			is := is.New(t)
 			rec := &fakeRecorder{}
 			inner := http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-				if tt.bound != "" {
-					notePushFromContext(r.Context()).boundClusterID = tt.bound
+				if note := notePushFromContext(r.Context()); note != nil {
+					note.authenticated = tt.authed || tt.bound != ""
+					note.boundClusterID = tt.bound
 				}
 				w.WriteHeader(tt.status)
 				_, _ = w.Write([]byte(tt.body))
@@ -70,6 +72,7 @@ func TestRecordInventoryPushes(t *testing.T) {
 				is.Equal(rec.got[0].cluster, pushCluster)
 				is.Equal(rec.got[0].attempt.Reason, tt.wantReason)
 				is.Equal(rec.got[0].attempt.Accepted, false)
+				is.Equal(rec.got[0].attempt.Unauthenticated, !tt.authed)
 			}
 			if tt.bound != "" {
 				is.Equal(rec.got[0].cluster, tt.bound)

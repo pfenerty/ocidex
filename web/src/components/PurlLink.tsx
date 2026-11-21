@@ -1,6 +1,7 @@
 import { Show } from "solid-js";
 import "./PurlLink.css";
 import { purlToRegistryUrl, purlTypeLabel, purlDisplayName } from "~/utils/purl";
+import { safeHref } from "~/utils/links";
 
 /** Renders a PURL as an external link to the appropriate package registry. */
 export default function PurlLink(props: { purl: string; showBadge?: boolean }) {
@@ -18,7 +19,7 @@ export default function PurlLink(props: { purl: string; showBadge?: boolean }) {
       >
         {(u) => (
         <a
-          href={u()}
+          href={safeHref(u())}
           target="_blank"
           rel="noopener noreferrer"
           class="font-mono text-sm"

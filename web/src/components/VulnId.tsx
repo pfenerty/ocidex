@@ -1,6 +1,7 @@
 import { Show } from "solid-js";
 import { A } from "@solidjs/router";
 import { aliasUrl } from "~/utils/vuln";
+import { safeHref } from "~/utils/links";
 
 interface VulnIdProps {
     canonicalId: string;
@@ -33,7 +34,7 @@ export function VulnIdExternal(props: VulnIdProps) {
     return (
         <span class="font-mono">
             <a
-                href={aliasUrl(canonical())}
+                href={safeHref(aliasUrl(canonical()))}
                 target="_blank"
                 rel="noopener noreferrer"
                 class="text-sm"
