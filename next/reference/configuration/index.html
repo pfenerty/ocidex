@@ -448,12 +448,12 @@ binary yourself.</p>
 <tr>
 <td><code>EGRESS_<wbr>ALLOW_<wbr>PRIVATE</code></td>
 <td><code dir="auto">false</code></td>
-<td>Allow private addresses: <code dir="auto">10/8</code>, <code dir="auto">172.16/12</code>, <code dir="auto">192.168/16</code>, <code dir="auto">100.64/10</code> (CGNAT), <code dir="auto">fc00::/7</code>. Needed to scan a registry inside the cluster or LAN; prefer <code dir="auto">EGRESS_ALLOW_CIDRS</code> naming just that host.</td>
+<td>Allow private addresses: <code dir="auto">10/8</code>, <code dir="auto">172.16/12</code>, <code dir="auto">192.168/16</code>, <code dir="auto">100.64/10</code> (CGNAT), <code dir="auto">198.18/15</code>, <code dir="auto">fc00::/7</code>, and the NAT64 local-use prefix <code dir="auto">64:ff9b:1::/48</code>. This opens everything on the cluster network too (the Kubernetes API, Postgres, NATS, OCIDex’s own pods). Prefer <code dir="auto">EGRESS_ALLOW_CIDRS</code> naming just the registry.</td>
 </tr>
 <tr>
 <td><code>EGRESS_<wbr>ALLOW_<wbr>CIDRS</code></td>
 <td>—</td>
-<td>Comma-separated CIDRs (or bare IPs) always reachable. The only way to reach loopback, link-local (<code dir="auto">169.254/16</code>, including cloud metadata) or multicast, which are otherwise always refused.</td>
+<td>Comma-separated CIDRs (or bare IPs) always reachable. The preferred way to reach an in-cluster or LAN registry. Also the only way to reach the always-refused ranges: loopback, link-local (<code dir="auto">169.254/16</code>, including cloud metadata), multicast, reserved and IETF-assigned IPv4 ranges, and Teredo.</td>
 </tr>
 <tr>
 <td><code>EGRESS_<wbr>DENY_<wbr>CIDRS</code></td>
