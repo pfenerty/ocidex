@@ -3,6 +3,7 @@ package api_test
 import (
 	"context"
 	"errors"
+	"fmt"
 	"net/http"
 	"net/http/httptest"
 	"testing"
@@ -123,6 +124,9 @@ func (f *fakeRegistryService) TrustSummary(_ context.Context, _ service.Visibili
 
 type fakeAuthService struct {
 	users map[string]service.AuthUser
+	// validateErr, when set, is what ValidateAPIKey returns for a token not
+	// in users, in place of an ErrNotFound.
+	validateErr error
 	// grants maps a user's string ID to that user's namespace roles. It is
 	// keyed by user rather than baked into the AuthUser because the real
 	// OptionalAuthenticate resolves grants per request rather than reading
@@ -151,7 +155,10 @@ func (f *fakeAuthService) ValidateAPIKey(_ context.Context, token string) (servi
 	if u, ok := f.users[token]; ok {
 		return u, nil
 	}
-	return service.AuthUser{}, errors.New("invalid token")
+	if f.validateErr != nil {
+		return service.AuthUser{}, f.validateErr
+	}
+	return service.AuthUser{}, fmt.Errorf("invalid token: %w", service.ErrNotFound)
 }
 
 func (f *fakeAuthService) ProviderNames() []string { return []string{"github"} }
@@ -177,7 +184,7 @@ func (f *fakeAuthService) CreateSession(_ context.Context, _ pgtype.UUID) (strin
 }
 
 func (f *fakeAuthService) ValidateSession(_ context.Context, _ string) (service.AuthUser, error) {
-	return service.AuthUser{}, errors.New("not implemented")
+	return service.AuthUser{}, fmt.Errorf("no sessions: %w", service.ErrNotFound)
 }
 
 func (f *fakeAuthService) DeleteSession(_ context.Context, _ string) error {
@@ -511,6 +518,39 @@ func TestClusterCredentialConfinedToItsInventoryPush(t *testing.T) {
 			handler.ServeHTTP(w, r)
 			is.Equal(w.Code, tt.want)
 			is.Equal(reached, tt.want == http.StatusOK)
+		})
+	}
+}
+
+// An unknown credential continues anonymously; a credential that could not be
+// checked (a database fault) is a 503, not a 401 (ocidex-n1z4.4).
+func TestOptionalAuthenticateCredentialLookupFault(t *testing.T) {
+	tests := []struct {
+		name        string
+		validateErr error
+		want        int
+		reached     bool
+	}{
+		{"unknown key", nil, http.StatusOK, true},
+		{"database fault", errors.New("connection refused"), http.StatusServiceUnavailable, false},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			is := is.New(t)
+			reached := false
+			handler := api.OptionalAuthenticate(&fakeAuthService{validateErr: tt.validateErr})(
+				http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+					reached = true
+					_, ok := api.UserFromContext(r.Context())
+					is.True(!ok) // anonymous
+					w.WriteHeader(http.StatusOK)
+				}))
+			r := httptest.NewRequest(http.MethodGet, "/api/v1/artifacts", nil)
+			r.Header.Set("Authorization", "Bearer nope")
+			w := httptest.NewRecorder()
+			handler.ServeHTTP(w, r)
+			is.Equal(w.Code, tt.want)
+			is.Equal(reached, tt.reached)
 		})
 	}
 }

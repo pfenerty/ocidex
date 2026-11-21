@@ -277,13 +277,36 @@ func TestValidateSession_NotFound(t *testing.T) {
 	is := is.New(t)
 	repo := &fakeAuthRepo{
 		getSessionFn: func(_ context.Context, _ string) (repository.GetSessionByTokenHashRow, error) {
-			return repository.GetSessionByTokenHashRow{}, errors.New("no rows")
+			return repository.GetSessionByTokenHashRow{}, pgx.ErrNoRows
 		},
 	}
 	svc := newTestAuthService(repo)
 
 	_, err := svc.ValidateSession(context.Background(), "bad-token")
-	is.True(err != nil)
+	is.True(errors.Is(err, ErrNotFound))
+}
+
+// A lookup failure other than "no rows" is a server fault, not an unknown
+// credential (ocidex-n1z4.4).
+func TestValidateCredential_DBErrorIsNotNotFound(t *testing.T) {
+	is := is.New(t)
+	dbErr := errors.New("connection refused")
+	repo := &fakeAuthRepo{
+		getSessionFn: func(_ context.Context, _ string) (repository.GetSessionByTokenHashRow, error) {
+			return repository.GetSessionByTokenHashRow{}, dbErr
+		},
+		getAPIKeyByHashFn: func(_ context.Context, _ string) (repository.GetAPIKeyByHashRow, error) {
+			return repository.GetAPIKeyByHashRow{}, dbErr
+		},
+	}
+	svc := newTestAuthService(repo)
+
+	_, err := svc.ValidateSession(context.Background(), "tok")
+	is.True(errors.Is(err, dbErr))
+	is.True(!errors.Is(err, ErrNotFound))
+	_, err = svc.ValidateAPIKey(context.Background(), "ocidex_k")
+	is.True(errors.Is(err, dbErr))
+	is.True(!errors.Is(err, ErrNotFound))
 }
 
 func TestValidateSession_HashesToken(t *testing.T) {
@@ -371,13 +394,13 @@ func TestValidateAPIKey_NotFound(t *testing.T) {
 	is := is.New(t)
 	repo := &fakeAuthRepo{
 		getAPIKeyByHashFn: func(_ context.Context, _ string) (repository.GetAPIKeyByHashRow, error) {
-			return repository.GetAPIKeyByHashRow{}, errors.New("not found")
+			return repository.GetAPIKeyByHashRow{}, pgx.ErrNoRows
 		},
 	}
 	svc := newTestAuthService(repo)
 
 	_, err := svc.ValidateAPIKey(context.Background(), "ocidex_wrong")
-	is.True(err != nil)
+	is.True(errors.Is(err, ErrNotFound))
 }
 
 func TestValidateAPIKey_HashesKey(t *testing.T) {

@@ -46,8 +46,12 @@ func (h *Handler) finishIdentityLink(
 		return
 	}
 	user, err := h.authService.ValidateSession(r.Context(), sessionCookie.Value)
-	if err != nil {
+	if errors.Is(err, service.ErrNotFound) {
 		http.Error(w, "not authenticated", http.StatusUnauthorized)
+		return
+	}
+	if err != nil {
+		http.Error(w, "credentials could not be checked", http.StatusServiceUnavailable)
 		return
 	}
 	if uuid.UUID(user.ID.Bytes).String() != stateData["user_id"] {

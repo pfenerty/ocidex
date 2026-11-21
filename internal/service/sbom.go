@@ -270,14 +270,8 @@ func (s *sbomService) Ingest(ctx context.Context, bom *cdx.BOM, rawJSON []byte, 
 		return pgtype.UUID{}, err
 	}
 
-	// Validate container digests before starting the transaction.
-	// This makes a network call to the registry, so it runs outside the tx.
-	if err := s.validateContainerDigest(ctx, bom, params); err != nil {
-		return pgtype.UUID{}, err
-	}
-
-	if existing, ok := s.existingByDigest(ctx, namespaceID, bom, params); ok {
-		return existing, nil
+	if existing, ok, err := s.preflight(ctx, namespaceID, bom, params); err != nil || ok {
+		return existing, err
 	}
 
 	// Go symbols are stored relationally, not inside raw_bom (ADR-050).
@@ -327,7 +321,7 @@ func (s *sbomService) Ingest(ctx context.Context, bom *cdx.BOM, rawJSON []byte, 
 		IndexDigest:    pgtype.Text{String: params.IndexDigest, Valid: params.IndexDigest != ""},
 	})
 	if err != nil {
-		return pgtype.UUID{}, insertSBOMError(err)
+		return s.insertSBOMConflict(ctx, tx, namespaceID, bom, params, err)
 	}
 
 	slog.InfoContext(ctx, "persisting sbom",
@@ -375,27 +369,63 @@ func insertSBOMError(err error) error {
 	return fmt.Errorf("inserting sbom: %w", err)
 }
 
+// preflight runs ingest's checks that need no transaction: it validates the
+// container digest against the registry (a network call, so kept out of the
+// tx), then reports an SBOM this namespace already stored for the digest.
+func (s *sbomService) preflight(ctx context.Context, namespaceID pgtype.UUID, bom *cdx.BOM, params IngestParams) (pgtype.UUID, bool, error) {
+	if err := s.validateContainerDigest(ctx, bom, params); err != nil {
+		return pgtype.UUID{}, false, err
+	}
+	return s.existingByDigest(ctx, namespaceID, bom, params)
+}
+
+// insertSBOMConflict handles an InsertSBOM failure. A unique violation on the
+// digest means a concurrent ingest of the same SBOM won the race past
+// existingByDigest: the ingest is idempotent, so answer with the winner's id
+// rather than a conflict. Any other unique violation (the same serial
+// number/version on a different digest) stays a conflict.
+func (s *sbomService) insertSBOMConflict(ctx context.Context, tx pgx.Tx, namespaceID pgtype.UUID, bom *cdx.BOM, params IngestParams, err error) (pgtype.UUID, error) {
+	if !isUniqueViolation(err) {
+		return pgtype.UUID{}, insertSBOMError(err)
+	}
+	// The aborted transaction holds a pool connection; release it before the
+	// lookup takes another.
+	_ = tx.Rollback(ctx)
+	existing, ok, lerr := s.existingByDigest(ctx, namespaceID, bom, params)
+	if lerr != nil {
+		return pgtype.UUID{}, lerr
+	}
+	if ok {
+		return existing, nil
+	}
+	return pgtype.UUID{}, insertSBOMError(err)
+}
+
 // existingByDigest is ingest's idempotency check: the SBOM the ingesting
 // namespace already stored for this digest, if any. Another namespace's SBOM for
 // the same digest is never returned: each namespace keeps its own. A declared
 // digest wins — an upload's digest lives nowhere
 // in the BOM, and missing it here would defer duplicate detection to the UNIQUE
 // index, i.e. until after a full transaction and component decomposition
-// (ADR-040). Lookup errors other than "no rows" are ignored; the UNIQUE index is
-// the backstop.
-func (s *sbomService) existingByDigest(ctx context.Context, namespaceID pgtype.UUID, bom *cdx.BOM, params IngestParams) (pgtype.UUID, bool) {
+// (ADR-040). Only "no rows" means "not a duplicate"; any other lookup error is
+// returned, since proceeding would make a registry call and a full insert that
+// the UNIQUE index then rejects.
+func (s *sbomService) existingByDigest(ctx context.Context, namespaceID pgtype.UUID, bom *cdx.BOM, params IngestParams) (pgtype.UUID, bool, error) {
 	digest := resolveIngestDigest(bom, params)
 	if digest == "" || !namespaceID.Valid {
-		return pgtype.UUID{}, false
+		return pgtype.UUID{}, false, nil
 	}
 	existing, err := repository.New(s.pool).GetSBOMByNamespaceDigest(ctx, repository.GetSBOMByNamespaceDigestParams{
 		NamespaceID: namespaceID, Digest: digest,
 	})
+	if errors.Is(err, pgx.ErrNoRows) {
+		return pgtype.UUID{}, false, nil
+	}
 	if err != nil {
-		return pgtype.UUID{}, false
+		return pgtype.UUID{}, false, fmt.Errorf("checking for an existing sbom: %w", err)
 	}
 	slog.InfoContext(ctx, "skipping duplicate sbom ingestion", "digest", digest, "existing_id", existing)
-	return existing, true
+	return existing, true, nil
 }
 
 // validateContainerRequired returns a ValidationError if a container SBOM is missing

@@ -477,7 +477,7 @@ func (s *authService) CreateSession(ctx context.Context, userID pgtype.UUID) (st
 func (s *authService) ValidateSession(ctx context.Context, token string) (AuthUser, error) {
 	row, err := s.repo.GetSessionByTokenHash(ctx, sha256hex(token))
 	if err != nil {
-		return AuthUser{}, fmt.Errorf("session not found: %w", err)
+		return AuthUser{}, credentialLookupError("session", err)
 	}
 	return AuthUser{
 		ID:          row.UserID,
@@ -580,10 +580,21 @@ func newAPIKeyMaterial() (plaintext, hash, prefix string, err error) {
 	return plaintext, sha256hex(plaintext), prefix, nil
 }
 
+// credentialLookupError maps a failed credential lookup. Only "no rows" means
+// the credential is unknown (ErrNotFound, which callers answer with 401);
+// anything else is a server fault, and must not reach the caller as a 401 that
+// sends operators debugging credentials during a database outage.
+func credentialLookupError(what string, err error) error {
+	if errors.Is(err, pgx.ErrNoRows) {
+		return fmt.Errorf("%s not found: %w", what, ErrNotFound)
+	}
+	return fmt.Errorf("looking up %s: %w", what, err)
+}
+
 func (s *authService) ValidateAPIKey(ctx context.Context, rawKey string) (AuthUser, error) {
 	row, err := s.repo.GetAPIKeyByHash(ctx, sha256hex(rawKey))
 	if err != nil {
-		return AuthUser{}, fmt.Errorf("api key not found: %w", err)
+		return AuthUser{}, credentialLookupError("api key", err)
 	}
 	s.touchLastUsed(ctx, row.ID, row.LastUsedAt)
 	// An unknown capability string on the row is dropped rather than rejected:

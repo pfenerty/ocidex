@@ -3,6 +3,7 @@ package api_test
 import (
 	"context"
 	"errors"
+	"fmt"
 	"net/http"
 	"net/http/httptest"
 	"strings"
@@ -53,7 +54,7 @@ func (f *sessionAuthService) ValidateSession(_ context.Context, token string) (s
 	if u, ok := f.sessions[token]; ok {
 		return u, nil
 	}
-	return service.AuthUser{}, errors.New("invalid session")
+	return service.AuthUser{}, fmt.Errorf("invalid session: %w", service.ErrNotFound)
 }
 
 func personaID(b byte) pgtype.UUID {
