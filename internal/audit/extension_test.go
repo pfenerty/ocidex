@@ -142,3 +142,78 @@ func TestExtension_Name(t *testing.T) {
 	ext := audit.NewExtension(slog.Default())
 	is.Equal(ext.Name(), "audit")
 }
+
+// actorOf returns the "actor" group of the single audit record a publish
+// under ctx produces, as key → value (ocidex-n9na).
+func actorOf(t *testing.T, ctx context.Context, typ event.Type, data any) map[string]string {
+	t.Helper()
+	is := is.New(t)
+	handler := &capturingHandler{}
+	logger := slog.New(handler)
+	bus := event.NewBus(logger)
+	is.NoErr(audit.NewExtension(logger).Init(bus))
+
+	bus.Publish(ctx, typ, data)
+
+	handler.mu.Lock()
+	defer handler.mu.Unlock()
+	is.Equal(len(handler.records), 1)
+	group, ok := attrMap(handler.records[0])["actor"].([]slog.Attr)
+	is.True(ok) // every audit line carries an actor group
+	out := map[string]string{}
+	for _, a := range group {
+		out[a.Key] = a.Value.String()
+	}
+	return out
+}
+
+func TestExtension_Actor(t *testing.T) {
+	sbomID := pgtype.UUID{Bytes: [16]byte{1}, Valid: true}
+	userID := pgtype.UUID{Bytes: [16]byte{4}, Valid: true}
+	deleted := event.SBOMDeletedData{SBOMID: sbomID}
+
+	tests := []struct {
+		name string
+		ctx  context.Context
+		typ  event.Type
+		data any
+		want map[string]string
+	}{
+		{
+			name: "user by API key",
+			ctx:  event.WithActor(context.Background(), event.Actor{Kind: event.ActorUser, ID: "u1", APIKeyID: "k1"}),
+			typ:  event.SBOMDeleted, data: deleted,
+			want: map[string]string{"kind": "user", "id": "u1", "api_key_id": "k1"},
+		},
+		{
+			name: "user by session",
+			ctx:  event.WithActor(context.Background(), event.Actor{Kind: event.ActorUser, ID: "u1"}),
+			typ:  event.SBOMDeleted, data: deleted,
+			want: map[string]string{"kind": "user", "id": "u1"},
+		},
+		{
+			name: "system component",
+			ctx:  event.WithActor(context.Background(), event.SystemActor("retention")),
+			typ:  event.SBOMDeleted, data: deleted,
+			want: map[string]string{"kind": "system", "id": "retention"},
+		},
+		{
+			name: "no actor is anonymous",
+			ctx:  context.Background(),
+			typ:  event.SBOMDeleted, data: deleted,
+			want: map[string]string{"kind": "anonymous"},
+		},
+		{
+			name: "login is attributed to the user signing in",
+			ctx:  context.Background(),
+			typ:  event.UserLoggedIn, data: event.UserLoggedInData{UserID: userID},
+			want: map[string]string{"kind": "user", "id": "04000000-0000-0000-0000-000000000000"},
+		},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			is := is.New(t)
+			is.Equal(actorOf(t, tt.ctx, tt.typ, tt.data), tt.want)
+		})
+	}
+}

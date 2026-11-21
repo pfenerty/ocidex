@@ -91,6 +91,11 @@ func (e *Extension) handleUserLoggedIn(ctx context.Context, ev event.Event) {
 		e.logger.Error("audit: unexpected data type for user.logged_in")
 		return
 	}
+	// The session is created by this very request, so the middleware had no
+	// user to attribute it to: the actor is the user signing in.
+	if _, ok := event.ActorFromContext(ctx); !ok {
+		ctx = event.WithActor(ctx, event.Actor{Kind: event.ActorUser, ID: uuidToString(data.UserID)})
+	}
 	e.record(ctx, string(event.UserLoggedIn), "user", data.UserID, data)
 }
 
@@ -108,8 +113,27 @@ func (e *Extension) record(ctx context.Context, eventType, resourceType string, 
 		"event_type", eventType,
 		"resource_type", resourceType,
 		"resource_id", uuidToString(resourceID),
+		actorAttr(ctx),
 		"metadata", payload,
 	)
+}
+
+// actorAttr is the "actor" group naming who caused the event (ocidex-n9na).
+// An event published with no actor on ctx came from a request without valid
+// credentials, so it is logged as anonymous rather than dropped.
+func actorAttr(ctx context.Context) slog.Attr {
+	a, ok := event.ActorFromContext(ctx)
+	if !ok {
+		a = event.Actor{Kind: event.ActorAnonymous}
+	}
+	attrs := []slog.Attr{slog.String("kind", string(a.Kind))}
+	if a.ID != "" {
+		attrs = append(attrs, slog.String("id", a.ID))
+	}
+	if a.APIKeyID != "" {
+		attrs = append(attrs, slog.String("api_key_id", a.APIKeyID))
+	}
+	return slog.Attr{Key: "actor", Value: slog.GroupValue(attrs...)}
 }
 
 func uuidToString(u pgtype.UUID) string {

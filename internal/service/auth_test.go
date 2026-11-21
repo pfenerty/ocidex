@@ -388,6 +388,7 @@ func TestValidateAPIKey_Valid(t *testing.T) {
 	is.NoErr(err)
 	is.Equal(user.DisplayName, "bob")
 	is.Equal(user.Role, "admin")
+	is.Equal(user.APIKeyID, "03000000-0000-0000-0000-000000000000") // the audit actor's key (ocidex-n9na)
 }
 
 func TestValidateAPIKey_NotFound(t *testing.T) {

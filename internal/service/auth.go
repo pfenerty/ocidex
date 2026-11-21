@@ -34,6 +34,10 @@ type AuthUser struct {
 	// APIKeyAuth reports whether this request was authenticated by an API key
 	// rather than by a session cookie.
 	APIKeyAuth bool
+	// APIKeyID is the ID of the key that authenticated this request, empty
+	// for a session. The audit log records it as the actor's key
+	// (ocidex-n9na).
+	APIKeyID string
 	// APIKeyCaps is the capability ceiling declared on that key. It is only
 	// ever a ceiling: what the caller may actually do is this set INTERSECTED
 	// with their live namespace roles, which is what makes a demotion narrow
@@ -611,6 +615,7 @@ func (s *authService) ValidateAPIKey(ctx context.Context, rawKey string) (AuthUs
 		DisplayName: displayName(row.DisplayName),
 		Role:        row.Role,
 		APIKeyAuth:  true,
+		APIKeyID:    uuidToStr(row.ID),
 		APIKeyCaps:  caps,
 		// Empty for an ordinary key. Set, it confines the key to pushing
 		// this one cluster's inventory (ocidex-70eo.5).

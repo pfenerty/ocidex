@@ -385,7 +385,7 @@ func startRetention(ctx context.Context, cfg *config.Config, pool, bgPool *pgxpo
 	}
 	sweeper := service.NewRetentionSweeper(service.NewRetentionService(bgPool), policy,
 		cfg.RetentionMode == config.RetentionDryRun, cfg.RetentionInterval, cfg.RetentionBatch, logger).
-		WithPublisher(bus).
+		WithPublisher(event.WithDefaultActor(bus, event.SystemActor("retention"))).
 		WithMetrics(mp)
 	h := fnv.New64a()
 	h.Write([]byte(service.RetentionLockName))

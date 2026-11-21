@@ -13,6 +13,7 @@ import (
 	"github.com/jackc/pgx/v5/pgtype"
 
 	"github.com/pfenerty/ocidex/internal/authz"
+	"github.com/pfenerty/ocidex/internal/event"
 	"github.com/pfenerty/ocidex/internal/service"
 )
 
@@ -133,9 +134,16 @@ func OptionalAuthenticate(authSvc service.AuthService) func(http.Handler) http.H
 
 			ctx := context.WithValue(r.Context(), ctxKeyUser{}, user)
 			ctx = context.WithValue(ctx, ctxKeyAuthMethod{}, method)
+			ctx = event.WithActor(ctx, actorFor(user))
 			next.ServeHTTP(w, r.WithContext(ctx))
 		})
 	}
+}
+
+// actorFor is the audit actor for an authenticated caller: the user, and the
+// key when the request came in on one (ocidex-n9na).
+func actorFor(user service.AuthUser) event.Actor {
+	return event.Actor{Kind: event.ActorUser, ID: uuidToStr(user.ID), APIKeyID: user.APIKeyID}
 }
 
 // clusterCredentialRoute reports whether r is the one request a credential

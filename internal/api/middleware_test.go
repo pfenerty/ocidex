@@ -14,6 +14,7 @@ import (
 
 	"github.com/pfenerty/ocidex/internal/api"
 	"github.com/pfenerty/ocidex/internal/authz"
+	"github.com/pfenerty/ocidex/internal/event"
 	"github.com/pfenerty/ocidex/internal/service"
 )
 
@@ -553,4 +554,26 @@ func TestOptionalAuthenticateCredentialLookupFault(t *testing.T) {
 			is.Equal(reached, tt.reached)
 		})
 	}
+}
+
+// An authenticated request carries its audit actor: the user, and the key when
+// it came in on one (ocidex-n9na).
+func TestOptionalAuthenticateSetsAuditActor(t *testing.T) {
+	is := is.New(t)
+	userID := pgtype.UUID{Bytes: [16]byte{2}, Valid: true}
+	svc := &fakeAuthService{users: map[string]service.AuthUser{
+		"good": {ID: userID, Role: "member", APIKeyAuth: true, APIKeyID: "k1"},
+	}}
+	var got event.Actor
+	var ok bool
+	handler := api.OptionalAuthenticate(svc)(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		got, ok = event.ActorFromContext(r.Context())
+		w.WriteHeader(http.StatusOK)
+	}))
+	r := httptest.NewRequest(http.MethodGet, "/api/v1/artifacts", nil)
+	r.Header.Set("Authorization", "Bearer good")
+	handler.ServeHTTP(httptest.NewRecorder(), r)
+
+	is.True(ok)
+	is.Equal(got, event.Actor{Kind: event.ActorUser, ID: "02000000-0000-0000-0000-000000000000", APIKeyID: "k1"})
 }

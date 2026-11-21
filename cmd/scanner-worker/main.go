@@ -38,6 +38,11 @@ import (
 // slightly larger threshold so a still-active scan is not preempted.
 const scanTimeout = 9 * time.Minute
 
+// scannerActor is the audit actor for the SBOMs this process ingests: a scan
+// runs off a queued job, not a request, so no user is on the ctx
+// (ocidex-n9na).
+var scannerActor = event.SystemActor("scanner-worker")
+
 func main() {
 	if err := run(); err != nil {
 		slog.Error("fatal", "err", err)
@@ -113,7 +118,7 @@ func run() error {
 	// The scan_jobs row is the source of truth; NATS hints are a latency hint
 	// and the DB poll loop is the fallback when hints are lost.
 	jobSvc := service.NewJobService(pool, cfg.SecretBox)
-	scannerSbomSvc := service.NewSBOMService(pool, bus, nil)
+	scannerSbomSvc := service.NewSBOMService(pool, event.WithDefaultActor(bus, scannerActor), nil)
 	sc := engine.NewSyftScanner(logger, cfg.ScannerGoSymbols)
 	dispatcher := engine.NewDispatcher(sc, scannerSbomSvc, cfg.ScannerMaxImageBytes, cfg.EgressPolicy, logger)
 
@@ -215,7 +220,7 @@ func runOnce(ctx context.Context, pool *pgxpool.Pool, natsClient *natspkg.Client
 
 	logger := slog.Default()
 	bus := event.NewBus(logger)
-	sbomSvc := service.NewSBOMService(pool, bus, nil)
+	sbomSvc := service.NewSBOMService(pool, event.WithDefaultActor(bus, scannerActor), nil)
 	sc := engine.NewSyftScanner(logger, cfg.ScannerGoSymbols)
 
 	// Wired before ingest so the synchronous SBOMIngested event reaches them —

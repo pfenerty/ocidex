@@ -80,7 +80,7 @@ for as long as your audit policy requires, which is usually longer than ordinary
 Every audit line has `"msg":"audit"`:
 
 ```json
-{"time":"2026-11-20T14:03:11Z","level":"INFO","msg":"audit","event_type":"sbom.ingested","resource_type":"sbom","resource_id":"0b7e…","metadata":{"SBOMID":"0b7e…","ArtifactType":"container","ArtifactName":"ghcr.io/acme/api","Digest":"sha256:…","SubjectVersion":"1.4.2","Architecture":"amd64","BuildDate":"…"}}
+{"time":"2026-11-20T14:03:11Z","level":"INFO","msg":"audit","event_type":"sbom.ingested","resource_type":"sbom","resource_id":"0b7e…","actor":{"kind":"user","id":"5c1d…","api_key_id":"9f20…"},"metadata":{"SBOMID":"0b7e…","ArtifactType":"container","ArtifactName":"ghcr.io/acme/api","Digest":"sha256:…","SubjectVersion":"1.4.2","Architecture":"amd64","BuildDate":"…"}}
 ```
 
 | `event_type` | `resource_type` | Written when |
@@ -90,6 +90,16 @@ Every audit line has `"msg":"audit"`:
 | `artifact.deleted` | `artifact` | An artifact and its SBOMs are deleted. |
 | `user.logged_in`, `user.logged_out` | `user` | A session starts or ends. |
 | `retention.swept` | `sbom` | A retention sweep runs. One line per sweep, with counts, not one per SBOM. |
+
+`actor` says who caused the event:
+
+| `actor.kind` | `actor.id` | When |
+| --- | --- | --- |
+| `user` | The user's ID | A signed-in user. `actor.api_key_id` is also set when they used an API key, so you can trace a leaked key's actions. |
+| `system` | `scanner-worker` or `retention` | A registry scan ingested the SBOM, or the retention sweep ran. |
+| `anonymous` | (none) | The request carried no valid credentials. |
+
+A login is attributed to the user signing in.
 
 Route on the `msg` field to send audit lines to their own stream. In Loki, for example:
 
@@ -104,7 +114,6 @@ What the log does and doesn't guarantee:
   accepted.
 - A line reaches storage only if your log pipeline delivers it. Use a collector that buffers to
   disk, so a collector restart doesn't drop lines.
-- Lines don't record who acted (ocidex-n9na).
 
 ## Tracing
 
