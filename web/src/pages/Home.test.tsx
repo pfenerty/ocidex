@@ -217,14 +217,14 @@ describe("Home catalog stats", () => {
                 vulnCount: 12,
             },
         });
-        // Head and value are separate spans in a StatBand, so assert on the
-        // tile rather than on a concatenated "38 artifacts" string.
-        const tiles = [...container.querySelectorAll(".tile")].map((t) => t.textContent);
-        expect(tiles).toContain("Artifacts38images, binaries and libraries");
-        expect(tiles).toContain("Packages107,86857 package versions");
-        // Every tile that has a list page behind it links to it; SBOMs does not.
-        const hrefs = [...container.querySelectorAll("a.tile")].map((a) => a.getAttribute("href"));
+        const facts = [...container.querySelectorAll(".landing-fact")].map((t) => t.textContent);
+        expect(facts).toContain("38artifacts");
+        expect(facts).toContain("107,868packages");
+        // Every figure with a list page behind it links to it; SBOMs does not.
+        const hrefs = [...container.querySelectorAll("a.landing-fact")].map((a) => a.getAttribute("href"));
         expect(hrefs).toEqual(["/artifacts", "/components", "/licenses", "/vulnerabilities"]);
+        // The line under the headline carries the real count.
+        expect(container.querySelector(".landing-pitch")?.textContent).toContain("SBOMs for 38 images");
     });
 
     // Regression: the stats query times out against a cold cache, and a bare
@@ -324,7 +324,7 @@ describe("Home catalog stats", () => {
         });
 
         expect(container.querySelector(".landing-types")).toBeNull();
-        expect(container.querySelector(".tile-value")?.textContent).toBe("0");
+        expect(container.querySelector(".landing-fact-value")?.textContent).toBe("0");
     });
 
     // A warming response is a successful 200 whose counts are all zero
@@ -345,7 +345,7 @@ describe("Home catalog stats", () => {
             },
         });
         expect(container.querySelector(".skeleton")).not.toBeNull();
-        expect(container.querySelector(".tile")).toBeNull();
+        expect(container.querySelector(".landing-fact")).toBeNull();
     });
 });
 
@@ -398,20 +398,21 @@ describe("Home discovery panels", () => {
         expect(container.textContent).not.toContain("alpine");
     });
 
-    it("renders a featured card per artifact with its short name first", () => {
+    it("renders a featured row per artifact with its short name first", () => {
         const { container } = renderHome(warmStats, { isError: false, data: populatedDiscovery() });
 
-        const cards = container.querySelectorAll(".featured-card");
-        expect(cards).toHaveLength(1);
-        const card = cards[0];
-        expect(card.querySelector(".image-name-short")?.textContent).toBe("postgres");
-        expect(card.querySelector(".image-name-prefix")?.textContent).toBe("registry-1.docker.io/library");
-        expect(card.textContent).toContain("18.1");
-        expect(card.textContent).toContain("1,234");
-        // Severity counts render as the shared chip, zeros included but muted.
-        expect(card.querySelector(".vuln-chip")?.textContent).toBe("25010");
-        // Licenses as a proportional bar with one segment per non-zero category.
-        expect(card.querySelectorAll(".mix-bar .mix-seg")).toHaveLength(3);
+        const rows = container.querySelectorAll(".featured-row");
+        expect(rows).toHaveLength(1);
+        const row = rows[0];
+        expect(row.querySelector(".image-name-short")?.textContent).toBe("postgres");
+        expect(row.querySelector(".image-name-prefix")?.textContent).toBe("registry-1.docker.io/library");
+        expect(row.textContent).toContain("18.1");
+        expect(row.textContent).toContain("1,234");
+        // One cell per severity count, then a severity mix bar with one
+        // segment per non-zero severity.
+        const counts = [...row.querySelectorAll(".featured-n")].map((c) => c.textContent);
+        expect(counts).toEqual(["1,234", "2", "5", "0", "1"]);
+        expect(row.querySelectorAll(".mix-bar .mix-seg")).toHaveLength(3);
     });
 
     it("says an image has no known vulnerabilities instead of a dash", () => {
@@ -419,7 +420,7 @@ describe("Home discovery panels", () => {
         const f = data.featuredArtifacts?.[0];
         if (f) f.vulns = { critical: 0, high: 0, medium: 0, low: 0, unknown: 0 };
         const { container } = renderHome(warmStats, { isError: false, data });
-        expect(container.querySelector(".featured-card")?.textContent).toContain("0 known");
+        expect(container.querySelector(".featured-row")?.textContent).toContain("0 known");
     });
 
     it("omits the featured section when nothing is featured", () => {
@@ -427,7 +428,7 @@ describe("Home discovery panels", () => {
             isError: false,
             data: { ...populatedDiscovery(), featuredArtifacts: [] },
         });
-        expect(container.querySelector(".featured-grid")).toBeNull();
+        expect(container.querySelector(".featured-table")).toBeNull();
         expect(container.textContent).not.toContain("Featured images");
     });
 

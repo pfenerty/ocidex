@@ -19,16 +19,15 @@
     max-width: calc(75rem + 4rem);
 }
 
-/* The thesis, not the wordmark: the sidebar already names the product, and the
-   hero repeating "OCIDex" beside it was the first thing the audit flagged. */
+/* The line, not the wordmark: the bar already names the product. */
 .landing-title {
-    max-width: 18ch;
+    max-width: 22ch;
     text-wrap: balance;
     font-size: 2.5rem;
-    font-weight: 700;
+    font-weight: 800;
     letter-spacing: -0.01em;
     margin: 0;
-    line-height: 1.1;
+    line-height: 1.05;
 }
 
 
@@ -57,22 +56,47 @@
     width: fit-content;
 }
 
-/* The band supplies its own grid; it only needs to fill the hero column and
-   drop TileBand.css's trailing margin, since the hero already gaps its rows. */
-.landing-band {
-    width: 100%;
-    margin-bottom: 0;
+/* The corpus in one strip: a row of figures, each a link where a list page
+   receives it. */
+.landing-facts {
+    display: flex;
+    flex-wrap: wrap;
+    width: fit-content;
+    max-width: 100%;
+    border: 1px solid var(--color-border);
+    border-radius: var(--radius-lg);
+    background: var(--color-surface);
 }
 
-/* These subs are descriptions, not the one-word status strings the other bands
-   put here, so they wrap rather than clip. TileBand.css's ellipsis works now
-   (ocidex-ag4q.58) — that is why this override still has to be here: a working
-   ellipsis would render "images, binaries and libr…", which is not what a
-   sentence wants. */
-.landing-band .tile-sub {
-    white-space: normal;
-    overflow: visible;
-    line-height: 1.35;
+.landing-fact {
+    display: grid;
+    padding: 0.5rem 1rem;
+    border-left: 1px solid var(--color-border);
+    color: var(--color-text);
+    text-decoration: none;
+}
+
+.landing-fact:first-child {
+    border-left: 0;
+}
+
+a.landing-fact:hover {
+    background: var(--color-surface-hover);
+    text-decoration: none;
+}
+
+.landing-fact-value {
+    font-family: var(--font-display);
+    font-stretch: 85%;
+    font-weight: 700;
+    font-size: var(--text-xl);
+    line-height: 1.15;
+    font-variant-numeric: tabular-nums;
+}
+
+.landing-fact-label {
+    font-size: var(--text-sm);
+    color: var(--color-text-muted);
 }
 
 .landing-stats-sep { color: var(--color-text-dim); }
@@ -204,76 +228,47 @@
     overflow-wrap: anywhere;
 }
 
-/* --- featured cards ------------------------------------------------------ */
-.featured-grid {
-    list-style: none;
-    margin: 0;
-    padding: 0;
-    display: grid;
-    grid-template-columns: repeat(auto-fill, minmax(16rem, 1fr));
-    gap: 0.75rem;
+/* --- featured images: one table to scan and compare ---------------------- */
+td.featured-n {
+    font-family: var(--font-mono);
+    font-size: var(--text-sm);
+    font-variant-numeric: tabular-nums;
 }
 
-.featured-card {
-    position: relative;
-    display: flex;
-    flex-direction: column;
-    gap: 0.75rem;
-    padding: 1rem;
-    transition: border-color 0.15s;
+.featured-zero {
+    color: var(--color-text-dim);
 }
 
-.featured-card:hover { border-color: var(--color-border-hover); }
-
-.featured-top {
-    display: flex;
-    align-items: flex-start;
-    justify-content: space-between;
-    gap: 0.5rem;
+.featured-crit {
+    color: var(--color-severity-critical);
+    font-weight: 600;
 }
 
-.featured-link {
-    min-width: 0;
+.featured-version {
+    font-family: var(--font-mono);
+    font-size: var(--text-sm);
+    color: var(--color-text-muted);
+}
+
+/* The name is the link; the registry path beside it is context, so no
+   underline runs under it. */
+.featured-table .featured-link {
+    color: var(--color-text);
     text-decoration: none;
 }
 
-/* The name link covers the whole card, so the card is one target without
-   nesting the version badge or the chips inside an anchor. */
-.featured-link::after {
-    content: "";
-    position: absolute;
-    inset: 0;
-    border-radius: inherit;
+.featured-table .featured-link:hover .image-name-short {
+    text-decoration: underline;
 }
 
-.featured-name .image-name-short { font-size: var(--text-xl); }
-
-.featured-facts {
-    display: grid;
-    grid-template-columns: auto 1fr;
-    gap: 1.25rem;
-    margin: 0;
-}
-
-.featured-facts dt {
-    font-size: var(--text-xs);
-    text-transform: uppercase;
-    letter-spacing: 0.04em;
-    color: var(--color-text-muted);
-}
-
-.featured-facts dd {
-    margin: 0.25rem 0 0;
+.featured-name .image-name-short {
     font-family: var(--font-mono);
-    font-size: var(--text-base);
-    color: var(--color-text);
+    font-weight: 600;
 }
 
-.featured-updated {
-    margin: 0;
-    margin-top: auto;
-    font-size: var(--text-xs);
-    color: var(--color-text-muted);
+.featured-mix {
+    width: 22%;
+    min-width: 8rem;
 }
 
 /* --- proportional bars ----------------------------------------------------- */
