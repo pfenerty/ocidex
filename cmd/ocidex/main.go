@@ -132,7 +132,7 @@ func run() error {
 	// the ClaimNext partition name is empty (see NewEnrichJobService).
 	enrichJobSvc := service.NewEnrichJobService(pool, "")
 	scanSubmitter := setupScannerExt(cfg, pool, bus, reg, natsClient, logger, jobSvc)
-	setupEnrichmentSubmitter(cfg, reg, natsClient, logger, enrichJobSvc)
+	setupEnrichmentSubmitter(cfg, reg, natsClient, logger)
 
 	if err := reg.InitAll(); err != nil {
 		return fmt.Errorf("initializing extensions: %w", err)
@@ -412,8 +412,8 @@ func setupOptionalExts(cfg *config.Config, reg *extension.Manager, natsClient *n
 	reg.Register(natspkg.NewRelayExtension(natsClient, cfg.NATSStreamName, logger))
 }
 
-func setupEnrichmentSubmitter(cfg *config.Config, reg *extension.Manager, natsClient *natspkg.Client, logger *slog.Logger, jobSvc service.EnrichJobService) {
-	reg.Register(enrichment.NewNATSSubmitter(natsClient, cfg.NATSStreamName, jobSvc, logger))
+func setupEnrichmentSubmitter(cfg *config.Config, reg *extension.Manager, natsClient *natspkg.Client, logger *slog.Logger) {
+	reg.Register(enrichment.NewNATSSubmitter(natsClient, cfg.NATSStreamName, logger))
 }
 
 func setupRegistryWalker(cfg *config.Config, natsClient *natspkg.Client, sub api.ScanSubmitter, dl scanner.DigestLister, rec scanner.WalkRecorder, logger *slog.Logger) scanner.RegistryWalker {

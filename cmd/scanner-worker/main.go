@@ -116,13 +116,12 @@ func run() error {
 	sc := engine.NewSyftScanner(logger, cfg.ScannerGoSymbols)
 	dispatcher := engine.NewDispatcher(sc, scannerSbomSvc, cfg.ScannerMaxImageBytes, cfg.EgressPolicy, logger)
 
-	// Enrichment is driven off the in-process SBOMIngested event, which fires
-	// here (not in the API) for registry-scanned SBOMs. Register the submitter so
-	// each scan ingest enqueues per-enricher jobs and the enrich.hint the
-	// per-enricher workers consume. The constructor enricher name is unused by
-	// Enqueue (it sets enricher_name per call), so it is empty here as in cmd/ocidex.
-	enrichJobSvc := service.NewEnrichJobService(pool, "")
-	registry.Register(enrichment.NewNATSSubmitter(natsClient, cfg.NATSStreamName, enrichJobSvc, logger))
+	// Ingest commits each registry-scanned SBOM's root enrichment jobs in its own
+	// transaction (ocidex-n1z4.1). The submitter, driven off the in-process
+	// SBOMIngested event that fires here (not in the API), publishes the
+	// enrich.hint so per-enricher workers pick the jobs up without waiting for
+	// their poll loop.
+	registry.Register(enrichment.NewNATSSubmitter(natsClient, cfg.NATSStreamName, logger))
 
 	tracerProvider, stopTracing := tracing.Start(ctx, "ocidex-scanner-worker")
 	defer stopTracing()
@@ -221,12 +220,10 @@ func runOnce(ctx context.Context, pool *pgxpool.Pool, natsClient *natspkg.Client
 	sbomSvc := service.NewSBOMService(pool, bus, nil)
 	sc := engine.NewSyftScanner(logger, cfg.ScannerGoSymbols)
 
-	// Wire the enrichment submitter onto the bus before ingest so the synchronous
-	// SBOMIngested event enqueues per-enricher jobs (and the enrich.hint) — same
-	// mechanism as the long-running worker. Without this, ephemeral K8s Job scans
-	// (ADR-027) would ingest an SBOM that never gets enriched.
-	enrichJobSvc := service.NewEnrichJobService(pool, "")
-	if err := enrichment.NewNATSSubmitter(natsClient, cfg.NATSStreamName, enrichJobSvc, logger).Init(bus); err != nil {
+	// Ingest commits the root enrichment jobs itself (ocidex-n1z4.1); wire the
+	// submitter onto the bus before ingest so the synchronous SBOMIngested event
+	// also publishes the enrich.hint — same mechanism as the long-running worker.
+	if err := enrichment.NewNATSSubmitter(natsClient, cfg.NATSStreamName, logger).Init(bus); err != nil {
 		return fmt.Errorf("wiring enrichment submitter: %w", err)
 	}
 

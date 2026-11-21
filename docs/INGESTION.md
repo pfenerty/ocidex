@@ -242,7 +242,7 @@ idempotency check all run *before* `Begin`. Within the transaction:
 
 ### Post-commit: event publish
 
-After successful commit, `event.SBOMIngested` is published with `{SBOMID, ArtifactType, ArtifactName, Digest, SubjectVersion, Architecture, BuildDate}`. `enrichment.NATSSubmitter` consumes it and enqueues the **root enrichers** — `user`, `oci-metadata`, `provenance` (`internal/enrichment/deps.go`). The `user` enricher is what writes the caller-supplied `{architecture, created, imageVersion}` payload; it is async, not part of the ingest transaction.
+Before commit, the ingest transaction writes an `enrichment_jobs` row for each **root enricher** — `user`, `oci-metadata`, `provenance` (`names.Roots()` in `internal/enrichment/names`) — so an SBOM never commits without its follow-up work (ocidex-n1z4.1). After commit, `event.SBOMIngested` is published, detached from the request context, with `{SBOMID, ArtifactType, ArtifactName, Digest, SubjectVersion, Architecture, BuildDate}`. `enrichment.NATSSubmitter` consumes it and publishes a best-effort `enrich.hint`; if the hint is lost, the workers' poll loop picks the rows up. The `user` enricher is what writes the caller-supplied `{architecture, created, imageVersion}` payload; it runs async, after the ingest transaction.
 
 ---
 

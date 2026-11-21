@@ -353,13 +353,20 @@ func (s *sbomService) Ingest(ctx context.Context, bom *cdx.BOM, rawJSON []byte, 
 		return pgtype.UUID{}, err
 	}
 
+	if err := enqueueRootEnrichments(ctx, q, sbomRow.ID, arch, bd); err != nil {
+		return pgtype.UUID{}, err
+	}
+
 	if err := tx.Commit(ctx); err != nil {
 		return pgtype.UUID{}, fmt.Errorf("committing transaction: %w", err)
 	}
 
-	// Publish event after successful commit so extensions (enrichment, audit, etc.) can react.
+	// Publish event after successful commit so extensions (the enrichment hint,
+	// audit, etc.) can react. The enrichment jobs themselves are already committed.
 	if s.publisher != nil && sbomRow.ID.Valid {
-		s.publisher.Publish(ctx, event.SBOMIngested, event.SBOMIngestedData{
+		// Detached from the request: the SBOM is committed, so a client that
+		// disconnects now must not cut short the post-commit hint and audit line.
+		s.publisher.Publish(context.WithoutCancel(ctx), event.SBOMIngested, event.SBOMIngestedData{
 			SBOMID:         sbomRow.ID,
 			ArtifactType:   string(bom.Metadata.Component.Type),
 			ArtifactName:   bom.Metadata.Component.Name,

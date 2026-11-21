@@ -11,6 +11,7 @@ import (
 	"github.com/jackc/pgx/v5/pgtype"
 	"github.com/matryer/is"
 
+	"github.com/pfenerty/ocidex/internal/enrichment/names"
 	"github.com/pfenerty/ocidex/internal/event"
 	"github.com/pfenerty/ocidex/internal/repository" //nolint:depguard
 )
@@ -266,6 +267,7 @@ func TestIngest_HappyPath_ContainerSBOM(t *testing.T) {
 	// GetArtifactByIdentity (no rows: a new artifact), UpsertArtifact, InsertSBOM,
 	// GetLicenseBySPDX (no rows), UpsertLicenseBySPDX. Components are written via
 	// CopyFrom, not QueryRow.
+	var enqueued []string
 	txQueryRow := func(_ context.Context, sql string, args ...any) pgx.Row {
 		switch {
 		case contains(sql, "UpsertArtifact"):
@@ -279,6 +281,9 @@ func TestIngest_HappyPath_ContainerSBOM(t *testing.T) {
 				*(dest[2].(*string)) = "1.4"
 				return nil
 			}}
+		case contains(sql, "InsertEnrichmentJob"):
+			enqueued = append(enqueued, args[4].(string)) // enricher_name
+			return &fakeRow{scanFn: func(...any) error { return nil }}
 		case contains(sql, "UpsertLicenseBySPDX"):
 			return &fakeRow{scanFn: func(dest ...any) error {
 				*(dest[0].(*pgtype.UUID)) = licenseID
@@ -321,6 +326,8 @@ func TestIngest_HappyPath_ContainerSBOM(t *testing.T) {
 	is.Equal(publisher.events[0], event.SBOMIngested)
 	is.Equal(tx.copiedRows("component"), 1)         // one component copied
 	is.Equal(tx.copiedRows("component_license"), 1) // one join row copied
+	// The root enrichers' jobs are written in the ingest transaction (ocidex-n1z4.1).
+	is.Equal(enqueued, names.Roots())
 }
 
 // TestResolveArtifact_ContainerDigestInName verifies that a digest embedded in
@@ -1500,4 +1507,52 @@ func resolveArtifact(ctx context.Context, q *repository.Queries, bom *cdx.BOM, p
 		return artifactInfo{}, err
 	}
 	return plan.ensure(ctx, q, pgtype.UUID{})
+}
+
+// TestIngest_EnqueueFailureFailsIngest covers ocidex-n1z4.1: the root
+// enrichment jobs are written in the ingest transaction, so failing to write
+// one fails the ingest and never commits an SBOM that nothing will enrich.
+func TestIngest_EnqueueFailureFailsIngest(t *testing.T) {
+	is := is.New(t)
+	committed := false
+	tx := &fakeTx{
+		fakeDB: fakeDB{queryRowFn: func(_ context.Context, sql string, _ ...any) pgx.Row {
+			switch {
+			case contains(sql, "UpsertArtifact"), contains(sql, "InsertSBOM"), contains(sql, "UpsertLicenseBySPDX"):
+				return &fakeRow{scanFn: func(dest ...any) error {
+					*(dest[0].(*pgtype.UUID)) = newUUID(t)
+					if contains(sql, "InsertSBOM") {
+						*(dest[2].(*string)) = "1.4"
+					}
+					return nil
+				}}
+			case contains(sql, "InsertEnrichmentJob"):
+				return &fakeRow{scanFn: func(...any) error { return errors.New("connection reset") }}
+			default:
+				return noRowsRow{}
+			}
+		}},
+		commitFn: func(context.Context) error { committed = true; return nil },
+	}
+	sourceID := newUUID(t)
+	poolCalls := 0
+	db := &fakeDB{
+		queryRowFn: func(_ context.Context, _ string, _ ...any) pgx.Row {
+			poolCalls++
+			if poolCalls == 1 {
+				return sourceRow(sourceID, newUUID2(t))
+			}
+			return noRowsRow{}
+		},
+		beginFn: func(context.Context) (pgx.Tx, error) { return tx, nil },
+	}
+	publisher := &fakePublisher{}
+
+	_, err := NewSBOMService(db, publisher, nil).Ingest(context.Background(),
+		fullContainerBOM("docker.io/alpine", "sha256:deadbeef1234"), []byte("{}"),
+		IngestParams{Version: "3.18.4", Architecture: "amd64", BuildDate: "2024-01-01", SourceID: sourceID})
+
+	is.True(err != nil)
+	is.True(!committed)
+	is.Equal(len(publisher.events), 0)
 }
