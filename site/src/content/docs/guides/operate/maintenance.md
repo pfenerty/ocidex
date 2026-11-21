@@ -68,7 +68,8 @@ registry that sends it).
 
 `ocidex migrate backfill` fills in columns that ingest writes today but didn't always write, from
 data already in the database: an SBOM's flavor, a component's purl version and its location in the
-image, and cleaned-up license names and expressions. A release's [upgrade notes](/guides/operate/upgrade/#per-version-notes)
+image, cleaned-up license names and expressions, and the enrichment jobs of SBOMs that were
+never enriched. A release's [upgrade notes](/guides/operate/upgrade/#per-version-notes)
 say when to run it.
 
 It's idempotent: a second run reports nothing to do. It reads every affected SBOM's stored

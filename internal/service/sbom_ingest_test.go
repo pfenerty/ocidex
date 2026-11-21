@@ -11,6 +11,7 @@ import (
 	"github.com/jackc/pgx/v5/pgtype"
 	"github.com/matryer/is"
 
+	"github.com/pfenerty/ocidex/internal/enrichment/names"
 	"github.com/pfenerty/ocidex/internal/event"
 	"github.com/pfenerty/ocidex/internal/repository" //nolint:depguard
 )
@@ -266,6 +267,7 @@ func TestIngest_HappyPath_ContainerSBOM(t *testing.T) {
 	// GetArtifactByIdentity (no rows: a new artifact), UpsertArtifact, InsertSBOM,
 	// GetLicenseBySPDX (no rows), UpsertLicenseBySPDX. Components are written via
 	// CopyFrom, not QueryRow.
+	var enqueued []string
 	txQueryRow := func(_ context.Context, sql string, args ...any) pgx.Row {
 		switch {
 		case contains(sql, "UpsertArtifact"):
@@ -279,6 +281,9 @@ func TestIngest_HappyPath_ContainerSBOM(t *testing.T) {
 				*(dest[2].(*string)) = "1.4"
 				return nil
 			}}
+		case contains(sql, "InsertEnrichmentJob"):
+			enqueued = append(enqueued, args[4].(string)) // enricher_name
+			return &fakeRow{scanFn: func(...any) error { return nil }}
 		case contains(sql, "UpsertLicenseBySPDX"):
 			return &fakeRow{scanFn: func(dest ...any) error {
 				*(dest[0].(*pgtype.UUID)) = licenseID
@@ -321,6 +326,8 @@ func TestIngest_HappyPath_ContainerSBOM(t *testing.T) {
 	is.Equal(publisher.events[0], event.SBOMIngested)
 	is.Equal(tx.copiedRows("component"), 1)         // one component copied
 	is.Equal(tx.copiedRows("component_license"), 1) // one join row copied
+	// The root enrichers' jobs are written in the ingest transaction (ocidex-n1z4.1).
+	is.Equal(enqueued, names.Roots())
 }
 
 // TestResolveArtifact_ContainerDigestInName verifies that a digest embedded in
@@ -345,7 +352,7 @@ func TestResolveArtifact_ContainerDigestInName(t *testing.T) {
 		Version: "22.04",
 	}}}
 
-	info, err := resolveArtifact(context.Background(), q, pgtype.UUID{}, bom, IngestParams{})
+	info, err := resolveArtifact(context.Background(), q, bom, IngestParams{})
 	is.NoErr(err)
 	is.Equal(info.artifactID, artifactID)
 	is.Equal(info.digest, pgtype.Text{String: "sha256:abc123", Valid: true})
@@ -373,7 +380,7 @@ func TestResolveArtifact_ContainerDigestInVersion(t *testing.T) {
 		Version: "sha256:deadbeef",
 	}}}
 
-	info, err := resolveArtifact(context.Background(), q, pgtype.UUID{}, bom, IngestParams{})
+	info, err := resolveArtifact(context.Background(), q, bom, IngestParams{})
 	is.NoErr(err)
 	is.Equal(info.digest, pgtype.Text{String: "sha256:deadbeef", Valid: true})
 }
@@ -391,7 +398,7 @@ func TestResolveArtifact_ContainerMissingDigest(t *testing.T) {
 		Version: "22.04",
 	}}}
 
-	_, err := resolveArtifact(context.Background(), q, pgtype.UUID{}, bom, IngestParams{})
+	_, err := resolveArtifact(context.Background(), q, bom, IngestParams{})
 	is.True(err != nil)
 	var ve *ValidationError
 	is.True(errors.As(err, &ve))
@@ -419,7 +426,7 @@ func TestResolveArtifact_NonContainer(t *testing.T) {
 		Version: "1.2.3",
 	}}}
 
-	info, err := resolveArtifact(context.Background(), q, pgtype.UUID{}, bom, IngestParams{})
+	info, err := resolveArtifact(context.Background(), q, bom, IngestParams{})
 	is.NoErr(err)
 	is.Equal(info.artifactID, artifactID)
 	is.True(!info.digest.Valid) // no digest for non-container
@@ -456,7 +463,7 @@ func TestResolveArtifact_ParamsOverrideSubject(t *testing.T) {
 		Name: ".sbom-bins",
 	}}}
 
-	info, err := resolveArtifact(context.Background(), q, pgtype.UUID{}, bom, IngestParams{
+	info, err := resolveArtifact(context.Background(), q, bom, IngestParams{
 		Version:      "v1.2.3",
 		SubjectType:  "application",
 		SubjectName:  "ocidex",
@@ -492,7 +499,7 @@ func TestResolveArtifact_PartialOverrideKeepsBOMFields(t *testing.T) {
 		Version:    "1.2.3",
 	}}}
 
-	_, err := resolveArtifact(context.Background(), q, pgtype.UUID{}, bom, IngestParams{
+	_, err := resolveArtifact(context.Background(), q, bom, IngestParams{
 		SubjectName: "renamed-lib",
 		Digest:      "sha256:feedface",
 	})
@@ -520,7 +527,7 @@ func TestResolveArtifact_ContainerUnaffectedByParams(t *testing.T) {
 		Version: "22.04",
 	}}}
 
-	info, err := resolveArtifact(context.Background(), q, pgtype.UUID{}, bom, IngestParams{Version: "22.04"})
+	info, err := resolveArtifact(context.Background(), q, bom, IngestParams{Version: "22.04"})
 	is.NoErr(err)
 	is.Equal(info.digest, pgtype.Text{String: "sha256:abc123", Valid: true})
 	is.Equal(info.subjectType, "container")
@@ -534,7 +541,7 @@ func TestResolveArtifact_NoSubjectAndNoParams(t *testing.T) {
 	is := is.New(t)
 	q := repository.New(&fakeDB{})
 
-	info, err := resolveArtifact(context.Background(), q, pgtype.UUID{}, &cdx.BOM{}, IngestParams{})
+	info, err := resolveArtifact(context.Background(), q, &cdx.BOM{}, IngestParams{})
 	is.NoErr(err)
 	is.True(!info.artifactID.Valid)
 }
@@ -548,7 +555,7 @@ func TestResolveArtifact_DeclaredIdentityWithoutSubjectComponent(t *testing.T) {
 	var args []any
 	q := repository.New(upsertArtifactRecorder(artifactID, &args))
 
-	info, err := resolveArtifact(context.Background(), q, pgtype.UUID{}, &cdx.BOM{}, IngestParams{
+	info, err := resolveArtifact(context.Background(), q, &cdx.BOM{}, IngestParams{
 		Version:     "v1.2.3",
 		SubjectType: "application",
 		SubjectName: "ocidex",
@@ -1446,4 +1453,106 @@ func TestCopyComponents_Provenance(t *testing.T) {
 	is.Equal(row[idxOf("source_version")].(pgtype.Text).String, "3.0.11-1~deb12u2")
 	is.Equal(row[idxOf("source_purl")].(pgtype.Text).String, "pkg:deb/debian/openssl@3.0.11-1~deb12u2?distro=debian-12")
 	is.Equal(row[idxOf("purl")].(pgtype.Text).String, "pkg:deb/debian/libssl3@3.0.11-1~deb12u2")
+}
+
+// TestIngest_InvalidInputOpensNoTransaction covers ocidex-n1z4.5: an SBOM that
+// fails the container or upload validation is refused before a transaction is
+// opened, so no artifact row is written and rolled back.
+func TestIngest_InvalidInputOpensNoTransaction(t *testing.T) {
+	noSubject := containerBOM("docker.io/ubuntu", "", "22.04")
+	noSubject.Metadata.Component = &cdx.Component{Type: cdx.ComponentTypeApplication, Name: "app", Version: "1.0"}
+
+	tests := []struct {
+		name   string
+		bom    *cdx.BOM
+		params IngestParams
+	}{
+		{"container missing architecture and build date",
+			containerBOM("docker.io/ubuntu", "sha256:abc123def456", "22.04"), IngestParams{Version: "22.04"}},
+		{"container missing digest",
+			containerBOM("docker.io/alpine", "", "3.20"),
+			IngestParams{Version: "22.04", Architecture: "amd64", BuildDate: "2024-01-01"}},
+		{"upload missing declared identity and digest", noSubject, IngestParams{}},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			is := is.New(t)
+			sourceID := newUUID2(t)
+			calls := 0
+			db := &fakeDB{
+				queryRowFn: func(_ context.Context, _ string, _ ...any) pgx.Row {
+					calls++
+					if calls == 1 { // resolveIngestNamespace
+						return sourceRow(sourceID, newUUID(t))
+					}
+					return noRowsRow{} // no existing SBOM for the digest
+				},
+			}
+			tt.params.SourceID = sourceID
+
+			_, err := NewSBOMService(db, nil, nil).Ingest(context.Background(), tt.bom, []byte("{}"), tt.params)
+
+			var verr *ValidationError
+			is.True(errors.As(err, &verr))
+			is.True(!db.beginCalled) // refused before the transaction
+		})
+	}
+}
+
+// resolveArtifact plans the artifact and upserts it with no owning namespace,
+// as ingest does in two steps.
+func resolveArtifact(ctx context.Context, q *repository.Queries, bom *cdx.BOM, params IngestParams) (artifactInfo, error) {
+	plan, err := planArtifact(bom, params)
+	if err != nil {
+		return artifactInfo{}, err
+	}
+	return plan.ensure(ctx, q, pgtype.UUID{})
+}
+
+// TestIngest_EnqueueFailureFailsIngest covers ocidex-n1z4.1: the root
+// enrichment jobs are written in the ingest transaction, so failing to write
+// one fails the ingest and never commits an SBOM that nothing will enrich.
+func TestIngest_EnqueueFailureFailsIngest(t *testing.T) {
+	is := is.New(t)
+	committed := false
+	tx := &fakeTx{
+		fakeDB: fakeDB{queryRowFn: func(_ context.Context, sql string, _ ...any) pgx.Row {
+			switch {
+			case contains(sql, "UpsertArtifact"), contains(sql, "InsertSBOM"), contains(sql, "UpsertLicenseBySPDX"):
+				return &fakeRow{scanFn: func(dest ...any) error {
+					*(dest[0].(*pgtype.UUID)) = newUUID(t)
+					if contains(sql, "InsertSBOM") {
+						*(dest[2].(*string)) = "1.4"
+					}
+					return nil
+				}}
+			case contains(sql, "InsertEnrichmentJob"):
+				return &fakeRow{scanFn: func(...any) error { return errors.New("connection reset") }}
+			default:
+				return noRowsRow{}
+			}
+		}},
+		commitFn: func(context.Context) error { committed = true; return nil },
+	}
+	sourceID := newUUID(t)
+	poolCalls := 0
+	db := &fakeDB{
+		queryRowFn: func(_ context.Context, _ string, _ ...any) pgx.Row {
+			poolCalls++
+			if poolCalls == 1 {
+				return sourceRow(sourceID, newUUID2(t))
+			}
+			return noRowsRow{}
+		},
+		beginFn: func(context.Context) (pgx.Tx, error) { return tx, nil },
+	}
+	publisher := &fakePublisher{}
+
+	_, err := NewSBOMService(db, publisher, nil).Ingest(context.Background(),
+		fullContainerBOM("docker.io/alpine", "sha256:deadbeef1234"), []byte("{}"),
+		IngestParams{Version: "3.18.4", Architecture: "amd64", BuildDate: "2024-01-01", SourceID: sourceID})
+
+	is.True(err != nil)
+	is.True(!committed)
+	is.Equal(len(publisher.events), 0)
 }

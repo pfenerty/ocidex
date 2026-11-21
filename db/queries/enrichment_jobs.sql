@@ -245,3 +245,24 @@ UNION ALL
 SELECT 'running'::text AS state, count(*)::bigint AS jobs
 FROM enrichment_jobs
 WHERE enricher_name = sqlc.arg(enricher_name)::text AND state = 'running';
+
+-- name: ListSBOMsMissingRootEnrichmentPage :many
+-- Keyset page of SBOMs with a root enricher that was never enqueued nor run,
+-- for `ocidex migrate backfill` (ocidex-n1z4.3). Ingest used to enqueue the
+-- root jobs after commit and could lose them, leaving SBOMs nothing would ever
+-- enrich. An enrichment result counts as covered: SBOMs enriched under the
+-- retired 'all' job (00057) have results but no per-enricher job rows.
+-- Pass the nil UUID to start; missing lists the root enrichers to enqueue.
+SELECT s.id, array_agg(r.name ORDER BY r.name)::text[] AS missing
+FROM sbom s
+CROSS JOIN unnest(@enrichers::text[]) AS r(name)
+WHERE s.id > @after::uuid
+  AND NOT EXISTS (
+    SELECT 1 FROM enrichment_jobs j WHERE j.sbom_id = s.id AND j.enricher_name = r.name
+  )
+  AND NOT EXISTS (
+    SELECT 1 FROM enrichment e WHERE e.sbom_id = s.id AND e.enricher_name = r.name
+  )
+GROUP BY s.id
+ORDER BY s.id
+LIMIT @row_limit;

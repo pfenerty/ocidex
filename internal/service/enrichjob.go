@@ -10,6 +10,7 @@ import (
 	"github.com/jackc/pgx/v5/pgtype"
 	"github.com/jackc/pgx/v5/pgxpool"
 
+	"github.com/pfenerty/ocidex/internal/enrichment/names"
 	"github.com/pfenerty/ocidex/internal/repository"
 	"github.com/pfenerty/ocidex/internal/tracing"
 )
@@ -120,26 +121,46 @@ func NewEnrichJobService(pool *pgxpool.Pool, enricherName string) EnrichJobServi
 }
 
 func (s *enrichJobService) Enqueue(ctx context.Context, sbomID pgtype.UUID, architecture, buildDate, enricherName string) error {
-	// Key per (sbom, enricher): the submitter enqueues one row per enricher for
-	// the same SBOM, so a sbom-only key collides on the idempotency_key UNIQUE
+	_, err := s.repo.InsertEnrichmentJob(ctx, enrichJobParams(ctx, sbomID, architecture, buildDate, enricherName))
+	if err != nil {
+		if isUniqueViolation(err) {
+			return nil
+		}
+		return fmt.Errorf("inserting enrichment job: %w", err)
+	}
+	return nil
+}
+
+// enrichJobParams builds the enrichment_jobs row for one enricher on one SBOM.
+func enrichJobParams(ctx context.Context, sbomID pgtype.UUID, architecture, buildDate, enricherName string) repository.InsertEnrichmentJobParams {
+	// Key per (sbom, enricher): one row is enqueued per enricher for the same
+	// SBOM, so a sbom-only key collides on the idempotency_key UNIQUE
 	// constraint and silently drops every enricher after the first. This mirrors
 	// the UNIQUE (sbom_id, enricher_name) constraint and keeps re-enqueues idempotent.
-	idempotencyKey := uuidToStr(sbomID) + ":" + enricherName
-	_, err := s.repo.InsertEnrichmentJob(ctx, repository.InsertEnrichmentJobParams{
+	return repository.InsertEnrichmentJobParams{
 		SbomID:         sbomID,
-		IdempotencyKey: pgtype.Text{String: idempotencyKey, Valid: true},
+		IdempotencyKey: pgtype.Text{String: uuidToStr(sbomID) + ":" + enricherName, Valid: true},
 		Architecture:   pgtype.Text{String: architecture, Valid: architecture != ""},
 		BuildDate:      pgtype.Text{String: buildDate, Valid: buildDate != ""},
 		EnricherName:   enricherName,
 		// The caller's trace, so the worker's job span joins it (ADR-0055 T3). A
 		// duplicate row keeps the trace that first queued it.
 		TraceContext: toNullText(nullStr(tracing.Inject(ctx))),
-	})
-	if err != nil {
-		if isUniqueViolation(err) {
-			return nil
+	}
+}
+
+// enqueueRootEnrichments writes the root enrichers' jobs for a new SBOM through
+// q, the ingest transaction's queries, so the SBOM and its follow-up work
+// commit together (ocidex-n1z4.1). A post-commit enqueue was lost whenever the
+// request context was cancelled, the database blipped or the process died
+// between commit and publish, and a re-upload short-circuits on the digest, so
+// nothing would ever enrich that SBOM. The SBOM is new in this transaction, so
+// no row can already exist.
+func enqueueRootEnrichments(ctx context.Context, q *repository.Queries, sbomID pgtype.UUID, architecture, buildDate string) error {
+	for _, name := range names.Roots() {
+		if _, err := q.InsertEnrichmentJob(ctx, enrichJobParams(ctx, sbomID, architecture, buildDate, name)); err != nil {
+			return fmt.Errorf("enqueueing %s enrichment: %w", name, err)
 		}
-		return fmt.Errorf("inserting enrichment job: %w", err)
 	}
 	return nil
 }

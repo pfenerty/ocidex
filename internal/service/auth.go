@@ -34,6 +34,10 @@ type AuthUser struct {
 	// APIKeyAuth reports whether this request was authenticated by an API key
 	// rather than by a session cookie.
 	APIKeyAuth bool
+	// APIKeyID is the ID of the key that authenticated this request, empty
+	// for a session. The audit log records it as the actor's key
+	// (ocidex-n9na).
+	APIKeyID string
 	// APIKeyCaps is the capability ceiling declared on that key. It is only
 	// ever a ceiling: what the caller may actually do is this set INTERSECTED
 	// with their live namespace roles, which is what makes a demotion narrow
@@ -477,7 +481,7 @@ func (s *authService) CreateSession(ctx context.Context, userID pgtype.UUID) (st
 func (s *authService) ValidateSession(ctx context.Context, token string) (AuthUser, error) {
 	row, err := s.repo.GetSessionByTokenHash(ctx, sha256hex(token))
 	if err != nil {
-		return AuthUser{}, fmt.Errorf("session not found: %w", err)
+		return AuthUser{}, credentialLookupError("session", err)
 	}
 	return AuthUser{
 		ID:          row.UserID,
@@ -580,10 +584,21 @@ func newAPIKeyMaterial() (plaintext, hash, prefix string, err error) {
 	return plaintext, sha256hex(plaintext), prefix, nil
 }
 
+// credentialLookupError maps a failed credential lookup. Only "no rows" means
+// the credential is unknown (ErrNotFound, which callers answer with 401);
+// anything else is a server fault, and must not reach the caller as a 401 that
+// sends operators debugging credentials during a database outage.
+func credentialLookupError(what string, err error) error {
+	if errors.Is(err, pgx.ErrNoRows) {
+		return fmt.Errorf("%s not found: %w", what, ErrNotFound)
+	}
+	return fmt.Errorf("looking up %s: %w", what, err)
+}
+
 func (s *authService) ValidateAPIKey(ctx context.Context, rawKey string) (AuthUser, error) {
 	row, err := s.repo.GetAPIKeyByHash(ctx, sha256hex(rawKey))
 	if err != nil {
-		return AuthUser{}, fmt.Errorf("api key not found: %w", err)
+		return AuthUser{}, credentialLookupError("api key", err)
 	}
 	s.touchLastUsed(ctx, row.ID, row.LastUsedAt)
 	// An unknown capability string on the row is dropped rather than rejected:
@@ -600,6 +615,7 @@ func (s *authService) ValidateAPIKey(ctx context.Context, rawKey string) (AuthUs
 		DisplayName: displayName(row.DisplayName),
 		Role:        row.Role,
 		APIKeyAuth:  true,
+		APIKeyID:    uuidToStr(row.ID),
 		APIKeyCaps:  caps,
 		// Empty for an ordinary key. Set, it confines the key to pushing
 		// this one cluster's inventory (ocidex-70eo.5).

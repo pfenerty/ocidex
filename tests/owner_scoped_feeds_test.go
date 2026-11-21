@@ -58,17 +58,6 @@ func sbomIDInNamespace(t *testing.T, pool *pgxpool.Pool, nsID string) pgtype.UUI
 	return id
 }
 
-// seedEnrichmentJob inserts a failed enrichment_jobs row against an SBOM.
-func seedEnrichmentJob(t *testing.T, pool *pgxpool.Pool, sbomID pgtype.UUID, enricher string) {
-	t.Helper()
-	if _, err := pool.Exec(t.Context(), `
-		INSERT INTO enrichment_jobs (sbom_id, enricher_name, state)
-		VALUES ($1, $2, 'failed')
-	`, sbomID, enricher); err != nil {
-		t.Fatalf("insert enrichment job: %v", err)
-	}
-}
-
 // seedDriftEvent inserts a provenance_drift_events row against an SBOM.
 func seedDriftEvent(t *testing.T, pool *pgxpool.Pool, sbomID pgtype.UUID) {
 	t.Helper()
@@ -139,7 +128,11 @@ func TestOwnerScopedFeedsExcludeNonOwners(t *testing.T) {
 	sbomID := sbomIDInNamespace(t, pool, nsID)
 	regID := seedRegistryInNamespace(t, pool, nsID, "owned")
 	seedScanJob(t, pool, regID, "ubuntu")
-	seedEnrichmentJob(t, pool, sbomID, "provenance")
+	// Ingest enqueued every root enricher's job (ocidex-n1z4.1); keep one, so
+	// each feed below has exactly one row to show or hide.
+	_, err = pool.Exec(t.Context(),
+		`DELETE FROM enrichment_jobs WHERE sbom_id = $1 AND enricher_name <> 'provenance'`, sbomID)
+	is.NoErr(err)
 	seedDriftEvent(t, pool, sbomID)
 
 	const (

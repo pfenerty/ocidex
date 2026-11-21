@@ -89,7 +89,7 @@ var EnvDocs = []EnvDoc{
 	{"NATS_STREAM_NAME", "NATS JetStream", "JetStream stream name."},
 	{"NATS_EVENT_TTL_HOURS", "NATS JetStream", "How long events are retained in the stream."},
 	{"NATS_STREAM_REPLICAS", "NATS JetStream", "JetStream stream replica count. Set to `3` for a 3-node NATS cluster."},
-	{"AUDIT_LOG_ENABLED", "Audit Logging", "Emit structured audit log entries for mutating API operations."},
+	{"AUDIT_LOG_ENABLED", "Audit Logging", "Write a structured `audit` log line to stdout for each SBOM ingest and delete, artifact delete, login, logout and retention sweep. See [Monitoring](/guides/operate/monitoring/#audit-log)."},
 	{"METRICS_ADDR", "Metrics", "Listen address for `/metrics`. Empty disables the listener and metrics."},
 	{"OTEL_RESOURCE_ATTRIBUTES", "Metrics", "Extra resource attributes, e.g. `deployment.environment.name=prod`. They appear on the `target_info` series and on every span."},
 	{"OTEL_METRICS_EXPORTER", "Metrics", "Comma-separated: `prometheus` serves `/metrics`, `otlp` also pushes to `OTEL_EXPORTER_OTLP_*`, `none` turns metrics off."},

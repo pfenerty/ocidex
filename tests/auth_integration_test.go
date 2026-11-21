@@ -44,11 +44,19 @@ func setupServerWithAuth(t *testing.T, pool *pgxpool.Pool) (*httptest.Server, se
 // the very instance the server reads, which means getting hold of it here.
 func setupServerWithStats(t *testing.T, pool *pgxpool.Pool) (*httptest.Server, service.AuthService, service.SearchService) {
 	t.Helper()
+	return setupServerWithPublisher(t, pool, nil)
+}
+
+// setupServerWithPublisher is setupServerWithStats with the SBOM service
+// publishing its events to pub, for a test that subscribes to them (the audit
+// log, for one). A nil pub publishes nothing.
+func setupServerWithPublisher(t *testing.T, pool *pgxpool.Pool, pub event.Publisher) (*httptest.Server, service.AuthService, service.SearchService) {
+	t.Helper()
 	cfg := &config.Config{SessionSecret: testSessionSecret}
 	authSvc := service.NewAuthService(pool, cfg, event.NewBus(slog.Default()), []auth.Provider{
 		auth.NewGitHubProvider("test-client", "test-secret", "http://localhost/auth/callback"),
 	})
-	sbomSvc := service.NewSBOMService(pool, nil, nil)
+	sbomSvc := service.NewSBOMService(pool, pub, nil)
 	searchSvc := service.NewSearchService(pool)
 	registrySvc := service.NewRegistryService(pool, nil)
 	// Ingest resolves its namespace through the source (ADR-039), so both of

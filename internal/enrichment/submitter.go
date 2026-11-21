@@ -11,11 +11,11 @@ import (
 
 	"github.com/pfenerty/ocidex/internal/event"
 	natspkg "github.com/pfenerty/ocidex/internal/nats"
-	"github.com/pfenerty/ocidex/internal/service"
 )
 
-// NATSSubmitter subscribes to in-process SBOMIngested events, writes an
-// enrichment_jobs row to the DB, and publishes a best-effort NATS hint.
+// NATSSubmitter subscribes to in-process SBOMIngested events and publishes a
+// best-effort NATS hint. The ingest transaction has already written the root
+// enrichers' enrichment_jobs rows (ocidex-n1z4.1).
 // It implements extension.Extension and is registered on the API server.
 //
 // The DB row is the source of truth. If the hint publish fails, the
@@ -23,7 +23,6 @@ import (
 type NATSSubmitter struct {
 	client     *natspkg.Client
 	streamName string
-	jobSvc     service.EnrichJobService
 	logger     *slog.Logger
 }
 
@@ -31,13 +30,11 @@ type NATSSubmitter struct {
 func NewNATSSubmitter(
 	client *natspkg.Client,
 	streamName string,
-	jobSvc service.EnrichJobService,
 	logger *slog.Logger,
 ) *NATSSubmitter {
 	return &NATSSubmitter{
 		client:     client,
 		streamName: streamName,
-		jobSvc:     jobSvc,
 		logger:     logger,
 	}
 }
@@ -56,15 +53,6 @@ func (s *NATSSubmitter) handle(ctx context.Context, ev event.Event) {
 	d, ok := ev.Data.(event.SBOMIngestedData)
 	if !ok {
 		return
-	}
-
-	for _, name := range rootEnrichers {
-		if err := s.jobSvc.Enqueue(ctx, d.SBOMID, d.Architecture, d.BuildDate, name); err != nil {
-			s.logger.Error("enrichment-submitter: enqueue failed",
-				"sbom_id", d.SBOMID, "enricher", name, "err", err,
-			)
-			return
-		}
 	}
 
 	jobID := enrichUUIDToString(d.SBOMID)

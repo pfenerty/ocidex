@@ -4,9 +4,7 @@ import (
 	"github.com/pfenerty/ocidex/internal/enrichment/names"
 )
 
-// rootEnrichers are enqueued directly on SBOM ingest — they have no
-// prerequisite on another enricher's output.
-var rootEnrichers = []string{names.User, names.OCIMetadata, names.Provenance}
+// The root enrichers, enqueued directly on SBOM ingest, are names.Roots().
 
 // enricherDeps maps an enricher name to the prerequisite enrichers that
 // must reach status=success before it can be enqueued. Enrichers not

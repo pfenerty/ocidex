@@ -12,6 +12,13 @@ const (
 	Git         = "git"
 )
 
+// Roots returns the enrichers enqueued directly on SBOM ingest: those with no
+// prerequisite on another enricher's output. Ingest writes their
+// enrichment_jobs rows inside its own transaction (ocidex-n1z4.1).
+func Roots() []string {
+	return []string{User, OCIMetadata, Provenance}
+}
+
 // Status values stored in enrichments.status.
 const (
 	StatusSuccess = "success"

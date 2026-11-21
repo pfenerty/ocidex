@@ -3,14 +3,17 @@ package service
 import (
 	"bytes"
 	"context"
+	"encoding/json"
 	"sort"
 	"testing"
 
 	cdx "github.com/CycloneDX/cyclonedx-go"
 	"github.com/jackc/pgx/v5"
+	"github.com/jackc/pgx/v5/pgconn"
 	"github.com/jackc/pgx/v5/pgtype"
 	"github.com/matryer/is"
 
+	"github.com/pfenerty/ocidex/internal/enrichment/names"
 	"github.com/pfenerty/ocidex/internal/repository"
 )
 
@@ -58,6 +61,41 @@ type fakeBackfillRepo struct {
 	components    []*fakeBackfillComponent
 	listCalls     int
 	purlPages     int
+	// jobs holds the enrichment_jobs rows by SBOM, then enricher name.
+	jobs map[pgtype.UUID]map[string]repository.InsertEnrichmentJobParams
+}
+
+func (f *fakeBackfillRepo) ListSBOMsMissingRootEnrichmentPage(_ context.Context, arg repository.ListSBOMsMissingRootEnrichmentPageParams) ([]repository.ListSBOMsMissingRootEnrichmentPageRow, error) {
+	var out []repository.ListSBOMsMissingRootEnrichmentPageRow
+	for _, s := range f.sboms {
+		if !after(s.id, arg.After) || len(out) == int(arg.RowLimit) {
+			continue
+		}
+		var missing []string
+		for _, name := range arg.Enrichers {
+			if _, ok := f.jobs[s.id][name]; !ok {
+				missing = append(missing, name)
+			}
+		}
+		if len(missing) > 0 {
+			out = append(out, repository.ListSBOMsMissingRootEnrichmentPageRow{ID: s.id, Missing: missing})
+		}
+	}
+	return out, nil
+}
+
+func (f *fakeBackfillRepo) InsertEnrichmentJob(_ context.Context, arg repository.InsertEnrichmentJobParams) (repository.EnrichmentJob, error) {
+	if f.jobs == nil {
+		f.jobs = map[pgtype.UUID]map[string]repository.InsertEnrichmentJobParams{}
+	}
+	if f.jobs[arg.SbomID] == nil {
+		f.jobs[arg.SbomID] = map[string]repository.InsertEnrichmentJobParams{}
+	}
+	if _, ok := f.jobs[arg.SbomID][arg.EnricherName]; ok {
+		return repository.EnrichmentJob{}, &pgconn.PgError{Code: "23505"}
+	}
+	f.jobs[arg.SbomID][arg.EnricherName] = arg
+	return repository.EnrichmentJob{}, nil
 }
 
 func (f *fakeBackfillRepo) ListSBOMsWithoutFlavorPage(_ context.Context, arg repository.ListSBOMsWithoutFlavorPageParams) ([]repository.ListSBOMsWithoutFlavorPageRow, error) {
@@ -437,4 +475,49 @@ func TestBackfillLicenseExpressions(t *testing.T) {
 	again, err := backfillLicenseExpressions(context.Background(), f, 10)
 	is.NoErr(err)
 	is.Equal(again.Updated, 0)
+}
+
+// TestBackfillRootEnrichment covers ocidex-n1z4.3: SBOMs missing a root
+// enricher's job get exactly the missing jobs, with architecture and build date
+// re-derived from raw_bom, and a second run does nothing.
+func TestBackfillRootEnrichment(t *testing.T) {
+	is := is.New(t)
+	props := []cdx.Property{
+		{Name: "syft:image:labels:org.opencontainers.image.architecture", Value: "arm64"},
+	}
+	bom := cdx.BOM{BOMFormat: cdx.BOMFormat, SpecVersion: cdx.SpecVersion1_6, Version: 1,
+		Metadata: &cdx.Metadata{Component: &cdx.Component{Type: cdx.ComponentTypeContainer, Name: "img", Properties: &props}}}
+	raw, err := json.Marshal(&bom)
+	is.NoErr(err)
+
+	covered := map[string]repository.InsertEnrichmentJobParams{}
+	for _, n := range names.Roots() {
+		covered[n] = repository.InsertEnrichmentJobParams{}
+	}
+	repo := &fakeBackfillRepo{
+		sboms: []*fakeBackfillSBOM{
+			{id: seqUUID(1), rawBom: raw},                // orphan
+			{id: seqUUID(2), rawBom: raw},                // partly enqueued
+			{id: seqUUID(3), rawBom: raw},                // fully enqueued
+			{id: seqUUID(4), rawBom: []byte("not json")}, // orphan, undecodable
+		},
+		jobs: map[pgtype.UUID]map[string]repository.InsertEnrichmentJobParams{
+			seqUUID(2): {names.User: {}},
+			seqUUID(3): covered,
+		},
+	}
+
+	res, err := Backfill(context.Background(), repo, BackfillBatches{SBOMs: 2, Components: 2})
+	is.NoErr(err)
+	is.Equal(res.RootEnrichment, BackfillCounts{Updated: 3})
+	for _, id := range []pgtype.UUID{seqUUID(1), seqUUID(2), seqUUID(4)} {
+		is.Equal(len(repo.jobs[id]), len(names.Roots()))
+	}
+	is.Equal(repo.jobs[seqUUID(1)][names.OCIMetadata].Architecture.String, "arm64")
+	is.Equal(repo.jobs[seqUUID(2)][names.User], repository.InsertEnrichmentJobParams{}) // left alone
+	is.True(!repo.jobs[seqUUID(4)][names.OCIMetadata].Architecture.Valid)
+
+	again, err := Backfill(context.Background(), repo, BackfillBatches{SBOMs: 2, Components: 2})
+	is.NoErr(err)
+	is.Equal(again.RootEnrichment, BackfillCounts{})
 }
