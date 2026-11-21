@@ -164,26 +164,27 @@ export function formatDateTime(iso: string): string {
 }
 
 /**
- * Format a date as relative time ("2 days ago", "3 months ago").
- * Falls back to absolute date for anything older than 1 year.
+ * Format a date as relative time: "2 days ago", "3 months ago", or for a
+ * future date (a key's expiry) "in 2d", "tomorrow". Anything more than a year
+ * away in either direction falls back to the absolute date.
  */
 export function relativeDate(iso: string): string {
     if (meaningfulDate(iso) === undefined) return "—";
-    const now = Date.now();
-    const then = new Date(iso).getTime();
-    const diffMs = now - then;
-    const diffSec = Math.floor(diffMs / 1000);
+    const diffMs = Date.now() - new Date(iso).getTime();
+    const future = diffMs < 0;
+    const diffSec = Math.floor(Math.abs(diffMs) / 1000);
     const diffMin = Math.floor(diffSec / 60);
     const diffHr = Math.floor(diffMin / 60);
     const diffDay = Math.floor(diffHr / 24);
     const diffMonth = Math.floor(diffDay / 30);
+    const span = (n: number, unit: string) => (future ? `in ${n}${unit}` : `${n}${unit} ago`);
 
-    if (diffSec < 60) return "just now";
-    if (diffMin < 60) return `${diffMin}m ago`;
-    if (diffHr < 24) return `${diffHr}h ago`;
-    if (diffDay === 1) return "yesterday";
-    if (diffDay < 30) return `${diffDay}d ago`;
-    if (diffMonth < 12) return `${diffMonth}mo ago`;
+    if (diffSec < 60) return future ? "in under a minute" : "just now";
+    if (diffMin < 60) return span(diffMin, "m");
+    if (diffHr < 24) return span(diffHr, "h");
+    if (diffDay === 1) return future ? "tomorrow" : "yesterday";
+    if (diffDay < 30) return span(diffDay, "d");
+    if (diffMonth < 12) return span(diffMonth, "mo");
     return formatDate(iso);
 }
 

@@ -56,6 +56,23 @@ export function parseCapabilities(raw: string | undefined): Capability[] {
     return CAPABILITIES.filter((c) => wanted.has(c));
 }
 
+/**
+ * How long a new key lives. "Never" is the default: a key a CI system or the
+ * operator holds would otherwise stop working without anyone changing it.
+ */
+const LIFETIMES: { days: number; label: string }[] = [
+    { days: 0, label: "Never expires" },
+    { days: 30, label: "Expires in 30 days" },
+    { days: 90, label: "Expires in 90 days" },
+    { days: 365, label: "Expires in 1 year" },
+];
+
+/** The expiry for a lifetime in days counted from now, or undefined for "never". */
+export function expiryFor(days: number, now: Date = new Date()): string | undefined {
+    if (days <= 0) return undefined;
+    return new Date(now.getTime() + days * 24 * 60 * 60 * 1000).toISOString();
+}
+
 function capabilityLabel(c: string): string {
     return c.replace(/_/g, " ");
 }
@@ -75,6 +92,7 @@ export function APIKeysTab(props: { initialName?: string; initialCapabilities?: 
     const [newKeyName, setNewKeyName] = createSignal(props.initialName ?? "");
     const [preset, setPreset] = createSignal<Preset>(prefilled.length > 0 ? "custom" : "full");
     const [custom, setCustom] = createSignal<Capability[]>(prefilled);
+    const [lifetime, setLifetime] = createSignal(0);
     const [revealedKey, setRevealedKey] = createSignal<string | null>(null);
 
     // An empty list is how the API spells "everything I may do", so the full
@@ -99,11 +117,12 @@ export function APIKeysTab(props: { initialName?: string; initialCapabilities?: 
         e.preventDefault();
         const name = newKeyName().trim();
         if (!name) return;
-        createKey.mutate({ name, capabilities: requested() }, {
+        createKey.mutate({ name, capabilities: requested(), expiresAt: expiryFor(lifetime()) }, {
             onSuccess: (data) => {
                 setNewKeyName("");
                 setPreset("full");
                 setCustom([]);
+                setLifetime(0);
                 setRevealedKey(data.key);
             },
             onError: () => toast("Failed to create API key", "error"),
@@ -135,6 +154,21 @@ export function APIKeysTab(props: { initialName?: string; initialCapabilities?: 
             },
         },
         { header: "Created", render: (k) => <TimestampCell iso={k.createdAt} /> },
+        {
+            header: "Expires",
+            render: (k) => (
+                <Show when={k.expiresAt} fallback={<span class="text-muted">Never</span>}>
+                    {(at) => (
+                        <span class="flex items-center gap-1">
+                            <TimestampCell iso={at()} />
+                            <Show when={new Date(at()).getTime() <= Date.now()}>
+                                <span class="badge badge-danger">expired</span>
+                            </Show>
+                        </span>
+                    )}
+                </Show>
+            ),
+        },
         {
             header: "Last Used",
             render: (k) =>
@@ -217,6 +251,15 @@ export function APIKeysTab(props: { initialName?: string; initialCapabilities?: 
                         >
                             <For each={PRESETS}>
                                 {(p) => <option value={p.value}>{p.label}</option>}
+                            </For>
+                        </select>
+                        <select
+                            aria-label="Key lifetime"
+                            value={lifetime()}
+                            onChange={(e) => setLifetime(Number(e.currentTarget.value))}
+                        >
+                            <For each={LIFETIMES}>
+                                {(l) => <option value={l.days}>{l.label}</option>}
                             </For>
                         </select>
                         <Button variant="primary" type="submit" disabled={createKey.isPending || !newKeyName().trim()}>

@@ -167,6 +167,13 @@ The operator acts with its own API key, so its capabilities bound what it can do
 list asks for all of them), and the operator may only delete keys within the same bound.
 Give the operator a key with every capability you want its `APIKey` resources to grant.
 
+An `APIKey` with `spec.lifetime` (for example `720h`, at least `1h`) gets a key that expires, and
+the operator renews it once 80% of the lifetime has passed. It mints the new key and writes it to
+the Secret before deleting the old one, so the Secret never holds an expired key. `status.expiresAt`
+and the `Expires` column of `kubectl get apikeys` show the current key's expiry. Without a lifetime
+the key never expires. A consumer that reads the Secret only at startup needs restarting after a
+renewal, as it does after any rotation.
+
 ```sh
 kubectl -n ocidex-operator create secret generic ocidex-operator-secrets \
   --from-literal=OCIDEX_API_KEY="$OCIDEX_API_KEY"

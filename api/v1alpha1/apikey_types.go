@@ -26,6 +26,14 @@ type APIKeySpec struct {
 	// API key will be written under the "api-key" data key.
 	// +kubebuilder:validation:Required
 	SecretRef corev1.LocalObjectReference `json:"secretRef"`
+
+	// Lifetime makes the key expire this long after it is minted, e.g. "720h".
+	// The operator rotates it once 80% of the lifetime has passed: it mints a
+	// new key, writes it to the Secret, then deletes the old one, so the Secret
+	// never holds an expired key. Omit it for a key that never expires.
+	// Must be at least 1h.
+	// +optional
+	Lifetime *metav1.Duration `json:"lifetime,omitempty"`
 }
 
 // APIKeyStatus reflects the observed state of an APIKey.
@@ -36,6 +44,11 @@ type APIKeyStatus struct {
 	// Prefix is the first 12 characters of the key, safe to expose for
 	// identification without revealing the full credential.
 	Prefix string `json:"prefix,omitempty"`
+
+	// ExpiresAt is when the current key stops working. Absent for a key
+	// without a lifetime.
+	// +optional
+	ExpiresAt *metav1.Time `json:"expiresAt,omitempty"`
 
 	// Conditions describe the current state.
 	// The Ready condition is True when the key exists in OCIDex and the Secret
@@ -50,6 +63,7 @@ type APIKeyStatus struct {
 // +kubebuilder:printcolumn:name="Capabilities",type=string,JSONPath=`.spec.capabilities`
 // +kubebuilder:printcolumn:name="Prefix",type=string,JSONPath=`.status.prefix`
 // +kubebuilder:printcolumn:name="Ready",type=string,JSONPath=`.status.conditions[?(@.type=="Ready")].status`
+// +kubebuilder:printcolumn:name="Expires",type=date,JSONPath=`.status.expiresAt`
 // +kubebuilder:printcolumn:name="Age",type=date,JSONPath=`.metadata.creationTimestamp`
 
 // APIKey declaratively provisions an OCIDex API key and writes the plaintext
