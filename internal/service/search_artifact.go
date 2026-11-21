@@ -23,7 +23,7 @@ func (s *searchService) GetArtifact(ctx context.Context, idStr string, vis Visib
 	// Access check.
 	visible, err := q.IsArtifactVisible(ctx, repository.IsArtifactVisibleParams{
 		AID:     id,
-		UserID:  vis.UserID,
+		UserID:  uuidOrNull(vis.UserID),
 		IsAdmin: visAdminBool(vis),
 	})
 	if err != nil {
@@ -44,20 +44,19 @@ func (s *searchService) GetArtifact(ctx context.Context, idStr string, vis Visib
 	// Count visible SBOMs for this artifact.
 	sbomCount, err := q.CountSBOMsByArtifact(ctx, repository.CountSBOMsByArtifactParams{
 		ArtifactID: id,
-		UserID:     vis.UserID,
+		UserID:     uuidOrNull(vis.UserID),
 		IsAdmin:    visAdminBool(vis),
 	})
 	if err != nil {
 		return ArtifactDetail{}, fmt.Errorf("counting sboms: %w", err)
 	}
 
-	// The detail response inherits SufficientSbomCount from ArtifactSummary, and
-	// until ocidex-ag4q.33 nothing populated it here — the field was serialized
-	// as a permanent 0 while the list endpoint reported the real figure for the
-	// same artifact. The band now shows enrichment coverage, so it is counted.
+	// The detail response inherits SufficientSbomCount from ArtifactSummary and
+	// the band shows enrichment coverage, so it is counted here too; left unset
+	// it would serialize as 0 while the list endpoint reports the real figure.
 	sufficientCount, err := q.CountSufficientSBOMsByArtifact(ctx, repository.CountSufficientSBOMsByArtifactParams{
 		ArtifactID: id,
-		UserID:     vis.UserID,
+		UserID:     uuidOrNull(vis.UserID),
 		IsAdmin:    visAdminBool(vis),
 	})
 	if err != nil {
@@ -66,7 +65,7 @@ func (s *searchService) GetArtifact(ctx context.Context, idStr string, vis Visib
 
 	versionCount, err := q.CountArtifactVersions(ctx, repository.CountArtifactVersionsParams{
 		ArtifactID: id,
-		UserID:     vis.UserID,
+		UserID:     uuidOrNull(vis.UserID),
 		IsAdmin:    visAdminBool(vis),
 	})
 	if err != nil {
@@ -76,9 +75,9 @@ func (s *searchService) GetArtifact(ctx context.Context, idStr string, vis Visib
 	// The watch flag is per-caller, so it is skipped entirely when there is no
 	// caller — an anonymous request has no watchlist to be on.
 	var watched bool
-	if vis.UserID.Valid {
+	if vis.UserID != "" {
 		watched, err = q.IsArtifactWatched(ctx, repository.IsArtifactWatchedParams{
-			UserID:     vis.UserID,
+			UserID:     uuidOrNull(vis.UserID),
 			ArtifactID: id,
 		})
 		if err != nil {
@@ -115,7 +114,7 @@ func (s *searchService) ListVersionsByArtifact(ctx context.Context, artifactIDSt
 	// (one row each via the newest_per_version CTE) and sort/paginate in Go.
 	rows, err := q.ListArtifactVersions(ctx, repository.ListArtifactVersionsParams{
 		ArtifactID: artifactID,
-		UserID:     vis.UserID,
+		UserID:     uuidOrNull(vis.UserID),
 		IsAdmin:    visAdminBool(vis),
 		RowLimit:   maxVersionsFetch,
 		RowOffset:  0,
@@ -326,7 +325,7 @@ func (s *searchService) CountArtifacts(ctx context.Context, filter ArtifactFilte
 		Name:              textOrNull(filter.Name),
 		RequireSufficient: boolOrNull(filter.RequireSufficient),
 		IsAdmin:           visAdminBool(filter.Visibility),
-		UserID:            filter.Visibility.UserID,
+		UserID:            uuidOrNull(filter.Visibility.UserID),
 		OwnedOnly:         filter.Visibility.ownedFlag(),
 	})
 	if err != nil {
@@ -344,7 +343,7 @@ func (s *searchService) ListArtifacts(ctx context.Context, filter ArtifactFilter
 		Name:              textOrNull(filter.Name),
 		RequireSufficient: boolOrNull(filter.RequireSufficient),
 		IsAdmin:           visAdminBool(filter.Visibility),
-		UserID:            filter.Visibility.UserID,
+		UserID:            uuidOrNull(filter.Visibility.UserID),
 		OwnedOnly:         filter.Visibility.ownedFlag(),
 		HasCursor:         pgtype.Bool{Bool: filter.HasCursor, Valid: true},
 		CursorName:        textOrNull(filter.CursorName),
@@ -436,7 +435,7 @@ func (s *searchService) GetArtifactLicenseSummary(ctx context.Context, artifactI
 	// Access check.
 	visible, err := q.IsArtifactVisible(ctx, repository.IsArtifactVisibleParams{
 		AID:     artifactID,
-		UserID:  vis.UserID,
+		UserID:  uuidOrNull(vis.UserID),
 		IsAdmin: visAdminBool(vis),
 	})
 	if err != nil {
@@ -500,7 +499,7 @@ func (s *searchService) GetArtifactVulnSummary(ctx context.Context, artifactIDSt
 
 	visible, err := q.IsArtifactVisible(ctx, repository.IsArtifactVisibleParams{
 		AID:     artifactID,
-		UserID:  vis.UserID,
+		UserID:  uuidOrNull(vis.UserID),
 		IsAdmin: visAdminBool(vis),
 	})
 	if err != nil {
@@ -550,7 +549,7 @@ func (s *searchService) GetArtifactVulnSummary(ctx context.Context, artifactIDSt
 // here with. The band tile and this tab therefore report different totals by
 // design; the tab states its scope.
 //
-// The version cap is ocidex-7gf7.5: uncapped, this walked every version of the
+// The version cap exists because, uncapped, this walked every version of the
 // artifact and timed out on the widest one in the corpus. Both the cap and the
 // artifact's true version count come back on the page so the tab can say which
 // slice of history the numbers describe — an unstated truncation would be worse
@@ -564,7 +563,7 @@ func (s *searchService) ListArtifactVulns(ctx context.Context, artifactIDStr str
 
 	visible, err := q.IsArtifactVisible(ctx, repository.IsArtifactVisibleParams{
 		AID:     artifactID,
-		UserID:  vis.UserID,
+		UserID:  uuidOrNull(vis.UserID),
 		IsAdmin: visAdminBool(vis),
 	})
 	if err != nil {
@@ -588,7 +587,7 @@ func (s *searchService) ListArtifactVulns(ctx context.Context, artifactIDStr str
 	// nothing next to the query it is describing.
 	totalVersions, err := q.CountArtifactVersions(ctx, repository.CountArtifactVersionsParams{
 		ArtifactID: artifactID,
-		UserID:     vis.UserID,
+		UserID:     uuidOrNull(vis.UserID),
 		IsAdmin:    visAdminBool(vis),
 	})
 	if err != nil {
@@ -597,7 +596,7 @@ func (s *searchService) ListArtifactVulns(ctx context.Context, artifactIDStr str
 
 	total, err := q.CountArtifactVulns(ctx, repository.CountArtifactVulnsParams{
 		ArtifactID:   artifactID,
-		UserID:       vis.UserID,
+		UserID:       uuidOrNull(vis.UserID),
 		IsAdmin:      visAdminBool(vis),
 		Severity:     severity,
 		Vuln:         vuln,
@@ -611,7 +610,7 @@ func (s *searchService) ListArtifactVulns(ctx context.Context, artifactIDStr str
 
 	rows, err := q.ListArtifactVulns(ctx, repository.ListArtifactVulnsParams{
 		ArtifactID:   artifactID,
-		UserID:       vis.UserID,
+		UserID:       uuidOrNull(vis.UserID),
 		IsAdmin:      visAdminBool(vis),
 		Severity:     severity,
 		Vuln:         vuln,
@@ -663,7 +662,7 @@ func (s *searchService) ListArtifactVulns(ctx context.Context, artifactIDStr str
 func attachArtifactVulnVersions(ctx context.Context, q *repository.Queries, artifactID pgtype.UUID, vis VisibilityFilter, scope pgtype.Int4, canonicalIDs []string, items []ArtifactVulnEntry) error {
 	rows, err := q.ListArtifactVulnAffectedVersions(ctx, repository.ListArtifactVulnAffectedVersionsParams{
 		ArtifactID:   artifactID,
-		UserID:       vis.UserID,
+		UserID:       uuidOrNull(vis.UserID),
 		IsAdmin:      visAdminBool(vis),
 		CanonicalIds: canonicalIDs,
 		VersionScope: scope,

@@ -46,7 +46,7 @@ func (h *Handler) ListSources(ctx context.Context, in *ListSourcesInput) (*ListS
 // ListMySources returns only the sources in namespaces the caller owns. It has
 // no namespace query parameter: /sources?namespaceId= already covers "one
 // namespace", and the point of this collection is that the caller does not have
-// to know their namespace IDs first (ocidex-998g.2).
+// to know their namespace IDs first.
 func (h *Handler) ListMySources(ctx context.Context, _ *ListMySourcesInput) (*ListSourcesOutput, error) {
 	if _, ok := UserFromContext(ctx); !ok {
 		return nil, huma.Error401Unauthorized("not authenticated")

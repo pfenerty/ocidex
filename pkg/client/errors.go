@@ -27,7 +27,7 @@ func (e *APIError) Unwrap() error { return e.sentinel }
 
 // Error names the sentinel, when there is one, ahead of the server's detail:
 // the detail alone may not say "forbidden" or "not found", and CLI users and
-// scripts read those words (ocidex-nnh2).
+// scripts read those words.
 func (e *APIError) Error() string {
 	if e.sentinel == nil {
 		return fmt.Sprintf("HTTP %d: %s", e.Status, e.Detail)
@@ -60,7 +60,7 @@ func mapError(status int, body []byte) error {
 	detail := extractDetail(body)
 	switch status {
 	// The detail is kept: "forbidden" alone does not tell an agent operator
-	// which capability is missing (ocidex-70eo.4).
+	// which capability is missing.
 	case 403:
 		return &APIError{Status: status, Detail: detail, sentinel: ErrForbidden}
 	case 404:

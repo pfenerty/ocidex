@@ -53,7 +53,7 @@ func (s *searchService) ListTopVulnerabilities(ctx context.Context, filter TopVu
 	sortBy, sortDir := normalizeTopVulnSort(filter.Sort, filter.SortDir)
 
 	params := repository.ListTopVulnerabilitiesParams{
-		UserID:    filter.Visibility.UserID,
+		UserID:    uuidOrNull(filter.Visibility.UserID),
 		IsAdmin:   isAdmin,
 		OwnedOnly: filter.Visibility.ownedFlag(),
 		Severity:  severity,
@@ -145,7 +145,7 @@ func (s *searchService) GetVulnerabilityDetail(
 
 	artifactRows, err := q.ListAffectedArtifactsByVuln(ctx, repository.ListAffectedArtifactsByVulnParams{
 		CanonicalID: row.CanonicalID,
-		UserID:      vis.UserID,
+		UserID:      uuidOrNull(vis.UserID),
 		IsAdmin:     visAdminBool(vis),
 		RowLimit:    pgtype.Int4{Int32: limit, Valid: true},
 		RowOffset:   pgtype.Int4{Int32: offset, Valid: true},
@@ -174,7 +174,7 @@ func (s *searchService) GetVulnerabilityDetail(
 
 	componentRows, err := q.ListAffectedComponentsByVuln(ctx, repository.ListAffectedComponentsByVulnParams{
 		CanonicalID: row.CanonicalID,
-		UserID:      vis.UserID,
+		UserID:      uuidOrNull(vis.UserID),
 		IsAdmin:     visAdminBool(vis),
 	})
 	if err != nil {
@@ -184,7 +184,7 @@ func (s *searchService) GetVulnerabilityDetail(
 
 	namespaceCount, err := q.CountAffectedNamespacesByVuln(ctx, repository.CountAffectedNamespacesByVulnParams{
 		CanonicalID: row.CanonicalID,
-		UserID:      vis.UserID,
+		UserID:      uuidOrNull(vis.UserID),
 		IsAdmin:     visAdminBool(vis),
 	})
 	if err != nil {

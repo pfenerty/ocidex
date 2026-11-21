@@ -1,4 +1,4 @@
--- Public discovery queries (ocidex-q1z7.1).
+-- Public discovery queries.
 --
 -- Every query here feeds an anonymous, edge-cacheable surface, so all four are
 -- scoped to PUBLIC namespaces only — and they express that scope the same way,
@@ -26,7 +26,7 @@
 -- this artifact. That is the figure the Relationships tab reports ("ships in N
 -- artifacts"), and it has to be: counting SBOMs instead, and leaving out the
 -- ADR-048 R6 command branch, ranked every ocidex command artifact at "0 uses"
--- while its Relationships tab named the image that ships it (ocidex-nps9.5).
+-- while its Relationships tab named the image that ships it.
 --
 -- The match is the same coarse one ListArtifactUsages does: purl base via
 -- idx_component_purl_base, the (type, name, group) tuple for purl-less rows,
@@ -259,7 +259,7 @@ LIMIT @row_limit::int;
 -- name: GetDiscoverFeaturedArtifacts :many
 -- Landing-page cards: per artifact, its newest public SBOM summarised as a
 -- version, a package count, vulnerability counts by severity and package
--- counts by license category (ocidex-08ys).
+-- counts by license category.
 --
 -- Selection: with @names set (DISCOVER_FEATURED), each entry picks the public
 -- artifact whose name equals it or ends in "/<entry>", so "library/nginx"

@@ -23,7 +23,7 @@ type CreateArtifactWatchParams struct {
 	ArtifactID pgtype.UUID `json:"artifact_id"`
 }
 
-// Artifact watchlist (ocidex-998g.3). A watch is a private bookmark, not an
+// Artifact watchlist. A watch is a private bookmark, not an
 // ownership or visibility relation — see the 00058 migration.
 //
 // Nothing here re-checks visibility. Whether the caller may watch an artifact

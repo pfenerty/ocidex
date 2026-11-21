@@ -51,7 +51,7 @@ type Queue[C Claim] interface {
 }
 
 // Database calls the worker makes around a job, each bounded so a stuck
-// connection can't hang a worker or Stop (ocidex-89c9.3). A claim is a single
+// connection can't hang a worker or Stop. A claim is a single
 // UPDATE ... RETURNING and the outcome a single UPDATE; the sweep touches only
 // rows past the stuck threshold.
 const (
@@ -316,7 +316,7 @@ func (w *Worker[C]) run(ctx context.Context, claim C) {
 	// The outcome is recorded even when the job failed because ctx was
 	// cancelled (a timeout, or Stop), so it runs detached from ctx's
 	// cancellation, keeping its values (the span) — but bounded, so a stuck
-	// connection can't hold up Stop (ocidex-89c9.3).
+	// connection can't hold up Stop.
 	outcomeCtx, cancelOutcome := context.WithTimeout(context.WithoutCancel(ctx), outcomeTimeout)
 	defer cancelOutcome()
 	state, ferr := w.queue.FailOrRequeue(outcomeCtx, claim.JobID(), err.Error(), maxAttempts)

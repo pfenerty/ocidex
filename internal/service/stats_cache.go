@@ -60,8 +60,8 @@ func statsCacheKey(vis VisibilityFilter) string {
 	switch {
 	case vis.IsAdmin:
 		return roleAdmin
-	case vis.UserID.Valid:
-		return "u:" + vis.UserID.String()
+	case vis.UserID != "":
+		return "u:" + vis.UserID
 	default:
 		return "anon"
 	}

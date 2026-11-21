@@ -152,7 +152,7 @@ func enrichJobParams(ctx context.Context, sbomID pgtype.UUID, architecture, buil
 
 // enqueueRootEnrichments writes the root enrichers' jobs for a new SBOM through
 // q, the ingest transaction's queries, so the SBOM and its follow-up work
-// commit together (ocidex-n1z4.1). A post-commit enqueue was lost whenever the
+// commit together. A post-commit enqueue was lost whenever the
 // request context was cancelled, the database blipped or the process died
 // between commit and publish, and a re-upload short-circuits on the digest, so
 // nothing would ever enrich that SBOM. The SBOM is new in this transaction, so
@@ -256,7 +256,7 @@ func (s *enrichJobService) List(ctx context.Context, state, enricherName string,
 		State:        stateFilter,
 		EnricherName: enricherFilter,
 		IsAdmin:      vis.adminFlag(),
-		UserID:       vis.UserID,
+		UserID:       uuidOrNull(vis.UserID),
 		Limit:        limit,
 		Offset:       offset,
 	})
@@ -267,7 +267,7 @@ func (s *enrichJobService) List(ctx context.Context, state, enricherName string,
 		State:        stateFilter,
 		EnricherName: enricherFilter,
 		IsAdmin:      vis.adminFlag(),
-		UserID:       vis.UserID,
+		UserID:       uuidOrNull(vis.UserID),
 	})
 	if err != nil {
 		return nil, 0, fmt.Errorf("counting enrichment jobs: %w", err)
@@ -282,7 +282,7 @@ func (s *enrichJobService) List(ctx context.Context, state, enricherName string,
 func (s *enrichJobService) Summary(ctx context.Context, vis VisibilityFilter) ([]EnrichJobStateCount, error) {
 	rows, err := s.repo.SummarizeEnrichmentJobs(ctx, repository.SummarizeEnrichmentJobsParams{
 		IsAdmin: vis.adminFlag(),
-		UserID:  vis.UserID,
+		UserID:  uuidOrNull(vis.UserID),
 	})
 	if err != nil {
 		return nil, fmt.Errorf("summarizing enrichment jobs: %w", err)

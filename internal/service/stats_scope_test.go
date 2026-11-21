@@ -46,7 +46,7 @@ func TestNormalizeStatsScopeCollapsesViewersWithoutPrivateRegistries(t *testing.
 	is := is.New(t)
 	svc := &searchService{db: countRow(0, nil)}
 
-	got := svc.normalizeStatsScope(context.Background(), VisibilityFilter{UserID: testUserID(t)})
+	got := svc.normalizeStatsScope(context.Background(), VisibilityFilter{UserID: testUserID(t).String()})
 
 	is.Equal(statsCacheKey(got), "anon")
 }
@@ -56,7 +56,7 @@ func TestNormalizeStatsScopeKeepsOwnersOfPrivateRegistries(t *testing.T) {
 	uid := testUserID(t)
 	svc := &searchService{db: countRow(1, nil)}
 
-	got := svc.normalizeStatsScope(context.Background(), VisibilityFilter{UserID: uid})
+	got := svc.normalizeStatsScope(context.Background(), VisibilityFilter{UserID: uid.String()})
 
 	is.Equal(statsCacheKey(got), "u:"+uid.String())
 }
@@ -68,7 +68,7 @@ func TestNormalizeStatsScopeFailsClosed(t *testing.T) {
 	uid := testUserID(t)
 	svc := &searchService{db: countRow(0, errors.New("db error"))}
 
-	got := svc.normalizeStatsScope(context.Background(), VisibilityFilter{UserID: uid})
+	got := svc.normalizeStatsScope(context.Background(), VisibilityFilter{UserID: uid.String()})
 
 	is.Equal(statsCacheKey(got), "u:"+uid.String())
 }
@@ -118,7 +118,7 @@ func TestGetDashboardStatsServesWarmedAnonEntryToOrdinaryUsers(t *testing.T) {
 	svc := &searchService{db: countRow(0, nil), statsCache: newStatsCache(statsCacheTTL)}
 	svc.statsCache.set("anon", &DashboardStats{ArtifactCount: 7})
 
-	stats, err := svc.GetDashboardStats(context.Background(), VisibilityFilter{UserID: testUserID(t)})
+	stats, err := svc.GetDashboardStats(context.Background(), VisibilityFilter{UserID: testUserID(t).String()})
 
 	is.NoErr(err)
 	is.Equal(stats.ArtifactCount, int64(7))

@@ -248,7 +248,7 @@ WHERE enricher_name = sqlc.arg(enricher_name)::text AND state = 'running';
 
 -- name: ListSBOMsMissingRootEnrichmentPage :many
 -- Keyset page of SBOMs with a root enricher that was never enqueued nor run,
--- for `ocidex migrate backfill` (ocidex-n1z4.3). Ingest used to enqueue the
+-- for `ocidex migrate backfill`. Ingest used to enqueue the
 -- root jobs after commit and could lose them, leaving SBOMs nothing would ever
 -- enrich. An enrichment result counts as covered: SBOMs enriched under the
 -- retired 'all' job (00057) have results but no per-enricher job rows.

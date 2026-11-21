@@ -27,7 +27,7 @@ type Namespace struct {
 // CreateNamespaceParams holds the parameters for creating a namespace.
 type CreateNamespaceParams struct {
 	Name       string
-	OwnerID    pgtype.UUID
+	OwnerID    string
 	Visibility string // defaults to "private" when empty
 }
 
@@ -35,7 +35,7 @@ type CreateNamespaceParams struct {
 //
 // There is no OwnerID. Ownership was never transferable through this path — the
 // handler says so and only ever read the existing owner back and wrote it
-// straight out again — and with ownership in namespace_member (ocidex-y0hg.4)
+// straight out again — and with ownership in namespace_member
 // there is nothing to carry forward. Transferring ownership is member
 // management.
 type UpdateNamespaceParams struct {
@@ -53,7 +53,7 @@ type NamespaceService interface {
 	Update(ctx context.Context, params UpdateNamespaceParams) (Namespace, error)
 	Delete(ctx context.Context, id string) error
 
-	// Membership (ocidex-y0hg.7), implemented in namespace_member.go. It sits
+	// Membership, implemented in namespace_member.go. It sits
 	// on the namespace service rather than a service of its own because a
 	// membership is not a thing that exists apart from its namespace: every
 	// guard rail on it is a statement about the namespace it belongs to.
@@ -78,7 +78,7 @@ func (s *namespaceService) Create(ctx context.Context, params CreateNamespacePar
 	}
 	ns, err := s.repo.CreateNamespace(ctx, repository.CreateNamespaceParams{
 		Name:        params.Name,
-		OwnerUserID: params.OwnerID,
+		OwnerUserID: uuidOrNull(params.OwnerID),
 		Visibility:  visibility,
 	})
 	if err != nil {
@@ -119,7 +119,7 @@ func (s *namespaceService) GetByName(ctx context.Context, name string) (Namespac
 func (s *namespaceService) List(ctx context.Context, filter VisibilityFilter) ([]Namespace, error) {
 	rows, err := s.repo.ListNamespaces(ctx, repository.ListNamespacesParams{
 		IsAdmin:   filter.adminFlag(),
-		UserID:    filter.UserID,
+		UserID:    uuidOrNull(filter.UserID),
 		OwnedOnly: filter.ownedFlag(),
 	})
 	if err != nil {

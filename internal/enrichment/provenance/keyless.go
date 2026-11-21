@@ -54,7 +54,7 @@ var (
 // DefaultOptions caches TUF metadata under $HOME/.sigstore/root — or os.TempDir()
 // when HOME is unset — and both are read-only under the chart's
 // securityContext.readOnlyRootFilesystem, so every keyless verification would
-// fail on a filesystem error rather than on trust (ocidex-gsip). The disk cache
+// fail on a filesystem error rather than on trust. The disk cache
 // buys little here regardless: trustedRootCache already holds the fetched root
 // in process for trustedRootCacheTTL, so this costs one extra fetch per TTL per
 // pod.
@@ -163,7 +163,7 @@ func applyKeylessVerification(ctx context.Context, p *Provenance, raw RawArtifac
 	// A failure below means verification could not run at all, as opposed to
 	// running and rejecting. p.Verified stays nil (SigningStatus keeps reading
 	// "signed"), but the reason is recorded so an unreachable trusted root is
-	// visible in the UI instead of only in this worker's logs (ocidex-j9qa).
+	// visible in the UI instead of only in this worker's logs.
 	trustedMaterial, err := trustedMaterialProvider(ctx)
 	if err != nil {
 		slog.ErrorContext(ctx, "keyless verification: fetching trusted root", "err", err)
@@ -205,7 +205,7 @@ func applyKeylessVerification(ctx context.Context, p *Provenance, raw RawArtifac
 // made every promoted registry.k8s.io image read as "verification failed":
 // Kubernetes signs at build as krel-staging and re-signs on promotion as
 // krel-trust, the staging signature is listed first, and consumers configure the
-// promotion identity (ocidex-r27f).
+// promotion identity.
 //
 // Shared by the keyless (co.TrustedMaterial) and public-key (co.SigVerifier)
 // paths — co determines which trust source is actually checked.

@@ -39,8 +39,7 @@ import (
 const scanTimeout = 9 * time.Minute
 
 // scannerActor is the audit actor for the SBOMs this process ingests: a scan
-// runs off a queued job, not a request, so no user is on the ctx
-// (ocidex-n9na).
+// runs off a queued job, not a request, so no user is on the ctx.
 var scannerActor = event.SystemActor("scanner-worker")
 
 func main() {
@@ -259,11 +258,10 @@ func runOnce(ctx context.Context, pool *pgxpool.Pool, natsClient *natspkg.Client
 // SBOMIngested events. The scanner worker, not the API, ingests every
 // registry-scanned SBOM, so both have to live here:
 //   - the enrichment submitter publishes the enrich.hint for the root
-//     enrichment jobs Ingest committed in its transaction (ocidex-n1z4.1), so
+//     enrichment jobs Ingest committed in its transaction, so
 //     per-enricher workers start without waiting for their poll loop;
 //   - the audit extension writes the sbom.ingested audit line
-//     (AUDIT_LOG_ENABLED). Without it, registry scans leave no audit trail
-//     (ocidex-5fiq).
+//     (AUDIT_LOG_ENABLED). Without it, registry scans leave no audit trail.
 func ingestExtensions(cfg *config.Config, natsClient *natspkg.Client, logger *slog.Logger) []extension.Extension {
 	exts := []extension.Extension{enrichment.NewNATSSubmitter(natsClient, cfg.NATSStreamName, logger)}
 	if cfg.AuditLogEnabled {

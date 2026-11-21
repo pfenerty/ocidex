@@ -38,7 +38,7 @@ func ParseVersionSortMode(s string) VersionSortMode {
 // semver versions make up at least half of the timeline's distinct versions,
 // else SortBuildTime. Semver mode hides every other version, so "any semver
 // at all" opened an artifact of 37 branch builds and one v0.2.0 tag on a
-// one-row list (ocidex-nps9.9).
+// one-row list.
 func resolveSortMode(mode VersionSortMode, semverCount, total int) VersionSortMode {
 	if mode == SortAuto {
 		if semverCount > 0 && semverCount*2 >= total {

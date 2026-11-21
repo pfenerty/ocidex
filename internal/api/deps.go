@@ -1,4 +1,4 @@
-// Consumer-sized views of the services (ocidex-8xij.3). Each interface names
+// Consumer-sized views of the services. Each interface names
 // only what the handlers call, grouped by area, so an endpoint test fakes a few
 // methods instead of a 42-method SearchService. The concrete services satisfy
 // them all; cmd/ocidex hands the same service to every view of it.

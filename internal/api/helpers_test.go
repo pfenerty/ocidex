@@ -6,7 +6,6 @@ import (
 	"net/http"
 
 	cdx "github.com/CycloneDX/cyclonedx-go"
-	"github.com/jackc/pgx/v5/pgtype"
 
 	"github.com/pfenerty/ocidex/internal/api"
 	"github.com/pfenerty/ocidex/internal/service"
@@ -23,11 +22,8 @@ type fakeSBOMService struct {
 	namespaceID string
 }
 
-func (f *fakeSBOMService) Ingest(_ context.Context, _ *cdx.BOM, _ []byte, _ service.IngestParams) (pgtype.UUID, error) {
-	return pgtype.UUID{
-		Bytes: [16]byte{1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16},
-		Valid: true,
-	}, nil
+func (f *fakeSBOMService) Ingest(_ context.Context, _ *cdx.BOM, _ []byte, _ service.IngestParams) (string, error) {
+	return "01020304-0506-0708-090a-0b0c0d0e0f10", nil
 }
 
 func (f *fakeSBOMService) DeleteSBOM(_ context.Context, _ string) error {
@@ -65,8 +61,8 @@ func (f *fakeSBOMService) namespace() (string, error) {
 // failSBOMService is a stub that always returns an error.
 type failSBOMService struct{}
 
-func (f *failSBOMService) Ingest(_ context.Context, _ *cdx.BOM, _ []byte, _ service.IngestParams) (pgtype.UUID, error) {
-	return pgtype.UUID{}, errors.New("database unavailable")
+func (f *failSBOMService) Ingest(_ context.Context, _ *cdx.BOM, _ []byte, _ service.IngestParams) (string, error) {
+	return "", errors.New("database unavailable")
 }
 
 func (f *failSBOMService) DeleteSBOM(_ context.Context, _ string) error {

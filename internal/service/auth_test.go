@@ -270,7 +270,7 @@ func TestValidateSession_Valid(t *testing.T) {
 	is.NoErr(err)
 	is.Equal(user.DisplayName, "alice")
 	is.Equal(user.Role, "member")
-	is.Equal(user.ID, userID)
+	is.Equal(user.ID, userID.String())
 }
 
 func TestValidateSession_NotFound(t *testing.T) {

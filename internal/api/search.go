@@ -397,7 +397,7 @@ func (h *Handler) ListArtifacts(ctx context.Context, input *ListArtifactsInput) 
 
 // ListMyArtifacts handles GET /api/v1/users/me/artifacts: the artifacts that
 // appear in namespaces the caller owns. Same filters, same keyset pagination,
-// same projection as /artifacts — only the row rule differs (ocidex-998g.2).
+// same projection as /artifacts — only the row rule differs.
 func (h *Handler) ListMyArtifacts(ctx context.Context, input *ListMyArtifactsInput) (*ListArtifactsOutput, error) {
 	if _, ok := UserFromContext(ctx); !ok {
 		return nil, huma.Error401Unauthorized("not authenticated")
@@ -805,7 +805,7 @@ func (h *Handler) ListTopVulnerabilities(ctx context.Context, input *ListTopVuln
 }
 
 // ListMyVulnerabilities handles GET /api/v1/users/me/vulns: ListTopVulnerabilities
-// narrowed to namespaces the caller owns (ocidex-998g.5). The dashboard reads it
+// narrowed to namespaces the caller owns. The dashboard reads it
 // as an exposure figure for what the caller is responsible for, which others'
 // public artifacts would inflate without adding anything actionable.
 func (h *Handler) ListMyVulnerabilities(ctx context.Context, input *ListMyVulnerabilitiesInput) (*ListTopVulnerabilitiesOutput, error) {

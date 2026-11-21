@@ -15,7 +15,7 @@ import (
 )
 
 // backfillLicenseNames re-derives every license stored without an SPDX id with
-// ExpandLicense (ocidex-wb5k). A name that comes back as itself is left alone.
+// ExpandLicense. A name that comes back as itself is left alone.
 // Otherwise each component linked to it is linked to the licenses it really
 // names (an expression's members, an alias's SPDX license, a name with its
 // trailing comma dropped, or nothing for a fragment), and the old row is
@@ -76,8 +76,8 @@ func rewriteLicense(ctx context.Context, repo BackfillRepository, old pgtype.UUI
 }
 
 // backfillLicenseExpressions adds the licenses an SBOM's CycloneDX license
-// expressions name; Updated counts links actually inserted, so a re-run reports 0. Ingest skipped expression choices before ocidex-nps9.13, so
-// those components carry none of them. Links are only added, never removed, and
+// expressions name; Updated counts links actually inserted, so a re-run reports 0. Older ingests skipped
+// expression choices, so those components carry none of them. Links are only added, never removed, and
 // components are matched to their rows by bom-ref; one without a bom-ref, or
 // with none stored, is counted as skipped.
 func backfillLicenseExpressions(ctx context.Context, repo BackfillRepository, batchSize int32) (BackfillCounts, error) {

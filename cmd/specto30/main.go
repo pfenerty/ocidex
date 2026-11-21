@@ -5,7 +5,7 @@
 //   - type: [array, null]  ->  type: array + nullable: true
 //   - openapi: 3.1.0       ->  openapi: 3.0.3
 //
-// It replaces scripts/spec-to-3.0.py so codegen checks need only Go (ocidex-gyr0.5).
+// It replaces scripts/spec-to-3.0.py so codegen checks need only Go.
 //
 // Usage:
 //

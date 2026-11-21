@@ -45,9 +45,10 @@ Scripts, CI, the CLI, the MCP server and the inventory agent all use API keys. A
 user who made it, limited to the capabilities you give it. It is shown **once**, when it's
 created: copy it then.
 
-- **In the UI:** **Admin → API Keys**. Name the key, and choose its capabilities.
-- **With the CLI:** `ocidex-cli key create --name ci --capability ingest`. The key is printed on
-  stdout and nowhere else.
+- **In the UI:** **Admin → API Keys**. Name the key, and choose its capabilities and how long it
+  lives (never, 30 or 90 days, or a year). The list shows each key's expiry and marks expired keys.
+- **With the CLI:** `ocidex-cli key create --name ci --capability ingest`, plus `--expires-in 720h`
+  for a key that expires. The key is printed on stdout and nowhere else.
 
 Give each key only what its job needs:
 

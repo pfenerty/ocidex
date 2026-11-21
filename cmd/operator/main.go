@@ -151,7 +151,7 @@ func run() error {
 }
 
 // uncachedObjects are read straight from the API server rather than through
-// the manager's informer cache (ocidex-osrl.1). A cached Get starts a
+// the manager's informer cache. A cached Get starts a
 // list/watch of the whole type on first use, and the operator's role grants
 // Secrets get only: the informer failed with "cannot list resource secrets"
 // forever, so no OCIRegistry with an authSecretRef ever reconciled. Reading

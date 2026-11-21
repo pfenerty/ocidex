@@ -128,6 +128,10 @@ func (in *APIKeySpec) DeepCopyInto(out *APIKeySpec) {
 		*out = make([]string, len(*in))
 		copy(*out, *in)
 	}
+	if in.Lifetime != nil {
+		out.Lifetime = new(metav1.Duration)
+		*out.Lifetime = *in.Lifetime
+	}
 }
 
 // DeepCopy returns a deep copy of APIKeySpec.
@@ -143,6 +147,9 @@ func (in *APIKeySpec) DeepCopy() *APIKeySpec {
 // DeepCopyInto copies all fields of APIKeyStatus into out.
 func (in *APIKeyStatus) DeepCopyInto(out *APIKeyStatus) {
 	*out = *in
+	if in.ExpiresAt != nil {
+		out.ExpiresAt = in.ExpiresAt.DeepCopy()
+	}
 	if in.Conditions != nil {
 		in, out := &in.Conditions, &out.Conditions
 		*out = make([]metav1.Condition, len(*in))

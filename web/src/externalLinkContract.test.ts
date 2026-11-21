@@ -1,6 +1,7 @@
 import { describe, it, expect } from "vitest";
 import { readFileSync, readdirSync, statSync } from "node:fs";
 import { join, relative } from "node:path";
+import { stripComments } from "./testing/sourceCode";
 
 /**
  * A URL that came from data (an SBOM, an image label, an advisory) reaches an
@@ -15,9 +16,7 @@ import { join, relative } from "node:path";
 const SRC = __dirname;
 
 function code(file: string): string {
-    return readFileSync(file, "utf-8")
-        .replace(/\/\*[\s\S]*?\*\//g, "")
-        .replace(/\/\/[^\n]*/g, "");
+    return stripComments(readFileSync(file, "utf-8"), file);
 }
 
 function sources(dir: string, acc: string[] = []): string[] {

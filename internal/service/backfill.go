@@ -59,7 +59,7 @@ type BackfillResult struct {
 	// read; Updated is component links added.
 	LicenseExpressions BackfillCounts
 	// RootEnrichment counts SBOMs that had a root enricher neither enqueued nor
-	// run (ocidex-n1z4.3): Updated is SBOMs whose missing jobs were enqueued.
+	// run: Updated is SBOMs whose missing jobs were enqueued.
 	RootEnrichment BackfillCounts
 }
 
@@ -69,7 +69,7 @@ type BackfillResult struct {
 // once by the flavor and provenance steps. Components is the purl step's page,
 // whose rows are three short columns: its predicate has no index, so every
 // page is a scan of the component table, and a small page multiplies that
-// scan by the number of pages (ocidex-ah9z).
+// scan by the number of pages.
 type BackfillBatches struct {
 	SBOMs      int32
 	Components int32
@@ -77,7 +77,7 @@ type BackfillBatches struct {
 
 // Backfill derives the columns that ingest now writes for rows stored before
 // it did: an SBOM's flavor, a component's versioned purl and its provenance
-// (ADR-034, ADR-048), and licenses as ExpandLicense derives them (ocidex-wb5k). Each value is re-derived from data already in the row
+// (ADR-034, ADR-048), and licenses as ExpandLicense derives them. Each value is re-derived from data already in the row
 // or its SBOM's raw_bom, so the pass is idempotent and safe to re-run; a fresh
 // install has nothing to do. A row that cannot be decoded or written is
 // logged and counted, not fatal.
@@ -107,7 +107,7 @@ func Backfill(ctx context.Context, repo BackfillRepository, batches BackfillBatc
 // neither a job nor a result for one of them. Ingest used to enqueue those jobs
 // after commit and could lose them, and a re-upload short-circuits on the
 // digest, so nothing else would ever enrich such an SBOM. Ingest now enqueues
-// them in its own transaction (ocidex-n1z4.1), so new orphans cannot appear.
+// them in its own transaction, so new orphans cannot appear.
 // The job's architecture and build date are re-derived from raw_bom, as ingest
 // does when its caller declares none.
 func backfillRootEnrichment(ctx context.Context, repo BackfillRepository, batchSize int32) (BackfillCounts, error) {

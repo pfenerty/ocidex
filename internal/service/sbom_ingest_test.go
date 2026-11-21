@@ -249,7 +249,7 @@ func TestIngest_IdempotencyOnDuplicateDigest(t *testing.T) {
 		IngestParams{Version: "22.04", Architecture: "amd64", BuildDate: "2024-01-01", SourceID: sourceID.String()})
 
 	is.NoErr(err)
-	is.Equal(id, existingID)
+	is.Equal(id, existingID.String())
 	is.True(!db.beginCalled) // no transaction opened for duplicate
 }
 
@@ -320,7 +320,7 @@ func TestIngest_HappyPath_ContainerSBOM(t *testing.T) {
 		IngestParams{Version: "3.18.4", Architecture: "amd64", BuildDate: "2024-01-01", SourceID: sourceID.String()})
 
 	is.NoErr(err)
-	is.Equal(id, sbomID)
+	is.Equal(id, sbomID.String())
 	is.True(db.beginCalled)
 	is.Equal(len(publisher.events), 1)
 	is.Equal(publisher.events[0], event.SBOMIngested)

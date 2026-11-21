@@ -16,7 +16,7 @@ import (
 	"github.com/pfenerty/ocidex/internal/uuidx"
 )
 
-// Agent health states (ocidex-70eo.4). Exhaustive: every cluster is in one.
+// Agent health states. Exhaustive: every cluster is in one.
 const (
 	// HealthNeverReported: no push has been accepted, and none rejected.
 	HealthNeverReported = "never_reported"
@@ -29,7 +29,7 @@ const (
 	// HealthErroring: OCIDex is hearing from the agent and refusing it. The
 	// reason says why.
 	HealthErroring = "erroring"
-	// HealthPaused: someone paused the cluster on purpose (ocidex-70eo.9).
+	// HealthPaused: someone paused the cluster on purpose.
 	// It outranks the others: refusals and silence are both expected.
 	HealthPaused = "paused"
 )

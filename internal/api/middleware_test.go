@@ -307,27 +307,27 @@ func TestRequireCapability(t *testing.T) {
 		{
 			name:       "admin passes without membership",
 			token:      "admin-token",
-			user:       service.AuthUser{ID: otherUUID, Role: "admin"},
+			user:       service.AuthUser{ID: otherUUID.String(), Role: "admin"},
 			wantStatus: http.StatusNoContent,
 		},
 		{
 			name:       "maintainer holds manage_source",
 			token:      "member-token",
-			user:       service.AuthUser{ID: ownerUUID, Role: "member"},
+			user:       service.AuthUser{ID: ownerUUID.String(), Role: "member"},
 			role:       authz.RoleMaintainer,
 			wantStatus: http.StatusNoContent,
 		},
 		{
 			name:       "viewer does not hold manage_source",
 			token:      "member-token",
-			user:       service.AuthUser{ID: ownerUUID, Role: "member"},
+			user:       service.AuthUser{ID: ownerUUID.String(), Role: "member"},
 			role:       authz.RoleViewer,
 			wantStatus: http.StatusForbidden,
 		},
 		{
 			name:       "non-member is forbidden",
 			token:      "other-token",
-			user:       service.AuthUser{ID: otherUUID, Role: "member"},
+			user:       service.AuthUser{ID: otherUUID.String(), Role: "member"},
 			wantStatus: http.StatusForbidden,
 		},
 	}
@@ -342,7 +342,7 @@ func TestRequireCapability(t *testing.T) {
 			}
 			if tt.role != "" {
 				authSvc.grants = map[string]map[string]authz.Role{
-					tt.user.ID.String(): {mwNamespaceID: tt.role},
+					tt.user.ID: {mwNamespaceID: tt.role},
 				}
 			}
 
@@ -363,8 +363,8 @@ func TestRequireCapabilityNoNamespace(t *testing.T) {
 		user       service.AuthUser
 		wantStatus int
 	}{
-		{name: "member is forbidden", user: service.AuthUser{ID: ownerUUID, Role: "member"}, wantStatus: http.StatusForbidden},
-		{name: "admin passes", user: service.AuthUser{ID: otherUUID, Role: "admin"}, wantStatus: http.StatusNoContent},
+		{name: "member is forbidden", user: service.AuthUser{ID: ownerUUID.String(), Role: "member"}, wantStatus: http.StatusForbidden},
+		{name: "admin passes", user: service.AuthUser{ID: otherUUID.String(), Role: "admin"}, wantStatus: http.StatusNoContent},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
@@ -373,7 +373,7 @@ func TestRequireCapabilityNoNamespace(t *testing.T) {
 				users: map[string]service.AuthUser{"token": tt.user},
 				// A grant elsewhere must not leak onto the un-namespaced row.
 				grants: map[string]map[string]authz.Role{
-					tt.user.ID.String(): {mwNamespaceID: authz.RoleOwner},
+					tt.user.ID: {mwNamespaceID: authz.RoleOwner},
 				},
 			}
 			router := newCapabilityTestRouter(&fakeRegistryService{registry: unNamespaced}, authSvc)
@@ -390,7 +390,7 @@ func TestRequireCapabilityGlobalViewerFloor(t *testing.T) {
 
 	authSvc := &fakeAuthService{
 		users: map[string]service.AuthUser{
-			"viewer-token": {ID: ownerUUID, Role: "viewer"},
+			"viewer-token": {ID: ownerUUID.String(), Role: "viewer"},
 		},
 		grants: map[string]map[string]authz.Role{
 			ownerUUID.String(): {mwNamespaceID: authz.RoleOwner},
@@ -434,7 +434,7 @@ func TestCrossOriginGuard(t *testing.T) {
 		{"anonymous POST foreign origin", http.MethodPost, false, false, "https://evil.example", "", http.StatusOK},
 	}
 
-	member := service.AuthUser{ID: ownerUUID, Role: "member"}
+	member := service.AuthUser{ID: ownerUUID.String(), Role: "member"}
 	authSvc := &sessionAuthService{
 		fakeAuthService: fakeAuthService{users: map[string]service.AuthUser{"key": member}},
 		sessions:        map[string]service.AuthUser{"sess": member},
@@ -474,7 +474,7 @@ func TestCrossOriginGuard(t *testing.T) {
 func TestCrossOriginGuardSelfOriginFromRequest(t *testing.T) {
 	is := is.New(t)
 
-	member := service.AuthUser{ID: ownerUUID, Role: "member"}
+	member := service.AuthUser{ID: ownerUUID.String(), Role: "member"}
 	authSvc := &sessionAuthService{sessions: map[string]service.AuthUser{"sess": member}}
 	ok := http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) { w.WriteHeader(http.StatusOK) })
 	handler := api.OptionalAuthenticate(authSvc)(api.CrossOriginGuard(nil, "")(ok))
@@ -492,7 +492,7 @@ func TestCrossOriginGuardSelfOriginFromRequest(t *testing.T) {
 // push, including reads a session-less caller could make.
 func TestClusterCredentialConfinedToItsInventoryPush(t *testing.T) {
 	const bound = "0eea643d-b563-4fbc-8093-ed801966a739"
-	agent := service.AuthUser{ID: ownerUUID, Role: "member", APIKeyAuth: true,
+	agent := service.AuthUser{ID: ownerUUID.String(), Role: "member", APIKeyAuth: true,
 		APIKeyCaps: []authz.Capability{authz.CapPushInventory}, APIKeyClusterID: bound}
 	authSvc := &fakeAuthService{users: map[string]service.AuthUser{"agent": agent}}
 	reached := false
@@ -566,7 +566,7 @@ func TestOptionalAuthenticateSetsAuditActor(t *testing.T) {
 	is := is.New(t)
 	userID := pgtype.UUID{Bytes: [16]byte{2}, Valid: true}
 	svc := &fakeAuthService{users: map[string]service.AuthUser{
-		"good": {ID: userID, Role: "member", APIKeyAuth: true, APIKeyID: "k1"},
+		"good": {ID: userID.String(), Role: "member", APIKeyAuth: true, APIKeyID: "k1"},
 	}}
 	var got event.Actor
 	var ok bool

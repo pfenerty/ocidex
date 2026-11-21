@@ -43,7 +43,7 @@ func notePushFromContext(ctx context.Context) *pushNote {
 const maxRecordedBody = 4096
 
 // RecordInventoryPushes records every rejected inventory push against the
-// cluster it was meant for (ocidex-70eo.4), so a misconfigured agent shows up
+// cluster it was meant for, so a misconfigured agent shows up
 // as "erroring: <why>" rather than as a cluster that merely went quiet.
 //
 // It sits outside authentication on purpose: a revoked key, a wrong cluster

@@ -7,7 +7,6 @@ import (
 	"strings"
 
 	"github.com/danielgtaylor/huma/v2"
-	"github.com/google/uuid"
 
 	"github.com/pfenerty/ocidex/internal/auth"
 	"github.com/pfenerty/ocidex/internal/service"
@@ -54,13 +53,13 @@ func (h *Handler) finishIdentityLink(
 		http.Error(w, "credentials could not be checked", http.StatusServiceUnavailable)
 		return
 	}
-	if uuid.UUID(user.ID.Bytes).String() != stateData["user_id"] {
+	if user.ID != stateData["user_id"] {
 		http.Error(w, "session changed during linking", http.StatusBadRequest)
 		return
 	}
 
 	outcome := "ok"
-	if _, err := h.logins.LinkIdentity(r.Context(), user.ID.String(), provider, code, stateData["verifier"]); err != nil {
+	if _, err := h.logins.LinkIdentity(r.Context(), user.ID, provider, code, stateData["verifier"]); err != nil {
 		outcome = "error"
 		if errors.Is(err, service.ErrConflict) {
 			outcome = "conflict"
@@ -110,7 +109,7 @@ func (h *Handler) ListMyIdentities(ctx context.Context, _ *struct{}) (*ListIdent
 	if !ok {
 		return nil, huma.Error401Unauthorized("not authenticated")
 	}
-	rows, err := h.logins.ListIdentities(ctx, user.ID.String())
+	rows, err := h.logins.ListIdentities(ctx, user.ID)
 	if err != nil {
 		return nil, mapServiceError(err)
 	}
@@ -119,7 +118,7 @@ func (h *Handler) ListMyIdentities(ctx context.Context, _ *struct{}) (*ListIdent
 	out.Body.Identities = make([]IdentityResponse, len(rows))
 	for i, row := range rows {
 		out.Body.Identities[i] = IdentityResponse{
-			ID:          uuid.UUID(row.ID.Bytes).String(),
+			ID:          row.ID,
 			Provider:    row.Provider,
 			DisplayName: providerDisplayName(row.Provider),
 			Subject:     row.Subject,
@@ -154,7 +153,7 @@ func (h *Handler) StartIdentityLink(ctx context.Context, in *StartIdentityLinkIn
 
 	authURL, state, err := h.beginOAuth(r, in.Body.Provider, map[string]string{
 		"mode":    oauthModeLink,
-		"user_id": uuid.UUID(user.ID.Bytes).String(),
+		"user_id": user.ID,
 	})
 	if err != nil {
 		return nil, huma.Error400BadRequest("unknown identity provider")
@@ -177,7 +176,7 @@ func (h *Handler) UnlinkIdentity(ctx context.Context, in *UnlinkIdentityInput) (
 	if err != nil {
 		return nil, err
 	}
-	if err := h.logins.UnlinkIdentity(ctx, user.ID.String(), identityID); err != nil {
+	if err := h.logins.UnlinkIdentity(ctx, user.ID, identityID); err != nil {
 		if errors.Is(err, service.ErrConflict) {
 			return nil, huma.Error409Conflict("cannot unlink the only way to sign in to this account")
 		}

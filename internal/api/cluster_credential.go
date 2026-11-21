@@ -10,7 +10,7 @@ import (
 	"github.com/pfenerty/ocidex/internal/service"
 )
 
-// Cluster agent credentials (ocidex-70eo.5, ADR-0044 K8). Every operation here
+// Cluster agent credentials (ADR-0044 K8). Every operation here
 // is manage_cluster on the cluster's namespace: a credential is part of the
 // cluster's configuration, and minting one hands out push access to it.
 
@@ -54,7 +54,7 @@ func (h *Handler) CreateClusterCredential(ctx context.Context, in *CreateCluster
 	if name == "" {
 		name = cluster.Name + "-agent"
 	}
-	cred, err := h.clusterAgents.CreateCredential(ctx, in.ID, user.ID.String(), name)
+	cred, err := h.clusterAgents.CreateCredential(ctx, in.ID, user.ID, name)
 	if err != nil {
 		return nil, mapServiceError(err)
 	}
@@ -80,7 +80,7 @@ func (h *Handler) RotateClusterCredential(ctx context.Context, in *ClusterCreden
 	if err := h.requireNamespaceCapability(ctx, user, cluster.NamespaceID, authz.CapPushInventory); err != nil {
 		return nil, err
 	}
-	cred, err := h.clusterAgents.RotateCredential(ctx, in.ID, in.CredentialID, user.ID.String())
+	cred, err := h.clusterAgents.RotateCredential(ctx, in.ID, in.CredentialID, user.ID)
 	if err != nil {
 		return nil, mapServiceError(err)
 	}
@@ -90,7 +90,7 @@ func (h *Handler) RotateClusterCredential(ctx context.Context, in *ClusterCreden
 }
 
 // ConnectCluster registers a cluster and mints its first agent credential in
-// one step (ocidex-70eo.6). Both capabilities are checked first: the cluster
+// one step. Both capabilities are checked first: the cluster
 // is manage_cluster, the key is useless without push_inventory.
 func (h *Handler) ConnectCluster(ctx context.Context, in *ConnectClusterInput) (*ConnectClusterOutput, error) {
 	user, ok := UserFromContext(ctx)

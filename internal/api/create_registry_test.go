@@ -80,10 +80,10 @@ func createRegistryAuthService() *fakeAuthService {
 	allCaps := authz.AllCapabilities()
 	return &fakeAuthService{
 		users: map[string]service.AuthUser{
-			"owner-token":     {ID: ownerUUID, Role: "member", APIKeyAuth: true, APIKeyCaps: allCaps},
-			"developer-token": {ID: developerUUID, Role: "member", APIKeyAuth: true, APIKeyCaps: allCaps},
-			"stranger-token":  {ID: strangerUUID, Role: "member", APIKeyAuth: true, APIKeyCaps: allCaps},
-			"admin-token":     {ID: adminUUID, Role: "admin", APIKeyAuth: true, APIKeyCaps: allCaps},
+			"owner-token":     {ID: ownerUUID.String(), Role: "member", APIKeyAuth: true, APIKeyCaps: allCaps},
+			"developer-token": {ID: developerUUID.String(), Role: "member", APIKeyAuth: true, APIKeyCaps: allCaps},
+			"stranger-token":  {ID: strangerUUID.String(), Role: "member", APIKeyAuth: true, APIKeyCaps: allCaps},
+			"admin-token":     {ID: adminUUID.String(), Role: "admin", APIKeyAuth: true, APIKeyCaps: allCaps},
 		},
 		grants: map[string]map[string]authz.Role{
 			ownerUUID.String():     {testNamespaceID: authz.RoleOwner},
@@ -166,7 +166,7 @@ func TestNamespaceCreationRestricted(t *testing.T) {
 		t.Run(tt.name, func(t *testing.T) {
 			is := is.New(t)
 			authSvc := &fakeAuthService{users: map[string]service.AuthUser{
-				"token": {ID: strangerUUID, Role: tt.role, APIKeyAuth: true, APIKeyCaps: authz.AllCapabilities()},
+				"token": {ID: strangerUUID.String(), Role: tt.role, APIKeyAuth: true, APIKeyCaps: authz.AllCapabilities()},
 			}}
 			regSvc := &recordingRegistryService{}
 			h := api.NewHandler(api.Deps{
@@ -192,7 +192,7 @@ func TestRegistryURLValidatedOnCreateAndUpdate(t *testing.T) {
 	const bad = `{"name":"r","type":"generic","url":"https://u:p@registry.example.com","insecure":false,"enabled":true,"scanMode":"webhook","repositories":[],"repositoryPatterns":[],"tagPatterns":[]}`
 	authSvc := &fakeAuthService{
 		users: map[string]service.AuthUser{
-			"owner-token": {ID: ownerUUID, Role: "member", APIKeyAuth: true, APIKeyCaps: authz.AllCapabilities()},
+			"owner-token": {ID: ownerUUID.String(), Role: "member", APIKeyAuth: true, APIKeyCaps: authz.AllCapabilities()},
 		},
 		grants: map[string]map[string]authz.Role{ownerUUID.String(): {mwNamespaceID: authz.RoleOwner}},
 	}

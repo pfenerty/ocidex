@@ -11,7 +11,7 @@ import (
 	"github.com/pfenerty/ocidex/internal/repository"
 )
 
-// WatchService manages a user's artifact watchlist (ocidex-998g.3).
+// WatchService manages a user's artifact watchlist.
 //
 // A watch is a private bookmark, not an ownership or visibility relation:
 // watching a public base image somebody else owns is the primary use case. The
@@ -38,7 +38,7 @@ type WatchService interface {
 	Feed(ctx context.Context, userID string, vis VisibilityFilter, page FeedPage) (CursorPage[WatchEvent], error)
 }
 
-// WatchEvent is one change to a watched artifact (ocidex-998g.4).
+// WatchEvent is one change to a watched artifact.
 //
 // None of the three signals is computed here. A new version is a sbom row, a
 // drift event is a provenance_drift_events row, and a vulnerability is the same
@@ -115,7 +115,7 @@ func (s *watchService) Watch(ctx context.Context, userIDStr string, artifactID s
 	// missing one are indistinguishable from outside — which is the point.
 	visible, err := s.repo.IsArtifactVisible(ctx, repository.IsArtifactVisibleParams{
 		AID:     id,
-		UserID:  vis.UserID,
+		UserID:  uuidOrNull(vis.UserID),
 		IsAdmin: visAdminBool(vis),
 	})
 	if err != nil {
@@ -207,7 +207,7 @@ func (s *watchService) Feed(ctx context.Context, userIDStr string, vis Visibilit
 	// One extra row, same as List, to detect a further page.
 	rows, err := s.repo.ListWatchedArtifactEvents(ctx, repository.ListWatchedArtifactEventsParams{
 		WatcherID:        userID,
-		UserID:           vis.UserID,
+		UserID:           uuidOrNull(vis.UserID),
 		IsAdmin:          visAdminBool(vis),
 		HasCursor:        pgtype.Bool{Bool: page.HasCursor, Valid: true},
 		CursorOccurredAt: pgtype.Timestamptz{Time: page.CursorCreatedAt, Valid: page.HasCursor},

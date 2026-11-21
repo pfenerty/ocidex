@@ -15,7 +15,7 @@ import (
 )
 
 // measureOptions configure "loadgen measure", which times GET routes against a
-// running instance (ocidex-xxee.5).
+// running instance.
 type measureOptions struct {
 	url     string
 	apiKey  string

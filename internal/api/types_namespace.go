@@ -16,8 +16,8 @@ type NamespaceResponse struct {
 	CreatedAt     string  `json:"createdAt"`
 	UpdatedAt     string  `json:"updatedAt"`
 	// Capabilities lets a page offer only the actions the caller can take:
-	// Sources showed Edit/Scan/Delete to a viewer whose every click was a 403
-	// (ocidex-nps9.15). Set on the list endpoints.
+	// Sources showed Edit/Scan/Delete to a viewer whose every click was a 403.
+	// Set on the list endpoints.
 	Capabilities []string `json:"capabilities,omitempty" doc:"Capabilities the caller holds in this namespace (ADR-046)"`
 }
 
@@ -26,7 +26,7 @@ type ListNamespacesInput struct{}
 
 // ListMyNamespacesInput is the request for GET /api/v1/users/me/namespaces.
 // It reuses ListNamespacesOutput: the projection is identical and only the row
-// rule differs (ocidex-998g.2).
+// rule differs.
 type ListMyNamespacesInput struct{}
 
 // ListNamespacesOutput is the response for GET /api/v1/namespaces.
@@ -89,7 +89,7 @@ type DeleteNamespaceInput struct {
 }
 
 // ---------------------------------------------------------------------------
-// Namespace members (ocidex-y0hg.7)
+// Namespace members
 // ---------------------------------------------------------------------------
 
 // NamespaceMemberResponse is one seat at a namespace. The username is joined in

@@ -1257,7 +1257,7 @@ func TestTrustSummary_PassesVisibilityFilter(t *testing.T) {
 	}
 	svc := newTestRegistryService(repo)
 
-	_, err := svc.TrustSummary(context.Background(), VisibilityFilter{UserID: uid})
+	_, err := svc.TrustSummary(context.Background(), VisibilityFilter{UserID: uid.String()})
 	is.NoErr(err)
 	is.Equal(got.UserID, uid)
 	is.Equal(got.IsAdmin, pgtype.Bool{Bool: false, Valid: true})

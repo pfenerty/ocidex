@@ -26,8 +26,8 @@ ns AS (
     WHERE sqlc.narg('namespace_id')::uuid IS NULL
     RETURNING id
 ),
--- The owner of a namespace minted here is a member row, not a column
--- (ocidex-y0hg.4). It is written only on the mint path: supplying namespace_id
+-- The owner of a namespace minted here is a member row, not a column.
+-- It is written only on the mint path: supplying namespace_id
 -- means joining a namespace that already has its own members, and an import
 -- must not quietly make the importing user its owner.
 --
@@ -262,7 +262,7 @@ DELETE FROM registry_window WHERE registry_id = @registry_id;
 INSERT INTO registry_window (registry_id, repository, digests, walked_at)
 VALUES (@registry_id, @repository, @digests::text[], @walked_at);
 
--- Moving a registry to another namespace (ocidex-nps9.33). Namespace was
+-- Moving a registry to another namespace. Namespace was
 -- create-only, so a registry could not join the namespace a cluster resolves
 -- running images against. The four statements run in one transaction; rollups
 -- catch up on the refresher's next pass, which rebuilds them from scratch.

@@ -31,7 +31,7 @@ type Registry struct {
 	// its source row. It is the authorization anchor (ADR-039): every decision
 	// about a registry is a capability question asked of this namespace, which
 	// is why the ID travels with the model rather than being re-derived by
-	// whoever needs it (ocidex-y0hg.5).
+	// whoever needs it.
 	NamespaceID         string
 	Type                string
 	URL                 string
@@ -90,7 +90,7 @@ func (r Registry) MatchesRepository(repo string) bool {
 // its catalog (ghcr.io) the only scope there is — so repo must be in it. Without
 // that, a registry for one GitHub org on ghcr.io claimed every other org's
 // images, and would scan them with its credentials into its namespace
-// (ocidex-o0vq). The repository patterns then apply as usual.
+// . The repository patterns then apply as usual.
 func (r Registry) ClaimsRepository(repo string) bool {
 	if len(r.Repositories) > 0 && !slices.Contains(r.Repositories, repo) {
 		return false
@@ -330,7 +330,7 @@ func BuildTrustLookup(svc RegistryService) func(ctx context.Context, registryID 
 // VisibilityFilter controls which registries or artifacts are visible to the caller.
 //
 // It carries two distinct selection rules, and the difference between them is
-// the subtle part of the me-scoped collections (ocidex-998g.2):
+// the subtle part of the me-scoped collections:
 //
 //   - The default is the *visibility* rule — admin, or public, or mine. This is
 //     what every ordinary list endpoint wants: a namespace someone else made
@@ -343,9 +343,9 @@ func BuildTrustLookup(svc RegistryService) func(ctx context.Context, registryID 
 // A zero UserID on the ownership path matches nothing rather than everything,
 // because `owner_id = NULL` is NULL in SQL, not true.
 type VisibilityFilter struct {
-	IsAdmin   bool        // admin sees everything (ignored when OwnedOnly)
-	UserID    pgtype.UUID // authenticated user's ID (zero-value if unauthenticated)
-	OwnedOnly bool        // restrict to rows this user owns, excluding others' public rows
+	IsAdmin   bool   // admin sees everything (ignored when OwnedOnly)
+	UserID    string // authenticated user's ID (zero-value if unauthenticated)
+	OwnedOnly bool   // restrict to rows this user owns, excluding others' public rows
 }
 
 // adminFlag renders IsAdmin as the pgtype.Bool that every visible_namespace_ids()
@@ -379,7 +379,7 @@ type CreateRegistryParams struct {
 	// registry. It has no effect when the registry joins an existing
 	// namespace. Invalid (the operator's unattributed imports) leaves a minted
 	// namespace without an owner.
-	CreatorID        pgtype.UUID
+	CreatorID        string
 	Visibility       string
 	IncludeUntagged  bool
 	VerificationMode string
@@ -558,7 +558,7 @@ func (s *registryService) Create(ctx context.Context, params CreateRegistryParam
 		PollIntervalMinutes: int32(params.PollIntervalMinutes), //nolint:gosec // G115: poll interval is validated to fit int32
 		AuthUsername:        toNullText(params.AuthUsername),
 		AuthToken:           authToken,
-		OwnerUserID:         params.CreatorID,
+		OwnerUserID:         uuidOrNull(params.CreatorID),
 		Visibility:          visibility,
 		IncludeUntagged:     params.IncludeUntagged,
 		VerificationMode:    verificationMode,
@@ -591,7 +591,7 @@ func (s *registryService) Create(ctx context.Context, params CreateRegistryParam
 // registry's own. A named namespace is created — and only created: one that
 // already exists, or that a concurrent request creates first, is reported as
 // ErrNamespaceExists so the caller can authorize against it and retry with its
-// NamespaceID (ocidex-avsz.2).
+// NamespaceID.
 func (s *registryService) resolveNamespace(ctx context.Context, params CreateRegistryParams, visibility string) (pgtype.UUID, error) {
 	if params.NamespaceID != "" {
 		id, err := uuidx.Parse(params.NamespaceID)
@@ -612,7 +612,7 @@ func (s *registryService) resolveNamespace(ctx context.Context, params CreateReg
 	}
 	created, err := s.repo.CreateNamespace(ctx, repository.CreateNamespaceParams{
 		Name:        params.Namespace,
-		OwnerUserID: params.CreatorID,
+		OwnerUserID: uuidOrNull(params.CreatorID),
 		Visibility:  visibility,
 	})
 	if err != nil {
@@ -651,7 +651,7 @@ func (s *registryService) Get(ctx context.Context, id string) (Registry, error) 
 func (s *registryService) List(ctx context.Context, filter VisibilityFilter) ([]Registry, error) {
 	rows, err := s.repo.ListRegistries(ctx, repository.ListRegistriesParams{
 		IsAdmin: pgtype.Bool{Bool: filter.IsAdmin, Valid: true},
-		UserID:  filter.UserID,
+		UserID:  uuidOrNull(filter.UserID),
 	})
 	if err != nil {
 		return nil, fmt.Errorf("listing registries: %w", err)
@@ -668,7 +668,7 @@ func (s *registryService) List(ctx context.Context, filter VisibilityFilter) ([]
 func (s *registryService) ListPaged(ctx context.Context, filter VisibilityFilter, limit, offset int32) (PagedResult[Registry], error) {
 	rows, err := s.repo.ListRegistriesPaged(ctx, repository.ListRegistriesPagedParams{
 		IsAdmin:   filter.adminFlag(),
-		UserID:    filter.UserID,
+		UserID:    uuidOrNull(filter.UserID),
 		OwnedOnly: filter.ownedFlag(),
 		RowLimit:  limit,
 		RowOffset: offset,
@@ -918,7 +918,7 @@ func (s *registryService) Delete(ctx context.Context, id string) error {
 func (s *registryService) TrustSummary(ctx context.Context, vis VisibilityFilter) ([]RegistryTrustCount, error) {
 	rows, err := s.repo.ListRegistryTrustSummary(ctx, repository.ListRegistryTrustSummaryParams{
 		IsAdmin: vis.adminFlag(),
-		UserID:  vis.UserID,
+		UserID:  uuidOrNull(vis.UserID),
 	})
 	if err != nil {
 		return nil, fmt.Errorf("listing registry trust summary: %w", err)
@@ -1033,7 +1033,7 @@ func nonEmpty(ss []string) []string {
 
 // MoveNamespace moves the registry id into namespaceID, along with every SBOM
 // whose source it is and the artifact visibility links those SBOMs imply
-// (ocidex-nps9.33). It is a no-op when the registry is already there. A source
+// . It is a no-op when the registry is already there. A source
 // of the same name already in the target namespace is a ValidationError.
 //
 // Rollups are not touched: they are rebuilt whole on the refresher's next pass.

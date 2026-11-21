@@ -25,7 +25,7 @@ const linkSessionToken = "session-linker"
 
 // linkUser is the account doing the linking. It signs in with a cookie rather
 // than a bearer token because finishIdentityLink reads the session directly.
-var linkUser = service.AuthUser{ID: ownerUUID, DisplayName: "linker", Role: "member"}
+var linkUser = service.AuthUser{ID: ownerUUID.String(), DisplayName: "linker", Role: "member"}
 
 func newLinkAuthService() *sessionAuthService {
 	svc := &sessionAuthService{
@@ -194,7 +194,7 @@ func TestListMyIdentitiesIsSelfScoped(t *testing.T) {
 
 	authSvc := newLinkAuthService()
 	authSvc.identities = []service.LinkedIdentity{
-		{ID: otherUUID, Provider: "github", Subject: "16961380"},
+		{ID: otherUUID.String(), Provider: "github", Subject: "16961380"},
 	}
 	router := newIdentityTestRouter(authSvc)
 

@@ -36,9 +36,9 @@ func TestUpdateRegistry_NamespaceMove(t *testing.T) {
 	allCaps := authz.AllCapabilities()
 	auth := &fakeAuthService{
 		users: map[string]service.AuthUser{
-			"owner-token":     {ID: ownerUUID, Role: "member", APIKeyAuth: true, APIKeyCaps: allCaps},
-			"developer-token": {ID: developerUUID, Role: "member", APIKeyAuth: true, APIKeyCaps: allCaps},
-			"stranger-token":  {ID: strangerUUID, Role: "member", APIKeyAuth: true, APIKeyCaps: allCaps},
+			"owner-token":     {ID: ownerUUID.String(), Role: "member", APIKeyAuth: true, APIKeyCaps: allCaps},
+			"developer-token": {ID: developerUUID.String(), Role: "member", APIKeyAuth: true, APIKeyCaps: allCaps},
+			"stranger-token":  {ID: strangerUUID.String(), Role: "member", APIKeyAuth: true, APIKeyCaps: allCaps},
 		},
 		// Everyone may manage the registry where it is; only the owner may
 		// manage sources in the target.

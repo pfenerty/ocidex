@@ -32,7 +32,7 @@ type Changelog struct {
 // ChangelogQuery selects and bounds a changelog.
 //
 // It is a struct rather than the positional arguments it replaced
-// (ocidex-7gf7.4): three adjacent strings were already a swap hazard, and Limit
+// : three adjacent strings were already a swap hazard, and Limit
 // and Offset would have made it three strings and two int32s.
 type ChangelogQuery struct {
 	SubjectVersion string
@@ -135,7 +135,7 @@ func (s *searchService) DiffSBOMs(ctx context.Context, fromIDStr string, toIDStr
 	for _, id := range []pgtype.UUID{fromID, toID} {
 		visible, err := q.IsSBOMVisible(ctx, repository.IsSBOMVisibleParams{
 			ID:      id,
-			UserID:  vis.UserID,
+			UserID:  uuidOrNull(vis.UserID),
 			IsAdmin: visAdminBool(vis),
 		})
 		if err != nil {
@@ -199,7 +199,7 @@ func (s *searchService) DiffSBOMsWithTree(ctx context.Context, fromIDStr string,
 	for _, id := range []pgtype.UUID{fromID, toID} {
 		visible, err := q.IsSBOMVisible(ctx, repository.IsSBOMVisibleParams{
 			ID:      id,
-			UserID:  vis.UserID,
+			UserID:  uuidOrNull(vis.UserID),
 			IsAdmin: visAdminBool(vis),
 		})
 		if err != nil {
@@ -332,7 +332,7 @@ func (s *searchService) GetArtifactChangelog(ctx context.Context, artifactIDStr 
 	// Access check.
 	visible, err := q.IsArtifactVisible(ctx, repository.IsArtifactVisibleParams{
 		AID:     artifactID,
-		UserID:  vis.UserID,
+		UserID:  uuidOrNull(vis.UserID),
 		IsAdmin: visAdminBool(vis),
 	})
 	if err != nil {
@@ -346,7 +346,7 @@ func (s *searchService) GetArtifactChangelog(ctx context.Context, artifactIDStr 
 	sboms, err := q.ListSBOMCandidatesByArtifact(ctx, repository.ListSBOMCandidatesByArtifactParams{
 		ArtifactID:     artifactID,
 		SubjectVersion: textOrNull(query.SubjectVersion),
-		UserID:         vis.UserID,
+		UserID:         uuidOrNull(vis.UserID),
 		IsAdmin:        visAdminBool(vis),
 		RowLimit:       10000,
 	})
@@ -386,7 +386,7 @@ func (s *searchService) GetArtifactChangelog(ctx context.Context, artifactIDStr 
 	// An entry is one pair of consecutive candidates, so the total is known
 	// from the candidate count alone — before a single package is loaded. That
 	// is what makes the window below computable, and it is why a pair whose
-	// diff comes out empty is now kept rather than suppressed (ocidex-7gf7.4):
+	// diff comes out empty is now kept rather than suppressed:
 	// suppression meant the number of entries could not be known without
 	// diffing every pair, which is exactly the unbounded work the window
 	// exists to remove. A release that shipped with no package change is a

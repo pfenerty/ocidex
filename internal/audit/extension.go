@@ -117,7 +117,7 @@ func (e *Extension) record(ctx context.Context, eventType, resourceType string, 
 	)
 }
 
-// actorAttr is the "actor" group naming who caused the event (ocidex-n9na).
+// actorAttr is the "actor" group naming who caused the event.
 // An event published with no actor on ctx came from a request without valid
 // credentials, so it is logged as anonymous rather than dropped.
 func actorAttr(ctx context.Context) slog.Attr {

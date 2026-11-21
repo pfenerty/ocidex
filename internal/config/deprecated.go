@@ -19,12 +19,12 @@ type DeprecatedSetting struct {
 var deprecatedSettings = []DeprecatedSetting{
 	{
 		Name:    "ENRICHMENT_WORKERS",
-		Instead: "ENRICHMENT_MAX_CONCURRENCY on each enricher worker; this value is only reported on the admin Status page (ocidex-lwow)",
+		Instead: "ENRICHMENT_MAX_CONCURRENCY on each enricher worker; this value is only reported on the admin Status page",
 		Removal: "2.0",
 	},
 	{
 		Name:    "ENRICHMENT_QUEUE_SIZE",
-		Instead: "nothing: the queue is the enrichment_jobs table, which has no depth limit (ocidex-lwow)",
+		Instead: "nothing: the queue is the enrichment_jobs table, which has no depth limit",
 		Removal: "2.0",
 	},
 }

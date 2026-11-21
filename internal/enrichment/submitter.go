@@ -13,7 +13,7 @@ import (
 
 // NATSSubmitter subscribes to in-process SBOMIngested events and publishes a
 // best-effort NATS hint. The ingest transaction has already written the root
-// enrichers' enrichment_jobs rows (ocidex-n1z4.1).
+// enrichers' enrichment_jobs rows.
 // It implements extension.Extension and is registered on the API server.
 //
 // The DB row is the source of truth. If the hint publish fails, the

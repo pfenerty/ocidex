@@ -44,7 +44,7 @@ func TestWorkloadsForArtifact(t *testing.T) {
 		}))
 	}
 
-	rows, err := svc.WorkloadsForArtifact(ctx, artifactID, 50, service.VisibilityFilter{UserID: owner})
+	rows, err := svc.WorkloadsForArtifact(ctx, artifactID, 50, service.VisibilityFilter{UserID: owner.String()})
 	is.NoErr(err)
 	is.Equal(len(rows), 2)
 	states := map[string]string{}
@@ -55,7 +55,7 @@ func TestWorkloadsForArtifact(t *testing.T) {
 	is.Equal(states["exact"], service.MatchExact)
 	is.Equal(states["index"], service.MatchIndex)
 
-	rows, err = svc.WorkloadsForArtifact(ctx, artifactID, 50, service.VisibilityFilter{UserID: outsider})
+	rows, err = svc.WorkloadsForArtifact(ctx, artifactID, 50, service.VisibilityFilter{UserID: outsider.String()})
 	is.NoErr(err)
 	is.Equal(len(rows), 0)
 }

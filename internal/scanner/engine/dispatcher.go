@@ -9,7 +9,6 @@ import (
 	"log/slog"
 
 	cdx "github.com/CycloneDX/cyclonedx-go"
-	"github.com/jackc/pgx/v5/pgtype"
 
 	"github.com/pfenerty/ocidex/internal/jobqueue"
 	"github.com/pfenerty/ocidex/internal/netguard"
@@ -41,7 +40,7 @@ func NewDispatcher(sc scanner.Scanner, sbomSvc service.SBOMService, maxImageByte
 
 // ProcessOne scans the image described by req and ingests the resulting SBOM.
 // Returns the created SBOM id on success.
-func (d *Dispatcher) ProcessOne(ctx context.Context, req scanner.ScanRequest) (pgtype.UUID, error) {
+func (d *Dispatcher) ProcessOne(ctx context.Context, req scanner.ScanRequest) (string, error) {
 	req = scanner.FillMetadata(ctx, req, d.egress)
 
 	// Size gate before the pull, not after: syft unpacks every layer, so an
@@ -54,10 +53,10 @@ func (d *Dispatcher) ProcessOne(ctx context.Context, req scanner.ScanRequest) (p
 		size, known, err := scanner.ImageLayerBytes(ctx, req, d.egress)
 		if err != nil {
 			// A refused address is refused on every retry.
-			return pgtype.UUID{}, jobqueue.Permanent(err)
+			return "", jobqueue.Permanent(err)
 		}
 		if known && size > d.maxImageBytes {
-			return pgtype.UUID{}, jobqueue.Permanent(fmt.Errorf(
+			return "", jobqueue.Permanent(fmt.Errorf(
 				"image too large to scan: %d compressed layer bytes exceeds SCANNER_MAX_IMAGE_BYTES=%d",
 				size, d.maxImageBytes))
 		}
@@ -69,14 +68,14 @@ func (d *Dispatcher) ProcessOne(ctx context.Context, req scanner.ScanRequest) (p
 		// Single chokepoint for both the NATS hint path and the DB poll loop, so
 		// the classification applies wherever the scan was triggered from.
 		if isPermanentScanError(err) {
-			return pgtype.UUID{}, jobqueue.Permanent(err)
+			return "", jobqueue.Permanent(err)
 		}
-		return pgtype.UUID{}, err
+		return "", err
 	}
 
 	bom := new(cdx.BOM)
 	if err := cdx.NewBOMDecoder(bytes.NewReader(res.SBOM), cdx.BOMFileFormatJSON).Decode(bom); err != nil {
-		return pgtype.UUID{}, fmt.Errorf("decode sbom: %w", err)
+		return "", fmt.Errorf("decode sbom: %w", err)
 	}
 
 	version := subjectVersion(req)
@@ -100,12 +99,12 @@ func (d *Dispatcher) ProcessOne(ctx context.Context, req scanner.ScanRequest) (p
 	if err != nil {
 		err = fmt.Errorf("ingest: %w", err)
 		// Ingest refused the SBOM itself, and refuses the same BOM on every
-		// retry (ocidex-a7km).
+		// retry.
 		var verr *service.ValidationError
 		if errors.As(err, &verr) {
-			return pgtype.UUID{}, jobqueue.Permanent(err)
+			return "", jobqueue.Permanent(err)
 		}
-		return pgtype.UUID{}, err
+		return "", err
 	}
 
 	d.logger.Info("SBOM ingested from scan", "repo", req.Repository, "digest", req.Digest)
@@ -117,7 +116,7 @@ func (d *Dispatcher) ProcessOne(ctx context.Context, req scanner.ScanRequest) (p
 const shortDigestLen = len("sha256:") + 12
 
 // subjectVersion is the version an SBOM is stored under: the image's version
-// label, else the tag it was found by, else its short digest (ocidex-a7km). A
+// label, else the tag it was found by, else its short digest. A
 // catalog walk always has a tag, but a running image reported by digest alone
 // may have neither, and ingest refuses a container SBOM with no version. The
 // index digest is used when there is one, so every platform of a multi-arch

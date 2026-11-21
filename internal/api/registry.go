@@ -95,7 +95,7 @@ func ensureWebhookSecret(scanMode string, provided *string) (secret *string, gen
 // trust_identity/trust_issuer it needs to match a Fulcio certificate against, and a
 // public_key verification_mode that's missing trust_public_key.
 // validateRegistryURL checks the shape of a user-supplied registry address
-// (ocidex-avsz.8): an optional http/https scheme (http only with insecure), a
+// : an optional http/https scheme (http only with insecure), a
 // host with an optional numeric port, and nothing else — credentials belong in
 // auth_username/auth_token, and a path, query or fragment would be silently
 // dropped or mangled by the scanner. A literal IP the egress policy refuses is
@@ -219,7 +219,7 @@ func (h *Handler) ListRecentDrift(ctx context.Context, in *ListRecentDriftInput)
 }
 
 // ListMyDriftFeed is ListRecentDrift narrowed to namespaces the caller owns
-// (ocidex-998g.5). The dashboard panel is titled "drift on my artifacts", and
+// . The dashboard panel is titled "drift on my artifacts", and
 // the default visibility filter would quietly include everyone else's public
 // ones, so the panel would be lying about whose problem it is showing.
 func (h *Handler) ListMyDriftFeed(ctx context.Context, in *ListMyDriftFeedInput) (*ListRecentDriftOutput, error) {
@@ -368,7 +368,7 @@ func (h *Handler) CreateRegistry(ctx context.Context, in *CreateRegistryInput) (
 
 // createRegistry creates a registry, authorizing the caller against the
 // namespace the request names when that namespace already exists
-// (ocidex-avsz.2). Without this, naming another tenant's namespace planted a
+// . Without this, naming another tenant's namespace planted a
 // registry — URL, credentials, schedule and all — inside it.
 //
 // The service only ever creates a named namespace; one that exists comes back
@@ -743,7 +743,7 @@ func (h *Handler) ScanRegistry(ctx context.Context, in *ScanRegistryInput) (*Sca
 	force := in.Force
 	// The walk outlives the request, so it runs under the coordinator, not
 	// under ctx: deduplicated per registry, bounded across registries, given a
-	// deadline, and cancelled on shutdown (ocidex-89c9.2).
+	// deadline, and cancelled on shutdown.
 	err = h.adhocWalks.Run(ctx, reg.ID, func(walkCtx context.Context) {
 		// Skip already-scanned digests at the walk level (same as the scheduled
 		// scanner) so a re-scan only re-pulls new/changed images. force=true passes

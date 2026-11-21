@@ -192,8 +192,8 @@ func TestAuthRateLimitZeroDisables(t *testing.T) {
 
 func newAPILimitedRouter(ingest, heavy int) http.Handler {
 	authSvc := &fakeAuthService{users: map[string]service.AuthUser{
-		"alice": {ID: ownerUUID, Role: "member"},
-		"bob":   {ID: otherUUID, Role: "member"},
+		"alice": {ID: ownerUUID.String(), Role: "member"},
+		"bob":   {ID: otherUUID.String(), Role: "member"},
 	}}
 	h := api.NewHandler(api.Deps{
 		Authenticator: authSvc,

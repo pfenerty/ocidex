@@ -82,7 +82,7 @@ func (s *searchService) GetArtifactUsages(ctx context.Context, artifactIDStr str
 
 	current, err := q.GetArtifactCurrentVersion(ctx, repository.GetArtifactCurrentVersionParams{
 		ArtifactID: artifactID,
-		UserID:     vis.UserID,
+		UserID:     uuidOrNull(vis.UserID),
 		IsAdmin:    visAdminBool(vis),
 	})
 	if err != nil && !errors.Is(err, pgx.ErrNoRows) {
@@ -99,7 +99,7 @@ func (s *searchService) GetArtifactUsages(ctx context.Context, artifactIDStr str
 		SubjectName:     subject.Name,
 		SubjectGroup:    textOrEmpty(subject.GroupName),
 		ArtifactID:      artifactID,
-		UserID:          vis.UserID,
+		UserID:          uuidOrNull(vis.UserID),
 		IsAdmin:         visAdminBool(vis),
 		RowLimit:        relationLimit,
 	})
@@ -161,7 +161,7 @@ func (s *searchService) GetArtifactContains(ctx context.Context, artifactIDStr s
 
 	rows, err := q.ListArtifactContains(ctx, repository.ListArtifactContainsParams{
 		ArtifactID: artifactID,
-		UserID:     vis.UserID,
+		UserID:     uuidOrNull(vis.UserID),
 		IsAdmin:    visAdminBool(vis),
 		RowLimit:   relationLimit,
 	})
@@ -203,7 +203,7 @@ func (s *searchService) visibleArtifact(
 ) (repository.GetArtifactRow, error) {
 	visible, err := q.IsArtifactVisible(ctx, repository.IsArtifactVisibleParams{
 		AID:     id,
-		UserID:  vis.UserID,
+		UserID:  uuidOrNull(vis.UserID),
 		IsAdmin: visAdminBool(vis),
 	})
 	if err != nil {
@@ -250,8 +250,7 @@ func textOrEmpty(t pgtype.Text) pgtype.Text {
 //
 // Two spellings of the same commit match: a container SBOM records the Go
 // module as "main-bf2bab70" where the application SBOM says
-// "0.0.0-bf2bab70", and calling that container outdated was wrong
-// (ocidex-nps9.4).
+// "0.0.0-bf2bab70", and calling that container outdated was wrong.
 func sameVersion(matched, current *string) *bool {
 	if matched == nil || current == nil {
 		return nil

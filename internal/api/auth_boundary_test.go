@@ -81,17 +81,17 @@ func newBoundaryAuthSvc() *configFakeAuthService {
 	return &configFakeAuthService{
 		fakeAuthService: fakeAuthService{
 			users: map[string]service.AuthUser{
-				tokenAdminRW:  {ID: boundaryAdminUUID, DisplayName: "admin", Role: "admin"},
-				tokenAdminRO:  {ID: boundaryAdminUUID, DisplayName: "admin", Role: "admin", APIKeyAuth: true, APIKeyCaps: []authz.Capability{authz.CapReadPrivate}},
-				tokenMemberRW: {ID: boundaryMemberUUID, DisplayName: "member", Role: "member"},
-				tokenMemberRO: {ID: boundaryMemberUUID, DisplayName: "member", Role: "member", APIKeyAuth: true, APIKeyCaps: []authz.Capability{authz.CapReadPrivate}},
-				tokenViewerRW: {ID: boundaryViewerUUID, DisplayName: "viewer", Role: "viewer"},
+				tokenAdminRW:  {ID: boundaryAdminUUID.String(), DisplayName: "admin", Role: "admin"},
+				tokenAdminRO:  {ID: boundaryAdminUUID.String(), DisplayName: "admin", Role: "admin", APIKeyAuth: true, APIKeyCaps: []authz.Capability{authz.CapReadPrivate}},
+				tokenMemberRW: {ID: boundaryMemberUUID.String(), DisplayName: "member", Role: "member"},
+				tokenMemberRO: {ID: boundaryMemberUUID.String(), DisplayName: "member", Role: "member", APIKeyAuth: true, APIKeyCaps: []authz.Capability{authz.CapReadPrivate}},
+				tokenViewerRW: {ID: boundaryViewerUUID.String(), DisplayName: "viewer", Role: "viewer"},
 			},
 		},
 		listUsersOut:  []service.AuthUser{},
 		listKeysOut:   []service.APIKeyMeta{},
 		createKeyOut:  "ocidex_test_key",
-		updateRoleOut: service.AuthUser{ID: boundaryAdminUUID, Role: "viewer"},
+		updateRoleOut: service.AuthUser{ID: boundaryAdminUUID.String(), Role: "viewer"},
 	}
 }
 

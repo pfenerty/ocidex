@@ -16,7 +16,7 @@ import (
 	"github.com/go-chi/chi/v5"
 )
 
-// The human-readable API reference (ocidex-a0p4).
+// The human-readable API reference.
 //
 // It lives under /api because that prefix is the one every deployment already
 // routes to this binary: the chart's HTTPRoute, the compose nginx and the vite

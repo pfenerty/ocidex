@@ -20,10 +20,10 @@ import (
 // The resolve functions RequireCapability takes: given a request, which
 // namespace is the operation aimed at? Each one is the lookup its retired
 // ownership middleware already performed, lifted out so that the rule above it
-// is written once (ocidex-y0hg.5).
+// is written once.
 //
 // They need their service: a handler wired without one fails the request
-// rather than guessing a namespace (ocidex-8xij.2). Where a resolver does
+// rather than guessing a namespace. Where a resolver does
 // return an invalid UUID (a registry with no namespace), RequireCapability
 // checks the capability against namespace "", which no membership covers, so
 // only an admin passes.
@@ -179,10 +179,10 @@ func NewRouter(h *Handler, corsOrigins, frontendURL, apiBaseURL string) chi.Rout
 		MaxAge:           300,
 	}))
 	// Push recording sits outside authentication so a push refused there is
-	// still recorded against its cluster (ocidex-70eo.4). The cross-origin
+	// still recorded against its cluster. The cross-origin
 	// guard needs only headers, so it rejects a forged write before any
 	// credential lookup, and authentication runs inside the request timeout so
-	// its database calls carry the request's deadline (ocidex-89c9.4).
+	// its database calls carry the request's deadline.
 	r.Use(RecordInventoryPushes(h.pushRecorder()))
 	r.Use(CrossOriginGuard(allowedOrigins, apiBaseURL))
 	r.Use(middleware.Timeout(30 * time.Second))
@@ -219,7 +219,7 @@ func NewRouter(h *Handler, corsOrigins, frontendURL, apiBaseURL string) chi.Rout
 	// Every response body's "$schema" and every error's Link: rel="describedBy"
 	// point at SchemasPath. It sits under /api, the prefix every deployment
 	// routes to this binary, so those links resolve instead of landing on the
-	// web tier's index.html (ocidex-m3yn). The old /schemas spelling redirects.
+	// web tier's index.html. The old /schemas spelling redirects.
 	config.SchemasPath = apiSchemasPath
 
 	// huma's own /docs page is replaced by the branded reference at /api/docs
@@ -961,8 +961,7 @@ func registerSourceOps(api huma.API, h *Handler) {
 
 func registerClusterOps(api huma.API, h *Handler) {
 	// Said once, here, because every consequence is otherwise silent: auto-
-	// ingest skips each snapshot without a word and the ingest endpoint 503s
-	// (ocidex-70eo.12).
+	// ingest skips each snapshot without a word and the ingest endpoint 503s.
 	if h.scanSubmitter == nil {
 		slog.Info("no scanner configured: cluster auto-ingest and unknown-image ingest are disabled")
 	}
@@ -1052,7 +1051,7 @@ func registerClusterOps(api huma.API, h *Handler) {
 		Middlewares:   huma.Middlewares{authMW, writeMW},
 	}, h.ConnectCluster)
 
-	// Agent credentials (ocidex-70eo.5): keys bound to the cluster that may
+	// Agent credentials: keys bound to the cluster that may
 	// only push its inventory.
 	huma.Register(api, huma.Operation{
 		OperationID: "list-cluster-credentials",
@@ -1363,7 +1362,7 @@ func registerJobOps(api huma.API, h *Handler) {
 // parseCORSOrigins splits a comma-separated origins string into a slice.
 // When raw is empty, frontendURL is used as the default allowed origin.
 // Validation — the production ban on '*' and on malformed origins, and the
-// development warning — happens at config load (ocidex-mqav.3).
+// development warning — happens at config load.
 func parseCORSOrigins(raw, frontendURL string) []string {
 	parts := strings.Split(raw, ",")
 	origins := make([]string, 0, len(parts))

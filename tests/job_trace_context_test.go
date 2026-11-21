@@ -4,7 +4,6 @@ import (
 	"context"
 	"testing"
 
-	"github.com/jackc/pgx/v5/pgtype"
 	"github.com/matryer/is"
 	sdktrace "go.opentelemetry.io/otel/sdk/trace"
 	"go.opentelemetry.io/otel/trace"
@@ -47,7 +46,7 @@ func TestScanJobTraceContext(t *testing.T) {
 	is.True(ok)
 	is.Equal(claimedTrace(claim), traceOf(first)) // the active row kept the trace that queued it
 
-	is.NoErr(jobSvc.FinishByID(t.Context(), job.ID, pgtype.UUID{})) // sbom_id may be NULL
+	is.NoErr(jobSvc.FinishByID(t.Context(), job.ID, "")) // sbom_id may be NULL
 	_, err = jobSvc.Enqueue(second, "", "app", prunedTestDigest, "", "v1", "msg-trace", false)
 	is.NoErr(err)
 	claim, ok, err = jobSvc.ClaimNext(t.Context(), "worker-1")

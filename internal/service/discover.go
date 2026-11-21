@@ -10,13 +10,13 @@ import (
 	"github.com/pfenerty/ocidex/internal/repository"
 )
 
-// Discovery is the public landing-page payload (ocidex-q1z7.2).
+// Discovery is the public landing-page payload.
 //
 // There is exactly one of these for the whole instance. Every query behind it is
 // scoped to public namespaces in SQL and takes no viewer parameter, so the
 // payload is identical for anonymous and signed-in callers alike — which is what
 // makes it safe to cache at the edge. Anything personalised belongs on the
-// dashboard (ocidex-998g), not here.
+// dashboard, not here.
 type Discovery struct {
 	FeaturedArtifacts  []DiscoverFeatured `json:"featuredArtifacts"`
 	TopArtifacts       []DiscoverArtifact `json:"topArtifacts"`
@@ -49,7 +49,7 @@ type DiscoverArtifact struct {
 }
 
 // DiscoverFeatured is one landing-page card: an artifact summarised from its
-// newest public SBOM (ocidex-08ys).
+// newest public SBOM.
 type DiscoverFeatured struct {
 	ArtifactID     string    `json:"artifactId"`
 	Type           string    `json:"type"`

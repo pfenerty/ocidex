@@ -24,7 +24,7 @@ func (s *searchService) SearchComponents(ctx context.Context, filter ComponentFi
 		Purl:      textOrNull(filter.Purl),
 		GroupName: textOrNull(filter.Group),
 		Version:   textOrNull(filter.Version),
-		UserID:    filter.Visibility.UserID,
+		UserID:    uuidOrNull(filter.Visibility.UserID),
 		IsAdmin:   visAdminBool(filter.Visibility),
 		RowLimit:  filter.Limit,
 		RowOffset: filter.Offset,
@@ -51,13 +51,11 @@ func (s *searchService) SearchComponents(ctx context.Context, filter ComponentFi
 func (s *searchService) SearchDistinctComponents(ctx context.Context, filter ComponentFilter) (PagedResult[DistinctComponentSummary], error) {
 	q := repository.New(s.db)
 
-	var namePat pgtype.Text
-	if filter.Name != "" {
-		namePat = pgtype.Text{String: "%" + filter.Name + "%", Valid: true}
-	}
+	// The query makes it a literal substring pattern (like_contains).
+	namePat := textOrNull(filter.Name)
 	sortBy := columnName(filter.Sort)
 	switch sortBy {
-	// "severity" (ocidex-unn8.10) orders by the rollup's five per-severity
+	// "severity" orders by the rollup's five per-severity
 	// counts, ranked worst-first; the query, not this list, decides how they
 	// break ties against each other.
 	case sortByName, "version_count", "sbom_count", "severity":
@@ -76,7 +74,7 @@ func (s *searchService) SearchDistinctComponents(ctx context.Context, filter Com
 		GroupName: textOrNull(filter.Group),
 		Type:      textOrNull(filter.Type),
 		PurlType:  textOrNull(filter.PurlType),
-		UserID:    filter.Visibility.UserID,
+		UserID:    uuidOrNull(filter.Visibility.UserID),
 		IsAdmin:   visAdminBool(filter.Visibility),
 		SortBy:    sortBy,
 		SortDir:   sortDir,
@@ -132,7 +130,7 @@ func (s *searchService) GetComponentVersions(ctx context.Context, filter Compone
 		GroupName: textOrNull(filter.Group),
 		Version:   textOrNull(filter.Version),
 		Type:      textOrNull(filter.Type),
-		UserID:    filter.Visibility.UserID,
+		UserID:    uuidOrNull(filter.Visibility.UserID),
 		IsAdmin:   visAdminBool(filter.Visibility),
 	})
 	if err != nil {
@@ -144,7 +142,7 @@ func (s *searchService) GetComponentVersions(ctx context.Context, filter Compone
 		GroupName: textOrNull(filter.Group),
 		Version:   textOrNull(filter.Version),
 		Type:      textOrNull(filter.Type),
-		UserID:    filter.Visibility.UserID,
+		UserID:    uuidOrNull(filter.Visibility.UserID),
 		IsAdmin:   visAdminBool(filter.Visibility),
 		RowLimit:  filter.Limit,
 		RowOffset: filter.Offset,
@@ -211,7 +209,7 @@ func (s *searchService) ListComponentVersionSummaries(ctx context.Context, filte
 		Name:      filter.Name,
 		GroupName: textOrNull(filter.Group),
 		Type:      textOrNull(filter.Type),
-		UserID:    filter.Visibility.UserID,
+		UserID:    uuidOrNull(filter.Visibility.UserID),
 		IsAdmin:   visAdminBool(filter.Visibility),
 	})
 	if err != nil {
@@ -222,7 +220,7 @@ func (s *searchService) ListComponentVersionSummaries(ctx context.Context, filte
 		Name:      filter.Name,
 		GroupName: textOrNull(filter.Group),
 		Type:      textOrNull(filter.Type),
-		UserID:    filter.Visibility.UserID,
+		UserID:    uuidOrNull(filter.Visibility.UserID),
 		IsAdmin:   visAdminBool(filter.Visibility),
 		RowLimit:  filter.Limit,
 		RowOffset: filter.Offset,
@@ -368,7 +366,7 @@ func (s *searchService) GetComponent(ctx context.Context, idStr string, vis Visi
 	// Access check: verify the SBOM this component belongs to is visible.
 	visible, err := q.IsSBOMVisible(ctx, repository.IsSBOMVisibleParams{
 		ID:      row.SbomID,
-		UserID:  vis.UserID,
+		UserID:  uuidOrNull(vis.UserID),
 		IsAdmin: visAdminBool(vis),
 	})
 	if err != nil {
@@ -560,7 +558,7 @@ func (s *searchService) GetComponentVulns(ctx context.Context, idStr string, vis
 func (s *searchService) ListComponentPurlTypes(ctx context.Context, vis VisibilityFilter) ([]string, error) {
 	q := repository.New(s.db)
 	return q.ListComponentPurlTypes(ctx, repository.ListComponentPurlTypesParams{
-		UserID:  vis.UserID,
+		UserID:  uuidOrNull(vis.UserID),
 		IsAdmin: visAdminBool(vis),
 	})
 }

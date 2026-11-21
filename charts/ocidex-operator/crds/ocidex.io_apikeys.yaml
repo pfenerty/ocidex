@@ -27,6 +27,9 @@ spec:
     - jsonPath: .status.conditions[?(@.type=="Ready")].status
       name: Ready
       type: string
+    - jsonPath: .status.expiresAt
+      name: Expires
+      type: date
     - jsonPath: .metadata.creationTimestamp
       name: Age
       type: date
@@ -81,6 +84,14 @@ spec:
                 items:
                   type: string
                 type: array
+              lifetime:
+                description: |-
+                  Lifetime makes the key expire this long after it is minted, e.g. "720h".
+                  The operator rotates it once 80% of the lifetime has passed: it mints a
+                  new key, writes it to the Secret, then deletes the old one, so the Secret
+                  never holds an expired key. Omit it for a key that never expires.
+                  Must be at least 1h.
+                type: string
               name:
                 description: Name is a human-readable label for the key.
                 type: string
@@ -167,6 +178,12 @@ spec:
                   - type
                   type: object
                 type: array
+              expiresAt:
+                description: |-
+                  ExpiresAt is when the current key stops working. Absent for a key
+                  without a lifetime.
+                format: date-time
+                type: string
               keyID:
                 description: KeyID is the OCIDex UUID of the provisioned API key.
                 type: string

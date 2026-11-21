@@ -4,7 +4,6 @@ import (
 	"context"
 	"testing"
 
-	"github.com/jackc/pgx/v5/pgtype"
 	"github.com/matryer/is"
 
 	"github.com/pfenerty/ocidex/internal/authz"
@@ -59,7 +58,7 @@ func TestGetMeReportsMembershipsFromTheRequestsOwnGrants(t *testing.T) {
 			is := is.New(t)
 
 			user := service.AuthUser{
-				ID:          pgtype.UUID{Bytes: [16]byte{1}, Valid: true},
+				ID:          "01000000-0000-0000-0000-000000000000",
 				DisplayName: "octocat",
 				Role:        "member",
 				Grants:      tt.grants,

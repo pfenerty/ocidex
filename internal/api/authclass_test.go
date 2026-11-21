@@ -181,7 +181,7 @@ func TestAuthClassEnforced(t *testing.T) {
 func TestMemberClassEnforced(t *testing.T) {
 	router := newConformanceRouter(&fakeAuthService{
 		users: map[string]service.AuthUser{
-			"viewer-token": {ID: otherUUID, Role: "viewer"},
+			"viewer-token": {ID: otherUUID.String(), Role: "viewer"},
 		},
 	})
 
@@ -208,7 +208,7 @@ func TestMemberClassEnforced(t *testing.T) {
 func TestAdminClassEnforced(t *testing.T) {
 	router := newConformanceRouter(&fakeAuthService{
 		users: map[string]service.AuthUser{
-			"member-token": {ID: otherUUID, Role: "member"},
+			"member-token": {ID: otherUUID.String(), Role: "member"},
 		},
 	})
 

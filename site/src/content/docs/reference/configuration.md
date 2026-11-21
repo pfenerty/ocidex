@@ -95,8 +95,8 @@ A variable marked **required** stops the process at startup when it is missing.
 | <code>ENRICHMENT_<wbr>POLL_<wbr>INTERVAL</code> | `30s` | How often each enricher worker checks the database for queued jobs when no NATS hint arrives. This is what keeps the queue draining while NATS is down. |
 | <code>ENRICHMENT_<wbr>STUCK_<wbr>THRESHOLD</code> | `10m` | How long a `running` job can go without a heartbeat before the sweep requeues it, or fails it if its attempts are used up. |
 | <code>ENRICHMENT_<wbr>MAX_<wbr>ATTEMPTS</code> | `3` | Attempts per job before it is left `failed` for the Jobs page's Retry button. |
-| <code>ENRICHMENT_<wbr>WORKERS</code> | `2` | **Deprecated, removed in 2.0 (ocidex-lwow).** Has no effect; the process logs a warning when it is set. Use `ENRICHMENT_MAX_CONCURRENCY`. |
-| <code>ENRICHMENT_<wbr>QUEUE_<wbr>SIZE</code> | `100` | **Deprecated, removed in 2.0 (ocidex-lwow).** Has no effect; the queue is the `enrichment_jobs` table, which has no depth limit. The process logs a warning when it is set. |
+| <code>ENRICHMENT_<wbr>WORKERS</code> | `2` | **Deprecated, removed in 2.0.** Has no effect; the process logs a warning when it is set. Use `ENRICHMENT_MAX_CONCURRENCY`. |
+| <code>ENRICHMENT_<wbr>QUEUE_<wbr>SIZE</code> | `100` | **Deprecated, removed in 2.0.** Has no effect; the queue is the `enrichment_jobs` table, which has no depth limit. The process logs a warning when it is set. |
 
 ## OCI Registry Scanner
 

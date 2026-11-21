@@ -40,7 +40,7 @@ func (f *sessionAuthService) ListUsers(_ context.Context) ([]service.AuthUser, e
 
 func (f *sessionAuthService) CreateSession(_ context.Context, userID string) (string, error) {
 	for _, u := range f.roster {
-		if u.ID.String() == userID {
+		if u.ID == userID {
 			f.minted++
 			token := "session-" + u.DisplayName
 			f.sessions[token] = u
@@ -68,8 +68,8 @@ func personaID(b byte) pgtype.UUID {
 
 func devPersonas() []service.AuthUser {
 	return []service.AuthUser{
-		{ID: personaID(0x11), DisplayName: "devadmin", Role: "admin"},
-		{ID: personaID(0x22), DisplayName: "devviewer", Role: "viewer"},
+		{ID: personaID(0x11).String(), DisplayName: "devadmin", Role: "admin"},
+		{ID: personaID(0x22).String(), DisplayName: "devviewer", Role: "viewer"},
 	}
 }
 
@@ -238,7 +238,7 @@ func TestDevSessionRefusesNonSeededUser(t *testing.T) {
 
 	authSvc := newDevAuthService()
 	authSvc.roster = append(authSvc.roster,
-		service.AuthUser{ID: personaID(0x33), DisplayName: "octocat", Role: "admin"})
+		service.AuthUser{ID: personaID(0x33).String(), DisplayName: "octocat", Role: "admin"})
 	router := newDevRouter(authSvc, "development")
 
 	req := httptest.NewRequest(http.MethodPost, "/api/v1/dev/session",

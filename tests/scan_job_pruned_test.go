@@ -80,7 +80,7 @@ func TestExplicitDeleteLeavesPrunedTombstone(t *testing.T) {
 	sbomID, err := sbomSvc.Ingest(ctx, &bom, []byte(relImageSBOM), service.IngestParams{SourceID: sourceID.String(), Digest: digest})
 	is.NoErr(err)
 
-	is.NoErr(sbomSvc.DeleteSBOM(ctx, sbomID.String()))
+	is.NoErr(sbomSvc.DeleteSBOM(ctx, sbomID))
 	is.Equal(scanJobState(t, pool, reg.ID), "pruned")
 
 	// The next walk no longer knows the digest, so it submits it again.

@@ -1,5 +1,5 @@
 // Command loadgen generates a synthetic CycloneDX SBOM corpus for scale testing
-// (ocidex-xxee.4): artifacts × versions × components, with shared base images,
+// : artifacts × versions × components, with shared base images,
 // version-to-version churn, dependency edges, licenses, and real package names
 // at vulnerable versions. The same -seed always produces the same corpus.
 //

@@ -57,7 +57,7 @@ func RollupAggregate(table string) (string, bool) {
 // version is a distinct thing from one versioned "", and the read queries
 // distinguish them.
 //
-// The severity counts (ocidex-unn8.10) reuse sbomVulnRollupAggregate's scope and
+// The severity counts reuse sbomVulnRollupAggregate's scope and
 // dedup rules — purl UNION source_purl so both legs stay index-equality lookups
 // on package_vulnerability.purl, one finding per distinct canonical_id so an OSV
 // alias group counts once — but at this table's grain, which is the package
@@ -124,7 +124,7 @@ LEFT JOIN sev sv
       AND sv.group_name IS NOT DISTINCT FROM b.group_name`
 
 // One row per (namespace, package identity, version) with when it was first
-// ingested there (ocidex-kf1p.5), for the dashboard's version growth timeline.
+// ingested there, for the dashboard's version growth timeline.
 // first_seen decomposes over namespaces — the earliest across the visible set
 // is the minimum of each one's earliest — so the reader can filter by
 // namespace and take MIN. The seeding INSERT in 00077 is this same text.
@@ -148,7 +148,7 @@ JOIN sbom s ON s.id = c.sbom_id`
 
 // One row per (license, namespace, distinct component), carrying the
 // lowest-id component as its representative: the rows GET
-// /api/v1/licenses/{id}/components pages through (ocidex-zbe5). Seeded by
+// /api/v1/licenses/{id}/components pages through. Seeded by
 // db/migrations/00087_license_component_rollup.sql.
 const licenseComponentRollupAggregate = `
 SELECT DISTINCT ON (cl.license_id, s.namespace_id, c.name, COALESCE(c.group_name, ''), COALESCE(c.version, ''), c.type)
@@ -173,12 +173,12 @@ JOIN sbom s ON s.id = comp.sbom_id
 WHERE v.canonical_id <> '' AND comp.purl IS NOT NULL
 GROUP BY v.canonical_id, s.namespace_id`
 
-// Per-severity finding counts at SBOM grain (ocidex-unn8.7), backing the
+// Per-severity finding counts at SBOM grain, backing the
 // severity columns on the artifact-versions, /artifacts and /components lists.
 //
 // Semantics are GetSBOMVulnSummary's: one finding per distinct canonical_id, so
 // an OSV alias group (GO-… + GHSA-… for one CVE) counts once; scope is
-// purl ∪ source_purl per ocidex-unn8.2, as a UNION rather than an OR-join so
+// purl ∪ source_purl, as a UNION rather than an OR-join so
 // both legs stay index-equality lookups on package_vulnerability.purl. The
 // buckets mirror buildVulnSummary's switch including its default arm, so a NULL
 // or unrecognised label lands in unknown rather than vanishing.

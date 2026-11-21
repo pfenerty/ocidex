@@ -1,4 +1,5 @@
 import { Link2 } from "lucide-solid";
+import { Button } from "~/components/ui";
 import { useToast } from "~/context/toast";
 import { copyText } from "~/utils/clipboard";
 
@@ -7,6 +8,7 @@ interface CopyShareLinkProps {
     path: string;
     /** Button label; defaults to "Copy link". */
     label?: string;
+    /** Extra classes, added to the small button's own. */
     class?: string;
 }
 
@@ -34,15 +36,16 @@ export default function CopyShareLink(props: CopyShareLinkProps) {
     };
 
     return (
-        <button
+        <Button
             type="button"
-            class={props.class ?? "btn btn-sm"}
+            size="sm"
+            class={props.class}
             title={`Click to copy: ${url()}`}
             onClick={() => void copy()}
         >
             <Link2 size={14} />
             {props.label ?? "Copy link"}
-        </button>
+        </Button>
     );
 }
 

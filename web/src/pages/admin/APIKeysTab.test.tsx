@@ -2,7 +2,7 @@
 import { describe, it, expect, vi, beforeEach, afterEach } from "vitest";
 import { render, fireEvent } from "@solidjs/testing-library";
 import { useListAPIKeys, useCreateAPIKey, useDeleteAPIKey } from "~/api/queries";
-import { APIKeysTab, parseCapabilities } from "~/pages/admin/APIKeysTab";
+import { APIKeysTab, expiryFor, parseCapabilities } from "~/pages/admin/APIKeysTab";
 
 const createMutate = vi.fn();
 
@@ -234,6 +234,64 @@ describe("APIKeysTab", () => {
             fireEvent.click(deleteButton(container));
             await vi.waitFor(() => expect(queryByText("ocidex_abSECRET")).toBeNull());
         });
+    });
+});
+
+describe("key lifetime", () => {
+    beforeEach(() => {
+        stubKeys([]);
+        mockCreate.mockReturnValue({ mutate: createMutate, isPending: false } as unknown as ReturnType<typeof useCreateAPIKey>);
+        mockDelete.mockReturnValue({ mutate: vi.fn(), isPending: false } as unknown as ReturnType<typeof useDeleteAPIKey>);
+    });
+    afterEach(() => vi.clearAllMocks());
+
+    function submit(container: HTMLElement, days?: string) {
+        const input = must(container.querySelector<HTMLInputElement>('input[type="text"]'), "name input");
+        fireEvent.input(input, { target: { value: "ci" } });
+        if (days !== undefined) {
+            const select = must(container.querySelector<HTMLSelectElement>('select[aria-label="Key lifetime"]'), "lifetime");
+            fireEvent.change(select, { target: { value: days } });
+        }
+        fireEvent.submit(must(container.querySelector("form"), "form"));
+    }
+
+    it("never expires by default, so the request carries no expiry", () => {
+        const { container } = render(() => <APIKeysTab />);
+        submit(container);
+        const args = createMutate.mock.calls[0]?.[0] as { expiresAt?: string };
+        expect(args.expiresAt).toBeUndefined();
+    });
+
+    it("sends an expiry the chosen number of days out", () => {
+        const before = Date.now();
+        const { container } = render(() => <APIKeysTab />);
+        submit(container, "30");
+        const args = createMutate.mock.calls[0]?.[0] as { expiresAt?: string };
+        const at = new Date(must(args.expiresAt, "expiresAt")).getTime();
+        const day = 24 * 60 * 60 * 1000;
+        expect(at).toBeGreaterThanOrEqual(before + 30 * day);
+        expect(at).toBeLessThanOrEqual(Date.now() + 30 * day);
+    });
+
+    it("shows Never, a date, or the date marked expired", () => {
+        stubKeys([
+            { ...key("forever", null) },
+            { ...key("later", null), expiresAt: "2999-01-01T00:00:00Z" },
+            { ...key("gone", null), expiresAt: "2020-01-01T00:00:00Z" },
+        ] as ReturnType<typeof key>[]);
+        const { container } = render(() => <APIKeysTab />);
+        const rows = [...container.querySelectorAll("tbody tr")].map((r) => r.textContent);
+        expect(rows.find((r) => r.includes("forever"))).toContain("Never");
+        expect(rows.find((r) => r.includes("later"))).not.toContain("expired");
+        expect(rows.find((r) => r.includes("gone"))).toContain("expired");
+    });
+});
+
+describe("expiryFor", () => {
+    it("is undefined for never and counts whole days otherwise", () => {
+        const now = new Date("2026-11-21T00:00:00Z");
+        expect(expiryFor(0, now)).toBeUndefined();
+        expect(expiryFor(90, now)).toBe("2027-02-19T00:00:00.000Z");
     });
 });
 

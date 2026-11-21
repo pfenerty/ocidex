@@ -97,7 +97,7 @@ func TestExchangeCodeForUser_BootstrapAdminFirstSignIn(t *testing.T) {
 
 	u, err := svc.ExchangeCodeForUser(context.Background(), "github", "code", "verifier")
 	is.NoErr(err)
-	is.Equal(u.ID, userID(2))
+	is.Equal(u.ID, userID(2).String())
 	is.Equal(u.Role, roleAdmin)
 }
 

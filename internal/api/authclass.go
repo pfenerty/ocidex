@@ -50,8 +50,8 @@ const (
 	// is "does your role there grant this capability" rather than "are you the
 	// one owner".
 	//
-	// It replaced an owner class outright rather than sitting beside one
-	// (ocidex-y0hg.6). No alias survives, because an alias would let a new
+	// It replaced an owner class outright rather than sitting beside one.
+	// No alias survives, because an alias would let a new
 	// operation quietly inherit owner-only semantics without naming what it
 	// actually needs.
 	//
@@ -102,21 +102,20 @@ const (
 	// noteNamespaceScoped marks the operational feeds that any authenticated
 	// caller may invoke but which return only rows from the namespaces the
 	// caller can see. An admin gets the cross-tenant view from the same
-	// endpoint — there is no separate admin path (ocidex-998g.1).
+	// endpoint — there is no separate admin path.
 	noteNamespaceScoped = "Rows filtered via visible_namespace_ids; admins see every namespace."
 
 	// noteSelfScoped marks the /users/me/* collections. These select on
 	// ownership, not visibility — the distinction that matters for review is
 	// that a public resource owned by somebody else is absent here but present
-	// in the sibling list endpoint, and that admins get no widening
-	// (ocidex-998g.2).
+	// in the sibling list endpoint, and that admins get no widening.
 	noteSelfScoped = "Owned rows only; excludes others' public rows, and admins get no widening."
 
 	// noteWatch is deliberately the opposite of noteSelfScoped on the
 	// visibility axis, and that asymmetry is the thing to check in review: the
 	// watchlist is self-scoped in *whose* it is, but the artifact being watched
 	// is chosen from everything the caller can see, which includes other
-	// people's public artifacts (ocidex-998g.3).
+	// people's public artifacts.
 	noteWatch = "Watch is self-scoped; the artifact must be visible to the caller, which may include others' public artifacts."
 
 	// noteWatchFeed records the one place the watch feature does re-check
@@ -154,7 +153,7 @@ var authRules = map[string]AuthRule{
 	"list-my-watch-feed": {Class: ClassAuthenticated, Notes: noteWatchFeed},
 	// The owned variants of two feeds whose siblings are visibility-filtered
 	// rather than admin-only; noteSelfScoped applies unchanged, because the
-	// narrowing is the same one (ocidex-998g.5).
+	// narrowing is the same one.
 	"list-my-drift-feed":      {Class: ClassAuthenticated, Notes: noteSelfScoped},
 	"list-my-vulnerabilities": {Class: ClassAuthenticated, Notes: noteSelfScoped},
 	"watch-artifact":          {Class: ClassAuthenticated, Write: true, Notes: noteWatch},
@@ -258,7 +257,7 @@ var authRules = map[string]AuthRule{
 	"put-cluster-inventory":         {Class: ClassCapability, Cap: authz.CapPushInventory, Write: true, Notes: "push_inventory capability on the cluster's namespace — membership, not visibility, because a public namespace must not make inventory writable by anyone."},
 	"connect-cluster":               {Class: ClassCapability, Cap: authz.CapManageCluster, Write: true, Notes: "manage_cluster and push_inventory on the body's namespace_id, in the handler. Creates the cluster and a cluster-bound credential in one transaction."},
 	"list-cluster-credentials":      {Class: ClassCapability, Cap: authz.CapManageCluster, Notes: "manage_cluster capability on cluster's namespace, in the handler. Key metadata only; keys are never listed."},
-	"create-cluster-credential":     {Class: ClassCapability, Cap: authz.CapManageCluster, Write: true, Notes: "manage_cluster and push_inventory on cluster's namespace, in the handler. The minted key is bound to the cluster: refused by OptionalAuthenticate on every route but this cluster's inventory push (ocidex-70eo.5)."},
+	"create-cluster-credential":     {Class: ClassCapability, Cap: authz.CapManageCluster, Write: true, Notes: "manage_cluster and push_inventory on cluster's namespace, in the handler. The minted key is bound to the cluster: refused by OptionalAuthenticate on every route but this cluster's inventory push."},
 	"rotate-cluster-credential":     {Class: ClassCapability, Cap: authz.CapManageCluster, Write: true, Notes: "Same gate as create-cluster-credential; the replacement is owned by the caller."},
 	"revoke-cluster-credential":     {Class: ClassCapability, Cap: authz.CapManageCluster, Write: true, Notes: "manage_cluster capability on cluster's namespace, in the handler; revokes any minter's credential for this cluster."},
 	"list-cluster-pushes":           {Class: ClassAuthenticated, Notes: "Cluster gated on namespace visibility, like get-cluster."},
@@ -485,7 +484,7 @@ func capCell(rule AuthRule) string {
 // legend. The capability column above names what an operation needs; without
 // this table a reader has to open internal/authz/capability.go to learn which
 // role grants it, and the answer would be one more thing free to drift out of
-// the document (ocidex-y0hg.6).
+// the document.
 func writeRoleCapabilityTable(b *strings.Builder) {
 	roles := authz.AllRoles()
 

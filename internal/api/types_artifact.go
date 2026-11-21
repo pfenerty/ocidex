@@ -37,7 +37,7 @@ type ListArtifactsOutput struct {
 		Pagination CursorMeta                `json:"pagination"`
 		// Total rides beside the keyset envelope rather than in it (ADR-043
 		// keyset pages carry no total), and only on the first page, which is
-		// where a list says "20 of 126" (ocidex-nps9.18).
+		// where a list says "20 of 126".
 		Total *int64 `json:"total,omitempty" doc:"Artifacts matching the filters, on the first page only"`
 	}
 }
@@ -198,7 +198,7 @@ type GetArtifactVulnSummaryOutput struct {
 		// row: never scanned, or nothing recorded. That is not a zero, so it is
 		// optional rather than an all-zero summary (ADR-044). It used to be a
 		// required field that serialized as null, and the UI crashed reading
-		// .total off it (ocidex-9yjp).
+		// .total off it.
 		Summary *service.VulnSummary `json:"summary,omitempty"`
 		// SubjectVersion is the version the summary counts: the highest by
 		// version parts, which need not be the newest build.

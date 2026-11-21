@@ -111,26 +111,11 @@ func run() error {
 	bus := event.NewBus(logger)
 	reg := extension.NewManager(bus, logger)
 
-	registrySvc := service.NewRegistryService(pool, cfg.SecretBox)
-	namespaceSvc := service.NewNamespaceService(pool)
-	sourceSvc := service.NewSourceService(pool)
-	insecureResolver := service.BuildInsecureHostLookup(registrySvc)
+	svcs := newServices(cfg, pool, bgPool, bus, providers)
 
 	setupOptionalExts(cfg, reg, natsClient, logger)
 
-	ociValidator := ocivalidate.NewValidator(
-		ocivalidate.WithInsecureResolver(insecureResolver),
-		ocivalidate.WithEgress(cfg.EgressPolicy),
-	)
-	sbomSvc := service.NewSBOMService(pool, bus, ociValidator)
-	searchSvc := service.NewSearchService(pool, service.WithWarmDB(bgPool), service.WithFeatured(cfg.DiscoverFeatured))
-	authSvc := service.NewAuthService(pool, cfg, bus, providers)
-
-	jobSvc := service.NewJobService(pool, cfg.SecretBox)
-	// The API enqueues and administers enrichment jobs but never claims one, so
-	// the ClaimNext partition name is empty (see NewEnrichJobService).
-	enrichJobSvc := service.NewEnrichJobService(pool, "")
-	scanSubmitter := setupScannerExt(cfg, pool, bus, reg, natsClient, logger, jobSvc)
+	scanSubmitter := setupScannerExt(cfg, pool, bus, reg, natsClient, logger, svcs.jobs)
 	adhocWalks := scanner.NewAdhocWalks(adhocWalkConcurrency, adhocWalkTimeout, logger)
 	reg.Register(adhocWalks)
 	// Its own coordinator, so a burst of cluster snapshots can't hold up a
@@ -143,36 +128,12 @@ func run() error {
 		return fmt.Errorf("initializing extensions: %w", err)
 	}
 
-	watchSvc := service.NewWatchService(pool)
-	clusterSvc := service.NewClusterService(pool, cfg.SecretBox)
 	tracerProvider, stopTracing := tracing.Start(ctx, "ocidex-api")
 	defer stopTracing()
-	meterProvider, stopMetrics := setupMetrics(ctx, cfg, pool, bgPool, natsClient, registrySvc, clusterSvc)
+	meterProvider, stopMetrics := setupMetrics(ctx, cfg, pool, bgPool, natsClient, svcs.registries, svcs.clusters)
 	defer stopMetrics()
 
-	handler := api.NewHandler(api.Deps{
-		SBOMs:            sbomSvc,
-		SBOMQueries:      searchSvc,
-		Components:       searchSvc,
-		Artifacts:        searchSvc,
-		ArtifactInsights: searchSvc,
-		Insights:         searchSvc,
-		Authenticator:    authSvc,
-		Logins:           authSvc,
-		Accounts:         authSvc,
-		Registries:       registrySvc,
-		Namespaces:       namespaceSvc,
-		Sources:          sourceSvc,
-		Jobs:             jobSvc,
-		EnrichJobs:       enrichJobSvc,
-		Watches:          watchSvc,
-		Clusters:         clusterSvc,
-		ClusterAgents:    clusterSvc,
-		ClusterInventory: clusterSvc,
-		DB:               pool,
-		Scans:            scanSubmitter,
-		Config:           cfg,
-	}).
+	handler := newAPIHandler(cfg, pool, scanSubmitter, svcs).
 		WithMeterProvider(meterProvider).
 		WithTracerProvider(tracerProvider).
 		WithAdhocWalks(adhocWalks).
@@ -185,51 +146,86 @@ func run() error {
 		return fmt.Errorf("starting extensions: %w", err)
 	}
 
-	if cfg.ScannerEnabled && cfg.RegistryPollerEnabled && scanSubmitter != nil {
-		walker := setupRegistryWalker(cfg, natsClient, scanSubmitter, sbomSvc, registrySvc, logger)
-		poller := scanner.NewPoller(registrySvc, walker, logger)
-		pollerKey := service.LockKey(service.PollerLockName)
-		go service.LeaderElect(extCtx, pool, pollerKey, poller.Run)
-		slog.Info("registry poller election started", "lock_key", pollerKey)
-	} else {
-		warnUnpolledRegistries(ctx, registrySvc)
+	startBackgroundJobs(extCtx, backgroundDeps{
+		cfg: cfg, pool: pool, bgPool: bgPool, bus: bus, natsClient: natsClient,
+		scans: scanSubmitter, svcs: svcs, meters: meterProvider, logger: logger,
+	})
+
+	return serveAndShutdown(cfg, router, extCancel, reg)
+}
+
+// apiServices are the services the API process builds once and shares
+// between the HTTP handler and its background work.
+type apiServices struct {
+	sboms      service.SBOMService
+	search     service.SearchService
+	auth       service.AuthService
+	registries service.RegistryService
+	namespaces service.NamespaceService
+	sources    service.SourceService
+	jobs       service.JobService
+	enrichJobs service.EnrichJobService
+	watches    service.WatchService
+	clusters   service.ClusterService
+}
+
+func newServices(cfg *config.Config, pool, bgPool *pgxpool.Pool, bus *event.Bus, providers []auth.Provider) apiServices {
+	registrySvc := service.NewRegistryService(pool, cfg.SecretBox)
+	namespaceSvc := service.NewNamespaceService(pool)
+	sourceSvc := service.NewSourceService(pool)
+	insecureResolver := service.BuildInsecureHostLookup(registrySvc)
+	ociValidator := ocivalidate.NewValidator(
+		ocivalidate.WithInsecureResolver(insecureResolver),
+		ocivalidate.WithEgress(cfg.EgressPolicy),
+	)
+	sbomSvc := service.NewSBOMService(pool, bus, ociValidator)
+	searchSvc := service.NewSearchService(pool, service.WithWarmDB(bgPool), service.WithFeatured(cfg.DiscoverFeatured))
+	authSvc := service.NewAuthService(pool, cfg, bus, providers)
+	jobSvc := service.NewJobService(pool, cfg.SecretBox)
+	// The API enqueues and administers enrichment jobs but never claims one, so
+	// the ClaimNext partition name is empty (see NewEnrichJobService).
+	enrichJobSvc := service.NewEnrichJobService(pool, "")
+	watchSvc := service.NewWatchService(pool)
+	clusterSvc := service.NewClusterService(pool, cfg.SecretBox)
+	return apiServices{
+		sboms: sbomSvc, search: searchSvc, auth: authSvc, registries: registrySvc,
+		namespaces: namespaceSvc, sources: sourceSvc, jobs: jobSvc, enrichJobs: enrichJobSvc,
+		watches: watchSvc, clusters: clusterSvc,
 	}
+}
 
-	if cfg.ProvenanceReverifierEnabled {
-		reverifier := enrichment.NewReverifier(repository.New(pool), cfg.ProvenanceRecheckInterval, logger)
-		reverifierKey := service.LockKey(service.ReverifierLockName)
-		go service.LeaderElect(extCtx, pool, reverifierKey, reverifier.Run)
-		slog.Info("provenance reverifier election started", "lock_key", reverifierKey, "interval", cfg.ProvenanceRecheckInterval)
-	} else {
-		slog.Info("provenance reverifier disabled")
-	}
+// newAPIHandler builds the HTTP handler from the shared services. Each service
+// backs every view of it the handler declares (internal/api/deps.go).
+func newAPIHandler(cfg *config.Config, pool *pgxpool.Pool, scans api.ScanSubmitter, svcs apiServices) *api.Handler {
+	return api.NewHandler(api.Deps{
+		SBOMs:            svcs.sboms,
+		SBOMQueries:      svcs.search,
+		Components:       svcs.search,
+		Artifacts:        svcs.search,
+		ArtifactInsights: svcs.search,
+		Insights:         svcs.search,
+		Authenticator:    svcs.auth,
+		Logins:           svcs.auth,
+		Accounts:         svcs.auth,
+		Registries:       svcs.registries,
+		Namespaces:       svcs.namespaces,
+		Sources:          svcs.sources,
+		Jobs:             svcs.jobs,
+		EnrichJobs:       svcs.enrichJobs,
+		Watches:          svcs.watches,
+		Clusters:         svcs.clusters,
+		ClusterAgents:    svcs.clusters,
+		ClusterInventory: svcs.clusters,
+		DB:               pool,
+		Scans:            scans,
+		Config:           cfg,
+	})
+}
 
-	startRetention(extCtx, cfg, pool, bgPool, bus, meterProvider, logger)
-
-	go runSessionCleaner(extCtx, authSvc)
-
-	// The dashboard aggregates take longer than any request timeout allows, so
-	// they are computed out-of-band and served from cache. Per-process cache,
-	// so this runs on every replica rather than behind leader election. It gets
-	// its own search service on the small background pool so a warm pass can
-	// never occupy connections the request path needs.
-	statsWarmer := service.NewStatsWarmer(searchSvc, service.StatsWarmInterval, logger)
-	go statsWarmer.Run(extCtx)
-	slog.Info("dashboard stats warmer started", "interval", service.StatsWarmInterval)
-
-	// The list pages read precomputed rollups rather than aggregating the
-	// component table per request. Unlike the stats cache these are shared
-	// database state, so every replica runs the refresher and an advisory lock
-	// inside the pass decides which one actually does the work. It shares the
-	// background pool with the warmer for the same reason: a refresh must never
-	// hold a connection the request path needs.
-	rollupRefresher := service.NewRollupRefresher(bgPool, service.RollupRefreshInterval, logger)
-	go rollupRefresher.Run(extCtx)
-	slog.Info("rollup refresher started",
-		"backstop_interval", service.RollupRefreshInterval,
-		"poll_interval", service.RollupPollInterval,
-		"lock_key", rollupRefresher.LockKey())
-
+// serveAndShutdown serves the API until a shutdown signal, then stops the
+// background work (cancelling its context and stopping the extensions) before
+// draining in-flight requests.
+func serveAndShutdown(cfg *config.Config, router http.Handler, stopBackground context.CancelFunc, reg *extension.Manager) error {
 	srv := &http.Server{
 		Addr:    fmt.Sprintf(":%d", cfg.Port),
 		Handler: router,
@@ -245,7 +241,7 @@ func run() error {
 		return err
 	}
 
-	extCancel()
+	stopBackground()
 	if err := reg.StopAll(); err != nil {
 		slog.Error("extension shutdown error", "err", err)
 	}
@@ -260,9 +256,73 @@ func run() error {
 	return nil
 }
 
+// backgroundDeps is what the API process's background work needs.
+type backgroundDeps struct {
+	cfg        *config.Config
+	pool       *pgxpool.Pool
+	bgPool     *pgxpool.Pool
+	bus        *event.Bus
+	natsClient *natspkg.Client
+	scans      api.ScanSubmitter
+	svcs       apiServices
+	meters     metric.MeterProvider
+	logger     *slog.Logger
+}
+
+// startBackgroundJobs starts the API process's long-running background work
+// under ctx, which shutdown cancels: the leader-elected registry poller,
+// provenance reverifier and retention sweep, then the per-replica session
+// cleaner, stats warmer and rollup refresher.
+func startBackgroundJobs(ctx context.Context, d backgroundDeps) {
+	if d.cfg.ScannerEnabled && d.cfg.RegistryPollerEnabled && d.scans != nil {
+		walker := setupRegistryWalker(d.cfg, d.natsClient, d.scans, d.svcs.sboms, d.svcs.registries, d.logger)
+		poller := scanner.NewPoller(d.svcs.registries, walker, d.logger)
+		pollerKey := service.LockKey(service.PollerLockName)
+		go service.LeaderElect(ctx, d.pool, pollerKey, poller.Run)
+		slog.Info("registry poller election started", "lock_key", pollerKey)
+	} else {
+		warnUnpolledRegistries(ctx, d.svcs.registries)
+	}
+
+	if d.cfg.ProvenanceReverifierEnabled {
+		reverifier := enrichment.NewReverifier(repository.New(d.pool), d.cfg.ProvenanceRecheckInterval, d.logger)
+		reverifierKey := service.LockKey(service.ReverifierLockName)
+		go service.LeaderElect(ctx, d.pool, reverifierKey, reverifier.Run)
+		slog.Info("provenance reverifier election started", "lock_key", reverifierKey, "interval", d.cfg.ProvenanceRecheckInterval)
+	} else {
+		slog.Info("provenance reverifier disabled")
+	}
+
+	startRetention(ctx, d.cfg, d.pool, d.bgPool, d.bus, d.meters, d.logger)
+
+	go runSessionCleaner(ctx, d.svcs.auth)
+
+	// The dashboard aggregates take longer than any request timeout allows, so
+	// they are computed out-of-band and served from cache. Per-process cache,
+	// so this runs on every replica rather than behind leader election. It gets
+	// its own search service on the small background pool so a warm pass can
+	// never occupy connections the request path needs.
+	statsWarmer := service.NewStatsWarmer(d.svcs.search, service.StatsWarmInterval, d.logger)
+	go statsWarmer.Run(ctx)
+	slog.Info("dashboard stats warmer started", "interval", service.StatsWarmInterval)
+
+	// The list pages read precomputed rollups rather than aggregating the
+	// component table per request. Unlike the stats cache these are shared
+	// database state, so every replica runs the refresher and an advisory lock
+	// inside the pass decides which one actually does the work. It shares the
+	// background pool with the warmer for the same reason: a refresh must never
+	// hold a connection the request path needs.
+	rollupRefresher := service.NewRollupRefresher(d.bgPool, service.RollupRefreshInterval, d.logger)
+	go rollupRefresher.Run(ctx)
+	slog.Info("rollup refresher started",
+		"backstop_interval", service.RollupRefreshInterval,
+		"poll_interval", service.RollupPollInterval,
+		"lock_key", rollupRefresher.LockKey())
+}
+
 // Ad-hoc registry walks (POST /registries/{id}/scan) run under
 // scanner.AdhocWalks: at most adhocWalkConcurrency at a time across registries,
-// each bounded by adhocWalkTimeout (ocidex-89c9.2).
+// each bounded by adhocWalkTimeout.
 const (
 	adhocWalkConcurrency = 2
 	adhocWalkTimeout     = 5 * time.Minute
@@ -270,7 +330,7 @@ const (
 
 // Cluster auto-ingest after an inventory snapshot runs under its own
 // scanner.AdhocWalks: one per cluster, at most clusterIngestConcurrency across
-// clusters, each bounded by clusterIngestTimeout (ocidex-89c9.6).
+// clusters, each bounded by clusterIngestTimeout.
 const (
 	clusterIngestConcurrency = 4
 	clusterIngestTimeout     = 5 * time.Minute
@@ -638,7 +698,7 @@ func runEncryptSecrets(ctx context.Context, dbURL string, args []string) error {
 
 // backfillBatches is how much a backfill step reads at once: 50 SBOMs with
 // their raw_bom, or 10,000 component rows. The purl step's page is large
-// because each page scans the component table (ocidex-ah9z): on ocidex-dev's
+// because each page scans the component table: on ocidex-dev's
 // 52M components a page took 10-15s, so 50-row pages turned 3,339 rows into
 // ~17 minutes.
 var backfillBatches = service.BackfillBatches{SBOMs: 50, Components: 10_000}

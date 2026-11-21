@@ -1,7 +1,6 @@
 // Package oci holds the rules for naming things in an OCI registry: registry
 // hosts and image references. It imports nothing from this module, so every
-// package that matches or contacts a registry can share one definition
-// (ocidex-43lo).
+// package that matches or contacts a registry can share one definition.
 package oci
 
 import "strings"
@@ -18,7 +17,7 @@ const DockerHubAPIHost = "registry-1.docker.io"
 //
 // Every place that matches a registry's configured URL against an image's
 // host, or builds a URL to contact one, uses this, so a registry configured as
-// "https://ghcr.io/" names the same host everywhere (ocidex-43lo.1).
+// "https://ghcr.io/" names the same host everywhere.
 func NormalizeRegistryHost(host string) string {
 	host = strings.TrimSpace(host)
 	if i := strings.Index(host, "://"); i != -1 {

@@ -26,7 +26,7 @@ const (
 // r, and its secret: a Bearer API key wins over a session cookie. It reads
 // only headers, so CrossOriginGuard can use it before any database lookup and
 // is guaranteed to agree with OptionalAuthenticate about which credential
-// counts (ocidex-89c9.4).
+// counts.
 func presentedCredential(r *http.Request) (authMethod, string) {
 	if auth := r.Header.Get("Authorization"); strings.HasPrefix(auth, "Bearer ") {
 		return authMethodBearer, strings.TrimPrefix(auth, "Bearer ")
@@ -39,7 +39,7 @@ func presentedCredential(r *http.Request) (authMethod, string) {
 
 // CrossOriginGuard rejects state-changing requests that authenticated by
 // session cookie unless they demonstrably came from a trusted origin — the
-// OWASP "verify origin with standard headers" defence (ocidex-mqav.1).
+// OWASP "verify origin with standard headers" defence.
 //
 // huma only enforces Content-Type when an operation has a body, so without
 // this a body-less POST (scan a registry, rotate a webhook secret, retry every
@@ -59,7 +59,7 @@ func presentedCredential(r *http.Request) (authMethod, string) {
 //
 // It judges the credential the request presents, not the one authentication
 // accepts, so it runs before OptionalAuthenticate and a forged request costs
-// no credential lookup (ocidex-89c9.4). A cross-origin write carrying a stale
+// no credential lookup. A cross-origin write carrying a stale
 // session cookie is therefore refused rather than run as anonymous, which
 // refuses nothing a browser legitimately sends.
 func CrossOriginGuard(allowedOrigins []string, apiBaseURL string) func(http.Handler) http.Handler {

@@ -1,5 +1,5 @@
 // Package uuidx is the one place this module turns text into a pgtype.UUID
-// (ocidex-43lo.3). The other direction needs no helper: pgtype.UUID.String
+// . The other direction needs no helper: pgtype.UUID.String
 // renders the canonical form, and "" for a NULL UUID.
 package uuidx
 
@@ -24,4 +24,15 @@ func Parse(s string) (pgtype.UUID, error) {
 		return pgtype.UUID{}, fmt.Errorf("invalid uuid: %q", s)
 	}
 	return id, nil
+}
+
+// OrNull is Parse for an optional ID: "" or anything that isn't a UUID becomes
+// a NULL pgtype.UUID. It's for IDs the caller already trusts, such as an
+// authenticated user's or a visibility filter's, on their way into a query.
+func OrNull(s string) pgtype.UUID {
+	id, err := Parse(s)
+	if err != nil {
+		return pgtype.UUID{}
+	}
+	return id
 }

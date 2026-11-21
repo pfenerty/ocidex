@@ -1,5 +1,5 @@
-import { describe, it, expect } from "vitest";
-import { shortDigest, shortId, plural, hasText, formatDate } from "./format";
+import { describe, it, expect, vi, beforeEach, afterEach } from "vitest";
+import { shortDigest, shortId, plural, hasText, formatDate, relativeDate } from "./format";
 
 describe("shortDigest", () => {
     it("truncates sha256 digest", () => {
@@ -100,5 +100,41 @@ describe("timestamps that carry no information (ocidex-5692)", () => {
         expect(buildTime({ buildDate: "2026-08-01T00:00:00Z", createdAt: "2026-09-06T08:09:00Z" })).toBe(
             "2026-08-01T00:00:00Z",
         );
+    });
+});
+
+describe("relativeDate", () => {
+    const now = new Date("2026-11-21T12:00:00Z").getTime();
+    const at = (ms: number) => new Date(now + ms).toISOString();
+    const MIN = 60_000;
+    const DAY = 24 * 60 * MIN;
+
+    beforeEach(() => {
+        vi.useFakeTimers();
+        vi.setSystemTime(now);
+    });
+    afterEach(() => {
+        vi.useRealTimers();
+    });
+
+    it("reads the past as elapsed time", () => {
+        expect(relativeDate(at(-10_000))).toBe("just now");
+        expect(relativeDate(at(-5 * MIN))).toBe("5m ago");
+        expect(relativeDate(at(-DAY))).toBe("yesterday");
+        expect(relativeDate(at(-3 * DAY))).toBe("3d ago");
+    });
+
+    // An API key's expiry is in the future; it used to read "just now".
+    it("reads the future as time remaining", () => {
+        expect(relativeDate(at(10_000))).toBe("in under a minute");
+        expect(relativeDate(at(5 * MIN))).toBe("in 5m");
+        expect(relativeDate(at(DAY + MIN))).toBe("tomorrow");
+        expect(relativeDate(at(30 * DAY + MIN))).toBe("in 1mo");
+        expect(relativeDate(at(29 * DAY + MIN))).toBe("in 29d");
+    });
+
+    it("falls back to the date beyond a year either way", () => {
+        expect(relativeDate(at(400 * DAY))).toBe(formatDate(at(400 * DAY)));
+        expect(relativeDate(at(-400 * DAY))).toBe(formatDate(at(-400 * DAY)));
     });
 });

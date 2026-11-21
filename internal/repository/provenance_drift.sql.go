@@ -213,7 +213,7 @@ type ListRecentProvenanceDriftRow struct {
 // namespace owner sees drift on their own (and public) artifacts only.
 //
 // owned_only switches to the ownership path for the /dashboard "drift on my
-// artifacts" panel (ocidex-998g.5). It is strictly narrower than the default:
+// artifacts" panel. It is strictly narrower than the default:
 // it drops others' public artifacts, and it ignores is_admin, because "mine"
 // means mine even for an admin. Same switch, same wording, as namespace.sql.
 func (q *Queries) ListRecentProvenanceDrift(ctx context.Context, arg ListRecentProvenanceDriftParams) ([]ListRecentProvenanceDriftRow, error) {

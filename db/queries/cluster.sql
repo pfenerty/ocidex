@@ -200,9 +200,9 @@ WHERE w.cluster_id = $1
   AND (sqlc.narg('k8s_namespace')::text IS NULL OR w.k8s_namespace = sqlc.narg('k8s_namespace')::text)
   AND (sqlc.narg('match_state')::text IS NULL OR ms.state = sqlc.narg('match_state')::text)
   AND (sqlc.narg('q')::text IS NULL OR (
-        w.workload_name  ILIKE '%' || sqlc.narg('q')::text || '%'
-     OR w.container_name ILIKE '%' || sqlc.narg('q')::text || '%'
-     OR w.image_ref      ILIKE '%' || sqlc.narg('q')::text || '%'))
+        w.workload_name  ILIKE like_contains(sqlc.narg('q')::text)
+     OR w.container_name ILIKE like_contains(sqlc.narg('q')::text)
+     OR w.image_ref      ILIKE like_contains(sqlc.narg('q')::text)))
 -- Sorting is parameterised because the list is server-paginated: reordering
 -- only the rows that happen to be on the current page would misrepresent the
 -- whole cluster (same argument as ListTopVulnerabilities).
@@ -281,9 +281,9 @@ WITH img AS (
       AND c.namespace_id IN (SELECT visible_namespace_ids(sqlc.narg('user_id')::uuid, sqlc.narg('is_admin')::boolean))
       AND (sqlc.narg('k8s_namespace')::text IS NULL OR w.k8s_namespace = sqlc.narg('k8s_namespace')::text)
       AND (sqlc.narg('q')::text IS NULL OR (
-            w.workload_name  ILIKE '%' || sqlc.narg('q')::text || '%'
-         OR w.container_name ILIKE '%' || sqlc.narg('q')::text || '%'
-         OR w.image_ref      ILIKE '%' || sqlc.narg('q')::text || '%'))
+            w.workload_name  ILIKE like_contains(sqlc.narg('q')::text)
+         OR w.container_name ILIKE like_contains(sqlc.narg('q')::text)
+         OR w.image_ref      ILIKE like_contains(sqlc.narg('q')::text)))
     GROUP BY w.image_ref, w.image_digest, c.namespace_id
 )
 SELECT
@@ -398,9 +398,9 @@ FROM (
       AND (sqlc.narg('k8s_namespace')::text IS NULL OR w.k8s_namespace = sqlc.narg('k8s_namespace')::text)
       AND (sqlc.narg('match_state')::text IS NULL OR ms.state = sqlc.narg('match_state')::text)
       AND (sqlc.narg('q')::text IS NULL OR (
-            w.workload_name  ILIKE '%' || sqlc.narg('q')::text || '%'
-         OR w.container_name ILIKE '%' || sqlc.narg('q')::text || '%'
-         OR w.image_ref      ILIKE '%' || sqlc.narg('q')::text || '%'))
+            w.workload_name  ILIKE like_contains(sqlc.narg('q')::text)
+         OR w.container_name ILIKE like_contains(sqlc.narg('q')::text)
+         OR w.image_ref      ILIKE like_contains(sqlc.narg('q')::text)))
     GROUP BY w.image_ref, w.image_digest
 ) grouped;
 
@@ -432,9 +432,9 @@ WHERE w.cluster_id = $1
   AND (sqlc.narg('k8s_namespace')::text IS NULL OR w.k8s_namespace = sqlc.narg('k8s_namespace')::text)
   AND (sqlc.narg('match_state')::text IS NULL OR ms.state = sqlc.narg('match_state')::text)
   AND (sqlc.narg('q')::text IS NULL OR (
-        w.workload_name  ILIKE '%' || sqlc.narg('q')::text || '%'
-     OR w.container_name ILIKE '%' || sqlc.narg('q')::text || '%'
-     OR w.image_ref      ILIKE '%' || sqlc.narg('q')::text || '%'));
+        w.workload_name  ILIKE like_contains(sqlc.narg('q')::text)
+     OR w.container_name ILIKE like_contains(sqlc.narg('q')::text)
+     OR w.image_ref      ILIKE like_contains(sqlc.narg('q')::text)));
 
 -- name: ListClusterK8sNamespaces :many
 -- The namespace facet for the workload filter. It exists because the list is
@@ -568,8 +568,8 @@ canonical AS (
         v.severity,
         v.cvss_score,
         v.summary
-    -- The representative is chosen among the records that matched this scope
-    -- (ocidex-33ho.6), not every record sharing the canonical id: an aliased
+    -- The representative is chosen among the records that matched this scope,
+    -- not every record sharing the canonical id: an aliased
     -- record that matched some other package must not lend its id or severity.
     FROM vulnerability v
     WHERE v.id IN (SELECT vuln_id FROM running)
@@ -703,7 +703,7 @@ ORDER BY c.name ASC, w.k8s_namespace ASC, w.workload_name ASC
 LIMIT sqlc.narg('limit')::int;
 
 -- name: ListWorkloadsForArtifact :many
--- Where an artifact is running (ocidex-70eo.8): every visible workload whose
+-- Where an artifact is running: every visible workload whose
 -- digest resolves to one of the artifact's SBOMs, by the same two-tier match
 -- as everything else here (ADR-044 K4). Same row shape as
 -- ListWorkloadsForVulnerability, so the UI renders both with one component.
@@ -733,7 +733,7 @@ WHERE s.artifact_id = @artifact_id::uuid
 ORDER BY c.name ASC, w.k8s_namespace ASC, w.workload_name ASC
 LIMIT sqlc.narg('limit')::int;
 
--- Cluster agent credentials (ocidex-70eo.5). These are api_key rows bound to a
+-- Cluster agent credentials. These are api_key rows bound to a
 -- cluster; the CHECK on api_key pins their ceiling to push_inventory. Every
 -- caller here has already passed manage_cluster on the cluster's namespace.
 
@@ -768,7 +768,7 @@ SELECT sqlc.arg('user_id'), old.name, sqlc.arg('key_hash'), sqlc.arg('prefix'),
 FROM old
 RETURNING id, name, prefix, created_at;
 
--- Push history and health (ocidex-70eo.4).
+-- Push history and health.
 
 -- name: RecordClusterPush :execrows
 -- A no-op for a cluster id that does not exist: a push to a mistyped id has

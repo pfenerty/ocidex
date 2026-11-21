@@ -594,7 +594,7 @@ func registerChangelogTool(srv *mcp.Server, api client.Client) {
 		Annotations: &mcp.ToolAnnotations{ReadOnlyHint: true, IdempotentHint: true},
 	}, func(ctx context.Context, _ *mcp.CallToolRequest, in artifactChangelogInput) (*mcp.CallToolResult, artifactChangelogOutput, error) {
 		// The limit goes to the server rather than trimming a full response
-		// here (ocidex-7gf7.4). It used to fetch every version-to-version step
+		// here. It used to fetch every version-to-version step
 		// and keep the first twenty, which for a thousand-version artifact meant
 		// the endpoint timed out before this line ever ran.
 		limit := in.Limit

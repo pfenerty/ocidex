@@ -990,7 +990,7 @@ func TestClusterWorkloadVulnCountsAndSort(t *testing.T) {
 	upsert("b-risky", "docker.io/risky:v1", riskyDigest)
 	upsert("c-unmatched", "docker.io/mystery:v1", digest('c'))
 
-	vis := service.VisibilityFilter{UserID: owner}
+	vis := service.VisibilityFilter{UserID: owner.String()}
 
 	t.Run("counts are per severity and deduplicated by canonical id", func(t *testing.T) {
 		is := is.New(t)
@@ -1146,7 +1146,7 @@ func TestClusterIngestUnknown(t *testing.T) {
 	nsID := seedNamespace(t, pool, "ingest-ns", owner, "private")
 	clusterID := seedCluster(t, pool, nsID, "ingest-prod")
 	cid := mustUUID(t, clusterID)
-	vis := service.VisibilityFilter{UserID: owner}
+	vis := service.VisibilityFilter{UserID: owner.String()}
 
 	seedClusterRegistry(t, pool, nsID, "ghcr", "ghcr.io", true, nil)
 	seedClusterRegistry(t, pool, nsID, "quay-off", "quay.io", false, nil)

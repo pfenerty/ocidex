@@ -179,7 +179,7 @@ func (a *agent) report(ctx context.Context) error {
 			// The server's reason is the actionable part — a revoked key, a
 			// missing capability, a schema failure — so it is logged as its
 			// own field rather than buried in the error string. The server
-			// also records it against the cluster (ocidex-70eo.4).
+			// also records it against the cluster.
 			slog.ErrorContext(ctx, "inventory push rejected",
 				"status", apiErr.Status, "reason", apiErr.Detail, "cluster_id", a.cfg.ClusterID)
 		}
@@ -220,7 +220,7 @@ func (a *agent) countPush(ctx context.Context, err error) {
 		attribute.String("outcome", outcome), attribute.Int("status", status)))
 }
 
-// describe is the agent's self-report sent with each snapshot (ocidex-70eo.3).
+// describe is the agent's self-report sent with each snapshot.
 // Every field is best effort: a discovery failure costs the Kubernetes version,
 // not the snapshot.
 func (a *agent) describe(ctx context.Context, pods []corev1.Pod) *client.InventoryAgent {

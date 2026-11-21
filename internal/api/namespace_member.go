@@ -8,7 +8,7 @@ import (
 	"github.com/pfenerty/ocidex/internal/service"
 )
 
-// Member management (ocidex-y0hg.7). All three routes are guarded by
+// Member management. All three routes are guarded by
 // RequireCapability(manage_member) with the namespace taken straight from the
 // path, so these handlers do no authorization of their own — with one
 // exception: which role the caller may hand out is a question about the
@@ -87,7 +87,7 @@ func (h *Handler) usernamesByID(ctx context.Context) map[string]string {
 		return names
 	}
 	for _, u := range users {
-		names[u.ID.String()] = u.DisplayName
+		names[u.ID] = u.DisplayName
 	}
 	return names
 }

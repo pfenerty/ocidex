@@ -27,7 +27,7 @@ const (
 	// registry with credentials for it, then an explicit Ingest of the row.
 	IngestReasonUnauthorized = "unauthorized"
 	// IngestReasonEgressDenied means the host resolved to an address the
-	// egress policy refuses (ocidex-avsz).
+	// egress policy refuses.
 	IngestReasonEgressDenied = "egress_denied"
 	// IngestReasonFailed means the manifest was not there, or a scan used up
 	// its attempts. An explicit Ingest of the row retries it.
@@ -392,7 +392,7 @@ func (s *clusterService) resolveUnknownImages(ctx context.Context, clusterID str
 	}
 	rows, err := s.repo.ListClusterUnknownImages(ctx, repository.ListClusterUnknownImagesParams{
 		ClusterID: cid,
-		UserID:    filter.UserID,
+		UserID:    uuidOrNull(filter.UserID),
 		IsAdmin:   filter.adminFlag(),
 	})
 	if err != nil {
@@ -840,7 +840,7 @@ func (r *IngestResult) countRefusal(reason string) {
 }
 
 // RegistryClusterGap is how much of one cluster's No-SBOM gap one registry
-// serves (ocidex-70eo.14): the running images whose host resolves to it.
+// serves: the running images whose host resolves to it.
 type RegistryClusterGap struct {
 	RegistryID  string
 	ClusterID   string

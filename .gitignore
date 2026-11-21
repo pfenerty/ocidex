@@ -20,8 +20,10 @@ coverage.html
 # k8s — local-only populated Secret (template is k8s/base/secrets.yaml.example)
 k8s/base/secrets.yaml
 
-# Dolt (beads issue tracker)
-config.yaml
+# Dolt (beads issue tracker): the server config a `dolt sql-server` run leaves
+# at the repo root. Anchored, so config.yaml files elsewhere (charts/, config/,
+# .beads/) are not ignored.
+/config.yaml
 .doltcfg/
 
 # Temp

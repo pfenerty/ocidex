@@ -61,7 +61,7 @@ type IngestParams struct {
 
 // SBOMService defines the business logic for SBOM ingestion and management.
 type SBOMService interface {
-	Ingest(ctx context.Context, bom *cdx.BOM, rawJSON []byte, params IngestParams) (pgtype.UUID, error)
+	Ingest(ctx context.Context, bom *cdx.BOM, rawJSON []byte, params IngestParams) (string, error)
 	DeleteSBOM(ctx context.Context, id string) error
 	// DeleteArtifact removes an artifact and every SBOM under it, in every
 	// namespace. Only an installation admin may reach it.
@@ -152,7 +152,7 @@ func resolveSubjectIdentity(bom *cdx.BOM, params IngestParams) subjectIdentity {
 
 // artifactPlan is the artifact an ingest will resolve, worked out from the BOM
 // and params alone so the ingest can be validated before its transaction opens
-// (ocidex-n1z4.5). info carries everything but artifactID; ok is false when the
+// . info carries everything but artifactID; ok is false when the
 // SBOM names no subject and so has no artifact.
 type artifactPlan struct {
 	info   artifactInfo
@@ -247,7 +247,7 @@ func (p artifactPlan) ensure(ctx context.Context, q *repository.Queries, namespa
 // the identity other namespaces match and look up vulnerabilities by. UpsertArtifact row-locks the artifact
 // until the ingest commits even when it changes nothing, so concurrent ingests
 // of one image (a multi-arch push) would queue behind each other on it
-// (ocidex-q1ni). The read takes no lock; the upsert stays the fallback, and
+// . The read takes no lock; the upsert stays the fallback, and
 // handles a concurrent first insert.
 func ensureArtifact(ctx context.Context, q *repository.Queries, p repository.UpsertArtifactParams) (pgtype.UUID, error) {
 	row, err := q.GetArtifactByIdentity(ctx, repository.GetArtifactByIdentityParams{
@@ -287,7 +287,15 @@ func unchanged(next, stored pgtype.Text) bool {
 }
 
 // Ingest decomposes a CycloneDX BOM and persists it in a single transaction.
-func (s *sbomService) Ingest(ctx context.Context, bom *cdx.BOM, rawJSON []byte, params IngestParams) (pgtype.UUID, error) {
+func (s *sbomService) Ingest(ctx context.Context, bom *cdx.BOM, rawJSON []byte, params IngestParams) (string, error) {
+	id, err := s.ingest(ctx, bom, rawJSON, params)
+	if err != nil {
+		return "", err
+	}
+	return id.String(), nil
+}
+
+func (s *sbomService) ingest(ctx context.Context, bom *cdx.BOM, rawJSON []byte, params IngestParams) (pgtype.UUID, error) {
 	// An SBOM cannot exist unowned, so resolve the owner before doing any work.
 	sourceID, namespaceID, err := s.resolveIngestNamespace(ctx, params.SourceID)
 	if err != nil {
@@ -402,7 +410,7 @@ type ingestPlan struct {
 
 // planIngest resolves and validates everything an ingest can know from the BOM
 // and params, so a bad upload is refused before the transaction opens and
-// writes artifact rows it then rolls back (ocidex-n1z4.5).
+// writes artifact rows it then rolls back.
 func planIngest(bom *cdx.BOM, params IngestParams) (ingestPlan, error) {
 	artifact, err := planArtifact(bom, params)
 	if err != nil {

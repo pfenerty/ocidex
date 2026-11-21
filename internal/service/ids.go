@@ -8,7 +8,7 @@ import (
 
 // parseID turns an ID a caller handed the service into the database's UUID
 // type. Services take IDs as strings at their boundary, so callers (the HTTP
-// layer above all) never name a persistence type (ocidex-8xij.4). A malformed
+// layer above all) never name a persistence type. A malformed
 // ID is the caller's mistake: a ValidationError, which the API answers 400.
 func parseID(s string) (pgtype.UUID, error) {
 	id, err := uuidx.Parse(s)

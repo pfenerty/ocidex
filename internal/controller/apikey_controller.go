@@ -15,6 +15,7 @@ import (
 	"sigs.k8s.io/controller-runtime/pkg/builder"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 	"sigs.k8s.io/controller-runtime/pkg/controller/controllerutil"
+	"sigs.k8s.io/controller-runtime/pkg/log"
 	"sigs.k8s.io/controller-runtime/pkg/predicate"
 
 	v1alpha1 "github.com/pfenerty/ocidex/api/v1alpha1"
@@ -36,6 +37,29 @@ type APIKeyReconciler struct {
 	client.Client
 	Scheme       *runtime.Scheme
 	OCIDexClient ocidexclient.Client
+	// Now is the clock for expiry and rotation. Nil means time.Now.
+	Now func() time.Time
+}
+
+// minAPIKeyLifetime is the shortest spec.lifetime accepted. Rotation happens
+// at 80% of the lifetime, so anything shorter churns keys faster than
+// consumers are likely to re-read the Secret.
+const minAPIKeyLifetime = time.Hour
+
+func (r *APIKeyReconciler) now() time.Time {
+	if r.Now != nil {
+		return r.Now()
+	}
+	return time.Now()
+}
+
+// rotateAt is when a key with a lifetime is replaced: once 80% of its
+// lifetime has passed. Zero means never.
+func rotateAt(cr *v1alpha1.APIKey) time.Time {
+	if cr.Spec.Lifetime == nil || cr.Status.ExpiresAt == nil {
+		return time.Time{}
+	}
+	return cr.Status.ExpiresAt.Add(-cr.Spec.Lifetime.Duration / 5)
 }
 
 // Reconcile is the main reconcile loop for APIKey.
@@ -72,6 +96,12 @@ func (r *APIKeyReconciler) Reconcile(ctx context.Context, req ctrl.Request) (ctr
 		}
 	}
 
+	if cr.Spec.Lifetime != nil && cr.Spec.Lifetime.Duration < minAPIKeyLifetime {
+		SetCondition(&cr.Status.Conditions, "Ready", metav1.ConditionFalse, "InvalidSpec",
+			fmt.Sprintf("spec.lifetime must be at least %s", minAPIKeyLifetime), cr.Generation)
+		return ctrl.Result{}, r.Status().Update(ctx, cr)
+	}
+
 	if cr.Status.KeyID == "" {
 		return r.createAndPersist(ctx, cr)
 	}
@@ -90,6 +120,12 @@ func (r *APIKeyReconciler) createAndPersist(ctx context.Context, cr *v1alpha1.AP
 			caps[i] = ocidexclient.CreateAPIKeyInputBodyCapabilities(c)
 		}
 		body.Capabilities = &caps
+	}
+	var expiresAt *metav1.Time
+	if cr.Spec.Lifetime != nil {
+		exp := r.now().Add(cr.Spec.Lifetime.Duration).UTC().Truncate(time.Second)
+		body.ExpiresAt = &exp
+		expiresAt = &metav1.Time{Time: exp}
 	}
 	out, err := r.OCIDexClient.CreateAPIKey(ctx, body)
 	if err != nil {
@@ -113,8 +149,21 @@ func (r *APIKeyReconciler) createAndPersist(ctx context.Context, cr *v1alpha1.AP
 
 	cr.Status.KeyID = keyID
 	cr.Status.Prefix = prefix
+	cr.Status.ExpiresAt = expiresAt
 	SetCondition(&cr.Status.Conditions, "Ready", metav1.ConditionTrue, "Created", "", cr.Generation)
-	return ctrl.Result{}, r.Status().Update(ctx, cr)
+	return r.requeue(cr), r.Status().Update(ctx, cr)
+}
+
+// requeue schedules the next check: the regular verify period, or the
+// rotation time if that comes first.
+func (r *APIKeyReconciler) requeue(cr *v1alpha1.APIKey) ctrl.Result {
+	after := apiKeyVerifyPeriod
+	if at := rotateAt(cr); !at.IsZero() {
+		if until := at.Sub(r.now()); until < after {
+			after = max(until, time.Second)
+		}
+	}
+	return ctrl.Result{RequeueAfter: after}
 }
 
 func (r *APIKeyReconciler) verifyOrRotate(ctx context.Context, cr *v1alpha1.APIKey) (ctrl.Result, error) {
@@ -147,8 +196,29 @@ func (r *APIKeyReconciler) verifyOrRotate(ctx context.Context, cr *v1alpha1.APIK
 		return r.rotate(ctx, cr)
 	}
 
+	if at := rotateAt(cr); !at.IsZero() && !r.now().Before(at) {
+		return r.renew(ctx, cr)
+	}
+
 	SetCondition(&cr.Status.Conditions, "Ready", metav1.ConditionTrue, "Synced", "", cr.Generation)
-	return ctrl.Result{RequeueAfter: apiKeyVerifyPeriod}, r.Status().Update(ctx, cr)
+	return r.requeue(cr), r.Status().Update(ctx, cr)
+}
+
+// renew replaces a key that is nearing the end of its lifetime, make before
+// break: the new key is minted and written to the Secret before the old one
+// is deleted, so a consumer re-reading the Secret never finds a dead key.
+func (r *APIKeyReconciler) renew(ctx context.Context, cr *v1alpha1.APIKey) (ctrl.Result, error) {
+	oldID := cr.Status.KeyID
+	res, err := r.createAndPersist(ctx, cr)
+	if err != nil {
+		return res, err
+	}
+	if err := r.OCIDexClient.DeleteAPIKey(ctx, oldID); err != nil && !errors.Is(err, ocidexclient.ErrNotFound) {
+		// The new key is live and in the Secret; the old one expires on its
+		// own, so this is worth a log line, not a failed reconcile.
+		log.FromContext(ctx).Error(err, "deleting renewed API key", "keyID", oldID)
+	}
+	return res, nil
 }
 
 func (r *APIKeyReconciler) rotate(ctx context.Context, cr *v1alpha1.APIKey) (ctrl.Result, error) {
