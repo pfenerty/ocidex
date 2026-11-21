@@ -10,6 +10,21 @@ import { Button, ExternalAnchor, StatusPill } from "~/components/ui";
 import { StatusChip } from "~/components/ui";
 import { VULN_DATA_STATUS } from "~/utils/status";
 import { buildTime } from "~/utils/format";
+import { formatDelta, versionDeltas } from "~/utils/versionDelta";
+import { severityPoints } from "./ArtifactChange";
+
+function DeltaCell(props: { value: number | undefined }) {
+    return (
+        <Show when={props.value !== undefined} fallback={<span class="text-muted">—</span>}>
+            <span
+                class="delta-cell"
+                classList={{ "delta-zero": props.value === 0, "delta-worse": (props.value ?? 0) > 0 }}
+            >
+                {formatDelta(props.value ?? 0)}
+            </span>
+        </Show>
+    );
+}
 
 export function VersionsTab(props: {
     /** Where the artifact runs, for the Running column (ocidex-70eo.8);
@@ -33,31 +48,52 @@ export function VersionsTab(props: {
 }) {
     const imageColumns: Column<ArtifactVersionSummary>[] = [
         {
-            header: "Architectures",
+            header: "Arch",
+            // A count, with the list on hover: seven chips a row was most of
+            // the table's ink and said less than the number.
             render: (version) => (
                 <Show
-                    when={
-                        version.architectures && version.architectures.length > 0
-                    }
+                    when={version.architectures && version.architectures.length > 0}
                     fallback={<span class="text-muted">—</span>}
                 >
-                    <For each={version.architectures ?? []}>
-                        {(arch) => (
-                            <span
-                                class="badge badge-primary mr-[4px]"
-                            >
-                                {arch}
-                            </span>
-                        )}
-                    </For>
+                    <span class="font-mono text-sm text-muted" title={(version.architectures ?? []).join(", ")}>
+                        {version.architectures?.length === 1
+                            ? version.architectures[0]
+                            : `${version.architectures?.length ?? 0} arch`}
+                    </span>
                 </Show>
             ),
         },
-        {
-            header: "Signing",
-            render: (version) => <SigningBadge status={version.signingStatus} />,
-        },
     ];
+
+    // A signing status every row shares is said once, by the band's Signing
+    // tile; a column repeating it on every row is noise.
+    const signingVaries = () => new Set((props.versions ?? []).map((v) => v.signingStatus)).size > 1;
+    const signingColumn: Column<ArtifactVersionSummary> = {
+        header: "Signing",
+        render: (version) => <SigningBadge status={version.signingStatus} />,
+    };
+
+    // Deltas compare each row with the one below it, which is only the
+    // previous version in the default order. Sorted by severity, the row below
+    // is just the next-worst, so the columns are dropped.
+    const deltas = () => versionDeltas(severityPoints(props.versions));
+    const deltaIndex = (version: ArtifactVersionSummary) => (props.versions ?? []).indexOf(version);
+    const deltaColumns = (): Column<ArtifactVersionSummary>[] =>
+        props.sortBy !== undefined
+            ? []
+            : [
+                  {
+                      header: "Δ crit",
+                      align: "right",
+                      render: (version) => <DeltaCell value={deltas()[deltaIndex(version)]?.critical} />,
+                  },
+                  {
+                      header: "Δ high",
+                      align: "right",
+                      render: (version) => <DeltaCell value={deltas()[deltaIndex(version)]?.high} />,
+                  },
+              ];
 
     const columns = (): Column<ArtifactVersionSummary>[] => [
         {
@@ -68,6 +104,7 @@ export function VersionsTab(props: {
                 </A>
             ),
         },
+        ...deltaColumns(),
         {
             header: "Revision",
             render: (version) => (
@@ -125,6 +162,7 @@ export function VersionsTab(props: {
             ),
         },
         ...(props.isContainer ? imageColumns : []),
+        ...(props.isContainer && signingVaries() ? [signingColumn] : []),
         ...(props.running !== undefined
             ? [
                   {

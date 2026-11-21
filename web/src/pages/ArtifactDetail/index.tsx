@@ -21,6 +21,7 @@ import { Breadcrumb, QueryBoundary, Segmented, TabBar, createExpandedSet, type C
 import { artifactDisplayName, plural } from "~/utils/format";
 import { ArtifactHeader, ArtifactIdentity } from "./ArtifactHeader";
 import { ArtifactBand, type ArtifactTab } from "./ArtifactBand";
+import { ChangeVerdict, VersionChart, severityPoints } from "./ArtifactChange";
 import { VersionsTab } from "./VersionsTab";
 import { LicensesTab } from "./LicensesTab";
 import { ChangelogTab } from "./ChangelogTab";
@@ -127,6 +128,15 @@ export default function ArtifactDetail() {
             dir: versionSortBy() === undefined ? undefined : versionSortDir(),
         }),
     );
+
+    // The newest page in the default order, for the verdict and the chart. Same
+    // key as the table's default view, so it costs no request until the reader
+    // sorts or pages away, and the verdict then stays put.
+    const latestVersionsQuery = useArtifactVersions(
+        () => params.id,
+        () => ({ limit: versionLimit, offset: 0, mode: viewMode() }),
+    );
+    const latestPoints = () => severityPoints(latestVersionsQuery.data?.data);
 
     // Sorting reorders the whole result set server-side, so the current page
     // number means nothing afterwards.
@@ -248,15 +258,18 @@ export default function ArtifactDetail() {
                                     </p>
                                 </Show>
 
-                                <ArtifactBand
-                                    artifact={a()}
-                                    isContainer={isContainer()}
-                                    vulns={vulnSummaryQuery.data?.summary}
-                                    vulnsVersion={vulnSummaryQuery.data?.subjectVersion}
-                                    ordering={effectiveMode()}
-                                    active={tab()}
-                                    onSelect={setTab}
-                                />
+                                <div class="artifact-summary">
+                                    <ChangeVerdict points={latestPoints()} />
+                                    <ArtifactBand
+                                        artifact={a()}
+                                        isContainer={isContainer()}
+                                        vulns={vulnSummaryQuery.data?.summary}
+                                        vulnsVersion={vulnSummaryQuery.data?.subjectVersion}
+                                        ordering={effectiveMode()}
+                                        active={tab()}
+                                        onSelect={setTab}
+                                    />
+                                </div>
 
                                 <ArtifactIdentity artifact={a()} />
 
@@ -295,6 +308,7 @@ export default function ArtifactDetail() {
                                             </Show>
                                         )}
                                     </Show>
+                                    <VersionChart points={latestPoints()} />
                                     <VersionsTab
                                         artifactId={params.id}
                                         isContainer={isContainer()}
