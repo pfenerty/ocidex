@@ -4,6 +4,7 @@ import (
 	"context"
 
 	"github.com/pfenerty/ocidex/internal/netguard"
+	"github.com/pfenerty/ocidex/internal/oci"
 )
 
 // FillMetadata populates Architecture, BuildDate, and ImageVersion on req by
@@ -21,7 +22,7 @@ func FillMetadata(ctx context.Context, req ScanRequest, egress netguard.Policy) 
 	if req.Insecure {
 		scheme = schemeHTTP
 	}
-	baseURL := scheme + "://" + normalizeRegistryHost(req.RegistryURL)
+	baseURL := scheme + "://" + oci.NormalizeRegistryHost(req.RegistryURL)
 	client := registryClient(egress, 0, req.AuthUsername, req.AuthToken)
 	meta := ociGetImageMetadata(ctx, client, baseURL, req.Repository, req.Digest)
 	if req.Architecture == "" {

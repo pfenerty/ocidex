@@ -9,6 +9,7 @@ import (
 
 	"github.com/jackc/pgx/v5/pgtype"
 
+	"github.com/pfenerty/ocidex/internal/oci"
 	"github.com/pfenerty/ocidex/internal/repository"
 )
 
@@ -585,23 +586,7 @@ func (u *UnknownImage) setRegistry(reg Registry, reason string) {
 }
 
 // Host returns the registry's URL reduced to a comparable hostname.
-func (r Registry) Host() string { return NormalizeRegistryHost(r.URL) }
-
-// NormalizeRegistryHost strips any scheme and trailing slash from a registry URL
-// and maps the Docker Hub aliases onto the one host that actually serves the
-// API, so a registry configured as "docker.io" matches an image reference that
-// names "index.docker.io".
-func NormalizeRegistryHost(host string) string {
-	if i := strings.Index(host, "://"); i != -1 {
-		host = host[i+3:]
-	}
-	host = strings.TrimSuffix(host, "/")
-	switch host {
-	case "docker.io", "index.docker.io", "hub.docker.com":
-		return "registry-1.docker.io"
-	}
-	return host
-}
+func (r Registry) Host() string { return oci.NormalizeRegistryHost(r.URL) }
 
 // SplitImageRef splits a running container's image reference into its normalized
 // registry host and repository path, dropping any tag or digest.
@@ -626,7 +611,7 @@ func SplitImageRef(ref string) (host, repo string) {
 	if colon := strings.LastIndex(repo, ":"); colon != -1 && !strings.Contains(repo[colon:], "/") {
 		repo = repo[:colon]
 	}
-	return NormalizeRegistryHost(host), repo
+	return oci.NormalizeRegistryHost(host), repo
 }
 
 // imageRefTag returns the tag on a running image reference, or "" when the
