@@ -134,6 +134,10 @@ func run() error {
 	scanSubmitter := setupScannerExt(cfg, pool, bus, reg, natsClient, logger, jobSvc)
 	adhocWalks := scanner.NewAdhocWalks(adhocWalkConcurrency, adhocWalkTimeout, logger)
 	reg.Register(adhocWalks)
+	// Its own coordinator, so a burst of cluster snapshots can't hold up a
+	// registry scan someone just clicked, or the reverse.
+	clusterIngests := scanner.NewAdhocWalks(clusterIngestConcurrency, clusterIngestTimeout, logger).Named("cluster-ingests")
+	reg.Register(clusterIngests)
 	setupEnrichmentSubmitter(cfg, reg, natsClient, logger)
 
 	if err := reg.InitAll(); err != nil {
@@ -150,7 +154,8 @@ func run() error {
 	handler := api.NewHandler(sbomSvc, searchSvc, authSvc, registrySvc, namespaceSvc, sourceSvc, jobSvc, enrichJobSvc, watchSvc, clusterSvc, pool, scanSubmitter, cfg).
 		WithMeterProvider(meterProvider).
 		WithTracerProvider(tracerProvider).
-		WithAdhocWalks(adhocWalks)
+		WithAdhocWalks(adhocWalks).
+		WithClusterIngests(clusterIngests)
 	router := api.NewRouter(handler, cfg.CORSAllowedOrigins, cfg.FrontendURL, cfg.APIBaseURL)
 
 	extCtx, extCancel := context.WithCancel(context.Background())
@@ -244,6 +249,14 @@ func run() error {
 const (
 	adhocWalkConcurrency = 2
 	adhocWalkTimeout     = 5 * time.Minute
+)
+
+// Cluster auto-ingest after an inventory snapshot runs under its own
+// scanner.AdhocWalks: one per cluster, at most clusterIngestConcurrency across
+// clusters, each bounded by clusterIngestTimeout (ocidex-89c9.6).
+const (
+	clusterIngestConcurrency = 4
+	clusterIngestTimeout     = 5 * time.Minute
 )
 
 // backgroundPoolMaxConns bounds the pool used by out-of-band work (the stats

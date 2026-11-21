@@ -49,7 +49,7 @@ func TestScanRegistryDedupe(t *testing.T) {
 	walks := startedAdhocWalks(t)
 	release := make(chan struct{})
 	defer close(release)
-	is.NoErr(walks.Run(scanRegistryID, func(context.Context) { <-release }))
+	is.NoErr(walks.Run(context.Background(), scanRegistryID, func(context.Context) { <-release }))
 
 	w := memberRequest(scanRegistryRouter(t, walks), http.MethodPost,
 		"/api/v1/registries/"+scanRegistryID+"/scan", "", "owner-token")

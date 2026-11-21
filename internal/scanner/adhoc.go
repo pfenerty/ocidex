@@ -33,6 +33,7 @@ var ErrWalksNotRunning = errors.New("ad-hoc walks are not accepting work")
 // It is an extension so the extension manager starts it with the process's
 // extension context and stops it on shutdown.
 type AdhocWalks struct {
+	name    string
 	sem     chan struct{}
 	timeout time.Duration
 	logger  *slog.Logger
@@ -51,6 +52,7 @@ func NewAdhocWalks(maxConcurrent int, timeout time.Duration, logger *slog.Logger
 		maxConcurrent = 1
 	}
 	return &AdhocWalks{
+		name:    "adhoc-walks",
 		sem:     make(chan struct{}, maxConcurrent),
 		timeout: timeout,
 		logger:  logger,
@@ -58,8 +60,15 @@ func NewAdhocWalks(maxConcurrent int, timeout time.Duration, logger *slog.Logger
 	}
 }
 
+// Named sets the extension name, for a process running more than one
+// coordinator (registry walks and cluster auto-ingest, say).
+func (a *AdhocWalks) Named(name string) *AdhocWalks {
+	a.name = name
+	return a
+}
+
 // Name returns the extension identifier.
-func (a *AdhocWalks) Name() string { return "adhoc-walks" }
+func (a *AdhocWalks) Name() string { return a.name }
 
 // Init is a no-op: AdhocWalks subscribes to nothing.
 func (a *AdhocWalks) Init(_ *event.Bus) error { return nil }
@@ -89,7 +98,11 @@ func (a *AdhocWalks) Stop() error {
 // Run starts walk in the background under key, returning once it is queued.
 // It returns ErrWalkInProgress if a walk with that key is already queued or
 // running, and ErrWalksNotRunning outside Start and Stop.
-func (a *AdhocWalks) Run(key string, walk func(ctx context.Context)) error {
+//
+// The walk's ctx carries parent's values (the request's trace span and audit
+// actor, so the scan jobs it queues stay on the request's trace) but not its
+// cancellation: it is cancelled by Stop and by the coordinator's deadline.
+func (a *AdhocWalks) Run(parent context.Context, key string, walk func(ctx context.Context)) error {
 	a.mu.Lock()
 	defer a.mu.Unlock()
 	if a.ctx == nil {
@@ -115,8 +128,10 @@ func (a *AdhocWalks) Run(key string, walk func(ctx context.Context)) error {
 			a.logger.Info("ad-hoc walk cancelled before it started", "key", key)
 			return
 		}
-		ctx, cancel := context.WithTimeout(base, a.timeout)
+		ctx, cancel := context.WithTimeout(context.WithoutCancel(parent), a.timeout)
 		defer cancel()
+		stop := context.AfterFunc(base, cancel)
+		defer stop()
 		walk(ctx)
 	}()
 	return nil

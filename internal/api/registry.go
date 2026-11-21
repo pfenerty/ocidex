@@ -745,7 +745,7 @@ func (h *Handler) ScanRegistry(ctx context.Context, in *ScanRegistryInput) (*Sca
 	// The walk outlives the request, so it runs under the coordinator, not
 	// under ctx: deduplicated per registry, bounded across registries, given a
 	// deadline, and cancelled on shutdown (ocidex-89c9.2).
-	err = h.adhocWalks.Run(reg.ID, func(walkCtx context.Context) {
+	err = h.adhocWalks.Run(ctx, reg.ID, func(walkCtx context.Context) {
 		// Skip already-scanned digests at the walk level (same as the scheduled
 		// scanner) so a re-scan only re-pulls new/changed images. force=true passes
 		// nil so every digest is re-walked and re-queued via the InsertScanJob upsert

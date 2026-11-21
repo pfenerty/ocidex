@@ -46,7 +46,7 @@ func TestAdhocWalksDedupe(t *testing.T) {
 		wg.Add(1)
 		go func() {
 			defer wg.Done()
-			switch err := a.Run("reg-1", walk); {
+			switch err := a.Run(context.Background(), "reg-1", walk); {
 			case err == nil:
 				accepted.Add(1)
 			case errors.Is(err, scanner.ErrWalkInProgress):
@@ -61,7 +61,7 @@ func TestAdhocWalksDedupe(t *testing.T) {
 	is.Equal(refused.Load(), int32(callers-1))
 
 	// A different registry is not held up by the first.
-	is.NoErr(a.Run("reg-2", walk))
+	is.NoErr(a.Run(context.Background(), "reg-2", walk))
 
 	close(release)
 	finished.Wait()
@@ -70,7 +70,7 @@ func TestAdhocWalksDedupe(t *testing.T) {
 	// Once the walk has finished, the registry can be walked again. Run
 	// returns before the coordinator forgets the key, so retry briefly.
 	done := make(chan struct{})
-	for errors.Is(a.Run("reg-1", func(context.Context) { close(done) }), scanner.ErrWalkInProgress) {
+	for errors.Is(a.Run(context.Background(), "reg-1", func(context.Context) { close(done) }), scanner.ErrWalkInProgress) {
 		time.Sleep(time.Millisecond)
 	}
 	<-done
@@ -99,7 +99,7 @@ func TestAdhocWalksConcurrencyBound(t *testing.T) {
 		finished.Add(1)
 	}
 	for _, key := range []string{"a", "b", "c", "d", "e"} {
-		is.NoErr(a.Run(key, walk))
+		is.NoErr(a.Run(context.Background(), key, walk))
 	}
 	time.Sleep(50 * time.Millisecond) // let every goroutine reach the semaphore
 	is.Equal(cur.Load(), int32(2))
@@ -113,24 +113,24 @@ func TestAdhocWalksConcurrencyBound(t *testing.T) {
 func TestAdhocWalksStopCancels(t *testing.T) {
 	is := is.New(t)
 	a := scanner.NewAdhocWalks(1, time.Hour, slog.Default())
-	is.True(errors.Is(a.Run("x", func(context.Context) {}), scanner.ErrWalksNotRunning))
+	is.True(errors.Is(a.Run(context.Background(), "x", func(context.Context) {}), scanner.ErrWalksNotRunning))
 	is.NoErr(a.Start(context.Background()))
 
 	started := make(chan struct{})
 	var sawCancel atomic.Bool
-	is.NoErr(a.Run("running", func(ctx context.Context) {
+	is.NoErr(a.Run(context.Background(), "running", func(ctx context.Context) {
 		close(started)
 		<-ctx.Done()
 		sawCancel.Store(true)
 	}))
 	<-started // "running" holds the only slot, so "queued" has to wait
 	queuedRan := atomic.Bool{}
-	is.NoErr(a.Run("queued", func(context.Context) { queuedRan.Store(true) }))
+	is.NoErr(a.Run(context.Background(), "queued", func(context.Context) { queuedRan.Store(true) }))
 
 	is.NoErr(a.Stop())
 	is.True(sawCancel.Load())  // the running walk saw its context cancelled
 	is.True(!queuedRan.Load()) // the queued walk never started
-	is.True(errors.Is(a.Run("x", func(context.Context) {}), scanner.ErrWalksNotRunning))
+	is.True(errors.Is(a.Run(context.Background(), "x", func(context.Context) {}), scanner.ErrWalksNotRunning))
 }
 
 // Each walk carries the coordinator's deadline.
@@ -140,9 +140,28 @@ func TestAdhocWalksDeadline(t *testing.T) {
 	is.NoErr(a.Start(context.Background()))
 	defer a.Stop()
 	errc := make(chan error, 1)
-	is.NoErr(a.Run("x", func(ctx context.Context) {
+	is.NoErr(a.Run(context.Background(), "x", func(ctx context.Context) {
 		<-ctx.Done()
 		errc <- ctx.Err()
 	}))
 	is.True(errors.Is(<-errc, context.DeadlineExceeded))
+}
+
+type valueKey struct{}
+
+// A walk outlives the request that started it but keeps its values, such as
+// the trace span the scan jobs it queues are parented on.
+func TestAdhocWalksKeepParentValuesNotCancellation(t *testing.T) {
+	is := is.New(t)
+	a := startedWalks(t, 1)
+	parent, cancelParent := context.WithCancel(context.WithValue(context.Background(), valueKey{}, "span"))
+
+	got := make(chan any, 1)
+	is.NoErr(a.Run(parent, "x", func(ctx context.Context) {
+		<-parent.Done()     // the request has ended...
+		is.NoErr(ctx.Err()) // ...and the walk carries on
+		got <- ctx.Value(valueKey{})
+	}))
+	cancelParent()
+	is.Equal(<-got, "span")
 }

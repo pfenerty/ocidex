@@ -117,6 +117,9 @@ image. Turn it off per cluster in the **Agent** tab's settings, or when connecti
 - **A registry's patterns don't limit what's running.** A registry for the host pulls a running
   image with its credentials even if its patterns exclude that repository.
 - **Repeat reports cost nothing.** An image that already has a scan job isn't contacted again.
+- **One auto-ingest per cluster at a time.** A report that arrives while the previous report's
+  auto-ingest is still running doesn't start another. The next report picks up whatever that one
+  would have.
 - **Refusals aren't retried automatically.** Press **Retry** to ask the registry again.
 
 Ingesting and auto-ingest need the `push_inventory` capability in the cluster's namespace.

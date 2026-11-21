@@ -41,6 +41,7 @@ type Handler struct {
 	api              huma.API
 	scanSubmitter    ScanSubmitter
 	adhocWalks       *scanner.AdhocWalks
+	clusterIngests   *scanner.AdhocWalks
 	cfg              *config.Config
 	stateCookie      *securecookie.SecureCookie
 	clientIPs        *ClientIPResolver
@@ -88,6 +89,13 @@ func NewHandler(sbomSvc service.SBOMService, searchSvc service.SearchService, au
 // with no scan submitter (ocidex-89c9.2).
 func (h *Handler) WithAdhocWalks(w *scanner.AdhocWalks) *Handler {
 	h.adhocWalks = w
+	return h
+}
+
+// WithClusterIngests sets the coordinator that runs cluster auto-ingest after
+// an inventory snapshot. Without it auto-ingest is skipped (ocidex-89c9.6).
+func (h *Handler) WithClusterIngests(w *scanner.AdhocWalks) *Handler {
+	h.clusterIngests = w
 	return h
 }
 
