@@ -2508,6 +2508,16 @@
             "format": "date-time",
             "type": "string"
           },
+          "criticalHistory": {
+            "description": "Newest versions first, up to 12",
+            "items": {
+              "$ref": "#/components/schemas/VersionCritical"
+            },
+            "type": [
+              "array",
+              "null"
+            ]
+          },
           "licenses": {
             "$ref": "#/components/schemas/LicenseCategoryMix"
           },

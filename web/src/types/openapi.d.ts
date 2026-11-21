@@ -2883,6 +2883,8 @@ export interface components {
             artifactId: string;
             /** Format: date-time */
             createdAt: string;
+            /** @description Newest versions first, up to 12 */
+            criticalHistory?: components["schemas"]["VersionCritical"][] | null;
             licenses: components["schemas"]["LicenseCategoryMix"];
             name: string;
             /**

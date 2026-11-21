@@ -2503,10 +2503,13 @@ type DiscoverArtifact struct {
 
 // DiscoverFeatured defines model for DiscoverFeatured.
 type DiscoverFeatured struct {
-	ArtifactId string             `json:"artifactId"`
-	CreatedAt  time.Time          `json:"createdAt"`
-	Licenses   LicenseCategoryMix `json:"licenses"`
-	Name       string             `json:"name"`
+	ArtifactId string    `json:"artifactId"`
+	CreatedAt  time.Time `json:"createdAt"`
+
+	// CriticalHistory Newest versions first, up to 12
+	CriticalHistory *[]VersionCritical `json:"criticalHistory,omitempty"`
+	Licenses        LicenseCategoryMix `json:"licenses"`
+	Name            string             `json:"name"`
 
 	// PackageCount Components in the newest SBOM
 	PackageCount   int64              `json:"packageCount"`

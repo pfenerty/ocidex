@@ -10,6 +10,7 @@ import type { DiscoverFeatured, DiscoverRecent, DiscoverVuln } from "~/api/queri
 import { CATEGORY_COLORS } from "~/utils/licenseUtils";
 import { plural, relativeDate } from "~/utils/format";
 import { splitImageRef } from "~/utils/oci";
+import { formatDelta, latestVerdict } from "~/utils/versionDelta";
 import { StatusChip } from "~/components/ui";
 import { VULN_DATA_STATUS } from "~/utils/status";
 
@@ -127,6 +128,12 @@ const num = (x: number, crit = false): JSX.Element => (
 );
 
 /** Featured images as one table to scan and compare: name, latest, size, findings. */
+/** Critical change in the newest version against the previous one of its variant. */
+function critDelta(f: DiscoverFeatured): number | undefined {
+    const v = latestVerdict((f.criticalHistory ?? []).map((h) => ({ versionKey: h.versionKey, critical: h.critical })));
+    return v?.delta;
+}
+
 const FEATURED_COLUMNS: Column<DiscoverFeatured>[] = [
     {
         header: "Image",
@@ -151,6 +158,24 @@ const FEATURED_COLUMNS: Column<DiscoverFeatured>[] = [
             return (
                 <Show when={total > 0} fallback={<StatusChip status={VULN_DATA_STATUS.clean} />}>
                     <MixBar thin label="Vulnerabilities by severity" segments={severitySegments(v)} />
+                </Show>
+            );
+        },
+    },
+    {
+        header: "Δ crit",
+        align: "right",
+        render: (f) => {
+            const d = critDelta(f);
+            return (
+                <Show when={d !== undefined} fallback={<span class="text-muted">—</span>}>
+                    <span
+                        class="delta-cell"
+                        classList={{ "delta-zero": d === 0, "delta-worse": (d ?? 0) > 0 }}
+                        title="Critical findings in the latest version compared with the previous one"
+                    >
+                        {formatDelta(d ?? 0)}
+                    </span>
                 </Show>
             );
         },

@@ -133,25 +133,3 @@
 .swatch-added {
     background: var(--color-worse);
 }
-
-/* Delta cells in the versions table */
-.delta-cell {
-    font-family: var(--font-display);
-    font-stretch: 80%;
-    font-weight: 700;
-    font-size: var(--text-lg);
-    font-variant-numeric: tabular-nums;
-    white-space: nowrap;
-}
-
-.delta-cell.delta-zero {
-    color: var(--color-text-dim);
-    font-weight: 500;
-}
-
-.delta-cell.delta-worse {
-    color: var(--color-worse);
-    background: var(--color-worse-bg);
-    padding: 0 0.3rem;
-    border-radius: var(--radius-sm);
-}
