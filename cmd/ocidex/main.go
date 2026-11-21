@@ -620,7 +620,8 @@ func runBackfill(ctx context.Context, dbURL string) error {
 		name string
 		c    service.BackfillCounts
 	}{{"flavor", res.Flavor}, {"purl", res.Purl}, {"provenance", res.Provenance},
-		{"license names", res.LicenseNames}, {"license expressions", res.LicenseExpressions}} {
+		{"license names", res.LicenseNames}, {"license expressions", res.LicenseExpressions},
+		{"root enrichment", res.RootEnrichment}} {
 		fmt.Printf("backfill %s: %d updated, %d unchanged, %d errored\n", step.name, step.c.Updated, step.c.Skipped, step.c.Errored)
 	}
 	return err

@@ -436,6 +436,59 @@ func (q *Queries) ListEnrichmentJobs(ctx context.Context, arg ListEnrichmentJobs
 	return items, nil
 }
 
+const listSBOMsMissingRootEnrichmentPage = `-- name: ListSBOMsMissingRootEnrichmentPage :many
+SELECT s.id, array_agg(r.name ORDER BY r.name)::text[] AS missing
+FROM sbom s
+CROSS JOIN unnest($1::text[]) AS r(name)
+WHERE s.id > $2::uuid
+  AND NOT EXISTS (
+    SELECT 1 FROM enrichment_jobs j WHERE j.sbom_id = s.id AND j.enricher_name = r.name
+  )
+  AND NOT EXISTS (
+    SELECT 1 FROM enrichment e WHERE e.sbom_id = s.id AND e.enricher_name = r.name
+  )
+GROUP BY s.id
+ORDER BY s.id
+LIMIT $3
+`
+
+type ListSBOMsMissingRootEnrichmentPageParams struct {
+	Enrichers []string    `json:"enrichers"`
+	After     pgtype.UUID `json:"after"`
+	RowLimit  int32       `json:"row_limit"`
+}
+
+type ListSBOMsMissingRootEnrichmentPageRow struct {
+	ID      pgtype.UUID `json:"id"`
+	Missing []string    `json:"missing"`
+}
+
+// Keyset page of SBOMs with a root enricher that was never enqueued nor run,
+// for `ocidex migrate backfill` (ocidex-n1z4.3). Ingest used to enqueue the
+// root jobs after commit and could lose them, leaving SBOMs nothing would ever
+// enrich. An enrichment result counts as covered: SBOMs enriched under the
+// retired 'all' job (00057) have results but no per-enricher job rows.
+// Pass the nil UUID to start; missing lists the root enrichers to enqueue.
+func (q *Queries) ListSBOMsMissingRootEnrichmentPage(ctx context.Context, arg ListSBOMsMissingRootEnrichmentPageParams) ([]ListSBOMsMissingRootEnrichmentPageRow, error) {
+	rows, err := q.db.Query(ctx, listSBOMsMissingRootEnrichmentPage, arg.Enrichers, arg.After, arg.RowLimit)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	items := []ListSBOMsMissingRootEnrichmentPageRow{}
+	for rows.Next() {
+		var i ListSBOMsMissingRootEnrichmentPageRow
+		if err := rows.Scan(&i.ID, &i.Missing); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
 const requeueEnrichmentJobForRecheck = `-- name: RequeueEnrichmentJobForRecheck :execrows
 UPDATE enrichment_jobs
 SET state           = 'queued',

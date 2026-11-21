@@ -11,6 +11,7 @@ import (
 	"github.com/jackc/pgx/v5"
 	"github.com/jackc/pgx/v5/pgtype"
 
+	"github.com/pfenerty/ocidex/internal/enrichment/names"
 	"github.com/pfenerty/ocidex/internal/mainmodule"
 	"github.com/pfenerty/ocidex/internal/repository"
 )
@@ -34,6 +35,9 @@ type BackfillRepository interface {
 	ListSBOMIDsWithLicenseExpressionsPage(ctx context.Context, arg repository.ListSBOMIDsWithLicenseExpressionsPageParams) ([]pgtype.UUID, error)
 	ListSBOMComponentRefs(ctx context.Context, sbomID pgtype.UUID) ([]repository.ListSBOMComponentRefsRow, error)
 	InsertComponentLicenseIfMissing(ctx context.Context, arg repository.InsertComponentLicenseIfMissingParams) (int64, error)
+
+	ListSBOMsMissingRootEnrichmentPage(ctx context.Context, arg repository.ListSBOMsMissingRootEnrichmentPageParams) ([]repository.ListSBOMsMissingRootEnrichmentPageRow, error)
+	InsertEnrichmentJob(ctx context.Context, arg repository.InsertEnrichmentJobParams) (repository.EnrichmentJob, error)
 }
 
 // BackfillCounts counts what one backfill step did.
@@ -54,6 +58,9 @@ type BackfillResult struct {
 	// LicenseExpressions counts SBOMs whose CycloneDX license expressions were
 	// read; Updated is component links added.
 	LicenseExpressions BackfillCounts
+	// RootEnrichment counts SBOMs that had a root enricher neither enqueued nor
+	// run (ocidex-n1z4.3): Updated is SBOMs whose missing jobs were enqueued.
+	RootEnrichment BackfillCounts
 }
 
 // BackfillBatches sizes each backfill step's pages.
@@ -89,8 +96,66 @@ func Backfill(ctx context.Context, repo BackfillRepository, batches BackfillBatc
 	if res.LicenseNames, err = backfillLicenseNames(ctx, repo, batches.SBOMs); err != nil {
 		return res, err
 	}
-	res.LicenseExpressions, err = backfillLicenseExpressions(ctx, repo, batches.SBOMs)
+	if res.LicenseExpressions, err = backfillLicenseExpressions(ctx, repo, batches.SBOMs); err != nil {
+		return res, err
+	}
+	res.RootEnrichment, err = backfillRootEnrichment(ctx, repo, batches.SBOMs)
 	return res, err
+}
+
+// backfillRootEnrichment enqueues the root enrichers' jobs for SBOMs that have
+// neither a job nor a result for one of them. Ingest used to enqueue those jobs
+// after commit and could lose them, and a re-upload short-circuits on the
+// digest, so nothing else would ever enrich such an SBOM. Ingest now enqueues
+// them in its own transaction (ocidex-n1z4.1), so new orphans cannot appear.
+// The job's architecture and build date are re-derived from raw_bom, as ingest
+// does when its caller declares none.
+func backfillRootEnrichment(ctx context.Context, repo BackfillRepository, batchSize int32) (BackfillCounts, error) {
+	var c BackfillCounts
+	after := pgtype.UUID{Valid: true}
+	for {
+		rows, err := repo.ListSBOMsMissingRootEnrichmentPage(ctx, repository.ListSBOMsMissingRootEnrichmentPageParams{
+			Enrichers: names.Roots(), After: after, RowLimit: batchSize,
+		})
+		if err != nil {
+			return c, fmt.Errorf("listing SBOMs missing root enrichment: %w", err)
+		}
+		for _, row := range rows {
+			if err := backfillSBOMRootEnrichment(ctx, repo, row, &c); err != nil {
+				return c, err
+			}
+		}
+		if len(rows) < int(batchSize) {
+			return c, nil
+		}
+		after = rows[len(rows)-1].ID
+	}
+}
+
+func backfillSBOMRootEnrichment(ctx context.Context, repo BackfillRepository, row repository.ListSBOMsMissingRootEnrichmentPageRow, c *BackfillCounts) error {
+	sbom, err := repo.GetSBOMRawBomForBackfill(ctx, row.ID)
+	if errors.Is(err, pgx.ErrNoRows) {
+		return nil // deleted since it was listed
+	}
+	if err != nil {
+		return fmt.Errorf("reading SBOM %s: %w", uuidToStr(row.ID), err)
+	}
+	// An undecodable BOM still gets its jobs, without architecture or build
+	// date: the enrichers read the image, not the BOM.
+	var bom cdx.BOM
+	if err := cdx.NewBOMDecoder(bytes.NewReader(sbom.RawBom), cdx.BOMFileFormatJSON).Decode(&bom); err != nil {
+		slog.Warn("backfill root enrichment: raw_bom decode error; enqueueing without architecture/build date",
+			"sbomID", uuidToStr(row.ID), "err", err)
+	}
+	arch, bd := resolveArchitecture(&bom, IngestParams{}), resolveBuildDate(&bom, IngestParams{})
+	for _, name := range row.Missing {
+		_, err := repo.InsertEnrichmentJob(ctx, enrichJobParams(ctx, row.ID, arch, bd, name))
+		if err != nil && !isUniqueViolation(err) { // a unique violation: enqueued since listed
+			return fmt.Errorf("enqueueing %s enrichment for SBOM %s: %w", name, uuidToStr(row.ID), err)
+		}
+	}
+	c.Updated++
+	return nil
 }
 
 func backfillFlavor(ctx context.Context, repo BackfillRepository, batchSize int32) (BackfillCounts, error) {

@@ -126,7 +126,23 @@ Newest first. Each entry names the issue that made the change.
 
 ### Next release (unreleased)
 
+**After upgrading:**
+
+- **Run `ocidex migrate backfill` once to enrich SBOMs that were never enriched (ocidex-n1z4).**
+  Ingest used to queue an SBOM's enrichment jobs just after it committed, and a client that
+  disconnected at that moment, a database blip or a restart could lose them while the upload
+  still succeeded. Re-uploading the same image didn't help, since ingest returns the stored
+  SBOM. Ingest now queues the jobs in the same transaction as the SBOM. The backfill's new
+  `root enrichment` step finds SBOMs that have neither a job nor a result for a root enricher
+  (user metadata, OCI metadata, provenance) and queues the missing jobs. A second run reports
+  nothing to do.
+
 **Behavior changes to check after upgrading:**
+
+- **A database fault during sign-in checks answers 503, not 401 (ocidex-n1z4.4).** An API key
+  or session that couldn't be looked up used to be treated as unknown, so a database outage
+  looked like bad credentials. It now fails the request with `503 Service Unavailable`. An
+  unknown key or session still answers 401.
 
 - **snake_case query parameters are no longer accepted (ocidex-6hfs).** Through 1.0 the server
   translated the pre-1.0 spellings (`?subject_version=`, `?sort=cvss_score`) to their
