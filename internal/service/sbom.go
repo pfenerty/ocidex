@@ -149,14 +149,24 @@ func resolveSubjectIdentity(bom *cdx.BOM, params IngestParams) subjectIdentity {
 	return s
 }
 
-// resolveArtifact extracts artifact identity from the BOM metadata and upserts
-// the artifact row. It returns the artifact ID, subject version, and image digest.
-func resolveArtifact(ctx context.Context, q *repository.Queries, namespaceID pgtype.UUID, bom *cdx.BOM, params IngestParams) (artifactInfo, error) {
+// artifactPlan is the artifact an ingest will resolve, worked out from the BOM
+// and params alone so the ingest can be validated before its transaction opens
+// (ocidex-n1z4.5). info carries everything but artifactID; ok is false when the
+// SBOM names no subject and so has no artifact.
+type artifactPlan struct {
+	info   artifactInfo
+	upsert repository.UpsertArtifactParams
+	ok     bool
+}
+
+// planArtifact extracts the artifact identity from the BOM metadata and params.
+// It does no I/O.
+func planArtifact(bom *cdx.BOM, params IngestParams) (artifactPlan, error) {
 	// A BOM with no subject component and no declared identity yields no
 	// artifact, as before.
 	hasSubjectComponent := bom.Metadata != nil && bom.Metadata.Component != nil
 	if !hasSubjectComponent && params.SubjectName == "" {
-		return artifactInfo{}, nil
+		return artifactPlan{}, nil
 	}
 
 	subj := resolveSubjectIdentity(bom, params)
@@ -191,29 +201,42 @@ func resolveArtifact(ctx context.Context, q *repository.Queries, namespaceID pgt
 
 	// Container SBOMs must include a digest for reproducibility and enrichment.
 	if isContainer && !digest.Valid {
-		return artifactInfo{}, &ValidationError{
+		return artifactPlan{}, &ValidationError{
 			Message: fmt.Sprintf("container SBOM for %q missing digest: include digest in component name (@sha256:...) or version", name),
 		}
 	}
 
-	artifactID, err := ensureArtifact(ctx, q, repository.UpsertArtifactParams{
-		Type:        subj.typ,
-		Name:        name,
-		GroupName:   textOrNull(subj.group),
-		Purl:        textOrNull(subj.purl),
-		Cpe:         textOrNull(subj.cpe),
-		NamespaceID: namespaceID,
-	})
+	return artifactPlan{
+		info: artifactInfo{
+			subjectVersion: resolveSubjectVersion(bom, params),
+			digest:         digest,
+			subjectType:    subj.typ,
+		},
+		upsert: repository.UpsertArtifactParams{
+			Type:      subj.typ,
+			Name:      name,
+			GroupName: textOrNull(subj.group),
+			Purl:      textOrNull(subj.purl),
+			Cpe:       textOrNull(subj.cpe),
+		},
+		ok: true,
+	}, nil
+}
+
+// ensure upserts the planned artifact into namespaceID and returns its info
+// with artifactID set. A plan with no subject returns empty info.
+func (p artifactPlan) ensure(ctx context.Context, q *repository.Queries, namespaceID pgtype.UUID) (artifactInfo, error) {
+	if !p.ok {
+		return artifactInfo{}, nil
+	}
+	p.upsert.NamespaceID = namespaceID
+	id, err := ensureArtifact(ctx, q, p.upsert)
 	if err != nil {
 		return artifactInfo{}, err
 	}
-
-	return artifactInfo{
-		artifactID:     artifactID,
-		subjectVersion: resolveSubjectVersion(bom, params),
-		digest:         digest,
-		subjectType:    subj.typ,
-	}, nil
+	info := p.info
+	info.artifactID = id
+	return info, nil
 }
 
 // ensureArtifact returns the artifact's id, writing only when it is new or the
@@ -274,6 +297,12 @@ func (s *sbomService) Ingest(ctx context.Context, bom *cdx.BOM, rawJSON []byte, 
 		return existing, err
 	}
 
+	plan, err := planIngest(bom, params)
+	if err != nil {
+		return pgtype.UUID{}, err
+	}
+	arch, bd, flavor := plan.arch, plan.buildDate, plan.flavor
+
 	// Go symbols are stored relationally, not inside raw_bom (ADR-050).
 	goSyms, rawJSON, err := detachGoSymbols(bom, rawJSON, params.GoSymbols)
 	if err != nil {
@@ -288,22 +317,8 @@ func (s *sbomService) Ingest(ctx context.Context, bom *cdx.BOM, rawJSON []byte, 
 
 	q := repository.New(tx)
 
-	info, err := resolveArtifact(ctx, q, namespaceID, bom, params)
+	info, err := plan.artifact.ensure(ctx, q, namespaceID)
 	if err != nil {
-		return pgtype.UUID{}, err
-	}
-
-	arch := resolveArchitecture(bom, params)
-	bd := resolveBuildDate(bom, params)
-	flavor := DetectFlavor(bom, info.subjectVersion.String)
-
-	// Mandatory validation for container SBOMs.
-	if err := validateContainerRequired(bom, info, arch, bd); err != nil {
-		return pgtype.UUID{}, err
-	}
-
-	// Mandatory validation for non-container (uploaded) SBOMs.
-	if err := validateUploadRequired(info, params); err != nil {
 		return pgtype.UUID{}, err
 	}
 
@@ -367,6 +382,39 @@ func insertSBOMError(err error) error {
 		return fmt.Errorf("sbom already stored in this namespace: %w", ErrConflict)
 	}
 	return fmt.Errorf("inserting sbom: %w", err)
+}
+
+// ingestPlan is what an ingest derives from its input alone, before any write.
+type ingestPlan struct {
+	artifact  artifactPlan
+	arch      string
+	buildDate string
+	flavor    string
+}
+
+// planIngest resolves and validates everything an ingest can know from the BOM
+// and params, so a bad upload is refused before the transaction opens and
+// writes artifact rows it then rolls back (ocidex-n1z4.5).
+func planIngest(bom *cdx.BOM, params IngestParams) (ingestPlan, error) {
+	artifact, err := planArtifact(bom, params)
+	if err != nil {
+		return ingestPlan{}, err
+	}
+	p := ingestPlan{
+		artifact:  artifact,
+		arch:      resolveArchitecture(bom, params),
+		buildDate: resolveBuildDate(bom, params),
+		flavor:    DetectFlavor(bom, artifact.info.subjectVersion.String),
+	}
+	// Mandatory validation for container SBOMs.
+	if err := validateContainerRequired(bom, artifact.info, p.arch, p.buildDate); err != nil {
+		return ingestPlan{}, err
+	}
+	// Mandatory validation for non-container (uploaded) SBOMs.
+	if err := validateUploadRequired(artifact.info, params); err != nil {
+		return ingestPlan{}, err
+	}
+	return p, nil
 }
 
 // preflight runs ingest's checks that need no transaction: it validates the
@@ -453,13 +501,6 @@ func validateContainerRequired(bom *cdx.BOM, info artifactInfo, arch, bd string)
 	return nil
 }
 
-// validateUploadRequired returns a ValidationError if a non-container SBOM is
-// missing the subject identity its caller must declare (ADR-040).
-//
-// Subject type is the gate rather than the source kind: the registry scanner
-// produces container subjects exclusively, so a non-container subject can only
-// have arrived through the upload path. Type and name are not checked here —
-// without them no artifact is resolved at all, and info.artifactID is invalid.
 // resolveIngestNamespace derives the tenancy anchor for an ingest from the
 // source it arrived through.
 //
@@ -489,9 +530,15 @@ func (s *sbomService) resolveIngestNamespace(ctx context.Context, sourceID pgtyp
 	return src.NamespaceID, nil
 }
 
+// validateUploadRequired returns a ValidationError if a non-container SBOM is
+// missing the subject identity its caller must declare (ADR-040).
+//
+// Subject type is the gate rather than the source kind: the registry scanner
+// produces container subjects exclusively, so a non-container subject can only
+// have arrived through the upload path. Type and name are not checked here —
+// without them no subject is resolved at all, and info.subjectType is empty.
 func validateUploadRequired(info artifactInfo, params IngestParams) error {
-	if !info.artifactID.Valid || info.subjectType == "" ||
-		info.subjectType == string(cdx.ComponentTypeContainer) {
+	if info.subjectType == "" || info.subjectType == string(cdx.ComponentTypeContainer) {
 		return nil
 	}
 	var missing []string

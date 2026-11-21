@@ -345,7 +345,7 @@ func TestResolveArtifact_ContainerDigestInName(t *testing.T) {
 		Version: "22.04",
 	}}}
 
-	info, err := resolveArtifact(context.Background(), q, pgtype.UUID{}, bom, IngestParams{})
+	info, err := resolveArtifact(context.Background(), q, bom, IngestParams{})
 	is.NoErr(err)
 	is.Equal(info.artifactID, artifactID)
 	is.Equal(info.digest, pgtype.Text{String: "sha256:abc123", Valid: true})
@@ -373,7 +373,7 @@ func TestResolveArtifact_ContainerDigestInVersion(t *testing.T) {
 		Version: "sha256:deadbeef",
 	}}}
 
-	info, err := resolveArtifact(context.Background(), q, pgtype.UUID{}, bom, IngestParams{})
+	info, err := resolveArtifact(context.Background(), q, bom, IngestParams{})
 	is.NoErr(err)
 	is.Equal(info.digest, pgtype.Text{String: "sha256:deadbeef", Valid: true})
 }
@@ -391,7 +391,7 @@ func TestResolveArtifact_ContainerMissingDigest(t *testing.T) {
 		Version: "22.04",
 	}}}
 
-	_, err := resolveArtifact(context.Background(), q, pgtype.UUID{}, bom, IngestParams{})
+	_, err := resolveArtifact(context.Background(), q, bom, IngestParams{})
 	is.True(err != nil)
 	var ve *ValidationError
 	is.True(errors.As(err, &ve))
@@ -419,7 +419,7 @@ func TestResolveArtifact_NonContainer(t *testing.T) {
 		Version: "1.2.3",
 	}}}
 
-	info, err := resolveArtifact(context.Background(), q, pgtype.UUID{}, bom, IngestParams{})
+	info, err := resolveArtifact(context.Background(), q, bom, IngestParams{})
 	is.NoErr(err)
 	is.Equal(info.artifactID, artifactID)
 	is.True(!info.digest.Valid) // no digest for non-container
@@ -456,7 +456,7 @@ func TestResolveArtifact_ParamsOverrideSubject(t *testing.T) {
 		Name: ".sbom-bins",
 	}}}
 
-	info, err := resolveArtifact(context.Background(), q, pgtype.UUID{}, bom, IngestParams{
+	info, err := resolveArtifact(context.Background(), q, bom, IngestParams{
 		Version:      "v1.2.3",
 		SubjectType:  "application",
 		SubjectName:  "ocidex",
@@ -492,7 +492,7 @@ func TestResolveArtifact_PartialOverrideKeepsBOMFields(t *testing.T) {
 		Version:    "1.2.3",
 	}}}
 
-	_, err := resolveArtifact(context.Background(), q, pgtype.UUID{}, bom, IngestParams{
+	_, err := resolveArtifact(context.Background(), q, bom, IngestParams{
 		SubjectName: "renamed-lib",
 		Digest:      "sha256:feedface",
 	})
@@ -520,7 +520,7 @@ func TestResolveArtifact_ContainerUnaffectedByParams(t *testing.T) {
 		Version: "22.04",
 	}}}
 
-	info, err := resolveArtifact(context.Background(), q, pgtype.UUID{}, bom, IngestParams{Version: "22.04"})
+	info, err := resolveArtifact(context.Background(), q, bom, IngestParams{Version: "22.04"})
 	is.NoErr(err)
 	is.Equal(info.digest, pgtype.Text{String: "sha256:abc123", Valid: true})
 	is.Equal(info.subjectType, "container")
@@ -534,7 +534,7 @@ func TestResolveArtifact_NoSubjectAndNoParams(t *testing.T) {
 	is := is.New(t)
 	q := repository.New(&fakeDB{})
 
-	info, err := resolveArtifact(context.Background(), q, pgtype.UUID{}, &cdx.BOM{}, IngestParams{})
+	info, err := resolveArtifact(context.Background(), q, &cdx.BOM{}, IngestParams{})
 	is.NoErr(err)
 	is.True(!info.artifactID.Valid)
 }
@@ -548,7 +548,7 @@ func TestResolveArtifact_DeclaredIdentityWithoutSubjectComponent(t *testing.T) {
 	var args []any
 	q := repository.New(upsertArtifactRecorder(artifactID, &args))
 
-	info, err := resolveArtifact(context.Background(), q, pgtype.UUID{}, &cdx.BOM{}, IngestParams{
+	info, err := resolveArtifact(context.Background(), q, &cdx.BOM{}, IngestParams{
 		Version:     "v1.2.3",
 		SubjectType: "application",
 		SubjectName: "ocidex",
@@ -1446,4 +1446,58 @@ func TestCopyComponents_Provenance(t *testing.T) {
 	is.Equal(row[idxOf("source_version")].(pgtype.Text).String, "3.0.11-1~deb12u2")
 	is.Equal(row[idxOf("source_purl")].(pgtype.Text).String, "pkg:deb/debian/openssl@3.0.11-1~deb12u2?distro=debian-12")
 	is.Equal(row[idxOf("purl")].(pgtype.Text).String, "pkg:deb/debian/libssl3@3.0.11-1~deb12u2")
+}
+
+// TestIngest_InvalidInputOpensNoTransaction covers ocidex-n1z4.5: an SBOM that
+// fails the container or upload validation is refused before a transaction is
+// opened, so no artifact row is written and rolled back.
+func TestIngest_InvalidInputOpensNoTransaction(t *testing.T) {
+	noSubject := containerBOM("docker.io/ubuntu", "", "22.04")
+	noSubject.Metadata.Component = &cdx.Component{Type: cdx.ComponentTypeApplication, Name: "app", Version: "1.0"}
+
+	tests := []struct {
+		name   string
+		bom    *cdx.BOM
+		params IngestParams
+	}{
+		{"container missing architecture and build date",
+			containerBOM("docker.io/ubuntu", "sha256:abc123def456", "22.04"), IngestParams{Version: "22.04"}},
+		{"container missing digest",
+			containerBOM("docker.io/alpine", "", "3.20"),
+			IngestParams{Version: "22.04", Architecture: "amd64", BuildDate: "2024-01-01"}},
+		{"upload missing declared identity and digest", noSubject, IngestParams{}},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			is := is.New(t)
+			sourceID := newUUID2(t)
+			calls := 0
+			db := &fakeDB{
+				queryRowFn: func(_ context.Context, _ string, _ ...any) pgx.Row {
+					calls++
+					if calls == 1 { // resolveIngestNamespace
+						return sourceRow(sourceID, newUUID(t))
+					}
+					return noRowsRow{} // no existing SBOM for the digest
+				},
+			}
+			tt.params.SourceID = sourceID
+
+			_, err := NewSBOMService(db, nil, nil).Ingest(context.Background(), tt.bom, []byte("{}"), tt.params)
+
+			var verr *ValidationError
+			is.True(errors.As(err, &verr))
+			is.True(!db.beginCalled) // refused before the transaction
+		})
+	}
+}
+
+// resolveArtifact plans the artifact and upserts it with no owning namespace,
+// as ingest does in two steps.
+func resolveArtifact(ctx context.Context, q *repository.Queries, bom *cdx.BOM, params IngestParams) (artifactInfo, error) {
+	plan, err := planArtifact(bom, params)
+	if err != nil {
+		return artifactInfo{}, err
+	}
+	return plan.ensure(ctx, q, pgtype.UUID{})
 }
