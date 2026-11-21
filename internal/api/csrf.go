@@ -1,7 +1,6 @@
 package api
 
 import (
-	"context"
 	"encoding/json"
 	"log/slog"
 	"net/http"
@@ -12,9 +11,9 @@ import (
 	"github.com/go-chi/chi/v5"
 )
 
-// authMethod records which credential OptionalAuthenticate accepted. Only a
-// cookie is an ambient credential — one the browser attaches to a request some
-// other site initiated — so it is the only one CrossOriginGuard polices.
+// authMethod is the kind of credential a request presents. Only a cookie is an
+// ambient credential — one the browser attaches to a request some other site
+// initiated — so it is the only one CrossOriginGuard polices.
 type authMethod int
 
 const (
@@ -23,13 +22,19 @@ const (
 	authMethodCookie
 )
 
-type ctxKeyAuthMethod struct{}
-
-// authMethodFromContext reports how the request's principal authenticated, or
-// authMethodNone when it did not.
-func authMethodFromContext(ctx context.Context) authMethod {
-	m, _ := ctx.Value(ctxKeyAuthMethod{}).(authMethod)
-	return m
+// presentedCredential is the credential OptionalAuthenticate will check for
+// r, and its secret: a Bearer API key wins over a session cookie. It reads
+// only headers, so CrossOriginGuard can use it before any database lookup and
+// is guaranteed to agree with OptionalAuthenticate about which credential
+// counts (ocidex-89c9.4).
+func presentedCredential(r *http.Request) (authMethod, string) {
+	if auth := r.Header.Get("Authorization"); strings.HasPrefix(auth, "Bearer ") {
+		return authMethodBearer, strings.TrimPrefix(auth, "Bearer ")
+	}
+	if c, err := r.Cookie(sessionCookieName); err == nil {
+		return authMethodCookie, c.Value
+	}
+	return authMethodNone, ""
 }
 
 // CrossOriginGuard rejects state-changing requests that authenticated by
@@ -49,8 +54,14 @@ func authMethodFromContext(ctx context.Context) authMethod {
 //
 // The Origin header is checked first and Referer's origin second; a request
 // carrying neither is refused, since every browser sends Origin on a
-// cross-origin POST and a same-origin fetch sends it too. Bearer-authenticated
-// and anonymous requests pass untouched: an API key is not ambient.
+// cross-origin POST and a same-origin fetch sends it too. Requests presenting
+// an API key, or no credential, pass untouched: an API key is not ambient.
+//
+// It judges the credential the request presents, not the one authentication
+// accepts, so it runs before OptionalAuthenticate and a forged request costs
+// no credential lookup (ocidex-89c9.4). A cross-origin write carrying a stale
+// session cookie is therefore refused rather than run as anonymous, which
+// refuses nothing a browser legitimately sends.
 func CrossOriginGuard(allowedOrigins []string, apiBaseURL string) func(http.Handler) http.Handler {
 	trusted := make(map[string]bool, len(allowedOrigins)+1)
 	wildcard := false
@@ -67,7 +78,7 @@ func CrossOriginGuard(allowedOrigins []string, apiBaseURL string) func(http.Hand
 
 	return func(next http.Handler) http.Handler {
 		return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-			if !isStateChanging(r.Method) || authMethodFromContext(r.Context()) != authMethodCookie {
+			if method, _ := presentedCredential(r); !isStateChanging(r.Method) || method != authMethodCookie {
 				next.ServeHTTP(w, r)
 				return
 			}

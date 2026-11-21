@@ -189,12 +189,15 @@ func NewRouter(h *Handler, corsOrigins, frontendURL, apiBaseURL string) chi.Rout
 		AllowCredentials: true,
 		MaxAge:           300,
 	}))
-	// Outside authentication, so a push refused there is still recorded
-	// against its cluster (ocidex-70eo.4).
+	// Push recording sits outside authentication so a push refused there is
+	// still recorded against its cluster (ocidex-70eo.4). The cross-origin
+	// guard needs only headers, so it rejects a forged write before any
+	// credential lookup, and authentication runs inside the request timeout so
+	// its database calls carry the request's deadline (ocidex-89c9.4).
 	r.Use(RecordInventoryPushes(h.pushRecorder()))
-	r.Use(OptionalAuthenticate(h.authService))
 	r.Use(CrossOriginGuard(allowedOrigins, apiBaseURL))
 	r.Use(middleware.Timeout(30 * time.Second))
+	r.Use(OptionalAuthenticate(h.authService))
 
 	config := huma.DefaultConfig("OCIDex API", ContractVersion)
 	config.Info.Description = apiIntro
