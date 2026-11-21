@@ -76,9 +76,10 @@ manages members through the API:</p><div class="expressive-code"><link rel="styl
 user who made it, limited to the capabilities you give it. It is shown <strong>once</strong>, when it’s
 created: copy it then.</p>
 <ul>
-<li><strong>In the UI:</strong> <strong>Admin → API Keys</strong>. Name the key, and choose its capabilities.</li>
-<li><strong>With the CLI:</strong> <code dir="auto">ocidex-cli key create --name ci --capability ingest</code>. The key is printed on
-stdout and nowhere else.</li>
+<li><strong>In the UI:</strong> <strong>Admin → API Keys</strong>. Name the key, and choose its capabilities and how long it
+lives (never, 30 or 90 days, or a year). The list shows each key’s expiry and marks expired keys.</li>
+<li><strong>With the CLI:</strong> <code dir="auto">ocidex-cli key create --name ci --capability ingest</code>, plus <code dir="auto">--expires-in 720h</code>
+for a key that expires. The key is printed on stdout and nowhere else.</li>
 </ul>
 <p>Give each key only what its job needs:</p>
 <table>
