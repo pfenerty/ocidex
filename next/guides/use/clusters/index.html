@@ -205,6 +205,9 @@ HTTPS.</li>
 <li><strong>A registry’s patterns don’t limit what’s running.</strong> A registry for the host pulls a running
 image with its credentials even if its patterns exclude that repository.</li>
 <li><strong>Repeat reports cost nothing.</strong> An image that already has a scan job isn’t contacted again.</li>
+<li><strong>One auto-ingest per cluster at a time.</strong> A report that arrives while the previous report’s
+auto-ingest is still running doesn’t start another. The next report picks up whatever that one
+would have.</li>
 <li><strong>Refusals aren’t retried automatically.</strong> Press <strong>Retry</strong> to ask the registry again.</li>
 </ul>
 <p>Ingesting and auto-ingest need the <code dir="auto">push_inventory</code> capability in the cluster’s namespace.</p>
