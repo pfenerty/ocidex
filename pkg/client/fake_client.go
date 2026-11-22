@@ -49,6 +49,21 @@ type FakeClient struct {
 	PutInventoryFn         func(ctx context.Context, clusterID string, workloads []InventoryWorkload, agent *InventoryAgent) (PutInventoryOutputBody, error)
 	ListClusterWorkloadsFn func(ctx context.Context, clusterID string) ([]ClusterWorkloadResponse, WorkloadCoverageResponse, error)
 
+	// Remediation reads: findings, lineage, cluster exposure, rankings
+	ListClusterWorkloadsPageFn   func(ctx context.Context, clusterID string, params ListClusterWorkloadsParams) (ListClusterWorkloadsOutputBody, error)
+	ListClusterImagesFn          func(ctx context.Context, clusterID string, params ListClusterImagesParams) (ListClusterImagesOutputBody, error)
+	ListClusterVulnsFn           func(ctx context.Context, clusterID string, params ListClusterVulnsParams) (ListClusterVulnsOutputBody, error)
+	ListClusterUnknownImagesFn   func(ctx context.Context, clusterID string, params ListClusterUnknownImagesParams) (ListClusterUnknownImagesOutputBody, error)
+	ListSBOMDriftHistoryFn       func(ctx context.Context, sbomID string, params ListSbomDriftHistoryParams) (CursorPage[ProvenanceDriftSummary], error)
+	GetArtifactContainsFn        func(ctx context.Context, id string) ([]ArtifactRelation, error)
+	GetArtifactUsagesFn          func(ctx context.Context, id string) ([]ArtifactRelation, error)
+	ListArtifactVulnsFn          func(ctx context.Context, artifactID string, params ListArtifactVulnsParams) (ListArtifactVulnsOutputBody, error)
+	ListSBOMVulnsFn              func(ctx context.Context, sbomID string, params ListSbomVulnsParams) (Page[SBOMVulnEntry], error)
+	ListTopVulnerabilitiesFn     func(ctx context.Context, params ListTopVulnerabilitiesParams) (Page[TopVulnEntry], error)
+	ListMyVulnerabilitiesFn      func(ctx context.Context, params ListMyVulnerabilitiesParams) (Page[TopVulnEntry], error)
+	ListVulnerabilityWorkloadsFn func(ctx context.Context, vulnID string, params ListVulnerabilityWorkloadsParams) ([]RunningWorkloadResponse, error)
+	GetEnrichmentJobsSummaryFn   func(ctx context.Context) ([]EnrichmentJobSummaryRow, error)
+
 	// SBOM + artifact
 	IngestSBOMFn                func(ctx context.Context, data []byte, params IngestSbomParams) (IngestSBOMOutputBody, error)
 	GetSBOMFn                   func(ctx context.Context, id string, includeRaw bool) (SBOMDetail, error)
@@ -530,6 +545,97 @@ var _ Client = (*FakeClient)(nil)
 func (f *FakeClient) GetOpenAPISpec(ctx context.Context) (json.RawMessage, error) {
 	if f.GetOpenAPISpecFn != nil {
 		return f.GetOpenAPISpecFn(ctx)
+	}
+	return nil, nil
+}
+
+func (f *FakeClient) ListClusterWorkloadsPage(ctx context.Context, clusterID string, params ListClusterWorkloadsParams) (ListClusterWorkloadsOutputBody, error) {
+	if f.ListClusterWorkloadsPageFn != nil {
+		return f.ListClusterWorkloadsPageFn(ctx, clusterID, params)
+	}
+	return ListClusterWorkloadsOutputBody{}, nil
+}
+
+func (f *FakeClient) ListClusterImages(ctx context.Context, clusterID string, params ListClusterImagesParams) (ListClusterImagesOutputBody, error) {
+	if f.ListClusterImagesFn != nil {
+		return f.ListClusterImagesFn(ctx, clusterID, params)
+	}
+	return ListClusterImagesOutputBody{}, nil
+}
+
+func (f *FakeClient) ListClusterVulns(ctx context.Context, clusterID string, params ListClusterVulnsParams) (ListClusterVulnsOutputBody, error) {
+	if f.ListClusterVulnsFn != nil {
+		return f.ListClusterVulnsFn(ctx, clusterID, params)
+	}
+	return ListClusterVulnsOutputBody{}, nil
+}
+
+func (f *FakeClient) ListClusterUnknownImages(ctx context.Context, clusterID string, params ListClusterUnknownImagesParams) (ListClusterUnknownImagesOutputBody, error) {
+	if f.ListClusterUnknownImagesFn != nil {
+		return f.ListClusterUnknownImagesFn(ctx, clusterID, params)
+	}
+	return ListClusterUnknownImagesOutputBody{}, nil
+}
+
+func (f *FakeClient) ListSBOMDriftHistory(ctx context.Context, sbomID string, params ListSbomDriftHistoryParams) (CursorPage[ProvenanceDriftSummary], error) {
+	if f.ListSBOMDriftHistoryFn != nil {
+		return f.ListSBOMDriftHistoryFn(ctx, sbomID, params)
+	}
+	return CursorPage[ProvenanceDriftSummary]{}, nil
+}
+
+func (f *FakeClient) GetArtifactContains(ctx context.Context, id string) ([]ArtifactRelation, error) {
+	if f.GetArtifactContainsFn != nil {
+		return f.GetArtifactContainsFn(ctx, id)
+	}
+	return nil, nil
+}
+
+func (f *FakeClient) GetArtifactUsages(ctx context.Context, id string) ([]ArtifactRelation, error) {
+	if f.GetArtifactUsagesFn != nil {
+		return f.GetArtifactUsagesFn(ctx, id)
+	}
+	return nil, nil
+}
+
+func (f *FakeClient) ListArtifactVulns(ctx context.Context, artifactID string, params ListArtifactVulnsParams) (ListArtifactVulnsOutputBody, error) {
+	if f.ListArtifactVulnsFn != nil {
+		return f.ListArtifactVulnsFn(ctx, artifactID, params)
+	}
+	return ListArtifactVulnsOutputBody{}, nil
+}
+
+func (f *FakeClient) ListSBOMVulns(ctx context.Context, sbomID string, params ListSbomVulnsParams) (Page[SBOMVulnEntry], error) {
+	if f.ListSBOMVulnsFn != nil {
+		return f.ListSBOMVulnsFn(ctx, sbomID, params)
+	}
+	return Page[SBOMVulnEntry]{}, nil
+}
+
+func (f *FakeClient) ListTopVulnerabilities(ctx context.Context, params ListTopVulnerabilitiesParams) (Page[TopVulnEntry], error) {
+	if f.ListTopVulnerabilitiesFn != nil {
+		return f.ListTopVulnerabilitiesFn(ctx, params)
+	}
+	return Page[TopVulnEntry]{}, nil
+}
+
+func (f *FakeClient) ListMyVulnerabilities(ctx context.Context, params ListMyVulnerabilitiesParams) (Page[TopVulnEntry], error) {
+	if f.ListMyVulnerabilitiesFn != nil {
+		return f.ListMyVulnerabilitiesFn(ctx, params)
+	}
+	return Page[TopVulnEntry]{}, nil
+}
+
+func (f *FakeClient) ListVulnerabilityWorkloads(ctx context.Context, vulnID string, params ListVulnerabilityWorkloadsParams) ([]RunningWorkloadResponse, error) {
+	if f.ListVulnerabilityWorkloadsFn != nil {
+		return f.ListVulnerabilityWorkloadsFn(ctx, vulnID, params)
+	}
+	return nil, nil
+}
+
+func (f *FakeClient) GetEnrichmentJobsSummary(ctx context.Context) ([]EnrichmentJobSummaryRow, error) {
+	if f.GetEnrichmentJobsSummaryFn != nil {
+		return f.GetEnrichmentJobsSummaryFn(ctx)
 	}
 	return nil, nil
 }

@@ -19,15 +19,31 @@ const serverName = "ocidex"
 // deliberately about *choosing between* tools; per-tool detail belongs in each
 // tool's own description, which the model sees alongside the schema.
 const instructions = `OCIDex catalogs software artifacts and their SBOMs: which components and
-licenses an artifact contains, how those change between versions, and which
-vulnerabilities affect them.
+licenses an artifact contains, how those change between versions, which
+vulnerabilities affect them, and what Kubernetes clusters are running.
 
-Prefer the name-keyed lookup tools over UUID ones — you will usually have an
-image name, not an id. When a lookup reports several candidates, retry with one
-more qualifier from the list it returns rather than guessing.
+Start from names, not UUIDs: ocidex_lookup_artifact takes an exact name,
+ocidex_search_artifacts a partial one, and cluster tools take a cluster name.
+When a lookup reports several candidates, retry with one more qualifier from
+the list it returns rather than guessing.
+
+Common workflows (the remediate_image and remediate_cluster prompts spell
+the first two out):
+- Fix an image: lookup_artifact -> list_artifact_versions (sbom_id; is a newer
+  version already better?) -> sbom_findings group_by=package (fixed versions)
+  -> artifact_lineage (is the base image stale?).
+- Fix a cluster: list_clusters (health) -> cluster_vulnerabilities
+  sort=workloads -> cluster_images (sbom_id per running image, then as above)
+  -> cluster_coverage_gaps (images nobody can assess).
+- Blast radius of a CVE: get_vulnerability (affected artifacts, patch links)
+  -> vulnerability_workloads (where it runs).
+- What changed in a release: artifact_changelog -> diff_sboms -> diff_tree.
+- Where to start: top_vulnerabilities.
 
 Results are limited to namespaces the configured API key can see; an empty
-result means "nothing visible", not necessarily "nothing exists".`
+result means "nothing visible", not necessarily "nothing exists". A missing
+fixed version means no fix is published; never invent one. Before calling
+something clean, check ocidex_data_freshness and the cluster coverage.`
 
 // newServer builds the MCP server over an OCIDex API client.
 //
@@ -48,6 +64,10 @@ func newServer(api client.Client, server string) *mcp.Server {
 	registerIdentityTools(srv, api, server)
 	registerCatalogTools(srv, api)
 	registerAnalysisTools(srv, api)
+	registerRemediationTools(srv, api)
+	registerClusterTools(srv, api)
+	registerInsightTools(srv, api)
+	registerPrompts(srv)
 	registerResources(srv, api, server)
 	return srv
 }

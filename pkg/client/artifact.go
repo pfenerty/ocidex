@@ -82,3 +82,23 @@ func (c *httpClient) ListArtifactVersions(ctx context.Context, id string, opts P
 	}
 	return Page[ArtifactVersionSummary]{Data: derefSlice(out.Data), Pagination: out.Pagination}, nil
 }
+
+// GetArtifactContains returns the tracked artifacts matched by components of
+// this artifact's latest SBOM (ADR-041) — for an image, typically its base.
+func (c *httpClient) GetArtifactContains(ctx context.Context, id string) ([]ArtifactRelation, error) {
+	var out GetArtifactContainsOutputBody
+	if err := c.request(ctx, http.MethodGet, "/api/v1/artifacts/"+id+"/contains", nil, nil, &out); err != nil {
+		return nil, err
+	}
+	return derefSlice(out.Contains), nil
+}
+
+// GetArtifactUsages returns the artifacts whose latest SBOM contains a component
+// matching this artifact (ADR-041) — the images built on it.
+func (c *httpClient) GetArtifactUsages(ctx context.Context, id string) ([]ArtifactRelation, error) {
+	var out GetArtifactUsagesOutputBody
+	if err := c.request(ctx, http.MethodGet, "/api/v1/artifacts/"+id+"/usages", nil, nil, &out); err != nil {
+		return nil, err
+	}
+	return derefSlice(out.Usages), nil
+}

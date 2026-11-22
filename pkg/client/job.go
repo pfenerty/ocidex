@@ -40,3 +40,14 @@ func (c *httpClient) GetDashboardStats(ctx context.Context) (DashboardStatsOutpu
 	err := c.request(ctx, http.MethodGet, "/api/v1/stats", nil, nil, &out)
 	return out, err
 }
+
+// GetEnrichmentJobsSummary returns one row per enricher and job state with its
+// count: the health of the queue that matches SBOMs against advisories. A
+// backlog or failures there mean vulnerability answers lag the catalog.
+func (c *httpClient) GetEnrichmentJobsSummary(ctx context.Context) ([]EnrichmentJobSummaryRow, error) {
+	var out EnrichmentJobsSummaryOutputBody
+	if err := c.request(ctx, http.MethodGet, "/api/v1/enrichment-jobs/summary", nil, nil, &out); err != nil {
+		return nil, err
+	}
+	return derefSlice(out.Data), nil
+}

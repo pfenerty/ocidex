@@ -82,3 +82,16 @@ func (c *httpClient) GetDiffTree(ctx context.Context, fromID, toID string) (Diff
 	err := c.request(ctx, http.MethodGet, "/api/v1/sboms/diff-tree", p, nil, &out)
 	return out, err
 }
+
+// ListSBOMDriftHistory returns the provenance drift recorded for an SBOM: the
+// points at which its signing or attestation evidence changed.
+func (c *httpClient) ListSBOMDriftHistory(ctx context.Context, sbomID string, params ListSbomDriftHistoryParams) (CursorPage[ProvenanceDriftSummary], error) {
+	p := url.Values{}
+	setInt32(p, "limit", params.Limit)
+	setOptional(p, "cursor", params.Cursor)
+	var out ListSBOMDriftHistoryOutputBody
+	if err := c.request(ctx, http.MethodGet, "/api/v1/sboms/"+sbomID+"/drift", p, nil, &out); err != nil {
+		return CursorPage[ProvenanceDriftSummary]{}, err
+	}
+	return CursorPage[ProvenanceDriftSummary]{Data: derefSlice(out.Data), Pagination: out.Pagination}, nil
+}

@@ -11,7 +11,8 @@ child process and talks to it over stdin and stdout, so there's nothing to deplo
 OCIDex API with your key.
 
 Ask your agent things like "which of our images have CVE-2024-3094?", "what changed between the
-last two releases of acme/api?" or "where do we ship GPL-licensed code?".
+last two releases of acme/api?", "where do we ship GPL-licensed code?" or "plan remediation for
+what the homelab cluster is running".
 
 ## Set up
 
@@ -69,13 +70,47 @@ The server is resolved like the CLI's: `--server`, then `OCIDEX_URL`, then the c
 | `ocidex_diff_sboms` | What changed between two SBOMs. |
 | `ocidex_diff_tree` | One level of the dependency tree diff, most-changed first. |
 | `ocidex_artifact_changelog` | An artifact's version-to-version history. |
-| `ocidex_artifact_vulnerabilities` | An artifact's vulnerabilities by severity. |
+| `ocidex_artifact_vulnerabilities` | Severity counts for an artifact's latest version. |
+| `ocidex_artifact_findings` | An artifact's advisories across its recent versions. |
+| `ocidex_sbom_findings` | One SBOM's advisories with fixed versions and fix state, by advisory or by package. |
+| `ocidex_list_artifact_versions` | An artifact's versions, newest first, with SBOM ids and severity counts. |
+| `ocidex_list_sbom_components` | The components in one SBOM, optionally only vulnerable or direct ones. |
+| `ocidex_artifact_lineage` | The base image an artifact is built on, and what is built on it. |
+| `ocidex_component_versions` | Every version of a component across the catalog, and where each ships. |
 | `ocidex_component_vulnerabilities` | The advisories affecting one component. |
 | `ocidex_get_vulnerability` | An advisory, and the artifacts it affects. |
+| `ocidex_top_vulnerabilities` | Advisories ranked across the catalog, or across your own namespaces. |
+| `ocidex_search_artifacts` | Artifacts whose name contains some text. |
+| `ocidex_artifact_license_summary` | License counts for an artifact's latest SBOM. |
+| `ocidex_sbom_drift` | Changes to an SBOM's signing or provenance status. |
+| `ocidex_data_freshness` | Whether vulnerability matching has caught up with every SBOM. |
+| `ocidex_list_clusters` | Clusters, with health, running criticals and SBOM coverage. |
+| `ocidex_cluster_vulnerabilities` | Advisories in running images, by severity or workloads exposed. |
+| `ocidex_cluster_images` | Running images, most vulnerable first, with their SBOM ids. |
+| `ocidex_cluster_workloads` | Running workloads, most vulnerable first. |
+| `ocidex_cluster_coverage_gaps` | Running images with no SBOM, and what would close each gap. |
+| `ocidex_vulnerability_workloads` | Workloads running an image that carries one advisory. |
 | `ocidex_ingest_sbom` | Upload a CycloneDX document. Needs `ingest`. |
 
 When a name matches several artifacts, a lookup returns the candidates and what tells them apart,
 rather than guessing, so the agent can ask again more precisely.
+
+Cluster tools take a cluster's name or id. A name shared by clusters in different namespaces
+returns the candidates, like the lookups do.
+
+## Prompts
+
+Clients that support MCP prompts (Claude Code shows them as slash commands) get two workflows:
+
+| Prompt | Arguments | What it produces |
+| --- | --- | --- |
+| `remediate_image` | `image`, optional `version` | A remediation plan for one image |
+| `remediate_cluster` | `cluster`, optional `k8s_namespace` | A remediation plan for what a cluster runs |
+
+Both group the plan by action: redeploy a newer version, rebuild on a current base image, upgrade
+packages (installed version to fixed version), accept or mitigate what has no fix, and list what
+nobody can assess yet. Without prompt support, ask in plain words; the server's instructions teach
+the same tool sequence.
 
 The server also offers the API's OpenAPI document as the resource `ocidex://openapi.json`, fetched
 from the running server, for anything the tools don't cover.
