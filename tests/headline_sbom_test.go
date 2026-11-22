@@ -119,6 +119,14 @@ func TestHeadlineSBOMIsOneSBOMEverywhere(t *testing.T) {
 
 	versions, err := q.ListArtifactVersions(ctx, repository.ListArtifactVersionsParams{ArtifactID: artifactID, RowLimit: 20, UserID: anon, IsAdmin: noAdmin})
 	is.NoErr(err)
+	// The table's own order is the version line, not ingest order (1.27.3
+	// was ingested last of these).
+	order := make([]string, 0, len(versions))
+	for _, v := range versions {
+		order = append(order, v.VersionKey.String)
+	}
+	is.Equal(order, []string{"1.28.0-rc.1", "1.27.4", "1.27.4-trixie", "1.27.3"})
+
 	var versionRow string
 	for _, v := range versions {
 		if v.VersionKey.String == "1.27.4" {

@@ -245,7 +245,7 @@ function ArtifactDetailPage() {
     // strips stacked on one page was the page's worst instance of depth.
     const MODES: { id: "semver" | "all"; label: string; title: string }[] = [
         { id: "semver", label: "Semver", title: "Only semver versions, ordered by semantic version" },
-        { id: "all", label: "All", title: "All versions, ordered by build time" },
+        { id: "all", label: "All", title: "All versions, highest version first" },
     ];
 
     const crumbs = (): Crumb[] => [

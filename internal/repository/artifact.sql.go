@@ -494,6 +494,8 @@ WITH sboms_meta AS (
         s.id,
         s.created_at,
         s.enrichment_sufficient,
+        s.version_major, s.version_minor, s.version_patch,
+        s.version_prerelease, s.version_variant,
         COALESCE(s.subject_version,
             COALESCE(e.data->>'imageVersion', u.data->>'imageVersion'),
             s.id::text)                                                  AS version_key,
@@ -512,7 +514,8 @@ WITH sboms_meta AS (
 ),
 newest_per_version AS (
     SELECT DISTINCT ON (version_key)
-        id, version_key, architecture, created_at, enrichment_sufficient, image_version, revision, source_url, build_date, signing_status
+        id, version_key, architecture, created_at, enrichment_sufficient, image_version, revision, source_url, build_date, signing_status,
+        version_major, version_minor, version_patch, version_prerelease, version_variant
     FROM sboms_meta
     ORDER BY version_key, sbom_arch_rank(architecture), architecture, created_at DESC, id DESC
 ),
@@ -568,7 +571,13 @@ JOIN architectures_per_version a ON a.version_key = n.version_key
 JOIN sbom_count_per_version c ON c.version_key = n.version_key
 LEFT JOIN sbom_vuln_rollup r ON r.sbom_id = n.id
 LEFT JOIN sbom_vuln_match m ON m.sbom_id = n.id
-ORDER BY n.created_at DESC, n.version_key
+ORDER BY n.version_major DESC NULLS LAST,
+         n.version_minor DESC NULLS LAST,
+         n.version_patch DESC NULLS LAST,
+         n.version_prerelease,
+         n.version_variant <> '',
+         n.version_variant,
+         n.created_at DESC, n.version_key
 LIMIT $3 OFFSET $2
 `
 
@@ -606,6 +615,10 @@ type ListArtifactVersionsRow struct {
 // preferred architecture, then newest), applied inline because sboms_meta
 // already holds every input and calling the function per version would read
 // them again.
+// The version line's order (the service's compareVersionLine), ingest time
+// only as a tiebreak: ordering by created_at listed a version backfilled
+// later above its successor. The service re-sorts in Go; this order decides
+// which versions survive the fetch cap.
 func (q *Queries) ListArtifactVersions(ctx context.Context, arg ListArtifactVersionsParams) ([]ListArtifactVersionsRow, error) {
 	rows, err := q.db.Query(ctx, listArtifactVersions,
 		arg.ArtifactID,

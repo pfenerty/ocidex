@@ -18,8 +18,9 @@ an artifact, a package, a vulnerability or a page by name.
 
 - The header shows its versions, SBOM count, vulnerability count, whether its images are signed,
   and when it was first seen.
-- **Versions** lists every SBOM, one per version and architecture. **Semver** orders them by
-  version number; **All** by build time.
+- **Versions** lists every version, highest first. **Semver** shows only semantic versions;
+  **All** shows every tag, with a release above its prereleases and tags that aren't version
+  numbers last. Each row's counts come from one SBOM of that version, amd64 first.
 - **Changelog** compares each version with the one before it. See [Compare SBOMs](/guides/use/compare/).
 - **Licenses** counts the latest version's components by license category.
 - **Vulnerabilities** lists the advisories affecting the latest version.

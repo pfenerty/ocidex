@@ -230,14 +230,16 @@ func artifactVersionFromRow(row repository.ListArtifactVersionsRow) ArtifactVers
 }
 
 // sortVersions orders versions descending. SortSemver uses semantic-version
-// precedence (build time breaks ties); otherwise it orders by build time
-// (falling back to ingestion time).
+// precedence and SortAll the version line (compareVersionLine); build time,
+// falling back to ingestion time, only breaks ties.
 func sortVersions(vs []ArtifactVersion, mode VersionSortMode) {
+	compare := compareVersionLine
+	if mode == SortSemver {
+		compare = compareSemver
+	}
 	sort.SliceStable(vs, func(i, j int) bool {
-		if mode == SortSemver {
-			if cmp := compareSemver(vs[i].VersionKey, vs[j].VersionKey); cmp != 0 {
-				return cmp > 0 // descending
-			}
+		if cmp := compare(vs[i].VersionKey, vs[j].VersionKey); cmp != 0 {
+			return cmp > 0 // descending
 		}
 		ti, tj := versionEffectiveTime(vs[i]), versionEffectiveTime(vs[j])
 		return ti.After(tj) // descending

@@ -194,6 +194,6 @@ describe("ArtifactBand navigation", () => {
         // now the only thing on screen saying which ordering the list is in.
         expect(sub(renderBand().container, "Versions")).toBe("semver order");
         cleanup();
-        expect(sub(renderBand({ ordering: "all" }).container, "Versions")).toBe("by build time");
+        expect(sub(renderBand({ ordering: "all" }).container, "Versions")).toBe("all versions");
     });
 });

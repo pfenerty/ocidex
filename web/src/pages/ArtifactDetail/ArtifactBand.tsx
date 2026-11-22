@@ -57,7 +57,7 @@ export function ArtifactBand(props: {
                 id: "versions",
                 head: "Versions",
                 value: a().versionCount,
-                sub: props.ordering === "semver" ? "semver order" : "by build time",
+                sub: props.ordering === "semver" ? "semver order" : "all versions",
             },
             {
                 head: "SBOMs",
