@@ -469,7 +469,7 @@ describe("Home discovery panels", () => {
         // Severity bar first, license bar second (no categories here, so absent).
         expect(bars).toHaveLength(1);
         expect(bars[0].getAttribute("aria-label")).toBe(
-            "Known vulnerabilities by severity: 3 critical, 4 medium, 1 unknown",
+            "Known vulnerabilities by severity, any indexed version: 3 critical, 4 medium, 1 unknown",
         );
     });
 

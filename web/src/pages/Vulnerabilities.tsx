@@ -131,7 +131,7 @@ export default function Vulnerabilities() {
                 title="Vulnerabilities"
                 subtitle={
                     <>
-                        Vulnerabilities found across all tracked artifacts, worst first
+                        Vulnerabilities found in any indexed version of a tracked artifact, worst first
                         <Show when={query.data}>
                             {(d) => (
                                 <span class="text-muted">

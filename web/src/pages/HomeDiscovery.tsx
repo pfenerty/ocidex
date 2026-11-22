@@ -304,7 +304,7 @@ export function HomeDiscovery(): JSX.Element {
                                     href="/vulnerabilities"
                                     hrefLabel="All vulnerabilities"
                                 />
-                                <MixBar label="Known vulnerabilities by severity" segments={severityMix()} />
+                                <MixBar label="Known vulnerabilities by severity, any indexed version" segments={severityMix()} />
                                 <MixLegend segments={severityMix()} />
                                 <h3 class="landing-subhead">Widest blast radius</h3>
                                 <ul class="landing-list">
