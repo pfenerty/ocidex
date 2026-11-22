@@ -1,0 +1,15 @@
+/* The evolution divider: a thin labelled rule between two version lines.
+   It marks a boundary, so unlike a group header it does not stick to the top
+   of the table while scrolling. */
+tr.group-header-row:has(.version-evolved) td {
+    position: static;
+    padding: 0.2rem 0.75rem;
+    background: transparent;
+    border-bottom: 1px dashed var(--color-border-hover);
+}
+
+.version-evolved {
+    font-size: var(--text-xs);
+    letter-spacing: 0.02em;
+    color: var(--color-text-dim);
+}

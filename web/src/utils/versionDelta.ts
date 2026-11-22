@@ -208,3 +208,46 @@ export function entryText(rows: readonly SeverityPoint[], versionCount: number):
     if (drop.amount > 0) parts.push(`${drop.version} shed the most at once, ${drop.amount.toLocaleString()}.`);
     return parts.join(" ");
 }
+
+/** The major version a key starts with, or undefined when it has none. */
+function majorOf(versionKey: string): number | undefined {
+    const m = /^v?(\d{1,9})(?!\d)/.exec(versionKey);
+    return m === null ? undefined : Number(m[1]);
+}
+
+/**
+ * The part of a variant that names its base image: "trixie" in "slim-trixie",
+ * "alpine" in "alpine3.20". Point releases of one base are the same line;
+ * bookworm to trixie is not.
+ */
+function baseOf(versionKey: string): string {
+    const variant = variantOf(versionKey);
+    const last = variant.slice(variant.lastIndexOf("-") + 1);
+    return last.replace(/[\d.]+$/, "");
+}
+
+/**
+ * The evolution line a version belongs to: its major version and its
+ * variant's base. Versions with no major version share one line of their own,
+ * which never evolves into or out of anything.
+ */
+export function evolutionLine(versionKey: string): string {
+    const major = majorOf(versionKey);
+    return major === undefined ? "" : `${major}|${baseOf(versionKey)}`;
+}
+
+/**
+ * The label for the boundary between two adjacent lines of a newest-first
+ * list, "evolved · 2.x → 3.0" or "evolved · bookworm → trixie": the older
+ * line on the left, the first version of the newer one on the right.
+ * Undefined when either side has no major version.
+ */
+export function evolutionLabel(olderKey: string, newerFirstKey: string): string | undefined {
+    const older = majorOf(olderKey);
+    const newer = majorOf(newerFirstKey);
+    if (older === undefined || newer === undefined) return undefined;
+    if (older !== newer) return `evolved · ${older}.x → ${newerFirstKey.replace(/^v/, "")}`;
+    const from = baseOf(olderKey);
+    const to = baseOf(newerFirstKey);
+    return from === to ? undefined : `evolved · ${from === "" ? "plain" : from} → ${to === "" ? "plain" : to}`;
+}

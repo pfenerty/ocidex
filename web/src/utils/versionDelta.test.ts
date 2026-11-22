@@ -1,5 +1,5 @@
 import { describe, it, expect } from "vitest";
-import { criticalChange, entryText, formatDelta, historyPoints, latestVerdict, sameVariantAsNewest, variantOf, versionDeltas } from "./versionDelta";
+import { criticalChange, entryText, evolutionLabel, evolutionLine, formatDelta, historyPoints, latestVerdict, sameVariantAsNewest, variantOf, versionDeltas } from "./versionDelta";
 import golden from "./versionLine.golden.json";
 
 const py = [
@@ -163,5 +163,24 @@ describe("criticalChange", () => {
     it("is undefined with nothing comparable or an unknown version", () => {
         expect(criticalChange(rows, "1.27.1")).toBeUndefined();
         expect(criticalChange(rows, "9.9.9")).toBeUndefined();
+    });
+});
+
+describe("evolution", () => {
+    it("keys a version by major and variant base", () => {
+        expect(evolutionLine("3.15.2-slim-trixie")).toBe("3|trixie");
+        expect(evolutionLine("3.14.0-alpine3.20")).toBe(evolutionLine("3.14.9-alpine3.21"));
+        expect(evolutionLine("main-abc")).toBe("");
+    });
+
+    it("labels a major step and a base change", () => {
+        expect(evolutionLabel("2.9.1", "3.0.0")).toBe("evolved · 2.x → 3.0.0");
+        expect(evolutionLabel("v2.9.1", "v3.0.0")).toBe("evolved · 2.x → 3.0.0");
+        expect(evolutionLabel("3.12.1-bookworm", "3.13.0-trixie")).toBe("evolved · bookworm → trixie");
+    });
+
+    it("says nothing within a line or across a version with no major", () => {
+        expect(evolutionLabel("3.1.0", "3.2.0")).toBeUndefined();
+        expect(evolutionLabel("main-abc", "3.0.0")).toBeUndefined();
     });
 });

@@ -1,3 +1,4 @@
+import "./VersionsTab.css";
 import { clusterNames, runningForVersion, type RunningWorkload } from "./RunningTab";
 import { Show, For } from "solid-js";
 import { A } from "@solidjs/router";
@@ -10,7 +11,14 @@ import { Button, ExternalAnchor, StatusPill } from "~/components/ui";
 import { StatusChip } from "~/components/ui";
 import { VULN_DATA_STATUS } from "~/utils/status";
 import { buildTime } from "~/utils/format";
-import { formatDelta, UNTAGGED_VERSION, versionDeltas, type VersionDelta } from "~/utils/versionDelta";
+import {
+    evolutionLabel,
+    evolutionLine,
+    formatDelta,
+    UNTAGGED_VERSION,
+    versionDeltas,
+    type VersionDelta,
+} from "~/utils/versionDelta";
 import { severityPoints } from "./ArtifactChange";
 
 function DeltaCell(props: { delta: VersionDelta; value: number | undefined }) {
@@ -35,6 +43,29 @@ function DeltaCell(props: { delta: VersionDelta; value: number | undefined }) {
         </Show>
     );
 }
+
+/**
+ * A thin divider where the version order crosses a major version or a change
+ * of base image ("evolved · 2.x → 3.0"): the boundary where an upgrade stops
+ * being drop-in. Only in the table's own order; a column sort mixes lines.
+ * The list is newest first, so the divider above a run of older versions
+ * names the step from that run to the one above it.
+ */
+const evolution = {
+    key: (v: ArtifactVersionSummary) => evolutionLine(v.versionKey),
+    header: (
+        _key: string,
+        _count: number,
+        _index: number,
+        previous: { items: ArtifactVersionSummary[] } | undefined,
+        items: ArtifactVersionSummary[],
+    ) => {
+        // The run above is newer; its last row is where that line began.
+        const newerFirst = previous === undefined ? undefined : previous.items[previous.items.length - 1];
+        const label = newerFirst === undefined ? undefined : evolutionLabel(items[0].versionKey, newerFirst.versionKey);
+        return <>{label === undefined ? undefined : <span class="version-evolved">{label}</span>}</>;
+    },
+};
 
 export function VersionsTab(props: {
     /** Where the artifact runs, for the Running column (ocidex-70eo.8);
@@ -249,6 +280,7 @@ export function VersionsTab(props: {
             sortBy={props.sortBy}
             sortDir={props.sortDir}
             onSort={props.onSort}
+            groupBy={props.sortBy === undefined ? evolution : undefined}
             pagination={
                 props.pagination
                     ? { pagination: props.pagination, onPageChange: props.onPageChange }

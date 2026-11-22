@@ -136,11 +136,19 @@ export interface DataTableProps<T> {
     /**
      * Emit a spanning header row whenever `key` changes between consecutive
      * rows. The rows arrive already ordered by their group — this only labels
-     * the runs, it does not reorder them.
+     * the runs, it does not reorder them. `items` is the run itself, `index`
+     * its position and `previous` the run before it, for a header that
+     * describes the boundary; a header that returns undefined emits no row.
      */
     groupBy?: {
         key: (row: T) => string;
-        header: (key: string, count: number) => JSX.Element;
+        header: (
+            key: string,
+            count: number,
+            index: number,
+            previous: { key: string; items: T[] } | undefined,
+            items: T[],
+        ) => JSX.Element;
     };
 }
 
@@ -318,16 +326,19 @@ export default function DataTable<T>(props: DataTableProps<T>): JSX.Element {
         return out;
     };
 
+    // Each run paired with the one before it, for headers that describe the
+    // boundary between them.
+    const runs = (rows: T[]) =>
+        grouped(rows).map((group, i, all) => ({ group, index: i, previous: i > 0 ? all[i - 1] : undefined }));
+
     const realBody = (rows: T[]) => (
-        <For each={grouped(rows)}>
-            {(group) => (
+        <For each={runs(rows)}>
+            {({ group, index, previous }) => (
                 <>
-                    <Show when={props.groupBy}>
-                        {(by) => (
+                    <Show when={props.groupBy?.header(group.key, group.items.length, index, previous, group.items)}>
+                        {(content) => (
                             <tr class="group-header-row">
-                                <td colspan={props.columns.length}>
-                                    {by().header(group.key, group.items.length)}
-                                </td>
+                                <td colspan={props.columns.length}>{content()}</td>
                             </tr>
                         )}
                     </Show>
