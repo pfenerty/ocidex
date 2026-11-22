@@ -204,7 +204,9 @@ function VulnRow(props: { v: DiscoverVuln }): JSX.Element {
                     {props.v.canonicalId}
                 </A>
                 <SeverityPill severity={props.v.severity}>{props.v.severity.toLowerCase()}</SeverityPill>
-                <span class="landing-row-meta">{plural(props.v.affectedArtifactCount, "artifact")}</span>
+                <span class="landing-row-meta" title="Artifacts whose latest version is affected">
+                    {plural(props.v.affectedArtifactCount, "artifact")}
+                </span>
             </div>
             <Show when={props.v.summary}>{(s) => <p class="landing-row-sub">{s()}</p>}</Show>
         </li>

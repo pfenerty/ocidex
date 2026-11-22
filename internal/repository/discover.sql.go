@@ -534,12 +534,17 @@ SELECT v.id,
 FROM candidate cd
 JOIN canonical v ON v.canonical_id = cd.canonical_id
 CROSS JOIN LATERAL (
-    SELECT COUNT(DISTINCT s.artifact_id)::bigint AS affected_artifact_count
-    FROM component c
-    JOIN sbom s ON s.id = c.sbom_id
-    WHERE c.purl = ANY (cd.purls)
-      AND s.namespace_id IN (SELECT id FROM public_ns)
+    SELECT COUNT(*)::bigint AS affected_artifact_count
+    FROM (
+        SELECT DISTINCT s.artifact_id, s.id
+        FROM component c
+        JOIN sbom s ON s.id = c.sbom_id
+        WHERE c.purl = ANY (cd.purls)
+          AND s.namespace_id IN (SELECT id FROM public_ns)
+    ) hit
+    WHERE hit.id = artifact_headline_sbom(hit.artifact_id, NULL::uuid, false)
 ) ar
+WHERE ar.affected_artifact_count > 0
 ORDER BY ar.affected_artifact_count DESC,
          CASE v.severity
              WHEN 'CRITICAL' THEN 4
@@ -583,6 +588,9 @@ type GetDiscoverTopVulnerabilitiesRow struct {
 // The ordinality filter on the unnest is the vuln_rollup idiom from
 // ListTopVulnerabilities: unnesting purls multiplies the rows SUM would see, so
 // each rollup row is charged exactly once.
+// Counted the way an artifact row counts: an artifact is affected when the
+// SBOM it is counted from is, so one that fixed the CVE releases ago drops out.
+// A candidate every affected artifact has since fixed affects nothing now.
 func (q *Queries) GetDiscoverTopVulnerabilities(ctx context.Context, arg GetDiscoverTopVulnerabilitiesParams) ([]GetDiscoverTopVulnerabilitiesRow, error) {
 	rows, err := q.db.Query(ctx, getDiscoverTopVulnerabilities, arg.RowLimit, arg.CandidateLimit)
 	if err != nil {

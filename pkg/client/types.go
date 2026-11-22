@@ -1668,11 +1668,20 @@ type ActivityEntry struct {
 
 // AffectedArtifact defines model for AffectedArtifact.
 type AffectedArtifact struct {
-	AffectedPurlCount int64   `json:"affectedPurlCount"`
+	// AffectedPurlCount Distinct affected component purls, any version
+	AffectedPurlCount int64 `json:"affectedPurlCount"`
+
+	// AffectedSbomCount Affected SBOMs, any version
 	AffectedSbomCount int64   `json:"affectedSbomCount"`
 	Group             *string `json:"group,omitempty"`
 	Id                string  `json:"id"`
-	Name              string  `json:"name"`
+
+	// LatestAffected The artifact's latest version (the SBOM its counts come from) is affected
+	LatestAffected bool   `json:"latestAffected"`
+	Name           string `json:"name"`
+
+	// OlderVersionCount Affected versions other than the latest
+	OlderVersionCount int64 `json:"olderVersionCount"`
 }
 
 // AffectedComponent defines model for AffectedComponent.
@@ -2801,7 +2810,10 @@ type GetVulnerabilityOutputBody struct {
 	// NamespaceCount Namespaces visible to the caller that hold at least one affected SBOM
 	NamespaceCount int64          `json:"namespaceCount"`
 	Pagination     PaginationMeta `json:"pagination"`
-	Vulnerability  VulnDetail     `json:"vulnerability"`
+
+	// SupersededArtifactCount Artifacts affected only through versions their latest release superseded; listed only with allVersions
+	SupersededArtifactCount int64      `json:"supersededArtifactCount"`
+	Vulnerability           VulnDetail `json:"vulnerability"`
 }
 
 // HashEntry defines model for HashEntry.
@@ -5166,6 +5178,9 @@ type GetVulnerabilityParams struct {
 
 	// Offset Number of results to skip
 	Offset *int32 `form:"offset,omitempty" json:"offset,omitempty"`
+
+	// AllVersions Also list artifacts affected only through versions their latest release superseded
+	AllVersions *bool `form:"allVersions,omitempty" json:"allVersions,omitempty"`
 }
 
 // ListVulnerabilityWorkloadsParams defines parameters for ListVulnerabilityWorkloads.

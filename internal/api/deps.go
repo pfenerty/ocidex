@@ -66,7 +66,7 @@ type InsightReader interface {
 	GetDashboardStats(ctx context.Context, vis service.VisibilityFilter) (*service.DashboardStats, error)
 	GetDiscovery(ctx context.Context) (*service.Discovery, error)
 	ListTopVulnerabilities(ctx context.Context, filter service.TopVulnFilter) (service.PagedResult[service.TopVulnEntry], error)
-	GetVulnerabilityDetail(ctx context.Context, id string, limit, offset int32, vis service.VisibilityFilter) (service.VulnerabilityDetailResult, error)
+	GetVulnerabilityDetail(ctx context.Context, id string, limit, offset int32, allVersions bool, vis service.VisibilityFilter) (service.VulnerabilityDetailResult, error)
 	VulnDBBuiltAt(ctx context.Context) (*time.Time, error)
 	ListRecentProvenanceDrift(ctx context.Context, page service.DriftPage, vis service.VisibilityFilter) (service.CursorPage[service.RecentDriftEntry], error)
 	ListOwnedActivity(ctx context.Context, ownerID string, page service.FeedPage) (service.CursorPage[service.ActivityEntry], error)

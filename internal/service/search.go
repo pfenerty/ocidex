@@ -45,7 +45,7 @@ type SearchService interface {
 	VulnDBBuiltAt(ctx context.Context) (*time.Time, error)
 	GetArtifactUsages(ctx context.Context, artifactID string, vis VisibilityFilter) ([]ArtifactRelation, error)
 	GetArtifactContains(ctx context.Context, artifactID string, vis VisibilityFilter) ([]ArtifactRelation, error)
-	GetVulnerabilityDetail(ctx context.Context, id string, limit, offset int32, vis VisibilityFilter) (VulnerabilityDetailResult, error)
+	GetVulnerabilityDetail(ctx context.Context, id string, limit, offset int32, allVersions bool, vis VisibilityFilter) (VulnerabilityDetailResult, error)
 	GetComponentVulns(ctx context.Context, id string, vis VisibilityFilter) ([]ComponentVulnEntry, error)
 	ListSBOMVulns(ctx context.Context, sbomID string, params SBOMVulnParams, vis VisibilityFilter) (PagedResult[SBOMVulnEntry], error)
 	ListArtifactVulns(ctx context.Context, artifactID string, params ArtifactVulnParams, vis VisibilityFilter) (ArtifactVulnPage, error)
@@ -172,8 +172,13 @@ type AffectedArtifact struct {
 	ID                string  `json:"id"`
 	Name              string  `json:"name"`
 	Group             *string `json:"group,omitempty"`
-	AffectedSbomCount int64   `json:"affectedSbomCount"`
-	AffectedPurlCount int64   `json:"affectedPurlCount"`
+	AffectedSbomCount int64   `json:"affectedSbomCount" doc:"Affected SBOMs, any version"`
+	AffectedPurlCount int64   `json:"affectedPurlCount" doc:"Distinct affected component purls, any version"`
+	// LatestAffected reports that the SBOM the artifact is counted from is
+	// affected; false means only superseded versions are.
+	LatestAffected bool `json:"latestAffected" doc:"The artifact's latest version (the SBOM its counts come from) is affected"`
+	// OlderVersionCount is how many other versions are affected too.
+	OlderVersionCount int64 `json:"olderVersionCount" doc:"Affected versions other than the latest"`
 }
 
 // AffectedComponent is a distinct component (by name+group) affected by a vulnerability.
@@ -411,6 +416,9 @@ type VulnerabilityDetailResult struct {
 	// reader arrives with, and the artifact page cannot answer it: a page of
 	// 25 artifacts says nothing about the namespaces of the other 4,000.
 	NamespaceCount int64
+	// SupersededArtifactCount is how many artifacts the vulnerability reaches
+	// only through versions their latest release superseded.
+	SupersededArtifactCount int64
 }
 
 // ComponentVersionsPage is a page of component occurrences plus the two figures

@@ -2000,13 +2000,26 @@ export interface components {
             subjectVersion?: string;
         };
         AffectedArtifact: {
-            /** Format: int64 */
+            /**
+             * Format: int64
+             * @description Distinct affected component purls, any version
+             */
             affectedPurlCount: number;
-            /** Format: int64 */
+            /**
+             * Format: int64
+             * @description Affected SBOMs, any version
+             */
             affectedSbomCount: number;
             group?: string;
             id: string;
+            /** @description The artifact's latest version (the SBOM its counts come from) is affected */
+            latestAffected: boolean;
             name: string;
+            /**
+             * Format: int64
+             * @description Affected versions other than the latest
+             */
+            olderVersionCount: number;
         };
         AffectedComponent: {
             /** Format: int64 */
@@ -3200,6 +3213,11 @@ export interface components {
              */
             namespaceCount: number;
             pagination: components["schemas"]["PaginationMeta"];
+            /**
+             * Format: int64
+             * @description Artifacts affected only through versions their latest release superseded; listed only with allVersions
+             */
+            supersededArtifactCount: number;
             vulnerability: components["schemas"]["VulnDetail"];
         };
         HashEntry: {
@@ -9046,6 +9064,8 @@ export interface operations {
                 limit?: number;
                 /** @description Number of results to skip */
                 offset?: number;
+                /** @description Also list artifacts affected only through versions their latest release superseded */
+                allVersions?: boolean;
             };
             header?: never;
             path: {
