@@ -271,7 +271,7 @@ LIMIT @row_limit OFFSET @row_offset;
 WITH per_version AS (
     SELECT DISTINCT ON (s.artifact_id, s.subject_version)
         s.id, s.artifact_id, s.subject_version, s.version_prerelease, s.version_variant,
-        s.version_major, s.version_minor, s.version_patch, s.created_at
+        s.version_major, s.version_minor, s.version_patch, s.created_at, x.arch
     FROM sbom s
     CROSS JOIN LATERAL (SELECT sbom_architecture(s.id) AS arch) x
     WHERE s.artifact_id = ANY(@artifact_ids::uuid[])
@@ -299,6 +299,9 @@ ranked AS (
 SELECT r.artifact_id,
        r.subject_version::text AS version_key,
        r.rn::bigint AS rank,
+       -- The architecture the count was taken from: the client compares two
+       -- versions only when it matches.
+       COALESCE(r.arch, '')::text AS architecture,
        COALESCE(vr.critical, 0)::bigint AS critical,
        (vr.sbom_id IS NOT NULL)::boolean AS scanned
 FROM ranked r

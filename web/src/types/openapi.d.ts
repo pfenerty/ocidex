@@ -2125,6 +2125,8 @@ export interface components {
             architectures: string[] | null;
             /** Format: date-time */
             buildDate?: string;
+            /** @description The SBOM this version's counts come from */
+            countedSbom?: components["schemas"]["CountedSBOM"];
             /** Format: date-time */
             createdAt: string;
             imageVersion?: string;
@@ -4810,6 +4812,8 @@ export interface components {
             role: string;
         };
         VersionCritical: {
+            /** @description Architecture the count was taken from */
+            architecture?: string;
             /** Format: int64 */
             critical?: number;
             versionKey: string;

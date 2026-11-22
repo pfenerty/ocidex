@@ -654,6 +654,9 @@ func countedSBOM(id pgtype.UUID, version, arch string) *CountedSBOM {
 type VersionCritical struct {
 	VersionKey string `json:"versionKey"`
 	Critical   *int64 `json:"critical,omitempty"`
+	// Architecture is the one the count was taken from; two versions compare
+	// only when it matches.
+	Architecture string `json:"architecture,omitempty" doc:"Architecture the count was taken from"`
 }
 
 // ArtifactDetail extends ArtifactSummary with full metadata.

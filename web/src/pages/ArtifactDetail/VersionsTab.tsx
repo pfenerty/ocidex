@@ -10,12 +10,22 @@ import { Button, ExternalAnchor, StatusPill } from "~/components/ui";
 import { StatusChip } from "~/components/ui";
 import { VULN_DATA_STATUS } from "~/utils/status";
 import { buildTime } from "~/utils/format";
-import { formatDelta, UNTAGGED_VERSION, versionDeltas } from "~/utils/versionDelta";
+import { formatDelta, UNTAGGED_VERSION, versionDeltas, type VersionDelta } from "~/utils/versionDelta";
 import { severityPoints } from "./ArtifactChange";
 
-function DeltaCell(props: { value: number | undefined }) {
+function DeltaCell(props: { delta: VersionDelta; value: number | undefined }) {
     return (
-        <Show when={props.value !== undefined} fallback={<span class="text-muted">—</span>}>
+        <Show
+            when={props.value !== undefined}
+            fallback={
+                <span
+                    class="text-muted"
+                    title={props.delta.noSharedArch === true ? "no shared architecture with the previous version" : undefined}
+                >
+                    —
+                </span>
+            }
+        >
             <span
                 class="delta-cell"
                 classList={{ "delta-zero": props.value === 0, "delta-worse": (props.value ?? 0) > 0 }}
@@ -78,7 +88,12 @@ export function VersionsTab(props: {
     // previous version in the default order. Sorted by severity, the row below
     // is just the next-worst, so the columns are dropped.
     const deltas = () => versionDeltas(severityPoints(props.versions));
-    const deltaIndex = (version: ArtifactVersionSummary) => (props.versions ?? []).indexOf(version);
+    // A row the table renders is always in props.versions; the empty fallback
+    // only keeps a lookup miss from throwing.
+    const deltaFor = (version: ArtifactVersionSummary): VersionDelta => {
+        const i = (props.versions ?? []).indexOf(version);
+        return i < 0 ? {} : deltas()[i];
+    };
     const deltaColumns = (): Column<ArtifactVersionSummary>[] =>
         props.sortBy !== undefined
             ? []
@@ -86,12 +101,18 @@ export function VersionsTab(props: {
                   {
                       header: "Δ crit",
                       align: "right",
-                      render: (version) => <DeltaCell value={deltas()[deltaIndex(version)]?.critical} />,
+                      render: (version) => {
+                          const d = deltaFor(version);
+                          return <DeltaCell delta={d} value={d.critical} />;
+                      },
                   },
                   {
                       header: "Δ high",
                       align: "right",
-                      render: (version) => <DeltaCell value={deltas()[deltaIndex(version)]?.high} />,
+                      render: (version) => {
+                          const d = deltaFor(version);
+                          return <DeltaCell delta={d} value={d.high} />;
+                      },
                   },
               ];
 

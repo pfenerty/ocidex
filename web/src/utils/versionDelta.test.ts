@@ -1,5 +1,5 @@
 import { describe, it, expect } from "vitest";
-import { entryText, formatDelta, latestVerdict, variantOf, versionDeltas } from "./versionDelta";
+import { entryText, formatDelta, historyPoints, latestVerdict, sameVariantAsNewest, variantOf, versionDeltas } from "./versionDelta";
 import golden from "./versionLine.golden.json";
 
 const py = [
@@ -99,5 +99,48 @@ describe("entryText", () => {
 
     it("says nothing with one comparable version", () => {
         expect(entryText([line[0]], 1)).toBeUndefined();
+    });
+});
+
+// Live golang: 1.27.4-trixie was counted on its only SBOM, riscv64, and
+// 1.27.1-trixie on amd64, and the page reported −82 critical between two
+// different architectures' package sets.
+describe("same-architecture comparison", () => {
+    const rows = [
+        { versionKey: "1.27.4-trixie", arch: "riscv64", critical: 10, high: 40 },
+        { versionKey: "1.27.1-trixie", arch: "amd64", critical: 92, high: 300 },
+        { versionKey: "1.27.0-trixie", arch: "amd64", critical: 95, high: 310 },
+    ];
+
+    it("gives no delta against a version counted on another architecture", () => {
+        expect(versionDeltas(rows)).toEqual([{ noSharedArch: true }, { critical: -3, high: -10 }, {}]);
+    });
+
+    it("skips to the next version on the same architecture", () => {
+        const withRiscv = [...rows, { versionKey: "1.26.0-trixie", arch: "riscv64", critical: 12, high: 41 }];
+        expect(versionDeltas(withRiscv)[0]).toEqual({ critical: -2, high: -1 });
+    });
+
+    it("keeps the verdict, chart line and entry text on one architecture", () => {
+        expect(latestVerdict(rows)).toBeUndefined();
+        expect(sameVariantAsNewest(rows).map((r) => r.versionKey)).toEqual(["1.27.4-trixie"]);
+        expect(entryText(rows, 3)).toBeUndefined();
+    });
+
+    it("compares versions whose architecture is unknown on both sides", () => {
+        expect(versionDeltas([{ versionKey: "2.0.0", critical: 1 }, { versionKey: "1.0.0", critical: 3 }])[0]).toEqual({
+            critical: -2,
+            high: undefined,
+        });
+    });
+});
+
+describe("historyPoints", () => {
+    it("reads an empty architecture as unknown", () => {
+        expect(historyPoints([{ versionKey: "1.0.0", critical: 2, architecture: "" }, { versionKey: "0.9.0", architecture: "amd64" }])).toEqual([
+            { versionKey: "1.0.0", arch: undefined, critical: 2 },
+            { versionKey: "0.9.0", arch: "amd64", critical: undefined },
+        ]);
+        expect(historyPoints(null)).toEqual([]);
     });
 });

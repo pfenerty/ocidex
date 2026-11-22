@@ -145,7 +145,8 @@ func TestHeadlineSBOMIsOneSBOMEverywhere(t *testing.T) {
 	is.True(len(history) > 0)
 	is.Equal(history[0].Rank, int64(1))
 	is.Equal(history[0].VersionKey, "1.27.4")
-	is.Equal(history[0].Critical, int64(1)) // ListArtifactCriticalHistory
+	is.Equal(history[0].Critical, int64(1))
+	is.Equal(history[0].Architecture, "amd64") // ListArtifactCriticalHistory
 }
 
 // seedHeadlineSBOM inserts one fixture SBOM with its architecture enrichment

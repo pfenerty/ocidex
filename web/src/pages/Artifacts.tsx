@@ -16,6 +16,7 @@ import type { ToolbarField } from "~/components/ui";
 import { StatusChip } from "~/components/ui";
 import { VULN_DATA_STATUS } from "~/utils/status";
 import { countedLabel } from "~/utils/vuln";
+import { historyPoints } from "~/utils/versionDelta";
 
 const ARTIFACT_TYPES = [
     "application",
@@ -87,7 +88,7 @@ const columns: Column<ArtifactSummary>[] = [
         render: (a) => (
             <span class="with-sprite">
                 <Sprite
-                    points={(a.criticalHistory ?? []).map((h) => ({ versionKey: h.versionKey, critical: h.critical }))}
+                    points={historyPoints(a.criticalHistory)}
                 />
                 <A href={`/artifacts/${a.id}`}>{artifactDisplayName(a)}</A>
             </span>

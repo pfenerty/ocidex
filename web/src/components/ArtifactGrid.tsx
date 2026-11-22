@@ -5,6 +5,7 @@ import type { ArtifactSummary } from "~/api/client";
 import type { SeenOnlyImage } from "~/api/queries";
 import { Sprite } from "~/components/Sprite";
 import { formatEntryNumber, artifactDisplayName } from "~/utils/format";
+import { historyPoints } from "~/utils/versionDelta";
 
 /**
  * The artifacts as numbered slots, in entry order: the entry number, the
@@ -34,7 +35,7 @@ export function ArtifactGrid(props: { artifacts: ArtifactSummary[]; seenOnly?: S
                             <Sprite
                                 class="artifact-slot-sprite"
                                 size={40}
-                                points={(a.criticalHistory ?? []).map((h) => ({ versionKey: h.versionKey, critical: h.critical }))}
+                                points={historyPoints(a.criticalHistory)}
                             />
                             <span class="artifact-slot-name">{short(a)}</span>
                         </A>

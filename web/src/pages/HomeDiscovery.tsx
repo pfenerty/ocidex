@@ -10,7 +10,7 @@ import type { DiscoverFeatured, DiscoverRecent, DiscoverVuln } from "~/api/queri
 import { CATEGORY_COLORS } from "~/utils/licenseUtils";
 import { plural, relativeDate } from "~/utils/format";
 import { splitImageRef } from "~/utils/oci";
-import { formatDelta, latestVerdict } from "~/utils/versionDelta";
+import { formatDelta, historyPoints, latestVerdict } from "~/utils/versionDelta";
 import { Shiny, isShiny } from "~/components/Shiny";
 import { StatusChip } from "~/components/ui";
 import { VULN_DATA_STATUS } from "~/utils/status";
@@ -131,7 +131,7 @@ const num = (x: number, crit = false): JSX.Element => (
 /** Featured images as one table to scan and compare: name, latest, size, findings. */
 /** Critical change in the newest version against the previous one of its variant. */
 function critDelta(f: DiscoverFeatured): number | undefined {
-    const v = latestVerdict((f.criticalHistory ?? []).map((h) => ({ versionKey: h.versionKey, critical: h.critical })));
+    const v = latestVerdict(historyPoints(f.criticalHistory));
     return v?.delta;
 }
 
