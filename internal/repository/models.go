@@ -383,10 +383,12 @@ type Sbom struct {
 	Flavor      pgtype.Text `json:"flavor"`
 	IndexDigest pgtype.Text `json:"index_digest"`
 	// How this SBOM arrived. ON DELETE SET NULL: removing a channel loses attribution, never the SBOM and never its visibility.
-	SourceID     pgtype.UUID `json:"source_id"`
-	VersionMajor pgtype.Int4 `json:"version_major"`
-	VersionMinor pgtype.Int4 `json:"version_minor"`
-	VersionPatch pgtype.Int4 `json:"version_patch"`
+	SourceID          pgtype.UUID `json:"source_id"`
+	VersionMajor      pgtype.Int4 `json:"version_major"`
+	VersionMinor      pgtype.Int4 `json:"version_minor"`
+	VersionPatch      pgtype.Int4 `json:"version_patch"`
+	VersionPrerelease bool        `json:"version_prerelease"`
+	VersionVariant    string      `json:"version_variant"`
 }
 
 type SbomRetentionProtected struct {
@@ -408,6 +410,7 @@ type SbomVulnRollup struct {
 	Medium      int64       `json:"medium"`
 	Low         int64       `json:"low"`
 	Unknown     int64       `json:"unknown"`
+	Fixable     int64       `json:"fixable"`
 }
 
 type ScanJob struct {

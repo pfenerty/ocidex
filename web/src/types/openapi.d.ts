@@ -2000,13 +2000,26 @@ export interface components {
             subjectVersion?: string;
         };
         AffectedArtifact: {
-            /** Format: int64 */
+            /**
+             * Format: int64
+             * @description Distinct affected component purls, any version
+             */
             affectedPurlCount: number;
-            /** Format: int64 */
+            /**
+             * Format: int64
+             * @description Affected SBOMs, any version
+             */
             affectedSbomCount: number;
             group?: string;
             id: string;
+            /** @description The artifact's latest version (the SBOM its counts come from) is affected */
+            latestAffected: boolean;
             name: string;
+            /**
+             * Format: int64
+             * @description Affected versions other than the latest
+             */
+            olderVersionCount: number;
         };
         AffectedComponent: {
             /** Format: int64 */
@@ -2024,6 +2037,8 @@ export interface components {
              * @example https://example.com/api/schemas/ArtifactDetail.json
              */
             readonly $schema?: string;
+            /** @description The SBOM the vulnerability counts come from. List responses only. */
+            countedSbom?: components["schemas"]["CountedSBOM"];
             cpe?: string;
             /** Format: date-time */
             createdAt: string;
@@ -2081,6 +2096,8 @@ export interface components {
             subjectVersion?: string;
         };
         ArtifactSummary: {
+            /** @description The SBOM the vulnerability counts come from. List responses only. */
+            countedSbom?: components["schemas"]["CountedSBOM"];
             /** @description Newest versions first, up to 12. List responses only. */
             criticalHistory?: components["schemas"]["VersionCritical"][] | null;
             /**
@@ -2551,6 +2568,14 @@ export interface components {
             /** @description The cluster's first agent credential; its key is shown only here */
             credential: components["schemas"]["ClusterCredentialResponse"];
         };
+        CountedSBOM: {
+            /** @description Architecture of the counted SBOM; absent when unknown */
+            architecture?: string;
+            /** Format: uuid */
+            id: string;
+            /** @description Subject version of the counted SBOM */
+            version?: string;
+        };
         CreateAPIKeyInputBody: {
             /**
              * Format: uri
@@ -2883,6 +2908,8 @@ export interface components {
         };
         DiscoverFeatured: {
             artifactId: string;
+            /** @description The SBOM the card's counts come from */
+            countedSbom?: components["schemas"]["CountedSBOM"];
             /** Format: date-time */
             createdAt: string;
             /** @description Newest versions first, up to 12 */
@@ -3119,6 +3146,8 @@ export interface components {
              * @example https://example.com/api/schemas/GetArtifactVulnSummaryOutputBody.json
              */
             readonly $schema?: string;
+            /** @description The SBOM the summary counts */
+            countedSbom?: components["schemas"]["CountedSBOM"];
             /** @description The counted SBOM has been matched against the vulnerability store; an absent summary then means no known vulnerabilities rather than never scanned */
             matched: boolean;
             /** @description Version whose newest SBOM the summary counts */
@@ -3184,6 +3213,11 @@ export interface components {
              */
             namespaceCount: number;
             pagination: components["schemas"]["PaginationMeta"];
+            /**
+             * Format: int64
+             * @description Artifacts affected only through versions their latest release superseded; listed only with allVersions
+             */
+            supersededArtifactCount: number;
             vulnerability: components["schemas"]["VulnDetail"];
         };
         HashEntry: {
@@ -4830,6 +4864,11 @@ export interface components {
         VulnSeverityCounts: {
             /** Format: int64 */
             critical: number;
+            /**
+             * Format: int64
+             * @description Findings with a fixed version available
+             */
+            fixable: number;
             /** Format: int64 */
             high: number;
             /** Format: int64 */
@@ -4854,6 +4893,11 @@ export interface components {
         VulnSummary: {
             /** Format: int64 */
             critical: number;
+            /**
+             * Format: int64
+             * @description Findings with a fixed version available; absent when not counted
+             */
+            fixable?: number;
             /** Format: int64 */
             high: number;
             /** Format: int64 */
@@ -9030,6 +9074,8 @@ export interface operations {
                 limit?: number;
                 /** @description Number of results to skip */
                 offset?: number;
+                /** @description Also list artifacts affected only through versions their latest release superseded */
+                allVersions?: boolean;
             };
             header?: never;
             path: {

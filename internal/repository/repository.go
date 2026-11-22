@@ -82,7 +82,7 @@ type EnrichmentRepository interface {
 // ArtifactRepository defines data access methods for artifact operations.
 type ArtifactRepository interface {
 	UpsertArtifact(ctx context.Context, arg UpsertArtifactParams) (pgtype.UUID, error)
-	GetArtifact(ctx context.Context, id pgtype.UUID) (GetArtifactRow, error)
+	GetArtifact(ctx context.Context, arg GetArtifactParams) (GetArtifactRow, error)
 	ListArtifacts(ctx context.Context, arg ListArtifactsParams) ([]ListArtifactsRow, error)
 	ListSBOMsByArtifact(ctx context.Context, arg ListSBOMsByArtifactParams) ([]ListSBOMsByArtifactRow, error)
 	ListArtifactVersions(ctx context.Context, arg ListArtifactVersionsParams) ([]ListArtifactVersionsRow, error)

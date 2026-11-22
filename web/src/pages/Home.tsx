@@ -16,6 +16,8 @@ interface Fact {
     href?: string;
     value: string;
     label: string;
+    /** Hover text, where the label alone would claim more than the figure counts. */
+    title?: string;
 }
 
 /**
@@ -29,7 +31,16 @@ function facts(data: Stats): Fact[] {
         // versionCount is distinct *package* versions, not artifact versions.
         { href: "/components", value: data.packageCount.toLocaleString(), label: "packages" },
         { href: "/licenses", value: data.licenseCount.toLocaleString(), label: "licenses" },
-        { href: "/vulnerabilities", value: data.vulnCount.toLocaleString(), label: "vulnerabilities" },
+        // Every advisory any indexed version carries, superseded ones included:
+        // counting only latest versions would need a live join over every
+        // artifact's SBOM, which is what the rollup exists to avoid. So the
+        // label says "known", and the hover says what that covers.
+        {
+            href: "/vulnerabilities",
+            value: data.vulnCount.toLocaleString(),
+            label: "known vulnerabilities",
+            title: "Advisories found in any indexed version, not only the latest",
+        },
     ];
 }
 
@@ -45,11 +56,11 @@ function FactStrip(props: { data: Stats }) {
                         </>
                     );
                     return f.href !== undefined ? (
-                        <A href={f.href} class="landing-fact">
+                        <A href={f.href} class="landing-fact" title={f.title}>
                             {inner}
                         </A>
                     ) : (
-                        <div class="landing-fact">{inner}</div>
+                        <div class="landing-fact" title={f.title}>{inner}</div>
                     );
                 }}
             </For>

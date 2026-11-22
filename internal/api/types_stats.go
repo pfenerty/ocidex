@@ -70,6 +70,7 @@ type ListTopVulnerabilitiesOutput struct {
 type GetVulnerabilityInput struct {
 	ID string `path:"id" doc:"Vulnerability ID (CVE or GHSA ID)"`
 	PaginationParams
+	AllVersions bool `query:"allVersions" doc:"Also list artifacts affected only through versions their latest release superseded"`
 }
 
 // GetVulnerabilityOutput is the response for GET /api/v1/vulns/{id}.
@@ -84,6 +85,9 @@ type GetVulnerabilityOutput struct {
 		// Pagination.Total counts artifacts, which answers "how much of the
 		// catalog" — a different question from "how many teams".
 		NamespaceCount int64 `json:"namespaceCount" doc:"Namespaces visible to the caller that hold at least one affected SBOM"`
+		// SupersededArtifactCount is the "also in older versions" figure: the
+		// artifacts left out of a latest-only list.
+		SupersededArtifactCount int64 `json:"supersededArtifactCount" doc:"Artifacts affected only through versions their latest release superseded; listed only with allVersions"`
 	}
 }
 

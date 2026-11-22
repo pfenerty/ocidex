@@ -1668,11 +1668,20 @@ type ActivityEntry struct {
 
 // AffectedArtifact defines model for AffectedArtifact.
 type AffectedArtifact struct {
-	AffectedPurlCount int64   `json:"affectedPurlCount"`
+	// AffectedPurlCount Distinct affected component purls, any version
+	AffectedPurlCount int64 `json:"affectedPurlCount"`
+
+	// AffectedSbomCount Affected SBOMs, any version
 	AffectedSbomCount int64   `json:"affectedSbomCount"`
 	Group             *string `json:"group,omitempty"`
 	Id                string  `json:"id"`
-	Name              string  `json:"name"`
+
+	// LatestAffected The artifact's latest version (the SBOM its counts come from) is affected
+	LatestAffected bool   `json:"latestAffected"`
+	Name           string `json:"name"`
+
+	// OlderVersionCount Affected versions other than the latest
+	OlderVersionCount int64 `json:"olderVersionCount"`
 }
 
 // AffectedComponent defines model for AffectedComponent.
@@ -1688,9 +1697,10 @@ type AffectedComponent struct {
 // ArtifactDetail defines model for ArtifactDetail.
 type ArtifactDetail struct {
 	// Schema A URL to the JSON Schema for this object.
-	Schema    *string   `json:"$schema,omitempty"`
-	Cpe       *string   `json:"cpe,omitempty"`
-	CreatedAt time.Time `json:"createdAt"`
+	Schema      *string      `json:"$schema,omitempty"`
+	CountedSbom *CountedSBOM `json:"countedSbom,omitempty"`
+	Cpe         *string      `json:"cpe,omitempty"`
+	CreatedAt   time.Time    `json:"createdAt"`
 
 	// CriticalHistory Newest versions first, up to 12. List responses only.
 	CriticalHistory *[]VersionCritical `json:"criticalHistory,omitempty"`
@@ -1739,6 +1749,8 @@ type ArtifactRelation struct {
 
 // ArtifactSummary defines model for ArtifactSummary.
 type ArtifactSummary struct {
+	CountedSbom *CountedSBOM `json:"countedSbom,omitempty"`
+
 	// CriticalHistory Newest versions first, up to 12. List responses only.
 	CriticalHistory *[]VersionCritical `json:"criticalHistory,omitempty"`
 
@@ -2174,6 +2186,16 @@ type ConnectClusterOutputBody struct {
 	Credential ClusterCredentialResponse `json:"credential"`
 }
 
+// CountedSBOM defines model for CountedSBOM.
+type CountedSBOM struct {
+	// Architecture Architecture of the counted SBOM; absent when unknown
+	Architecture *string            `json:"architecture,omitempty"`
+	Id           openapi_types.UUID `json:"id"`
+
+	// Version Subject version of the counted SBOM
+	Version *string `json:"version,omitempty"`
+}
+
 // CreateAPIKeyInputBody defines model for CreateAPIKeyInputBody.
 type CreateAPIKeyInputBody struct {
 	// Schema A URL to the JSON Schema for this object.
@@ -2506,8 +2528,9 @@ type DiscoverArtifact struct {
 
 // DiscoverFeatured defines model for DiscoverFeatured.
 type DiscoverFeatured struct {
-	ArtifactId string    `json:"artifactId"`
-	CreatedAt  time.Time `json:"createdAt"`
+	ArtifactId  string       `json:"artifactId"`
+	CountedSbom *CountedSBOM `json:"countedSbom,omitempty"`
+	CreatedAt   time.Time    `json:"createdAt"`
 
 	// CriticalHistory Newest versions first, up to 12
 	CriticalHistory *[]VersionCritical `json:"criticalHistory,omitempty"`
@@ -2734,7 +2757,8 @@ type GetArtifactUsagesOutputBody struct {
 // GetArtifactVulnSummaryOutputBody defines model for GetArtifactVulnSummaryOutputBody.
 type GetArtifactVulnSummaryOutputBody struct {
 	// Schema A URL to the JSON Schema for this object.
-	Schema *string `json:"$schema,omitempty"`
+	Schema      *string      `json:"$schema,omitempty"`
+	CountedSbom *CountedSBOM `json:"countedSbom,omitempty"`
 
 	// Matched The counted SBOM has been matched against the vulnerability store; an absent summary then means no known vulnerabilities rather than never scanned
 	Matched bool `json:"matched"`
@@ -2786,7 +2810,10 @@ type GetVulnerabilityOutputBody struct {
 	// NamespaceCount Namespaces visible to the caller that hold at least one affected SBOM
 	NamespaceCount int64          `json:"namespaceCount"`
 	Pagination     PaginationMeta `json:"pagination"`
-	Vulnerability  VulnDetail     `json:"vulnerability"`
+
+	// SupersededArtifactCount Artifacts affected only through versions their latest release superseded; listed only with allVersions
+	SupersededArtifactCount int64      `json:"supersededArtifactCount"`
+	Vulnerability           VulnDetail `json:"vulnerability"`
 }
 
 // HashEntry defines model for HashEntry.
@@ -4294,10 +4321,13 @@ type VulnReference struct {
 // VulnSeverityCounts defines model for VulnSeverityCounts.
 type VulnSeverityCounts struct {
 	Critical int64 `json:"critical"`
-	High     int64 `json:"high"`
-	Low      int64 `json:"low"`
-	Medium   int64 `json:"medium"`
-	Unknown  int64 `json:"unknown"`
+
+	// Fixable Findings with a fixed version available
+	Fixable int64 `json:"fixable"`
+	High    int64 `json:"high"`
+	Low     int64 `json:"low"`
+	Medium  int64 `json:"medium"`
+	Unknown int64 `json:"unknown"`
 }
 
 // VulnSeverityEntry defines model for VulnSeverityEntry.
@@ -4312,11 +4342,14 @@ type VulnSeverityEntry struct {
 // VulnSummary defines model for VulnSummary.
 type VulnSummary struct {
 	Critical int64 `json:"critical"`
-	High     int64 `json:"high"`
-	Low      int64 `json:"low"`
-	Medium   int64 `json:"medium"`
-	Total    int64 `json:"total"`
-	Unknown  int64 `json:"unknown"`
+
+	// Fixable Findings with a fixed version available; absent when not counted
+	Fixable *int64 `json:"fixable,omitempty"`
+	High    int64  `json:"high"`
+	Low     int64  `json:"low"`
+	Medium  int64  `json:"medium"`
+	Total   int64  `json:"total"`
+	Unknown int64  `json:"unknown"`
 }
 
 // WalkStats defines model for WalkStats.
@@ -5151,6 +5184,9 @@ type GetVulnerabilityParams struct {
 
 	// Offset Number of results to skip
 	Offset *int32 `form:"offset,omitempty" json:"offset,omitempty"`
+
+	// AllVersions Also list artifacts affected only through versions their latest release superseded
+	AllVersions *bool `form:"allVersions,omitempty" json:"allVersions,omitempty"`
 }
 
 // ListVulnerabilityWorkloadsParams defines parameters for ListVulnerabilityWorkloads.

@@ -332,7 +332,7 @@ func TestSortCandidates_BuildTimeModeIgnoresVersion(t *testing.T) {
 		mk("2.0.0", t2),
 		mk("1.0.0", t1),
 	}
-	sortCandidates(candidates, SortBuildTime)
+	sortCandidates(candidates, SortAll)
 	is.Equal(candidates[0].sbom.SubjectVersion.String, "1.0.0")
 	is.Equal(candidates[1].sbom.SubjectVersion.String, "2.0.0")
 }

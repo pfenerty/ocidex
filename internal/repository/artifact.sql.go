@@ -15,7 +15,7 @@ const countArtifactVersions = `-- name: CountArtifactVersions :one
 SELECT COUNT(DISTINCT
     COALESCE(s.subject_version,
         COALESCE(e.data->>'imageVersion', u.data->>'imageVersion'),
-        s.id::text)
+        '(untagged)')
 )::bigint AS version_count
 FROM sbom s
 LEFT JOIN enrichment e ON e.sbom_id = s.id AND e.enricher_name = 'oci-metadata' AND e.status = 'success'
@@ -82,17 +82,9 @@ func (q *Queries) CountArtifacts(ctx context.Context, arg CountArtifactsParams) 
 }
 
 const countLatestVersionPackages = `-- name: CountLatestVersionPackages :one
-SELECT COALESCE((
-    SELECT COUNT(*) FROM component c WHERE c.sbom_id = (
-        SELECT s.id FROM sbom s
-        WHERE s.artifact_id = $1
-          AND s.namespace_id IN (SELECT visible_namespace_ids($2::uuid, $3::boolean))
-        ORDER BY s.version_major DESC NULLS LAST,
-                 s.version_minor DESC NULLS LAST,
-                 s.version_patch DESC NULLS LAST,
-                 s.created_at DESC, s.id DESC
-        LIMIT 1)
-), 0)::bigint AS package_count
+SELECT COUNT(*)::bigint AS package_count
+FROM component c
+WHERE c.sbom_id = artifact_headline_sbom($1::uuid, $2::uuid, $3::boolean)
 `
 
 type CountLatestVersionPackagesParams struct {
@@ -101,8 +93,8 @@ type CountLatestVersionPackagesParams struct {
 	IsAdmin    pgtype.Bool `json:"is_admin"`
 }
 
-// Components in the artifact's newest visible SBOM of its latest version,
-// picked the way ListArtifacts picks it. Zero when nothing is visible.
+// Components in the SBOM the artifact is counted from (artifact_headline_sbom).
+// Zero when nothing is visible.
 func (q *Queries) CountLatestVersionPackages(ctx context.Context, arg CountLatestVersionPackagesParams) (int64, error) {
 	row := q.db.QueryRow(ctx, countLatestVersionPackages, arg.ArtifactID, arg.UserID, arg.IsAdmin)
 	var package_count int64
@@ -239,28 +231,38 @@ SELECT a.id, a.type, a.name, a.group_name, a.purl, a.cpe, a.created_at, a.entry_
            WHEN EXISTS (
                SELECT 1 FROM enrichment pe JOIN sbom sx ON sx.id = pe.sbom_id
                WHERE sx.artifact_id = a.id AND pe.enricher_name = 'provenance'
+                 AND sx.namespace_id IN (SELECT visible_namespace_ids($1::uuid, $2::boolean))
                  AND pe.status = 'success' AND signing_status(pe.data) = 'artifact_missing'
            ) THEN 'artifact_missing'
            WHEN EXISTS (
                SELECT 1 FROM enrichment pe JOIN sbom sx ON sx.id = pe.sbom_id
                WHERE sx.artifact_id = a.id AND pe.enricher_name = 'provenance'
+                 AND sx.namespace_id IN (SELECT visible_namespace_ids($1::uuid, $2::boolean))
                  AND pe.status = 'success' AND signing_status(pe.data) = 'verification_failed'
            ) THEN 'verification_failed'
            WHEN EXISTS (
                SELECT 1 FROM enrichment pe JOIN sbom sx ON sx.id = pe.sbom_id
                WHERE sx.artifact_id = a.id AND pe.enricher_name = 'provenance'
+                 AND sx.namespace_id IN (SELECT visible_namespace_ids($1::uuid, $2::boolean))
                  AND pe.status = 'success' AND signing_status(pe.data) = 'signed'
            ) THEN 'signed'
            WHEN EXISTS (
                SELECT 1 FROM enrichment pe JOIN sbom sx ON sx.id = pe.sbom_id
                WHERE sx.artifact_id = a.id AND pe.enricher_name = 'provenance'
+                 AND sx.namespace_id IN (SELECT visible_namespace_ids($1::uuid, $2::boolean))
                  AND pe.status = 'success' AND signing_status(pe.data) = 'verified'
            ) THEN 'verified'
            ELSE 'unsigned'
        END)::text AS signing_status
 FROM artifact a
-WHERE a.id = $1
+WHERE a.id = $3
 `
+
+type GetArtifactParams struct {
+	UserID  pgtype.UUID `json:"user_id"`
+	IsAdmin pgtype.Bool `json:"is_admin"`
+	ID      pgtype.UUID `json:"id"`
+}
 
 type GetArtifactRow struct {
 	ID            pgtype.UUID        `json:"id"`
@@ -300,8 +302,8 @@ type GetArtifactRow struct {
 // See ocidex-goh.16 and, in tests/artifact_rollup_scope_test.go,
 // TestArtifactRollupSigningStatus_ArtifactMissingDominates and
 // TestArtifactRollupSigningStatus_FailureBeatsVerified.
-func (q *Queries) GetArtifact(ctx context.Context, id pgtype.UUID) (GetArtifactRow, error) {
-	row := q.db.QueryRow(ctx, getArtifact, id)
+func (q *Queries) GetArtifact(ctx context.Context, arg GetArtifactParams) (GetArtifactRow, error) {
+	row := q.db.QueryRow(ctx, getArtifact, arg.UserID, arg.IsAdmin, arg.ID)
 	var i GetArtifactRow
 	err := row.Scan(
 		&i.ID,
@@ -369,21 +371,26 @@ func (q *Queries) GetArtifactIDByEntryNumber(ctx context.Context, arg GetArtifac
 const listArtifactCriticalHistory = `-- name: ListArtifactCriticalHistory :many
 WITH per_version AS (
     SELECT DISTINCT ON (s.artifact_id, s.subject_version)
-        s.id, s.artifact_id, s.subject_version,
+        s.id, s.artifact_id, s.subject_version, s.version_prerelease, s.version_variant,
         s.version_major, s.version_minor, s.version_patch, s.created_at
     FROM sbom s
+    CROSS JOIN LATERAL (SELECT sbom_architecture(s.id) AS arch) x
     WHERE s.artifact_id = ANY($1::uuid[])
       AND s.subject_version IS NOT NULL
       AND s.namespace_id IN (SELECT visible_namespace_ids($2::uuid, $3::boolean))
-    ORDER BY s.artifact_id, s.subject_version, s.created_at DESC, s.id DESC
+    -- version_headline_sbom()'s pick within each version, inline.
+    ORDER BY s.artifact_id, s.subject_version, sbom_arch_rank(x.arch), x.arch, s.created_at DESC, s.id DESC
 ),
 ranked AS (
-    SELECT pv.id, pv.artifact_id, pv.subject_version, pv.version_major, pv.version_minor, pv.version_patch, pv.created_at,
+    SELECT pv.id, pv.artifact_id, pv.subject_version, pv.version_prerelease, pv.version_variant, pv.version_major, pv.version_minor, pv.version_patch, pv.created_at,
            ROW_NUMBER() OVER (
                PARTITION BY pv.artifact_id
-               ORDER BY pv.version_major DESC NULLS LAST,
+               ORDER BY pv.version_prerelease,
+                        pv.version_major DESC NULLS LAST,
                         pv.version_minor DESC NULLS LAST,
                         pv.version_patch DESC NULLS LAST,
+                        pv.version_variant <> '',
+                        pv.version_variant,
                         pv.created_at DESC, pv.id DESC
            ) AS rn
     FROM per_version pv
@@ -423,6 +430,8 @@ type ListArtifactCriticalHistoryRow struct {
 // interleave with others. `scanned` is false when the rollup has no row, which
 // is "no findings" or "never scanned" indistinguishably (ADR-044); the client
 // leaves those as gaps rather than drawing them as zero.
+// Ranked the way artifact_headline_sbom() orders versions, so rank 1 is the
+// version the artifact is counted from.
 func (q *Queries) ListArtifactCriticalHistory(ctx context.Context, arg ListArtifactCriticalHistoryParams) ([]ListArtifactCriticalHistoryRow, error) {
 	rows, err := q.db.Query(ctx, listArtifactCriticalHistory, arg.ArtifactIds, arg.UserID, arg.IsAdmin)
 	if err != nil {
@@ -485,9 +494,11 @@ WITH sboms_meta AS (
         s.id,
         s.created_at,
         s.enrichment_sufficient,
+        s.version_major, s.version_minor, s.version_patch,
+        s.version_prerelease, s.version_variant,
         COALESCE(s.subject_version,
             COALESCE(e.data->>'imageVersion', u.data->>'imageVersion'),
-            s.id::text)                                                  AS version_key,
+            '(untagged)')                                                  AS version_key,
         COALESCE(e.data->>'architecture', u.data->>'architecture')       AS architecture,
         COALESCE(e.data->>'imageVersion',  u.data->>'imageVersion')      AS image_version,
         COALESCE(e.data->>'revision',      u.data->>'revision')          AS revision,
@@ -503,9 +514,10 @@ WITH sboms_meta AS (
 ),
 newest_per_version AS (
     SELECT DISTINCT ON (version_key)
-        id, version_key, created_at, enrichment_sufficient, image_version, revision, source_url, build_date, signing_status
+        id, version_key, architecture, created_at, enrichment_sufficient, image_version, revision, source_url, build_date, signing_status,
+        version_major, version_minor, version_patch, version_prerelease, version_variant
     FROM sboms_meta
-    ORDER BY version_key, created_at DESC
+    ORDER BY version_key, sbom_arch_rank(architecture), architecture, created_at DESC, id DESC
 ),
 architectures_per_version AS (
     SELECT
@@ -522,6 +534,7 @@ sbom_count_per_version AS (
 SELECT
     n.version_key,
     n.id           AS newest_sbom_id,
+    COALESCE(n.architecture, '')::text AS counted_architecture,
     n.created_at,
     n.enrichment_sufficient,
     n.image_version,
@@ -547,18 +560,24 @@ SELECT
     COALESCE(r.medium,   0)::bigint AS vuln_medium,
     COALESCE(r.low,      0)::bigint AS vuln_low,
     COALESCE(r.unknown,  0)::bigint AS vuln_unknown,
+    COALESCE(r.fixable,  0)::bigint AS vuln_fixable,
     -- Matched against the vulnerability store long enough ago that the rollup
     -- above has caught up: two refresh intervals (RollupRefreshInterval is 15
     -- minutes). A fresher match may not be in the rollup yet, so it still reads
     -- "not scanned" rather than risk calling a version with findings clean.
-    (m.matched_at IS NOT NULL AND m.matched_at < now() - interval '30 minutes')::boolean AS vuln_matched,
+    sbom_vuln_settled(n.id) AS vuln_matched,
     COUNT(*) OVER() AS total_count
 FROM newest_per_version n
 JOIN architectures_per_version a ON a.version_key = n.version_key
 JOIN sbom_count_per_version c ON c.version_key = n.version_key
 LEFT JOIN sbom_vuln_rollup r ON r.sbom_id = n.id
-LEFT JOIN sbom_vuln_match m ON m.sbom_id = n.id
-ORDER BY n.created_at DESC, n.version_key
+ORDER BY n.version_major DESC NULLS LAST,
+         n.version_minor DESC NULLS LAST,
+         n.version_patch DESC NULLS LAST,
+         n.version_prerelease,
+         n.version_variant <> '',
+         n.version_variant,
+         n.created_at DESC, n.version_key
 LIMIT $3 OFFSET $2
 `
 
@@ -571,8 +590,9 @@ type ListArtifactVersionsParams struct {
 }
 
 type ListArtifactVersionsRow struct {
-	VersionKey           pgtype.Text        `json:"version_key"`
+	VersionKey           string             `json:"version_key"`
 	NewestSbomID         pgtype.UUID        `json:"newest_sbom_id"`
+	CountedArchitecture  string             `json:"counted_architecture"`
 	CreatedAt            pgtype.Timestamptz `json:"created_at"`
 	EnrichmentSufficient bool               `json:"enrichment_sufficient"`
 	ImageVersion         interface{}        `json:"image_version"`
@@ -587,10 +607,19 @@ type ListArtifactVersionsRow struct {
 	VulnMedium           int64              `json:"vuln_medium"`
 	VulnLow              int64              `json:"vuln_low"`
 	VulnUnknown          int64              `json:"vuln_unknown"`
+	VulnFixable          int64              `json:"vuln_fixable"`
 	VulnMatched          bool               `json:"vuln_matched"`
 	TotalCount           int64              `json:"total_count"`
 }
 
+// The SBOM each version is counted from: version_headline_sbom()'s rule (the
+// preferred architecture, then newest), applied inline because sboms_meta
+// already holds every input and calling the function per version would read
+// them again.
+// The version line's order (the service's compareVersionLine), ingest time
+// only as a tiebreak: ordering by created_at listed a version backfilled
+// later above its successor. The service re-sorts in Go; this order decides
+// which versions survive the fetch cap.
 func (q *Queries) ListArtifactVersions(ctx context.Context, arg ListArtifactVersionsParams) ([]ListArtifactVersionsRow, error) {
 	rows, err := q.db.Query(ctx, listArtifactVersions,
 		arg.ArtifactID,
@@ -609,6 +638,7 @@ func (q *Queries) ListArtifactVersions(ctx context.Context, arg ListArtifactVers
 		if err := rows.Scan(
 			&i.VersionKey,
 			&i.NewestSbomID,
+			&i.CountedArchitecture,
 			&i.CreatedAt,
 			&i.EnrichmentSufficient,
 			&i.ImageVersion,
@@ -623,6 +653,7 @@ func (q *Queries) ListArtifactVersions(ctx context.Context, arg ListArtifactVers
 			&i.VulnMedium,
 			&i.VulnLow,
 			&i.VulnUnknown,
+			&i.VulnFixable,
 			&i.VulnMatched,
 			&i.TotalCount,
 		); err != nil {
@@ -644,21 +675,25 @@ SELECT a.id, a.type, a.name, a.group_name, a.purl, a.cpe, a.created_at, a.entry_
            WHEN EXISTS (
                SELECT 1 FROM enrichment pe JOIN sbom sx ON sx.id = pe.sbom_id
                WHERE sx.artifact_id = a.id AND pe.enricher_name = 'provenance'
+                 AND sx.namespace_id IN (SELECT visible_namespace_ids($1::uuid, $2::boolean))
                  AND pe.status = 'success' AND signing_status(pe.data) = 'artifact_missing'
            ) THEN 'artifact_missing'
            WHEN EXISTS (
                SELECT 1 FROM enrichment pe JOIN sbom sx ON sx.id = pe.sbom_id
                WHERE sx.artifact_id = a.id AND pe.enricher_name = 'provenance'
+                 AND sx.namespace_id IN (SELECT visible_namespace_ids($1::uuid, $2::boolean))
                  AND pe.status = 'success' AND signing_status(pe.data) = 'verification_failed'
            ) THEN 'verification_failed'
            WHEN EXISTS (
                SELECT 1 FROM enrichment pe JOIN sbom sx ON sx.id = pe.sbom_id
                WHERE sx.artifact_id = a.id AND pe.enricher_name = 'provenance'
+                 AND sx.namespace_id IN (SELECT visible_namespace_ids($1::uuid, $2::boolean))
                  AND pe.status = 'success' AND signing_status(pe.data) = 'signed'
            ) THEN 'signed'
            WHEN EXISTS (
                SELECT 1 FROM enrichment pe JOIN sbom sx ON sx.id = pe.sbom_id
                WHERE sx.artifact_id = a.id AND pe.enricher_name = 'provenance'
+                 AND sx.namespace_id IN (SELECT visible_namespace_ids($1::uuid, $2::boolean))
                  AND pe.status = 'success' AND signing_status(pe.data) = 'verified'
            ) THEN 'verified'
            ELSE 'unsigned'
@@ -685,59 +720,47 @@ SELECT a.id, a.type, a.name, a.group_name, a.purl, a.cpe, a.created_at, a.entry_
        COALESCE(vr.high,     0)::bigint AS vuln_high,
        COALESCE(vr.medium,   0)::bigint AS vuln_medium,
        COALESCE(vr.low,      0)::bigint AS vuln_low,
-       COALESCE(vr.unknown,  0)::bigint AS vuln_unknown
+       COALESCE(vr.unknown,  0)::bigint AS vuln_unknown,
+       COALESCE(vr.fixable,  0)::bigint AS vuln_fixable,
+       -- Which SBOM those counts are from, so the row can say so.
+       vr.sbom_id AS counted_sbom_id,
+       vr.subject_version AS counted_version,
+       COALESCE(vr.architecture, '')::text AS counted_architecture
 FROM artifact a
 LEFT JOIN sbom s ON s.artifact_id = a.id
+    AND s.namespace_id IN (SELECT visible_namespace_ids($1::uuid, $2::boolean))
 LEFT JOIN LATERAL (
-    SELECT COALESCE(r.critical, 0)::bigint AS critical,
-           COALESCE(r.high,     0)::bigint AS high,
-           COALESCE(r.medium,   0)::bigint AS medium,
-           COALESCE(r.low,      0)::bigint AS low,
-           COALESCE(r.unknown,  0)::bigint AS unknown,
-           (COALESCE(r.critical, 0) + COALESCE(r.high, 0) + COALESCE(r.medium, 0)
-            + COALESCE(r.low, 0) + COALESCE(r.unknown, 0))::bigint AS total
-    FROM sbom sv
-    LEFT JOIN sbom_vuln_rollup r ON r.sbom_id = sv.id
-    WHERE sv.artifact_id = a.id
-    -- Version parts first, insert order only as a tiebreak. Ordering by
-    -- created_at alone meant "most recently ingested", so re-scanning or
-    -- backfilling an old tag rewrote this row's counts to that old tag's
-    -- findings. NULLS LAST because a subject_version that does
-    -- not parse — a digest, a branch name — is unknown, not newest; the
-    -- matching index idx_sbom_artifact_version declares the same.
-    --
-    -- The latest version still has one SBOM per architecture, so created_at
-    -- picks among those. That is deliberate: the column means "the latest
-    -- version, one arch of it", which the UI states rather than implies.
-    ORDER BY sv.version_major DESC NULLS LAST,
-             sv.version_minor DESC NULLS LAST,
-             sv.version_patch DESC NULLS LAST,
-             sv.created_at DESC, sv.id DESC
-    LIMIT 1
+    SELECT h.id AS sbom_id, hs.subject_version, sbom_architecture(h.id) AS architecture,
+           r.critical, r.high, r.medium, r.low, r.unknown, r.fixable,
+           (r.critical + r.high + r.medium + r.low + r.unknown)::bigint AS total
+    FROM (SELECT artifact_headline_sbom(a.id, $1::uuid, $2::boolean) AS id) h
+    JOIN sbom hs ON hs.id = h.id
+    LEFT JOIN sbom_vuln_rollup r ON r.sbom_id = h.id
 ) vr ON TRUE
-WHERE ($1::text IS NULL OR a.type = $1)
-  AND ($2::text IS NULL OR a.name ILIKE like_contains($2::text))
-  AND ($3::boolean IS NULL
-       OR NOT $3::boolean
+WHERE ($3::text IS NULL OR a.type = $3)
+  AND ($4::text IS NULL OR a.name ILIKE like_contains($4::text))
+  AND ($5::boolean IS NULL
+       OR NOT $5::boolean
        OR EXISTS (SELECT 1 FROM sbom s2 WHERE s2.artifact_id = a.id AND s2.enrichment_sufficient))
   -- owned_only is the ownership path for /api/v1/users/me/artifacts. An
   -- artifact is "mine" when it appears in a namespace I own; artifact_visible()
   -- would additionally admit every public artifact and every artifact with no
   -- namespace link at all, which is exactly what this collection must exclude
   -- (see ListNamespaces).
-  AND CASE WHEN COALESCE($4::boolean, false)
+  AND CASE WHEN COALESCE($6::boolean, false)
            THEN EXISTS (
                SELECT 1 FROM artifact_namespace an
                WHERE an.artifact_id = a.id
                  AND an.namespace_id IN (
-                       SELECT owned_namespace_ids($5::uuid)))
-           ELSE artifact_visible(a.id, $5::uuid, $6::boolean)
+                       SELECT owned_namespace_ids($1::uuid)))
+           ELSE artifact_visible(a.id, $1::uuid, $2::boolean)
       END
   AND (
     NOT $7::boolean
     OR (a.name, a.type, a.id) > ($8::text, $9::text, $10::uuid)
   )
-GROUP BY a.id, vr.critical, vr.high, vr.medium, vr.low, vr.unknown, vr.total
+GROUP BY a.id, vr.sbom_id, vr.subject_version, vr.architecture,
+         vr.critical, vr.high, vr.medium, vr.low, vr.unknown, vr.fixable, vr.total
 ORDER BY
     CASE WHEN $11::boolean THEN COALESCE(vr.total, 0) = 0 END,
     CASE WHEN $11::boolean THEN COALESCE(vr.critical, 0) * $12::int END DESC,
@@ -750,12 +773,12 @@ LIMIT $14 OFFSET $13
 `
 
 type ListArtifactsParams struct {
+	UserID            pgtype.UUID `json:"user_id"`
+	IsAdmin           pgtype.Bool `json:"is_admin"`
 	Type              pgtype.Text `json:"type"`
 	Name              pgtype.Text `json:"name"`
 	RequireSufficient pgtype.Bool `json:"require_sufficient"`
 	OwnedOnly         pgtype.Bool `json:"owned_only"`
-	UserID            pgtype.UUID `json:"user_id"`
-	IsAdmin           pgtype.Bool `json:"is_admin"`
 	HasCursor         pgtype.Bool `json:"has_cursor"`
 	CursorName        pgtype.Text `json:"cursor_name"`
 	CursorType        pgtype.Text `json:"cursor_type"`
@@ -783,15 +806,27 @@ type ListArtifactsRow struct {
 	VulnMedium          int64              `json:"vuln_medium"`
 	VulnLow             int64              `json:"vuln_low"`
 	VulnUnknown         int64              `json:"vuln_unknown"`
+	VulnFixable         int64              `json:"vuln_fixable"`
+	CountedSbomID       pgtype.UUID        `json:"counted_sbom_id"`
+	CountedVersion      pgtype.Text        `json:"counted_version"`
+	CountedArchitecture string             `json:"counted_architecture"`
 }
 
 // Same worst-case-first rollup precedence as GetArtifact above — see that
 // query's comment. The two ladders are duplicated rather than shared, so a
 // change to one that is not made to the other is how they drift; both are
 // asserted together in TestArtifactRollupSigningStatus_FailureBeatsVerified.
+// An artifact is visible when any namespace it appears in is, so it can carry
+// SBOMs from a namespace the viewer cannot see. Every SBOM read below is
+// filtered to the viewer's namespaces: counting or picking one of the others
+// would leak a private version through a shared artifact.
 // The inner join is LEFT so the lateral picks the winning SBOM and then looks
 // for its rollup row, rather than the newest SBOM that happens to have one:
 // an inner join would silently fall back to a superseded SBOM's findings.
+// The counted SBOM is artifact_headline_sbom()'s pick, the one every artifact
+// surface shares. The rollup is LEFT-joined to it rather than searched for, so
+// a headline SBOM with no rollup row reads as no findings instead of falling
+// back to an older SBOM that has one.
 // Two orderings in one query. The severity keys are wrapped in a CASE that
 // collapses to NULL when @sort_severity is false, which makes every row tie on
 // them and hands the decision to the trailing (name, type, id) — the default
@@ -813,12 +848,12 @@ type ListArtifactsRow struct {
 // rollup that a refresh pass rewrites under the reader's feet.
 func (q *Queries) ListArtifacts(ctx context.Context, arg ListArtifactsParams) ([]ListArtifactsRow, error) {
 	rows, err := q.db.Query(ctx, listArtifacts,
+		arg.UserID,
+		arg.IsAdmin,
 		arg.Type,
 		arg.Name,
 		arg.RequireSufficient,
 		arg.OwnedOnly,
-		arg.UserID,
-		arg.IsAdmin,
 		arg.HasCursor,
 		arg.CursorName,
 		arg.CursorType,
@@ -852,6 +887,10 @@ func (q *Queries) ListArtifacts(ctx context.Context, arg ListArtifactsParams) ([
 			&i.VulnMedium,
 			&i.VulnLow,
 			&i.VulnUnknown,
+			&i.VulnFixable,
+			&i.CountedSbomID,
+			&i.CountedVersion,
+			&i.CountedArchitecture,
 		); err != nil {
 			return nil, err
 		}

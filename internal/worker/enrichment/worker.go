@@ -221,7 +221,7 @@ func RunOnce(ctx context.Context, pool *pgxpool.Pool, factory EnricherFactory, a
 		return fmt.Errorf("getting SBOM %s: %w", sbomIDStr, err)
 	}
 
-	artifact, err := store.GetArtifact(ctx, sbomRow.ArtifactID)
+	artifact, err := store.GetArtifact(ctx, repository.GetArtifactParams{ID: sbomRow.ArtifactID})
 	if err != nil {
 		return fmt.Errorf("getting artifact for SBOM %s: %w", sbomIDStr, err)
 	}

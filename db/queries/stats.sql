@@ -188,28 +188,22 @@ JOIN canonical c ON c.canonical_id = r.canonical_id;
 -- name: GetArtifactMaxima :one
 -- The largest value of each stat-block figure across visible artifacts, so an
 -- artifact page can draw its bars against the catalog. Per artifact, figures
--- are read from its latest version the way ListArtifacts picks it (version
--- parts, then created_at); versions and SBOMs count the whole artifact.
+-- are read from the SBOM it is counted from (artifact_headline_sbom); versions
+-- and SBOMs count the whole artifact.
 -- Computed by the stats warmer, never on a request.
 WITH visible_artifact AS (
     SELECT a.id FROM artifact a
     WHERE artifact_visible(a.id, sqlc.narg('user_id')::uuid, sqlc.narg('is_admin')::boolean)
 ),
 latest AS (
-    SELECT DISTINCT ON (s.artifact_id) s.artifact_id, s.id AS sbom_id, s.subject_version
-    FROM sbom s
-    WHERE s.artifact_id IN (SELECT id FROM visible_artifact)
-      AND s.namespace_id IN (SELECT visible_namespace_ids(sqlc.narg('user_id')::uuid, sqlc.narg('is_admin')::boolean))
-    ORDER BY s.artifact_id,
-             s.version_major DESC NULLS LAST,
-             s.version_minor DESC NULLS LAST,
-             s.version_patch DESC NULLS LAST,
-             s.created_at DESC, s.id DESC
+    SELECT va.id AS artifact_id, s.id AS sbom_id, s.subject_version
+    FROM visible_artifact va
+    JOIN sbom s ON s.id = artifact_headline_sbom(va.id, sqlc.narg('user_id')::uuid, sqlc.narg('is_admin')::boolean)
 ),
 per_artifact AS (
     SELECT l.artifact_id,
            (SELECT COUNT(*) FROM component c WHERE c.sbom_id = l.sbom_id) AS packages,
-           (SELECT COUNT(DISTINCT COALESCE(s.subject_version, s.id::text)) FROM sbom s
+           (SELECT COUNT(DISTINCT sbom_version_key(s.id, s.subject_version)) FROM sbom s
               WHERE s.artifact_id = l.artifact_id
                 AND s.namespace_id IN (SELECT visible_namespace_ids(sqlc.narg('user_id')::uuid, sqlc.narg('is_admin')::boolean))) AS versions,
            (SELECT COUNT(*) FROM sbom s

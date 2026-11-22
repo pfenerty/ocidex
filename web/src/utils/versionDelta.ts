@@ -1,3 +1,10 @@
+/**
+ * The version key the server gives every SBOM with no version of its own (a
+ * digest-only scan), so they share one row instead of one each. Parentheses
+ * cannot appear in an OCI tag, so no real version collides with it.
+ */
+export const UNTAGGED_VERSION = "(untagged)";
+
 /** Critical and high counts for one version; undefined when it was never scanned. */
 export interface SeverityPoint {
     versionKey: string;
@@ -11,15 +18,23 @@ export interface VersionDelta {
     high?: number;
 }
 
+const PRERELEASE = /^(rc|pre|alpha|beta|dev)(\.?\d+)?$/i;
+
 /**
  * The variant a version key names after its number: "trixie" in
  * "3.14.9-trixie", "" for a bare "3.14.4". Semver order interleaves variants
  * (a Windows "3.14.4" lands between two Debian builds), and comparing across
- * them reports a different image's findings as a regression.
+ * them reports a different image's findings as a regression. A prerelease tag
+ * ("-rc.1", "-pre.4") is not a variant: it is on the plain line.
+ *
+ * The server applies the same rule (sbom.version_variant, service.VersionLine);
+ * versionLine.golden.json holds the cases all of them are tested against.
  */
 export function variantOf(versionKey: string): string {
     const i = versionKey.indexOf("-");
-    return i < 0 ? "" : versionKey.slice(i + 1);
+    if (i < 0) return "";
+    const suffix = versionKey.slice(i + 1);
+    return PRERELEASE.test(suffix) ? "" : suffix;
 }
 
 /**

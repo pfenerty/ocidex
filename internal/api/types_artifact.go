@@ -209,6 +209,8 @@ type GetArtifactVulnSummaryOutput struct {
 		// SubjectVersion is the version the summary counts: the highest by
 		// version parts, which need not be the newest build.
 		SubjectVersion string `json:"subjectVersion,omitempty" doc:"Version whose newest SBOM the summary counts"`
+		// CountedSbom is the one SBOM the summary counts, with its architecture.
+		CountedSbom *service.CountedSBOM `json:"countedSbom,omitempty" doc:"The SBOM the summary counts"`
 		// Matched is true once that SBOM has been matched against the
 		// vulnerability store: only then does an absent summary mean clean.
 		Matched bool `json:"matched" doc:"The counted SBOM has been matched against the vulnerability store; an absent summary then means no known vulnerabilities rather than never scanned"`

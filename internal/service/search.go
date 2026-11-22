@@ -45,7 +45,7 @@ type SearchService interface {
 	VulnDBBuiltAt(ctx context.Context) (*time.Time, error)
 	GetArtifactUsages(ctx context.Context, artifactID string, vis VisibilityFilter) ([]ArtifactRelation, error)
 	GetArtifactContains(ctx context.Context, artifactID string, vis VisibilityFilter) ([]ArtifactRelation, error)
-	GetVulnerabilityDetail(ctx context.Context, id string, limit, offset int32, vis VisibilityFilter) (VulnerabilityDetailResult, error)
+	GetVulnerabilityDetail(ctx context.Context, id string, limit, offset int32, allVersions bool, vis VisibilityFilter) (VulnerabilityDetailResult, error)
 	GetComponentVulns(ctx context.Context, id string, vis VisibilityFilter) ([]ComponentVulnEntry, error)
 	ListSBOMVulns(ctx context.Context, sbomID string, params SBOMVulnParams, vis VisibilityFilter) (PagedResult[SBOMVulnEntry], error)
 	ListArtifactVulns(ctx context.Context, artifactID string, params ArtifactVulnParams, vis VisibilityFilter) (ArtifactVulnPage, error)
@@ -172,8 +172,13 @@ type AffectedArtifact struct {
 	ID                string  `json:"id"`
 	Name              string  `json:"name"`
 	Group             *string `json:"group,omitempty"`
-	AffectedSbomCount int64   `json:"affectedSbomCount"`
-	AffectedPurlCount int64   `json:"affectedPurlCount"`
+	AffectedSbomCount int64   `json:"affectedSbomCount" doc:"Affected SBOMs, any version"`
+	AffectedPurlCount int64   `json:"affectedPurlCount" doc:"Distinct affected component purls, any version"`
+	// LatestAffected reports that the SBOM the artifact is counted from is
+	// affected; false means only superseded versions are.
+	LatestAffected bool `json:"latestAffected" doc:"The artifact's latest version (the SBOM its counts come from) is affected"`
+	// OlderVersionCount is how many other versions are affected too.
+	OlderVersionCount int64 `json:"olderVersionCount" doc:"Affected versions other than the latest"`
 }
 
 // AffectedComponent is a distinct component (by name+group) affected by a vulnerability.
@@ -411,6 +416,9 @@ type VulnerabilityDetailResult struct {
 	// reader arrives with, and the artifact page cannot answer it: a page of
 	// 25 artifacts says nothing about the namespaces of the other 4,000.
 	NamespaceCount int64
+	// SupersededArtifactCount is how many artifacts the vulnerability reaches
+	// only through versions their latest release superseded.
+	SupersededArtifactCount int64
 }
 
 // ComponentVersionsPage is a page of component occurrences plus the two figures
@@ -618,6 +626,26 @@ type ArtifactSummary struct {
 	// distinguishing them. Callers must render nil as unknown, never as a
 	// clean zero (ADR-044) — the same contract ArtifactVersion.Vulns carries.
 	Vulns *VulnSummary `json:"vulns,omitempty"`
+	// CountedSBOM is the SBOM Vulns was counted from. Set by ListArtifacts only.
+	CountedSBOM *CountedSBOM `json:"countedSbom,omitempty" doc:"The SBOM the vulnerability counts come from. List responses only."`
+}
+
+// CountedSBOM names the one SBOM a set of counts was taken from: the
+// artifact's or version's headline SBOM (artifact_headline_sbom). A version has
+// one SBOM per architecture and they differ, so the counts are only meaningful
+// with the version and architecture said out loud.
+type CountedSBOM struct {
+	ID           string `json:"id" format:"uuid"`
+	Version      string `json:"version,omitempty" doc:"Subject version of the counted SBOM"`
+	Architecture string `json:"architecture,omitempty" doc:"Architecture of the counted SBOM; absent when unknown"`
+}
+
+// countedSBOM builds a CountedSBOM, or nil when there is no SBOM.
+func countedSBOM(id pgtype.UUID, version, arch string) *CountedSBOM {
+	if !id.Valid {
+		return nil
+	}
+	return &CountedSBOM{ID: id.String(), Version: version, Architecture: arch}
 }
 
 // VersionCritical is one version's critical count. Critical is nil when the
@@ -667,6 +695,8 @@ type ArtifactVersion struct {
 	// the vulnerability store and the rollup has caught up, so an absent Vulns
 	// means no known vulnerabilities rather than never scanned.
 	VulnMatched bool `json:"vulnMatched" doc:"Matched against the vulnerability store, and the counts reflect it: an absent vulns then means none known"`
+	// CountedSBOM is the SBOM this row's counts are from.
+	CountedSBOM *CountedSBOM `json:"countedSbom,omitempty" doc:"The SBOM this version's counts come from"`
 }
 
 // SBOMSummary is a lightweight SBOM representation for list views.
@@ -731,6 +761,10 @@ type VulnSummary struct {
 	Low      int `json:"low"`
 	Unknown  int `json:"unknown"`
 	Total    int `json:"total"`
+	// Fixable is how many of Total have a fixed version available; the rest
+	// are won't-fix or have no fix yet. Absent where it was not counted,
+	// which is not the same as none.
+	Fixable *int `json:"fixable,omitempty" doc:"Findings with a fixed version available; absent when not counted"`
 }
 
 // ChangeCounts is a per-direction breakdown of component changes.

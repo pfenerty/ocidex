@@ -218,13 +218,21 @@ SELECT v.id,
        ar.affected_artifact_count
 FROM candidate cd
 JOIN canonical v ON v.canonical_id = cd.canonical_id
+-- Counted the way an artifact row counts: an artifact is affected when the
+-- SBOM it is counted from is, so one that fixed the CVE releases ago drops out.
 CROSS JOIN LATERAL (
-    SELECT COUNT(DISTINCT s.artifact_id)::bigint AS affected_artifact_count
-    FROM component c
-    JOIN sbom s ON s.id = c.sbom_id
-    WHERE c.purl = ANY (cd.purls)
-      AND s.namespace_id IN (SELECT id FROM public_ns)
+    SELECT COUNT(*)::bigint AS affected_artifact_count
+    FROM (
+        SELECT DISTINCT s.artifact_id, s.id
+        FROM component c
+        JOIN sbom s ON s.id = c.sbom_id
+        WHERE c.purl = ANY (cd.purls)
+          AND s.namespace_id IN (SELECT id FROM public_ns)
+    ) hit
+    WHERE hit.id = artifact_headline_sbom(hit.artifact_id, NULL::uuid, false)
 ) ar
+-- A candidate every affected artifact has since fixed affects nothing now.
+WHERE ar.affected_artifact_count > 0
 ORDER BY ar.affected_artifact_count DESC,
          CASE v.severity
              WHEN 'CRITICAL' THEN 4
@@ -267,8 +275,8 @@ LIMIT @row_limit::int;
 -- With @names empty, the public container images with the most packages fill
 -- the slots.
 --
--- "Newest" is the GetArtifactVulnSummary ordering (version parts, created_at
--- as a tiebreak), and the severity counts use its unit, distinct canonical_id
+-- The SBOM is artifact_headline_sbom()'s pick for an anonymous viewer, and the
+-- severity counts use GetArtifactVulnSummary's unit, distinct canonical_id
 -- per severity, so a card and that artifact's own page agree.
 WITH public_ns AS (
     SELECT visible_namespace_ids(NULL::uuid, false) AS id
@@ -307,55 +315,35 @@ SELECT p.id                                   AS artifact_id,
        p.name,
        l.sbom_id,
        l.subject_version,
+       COALESCE(sbom_architecture(l.sbom_id), '')::text AS architecture,
        l.created_at,
        pc.package_count,
-       vc.critical_count,
-       vc.high_count,
-       vc.medium_count,
-       vc.low_count,
-       vc.unknown_count,
+       COALESCE(vc.critical, 0)::bigint AS critical_count,
+       COALESCE(vc.high, 0)::bigint AS high_count,
+       COALESCE(vc.medium, 0)::bigint AS medium_count,
+       COALESCE(vc.low, 0)::bigint AS low_count,
+       COALESCE(vc.unknown, 0)::bigint AS unknown_count,
+       COALESCE(vc.fixable, 0)::bigint AS fixable_count,
        lc.permissive_count,
        lc.weak_copyleft_count,
        lc.copyleft_count,
        lc.uncategorized_count,
-       EXISTS (SELECT 1 FROM sbom_vuln_match m WHERE m.sbom_id = l.sbom_id)::boolean AS vuln_matched
+       sbom_vuln_settled(l.sbom_id) AS vuln_matched
 FROM picked p
 CROSS JOIN LATERAL (
     SELECT s.id AS sbom_id, s.subject_version, s.created_at
     FROM sbom s
-    WHERE s.artifact_id = p.id
-      AND s.namespace_id IN (SELECT id FROM public_ns)
-    ORDER BY s.version_major DESC NULLS LAST,
-             s.version_minor DESC NULLS LAST,
-             s.version_patch DESC NULLS LAST,
-             s.created_at DESC, s.id DESC
-    LIMIT 1
+    WHERE s.id = artifact_headline_sbom(p.id, NULL::uuid, false)
 ) l
 CROSS JOIN LATERAL (
     SELECT COUNT(*)::bigint AS package_count
     FROM component c
     WHERE c.sbom_id = l.sbom_id
 ) pc
-CROSS JOIN LATERAL (
-    SELECT COUNT(DISTINCT v.canonical_id) FILTER (WHERE v.severity = 'CRITICAL')::bigint AS critical_count,
-           COUNT(DISTINCT v.canonical_id) FILTER (WHERE v.severity = 'HIGH')::bigint     AS high_count,
-           COUNT(DISTINCT v.canonical_id) FILTER (WHERE v.severity = 'MEDIUM')::bigint   AS medium_count,
-           COUNT(DISTINCT v.canonical_id) FILTER (WHERE v.severity = 'LOW')::bigint      AS low_count,
-           COUNT(DISTINCT v.canonical_id) FILTER (
-               WHERE v.severity IS NULL OR v.severity NOT IN ('CRITICAL', 'HIGH', 'MEDIUM', 'LOW')
-           )::bigint AS unknown_count
-    FROM (
-        SELECT DISTINCT c1.purl::text AS purl, COALESCE(c1.go_symbol_set_id, 0) AS go_symbol_set_id
-        FROM component c1
-        WHERE c1.sbom_id = l.sbom_id AND c1.purl IS NOT NULL
-        UNION
-        SELECT DISTINCT c2.source_purl::text AS purl, 0::bigint AS go_symbol_set_id
-        FROM component c2
-        WHERE c2.sbom_id = l.sbom_id AND c2.source_purl IS NOT NULL
-    ) sc
-    JOIN package_vulnerability pv ON pv.purl = sc.purl AND pv.go_symbol_set_id = sc.go_symbol_set_id
-    JOIN vulnerability v ON v.id = pv.vulnerability_id
-) vc
+-- Severity counts from sbom_vuln_rollup, the source of the artifact's own row
+-- and tile, so a card changes when they do rather than a refresh interval
+-- earlier. Same unit: distinct canonical id per severity.
+LEFT JOIN sbom_vuln_rollup vc ON vc.sbom_id = l.sbom_id
 CROSS JOIN LATERAL (
     SELECT COUNT(DISTINCT c.id) FILTER (WHERE license_category(li.spdx_id) = 'permissive')::bigint    AS permissive_count,
            COUNT(DISTINCT c.id) FILTER (WHERE license_category(li.spdx_id) = 'weak-copyleft')::bigint AS weak_copyleft_count,

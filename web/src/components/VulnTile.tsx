@@ -5,6 +5,7 @@ import type { StatTile } from "./ui/StatBand";
 import { SeverityPill } from "./VulnBadge";
 import { StatusChip } from "~/components/ui/StatusChip";
 import { VULN_DATA_STATUS } from "~/utils/status";
+import { fixSplitLabel } from "~/utils/vuln";
 
 /**
  * The worst severity actually present, which is the figure that decides whether
@@ -72,6 +73,7 @@ function VulnTileSub(props: { vulns: VulnSummary | undefined; matched?: boolean 
                     </>
                 )}
             </Show>
+            <Show when={fixSplitLabel(props.vulns)}>{(l) => <span class="tile-fix">{l()}</span>}</Show>
         </Show>
     );
 }

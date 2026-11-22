@@ -115,8 +115,7 @@ vuln_events AS (
         v.cvss_score AS vuln_cvss_score,
         v.summary AS vuln_summary
     FROM latest_sbom ls
-    JOIN (SELECT DISTINCT sbom_id, purl, COALESCE(go_symbol_set_id, 0) AS go_symbol_set_id FROM component WHERE purl IS NOT NULL) c
-        ON c.sbom_id = ls.id
+    CROSS JOIN LATERAL sbom_match_scope(ls.id) c
     JOIN package_vulnerability pv ON pv.purl = c.purl AND pv.go_symbol_set_id = c.go_symbol_set_id
     JOIN vulnerability v ON v.id = pv.vulnerability_id
     -- One row per (artifact, canonical vuln): the same advisory usually matches

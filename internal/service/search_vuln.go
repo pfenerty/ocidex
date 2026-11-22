@@ -102,7 +102,7 @@ func (s *searchService) ListTopVulnerabilities(ctx context.Context, filter TopVu
 
 func (s *searchService) GetVulnerabilityDetail(
 	ctx context.Context, id string,
-	limit, offset int32, vis VisibilityFilter,
+	limit, offset int32, allVersions bool, vis VisibilityFilter,
 ) (VulnerabilityDetailResult, error) {
 	q := repository.New(s.db)
 
@@ -154,17 +154,26 @@ func (s *searchService) GetVulnerabilityDetail(
 		return VulnerabilityDetailResult{}, err
 	}
 
-	var total int64
+	// Every row carries both totals. Superseded rows sort after the others,
+	// so a latest-only page drops whatever of them reached the page.
+	var total, superseded int64
 	items := make([]AffectedArtifact, 0, len(artifactRows))
 	for _, r := range artifactRows {
-		if total == 0 {
-			total = r.TotalCount
+		superseded = r.SupersededCount
+		total = r.LatestCount
+		if allVersions {
+			total += r.SupersededCount
+		}
+		if !r.LatestAffected && !allVersions {
+			continue
 		}
 		a := AffectedArtifact{
 			ID:                r.ID,
 			Name:              r.Name,
 			AffectedSbomCount: r.AffectedSbomCount,
 			AffectedPurlCount: r.AffectedPurlCount,
+			LatestAffected:    r.LatestAffected,
+			OlderVersionCount: r.OlderVersionCount,
 		}
 		if r.GroupName.Valid {
 			a.Group = &r.GroupName.String
@@ -205,7 +214,8 @@ func (s *searchService) GetVulnerabilityDetail(
 			Limit:  affectedComponentsLimit,
 			Offset: 0,
 		},
-		NamespaceCount: namespaceCount,
+		NamespaceCount:          namespaceCount,
+		SupersededArtifactCount: superseded,
 	}, nil
 }
 

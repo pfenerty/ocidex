@@ -1,5 +1,6 @@
 import { describe, it, expect } from "vitest";
 import { entryText, formatDelta, latestVerdict, variantOf, versionDeltas } from "./versionDelta";
+import golden from "./versionLine.golden.json";
 
 const py = [
     { versionKey: "3.15.2", critical: 33, high: 252 },
@@ -26,6 +27,10 @@ describe("variants", () => {
     it("reads the variant after the version number", () => {
         expect(variantOf("3.14.9-trixie")).toBe("trixie");
         expect(variantOf("3.14.4")).toBe("");
+    });
+
+    it.each(golden)("agrees with the server on $version", ({ version, variant }) => {
+        expect(variantOf(version)).toBe(variant);
     });
 
     // Semver order put a Windows "3.14.4" between two Debian builds, and the

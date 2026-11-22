@@ -673,6 +673,7 @@ func (h *Handler) GetArtifactVulnSummary(ctx context.Context, input *GetArtifact
 	out := &GetArtifactVulnSummaryOutput{}
 	out.Body.Summary = summary.Summary
 	out.Body.SubjectVersion = summary.SubjectVersion
+	out.Body.CountedSbom = summary.Counted
 	out.Body.Matched = summary.Matched
 	return out, nil
 }
@@ -857,7 +858,7 @@ func (h *Handler) listTopVulnerabilities(ctx context.Context, input *ListTopVuln
 // GetVulnerability handles GET /api/v1/vulns/{id}.
 func (h *Handler) GetVulnerability(ctx context.Context, input *GetVulnerabilityInput) (*GetVulnerabilityOutput, error) {
 	vis := visibilityFilterFromContext(ctx)
-	result, err := h.insights.GetVulnerabilityDetail(ctx, input.ID, input.Limit, input.Offset, vis)
+	result, err := h.insights.GetVulnerabilityDetail(ctx, input.ID, input.Limit, input.Offset, input.AllVersions, vis)
 	if err != nil {
 		return nil, mapServiceError(err)
 	}
@@ -871,6 +872,7 @@ func (h *Handler) GetVulnerability(ctx context.Context, input *GetVulnerabilityI
 	out.Body.AffectedArtifacts = result.Artifacts.Data
 	out.Body.Pagination = paginationMeta(result.Artifacts)
 	out.Body.NamespaceCount = result.NamespaceCount
+	out.Body.SupersededArtifactCount = result.SupersededArtifactCount
 	return out, nil
 }
 

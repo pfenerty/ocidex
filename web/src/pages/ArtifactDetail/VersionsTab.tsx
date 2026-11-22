@@ -10,7 +10,7 @@ import { Button, ExternalAnchor, StatusPill } from "~/components/ui";
 import { StatusChip } from "~/components/ui";
 import { VULN_DATA_STATUS } from "~/utils/status";
 import { buildTime } from "~/utils/format";
-import { formatDelta, versionDeltas } from "~/utils/versionDelta";
+import { formatDelta, UNTAGGED_VERSION, versionDeltas } from "~/utils/versionDelta";
 import { severityPoints } from "./ArtifactChange";
 
 function DeltaCell(props: { value: number | undefined }) {
@@ -196,7 +196,14 @@ export function VersionsTab(props: {
             // disabled button that styled every other row differently
             // (ocidex-nps9.23).
             render: (version) => (
-                <Show when={version.sbomCount > Math.max(1, version.architectures?.length ?? 0)}>
+                // The build history page looks a version up by name, and the
+                // untagged row has none.
+                <Show
+                    when={
+                        version.versionKey !== UNTAGGED_VERSION &&
+                        version.sbomCount > Math.max(1, version.architectures?.length ?? 0)
+                    }
+                >
                     <Button
                         as={A}
                         href={`/artifacts/${props.artifactId}/versions/${encodeURIComponent(version.versionKey)}`}

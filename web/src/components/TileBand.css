@@ -130,3 +130,12 @@
     text-overflow: ellipsis;
     white-space: nowrap;
 }
+
+/* A second sub-line under the vulnerability tile's severity line: how many
+ * findings can be fixed. Same type as .tile-sub, on its own line. */
+.tile-fix {
+    display: block;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+}

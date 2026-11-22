@@ -162,16 +162,31 @@ ORDER BY cl.license_id, s.namespace_id, c.name, COALESCE(c.group_name, ''), COAL
 // One row per (canonical vulnerability, namespace). purls is a set because the
 // same package can be affected in several namespaces and the list reports a
 // count distinct across all of them.
+//
+// A component is affected when a finding names its purl or its source purl
+// (the scope every other count uses), and purls holds the component's own
+// purl either way, so "affected packages" counts packages a reader can find in
+// an SBOM rather than source packages that appear in none.
 const vulnRollupAggregate = `
-SELECT v.canonical_id, s.namespace_id,
-       count(DISTINCT comp.sbom_id)::bigint AS sbom_count,
-       array_agg(DISTINCT pv.purl)::text[] AS purls
-FROM vulnerability v
-JOIN package_vulnerability pv ON pv.vulnerability_id = v.id
-JOIN component comp ON comp.purl = pv.purl AND COALESCE(comp.go_symbol_set_id, 0) = pv.go_symbol_set_id
-JOIN sbom s ON s.id = comp.sbom_id
-WHERE v.canonical_id <> '' AND comp.purl IS NOT NULL
-GROUP BY v.canonical_id, s.namespace_id`
+WITH matched AS (
+    SELECT v.canonical_id, comp.sbom_id, comp.purl
+    FROM vulnerability v
+    JOIN package_vulnerability pv ON pv.vulnerability_id = v.id
+    JOIN component comp ON comp.purl = pv.purl AND COALESCE(comp.go_symbol_set_id, 0) = pv.go_symbol_set_id
+    WHERE v.canonical_id <> ''
+    UNION
+    SELECT v.canonical_id, comp.sbom_id, comp.purl
+    FROM vulnerability v
+    JOIN package_vulnerability pv ON pv.vulnerability_id = v.id AND pv.go_symbol_set_id = 0
+    JOIN component comp ON comp.source_purl = pv.purl
+    WHERE v.canonical_id <> ''
+)
+SELECT m.canonical_id, s.namespace_id,
+       count(DISTINCT m.sbom_id)::bigint AS sbom_count,
+       COALESCE(array_agg(DISTINCT m.purl) FILTER (WHERE m.purl IS NOT NULL), '{}')::text[] AS purls
+FROM matched m
+JOIN sbom s ON s.id = m.sbom_id
+GROUP BY m.canonical_id, s.namespace_id`
 
 // Per-severity finding counts at SBOM grain, backing the
 // severity columns on the artifact-versions, /artifacts and /components lists.
@@ -182,6 +197,10 @@ GROUP BY v.canonical_id, s.namespace_id`
 // both legs stay index-equality lookups on package_vulnerability.purl. The
 // buckets mirror buildVulnSummary's switch including its default arm, so a NULL
 // or unrecognised label lands in unknown rather than vanishing.
+//
+// fixable counts the findings some matching package record gives a fixed
+// version for, on the same rows as the severity buckets, so total minus
+// fixable is the findings with no fix available (won't fix, or none yet).
 //
 // Only SBOMs with at least one finding get a row. A missing row means "no
 // findings" *or* "never scanned" and this table cannot distinguish them; a
@@ -194,10 +213,12 @@ WITH scope AS (
     SELECT DISTINCT c2.sbom_id, c2.source_purl::text AS match_purl, 0::bigint AS go_symbol_set_id
     FROM component c2 WHERE c2.source_purl IS NOT NULL
 ), findings AS (
-    SELECT DISTINCT sc.sbom_id, v.canonical_id, v.severity
+    SELECT sc.sbom_id, v.canonical_id, v.severity,
+           bool_or(COALESCE(pv.fixed_version, '') <> '') AS fixed
     FROM scope sc
     JOIN package_vulnerability pv ON pv.purl = sc.match_purl AND pv.go_symbol_set_id = sc.go_symbol_set_id
     JOIN vulnerability v ON v.id = pv.vulnerability_id
+    GROUP BY sc.sbom_id, v.canonical_id, v.severity
 )
 SELECT f.sbom_id, s.namespace_id,
        count(*) FILTER (WHERE f.severity = 'CRITICAL')::bigint AS critical,
@@ -205,7 +226,8 @@ SELECT f.sbom_id, s.namespace_id,
        count(*) FILTER (WHERE f.severity = 'MEDIUM')::bigint   AS medium,
        count(*) FILTER (WHERE f.severity = 'LOW')::bigint      AS low,
        count(*) FILTER (WHERE f.severity IS NULL
-                           OR f.severity NOT IN ('CRITICAL', 'HIGH', 'MEDIUM', 'LOW'))::bigint AS unknown
+                           OR f.severity NOT IN ('CRITICAL', 'HIGH', 'MEDIUM', 'LOW'))::bigint AS unknown,
+       count(*) FILTER (WHERE f.fixed)::bigint AS fixable
 FROM findings f
 JOIN sbom s ON s.id = f.sbom_id
 GROUP BY f.sbom_id, s.namespace_id`

@@ -225,14 +225,11 @@ function ArtifactDetailPage() {
         { id: "versions", label: `Versions (${versionCount})` },
         { id: "changelog", label: "Changelog" },
         { id: "licenses", label: "Licenses" },
-        // No count without a summary: never-scanned is not "(0)" (ocidex-9yjp).
-        {
-            id: "vulns",
-            label: (() => {
-                const total = vulnSummaryQuery.data?.summary?.total;
-                return total === undefined ? "Vulnerabilities" : `Vulnerabilities (${total})`;
-            })(),
-        },
+        // No count: the band's tile counts one SBOM of the latest version,
+        // while the tab lists the newest SBOM of each recent version, so any
+        // number here disagreed with the rows under it. The tab states its own
+        // total; fetching that list just for a label is the heavy query.
+        { id: "vulns", label: "Vulnerabilities" },
         { id: "relationships", label: "Relationships" },
         ...(signedIn()
             ? [{ id: "running" as const, label: `Running (${(runningQuery.data ?? []).length})` }]
@@ -245,7 +242,7 @@ function ArtifactDetailPage() {
     // strips stacked on one page was the page's worst instance of depth.
     const MODES: { id: "semver" | "all"; label: string; title: string }[] = [
         { id: "semver", label: "Semver", title: "Only semver versions, ordered by semantic version" },
-        { id: "all", label: "All", title: "All versions, ordered by build time" },
+        { id: "all", label: "All", title: "All versions, highest version first" },
     ];
 
     const crumbs = (): Crumb[] => [
@@ -290,6 +287,7 @@ function ArtifactDetailPage() {
                                         isContainer={isContainer()}
                                         vulns={vulnSummaryQuery.data?.summary}
                                         vulnsVersion={vulnSummaryQuery.data?.subjectVersion}
+                                        vulnsCounted={vulnSummaryQuery.data?.countedSbom}
                                         vulnsMatched={vulnSummaryQuery.data?.matched}
                                         ordering={effectiveMode()}
                                         active={tab()}

@@ -58,27 +58,31 @@ SELECT a.id, a.type, a.name, a.group_name, a.purl, a.cpe, a.created_at, a.entry_
            WHEN EXISTS (
                SELECT 1 FROM enrichment pe JOIN sbom sx ON sx.id = pe.sbom_id
                WHERE sx.artifact_id = a.id AND pe.enricher_name = 'provenance'
+                 AND sx.namespace_id IN (SELECT visible_namespace_ids(sqlc.narg('user_id')::uuid, sqlc.narg('is_admin')::boolean))
                  AND pe.status = 'success' AND signing_status(pe.data) = 'artifact_missing'
            ) THEN 'artifact_missing'
            WHEN EXISTS (
                SELECT 1 FROM enrichment pe JOIN sbom sx ON sx.id = pe.sbom_id
                WHERE sx.artifact_id = a.id AND pe.enricher_name = 'provenance'
+                 AND sx.namespace_id IN (SELECT visible_namespace_ids(sqlc.narg('user_id')::uuid, sqlc.narg('is_admin')::boolean))
                  AND pe.status = 'success' AND signing_status(pe.data) = 'verification_failed'
            ) THEN 'verification_failed'
            WHEN EXISTS (
                SELECT 1 FROM enrichment pe JOIN sbom sx ON sx.id = pe.sbom_id
                WHERE sx.artifact_id = a.id AND pe.enricher_name = 'provenance'
+                 AND sx.namespace_id IN (SELECT visible_namespace_ids(sqlc.narg('user_id')::uuid, sqlc.narg('is_admin')::boolean))
                  AND pe.status = 'success' AND signing_status(pe.data) = 'signed'
            ) THEN 'signed'
            WHEN EXISTS (
                SELECT 1 FROM enrichment pe JOIN sbom sx ON sx.id = pe.sbom_id
                WHERE sx.artifact_id = a.id AND pe.enricher_name = 'provenance'
+                 AND sx.namespace_id IN (SELECT visible_namespace_ids(sqlc.narg('user_id')::uuid, sqlc.narg('is_admin')::boolean))
                  AND pe.status = 'success' AND signing_status(pe.data) = 'verified'
            ) THEN 'verified'
            ELSE 'unsigned'
        END)::text AS signing_status
 FROM artifact a
-WHERE a.id = $1;
+WHERE a.id = @id;
 
 -- name: GetArtifactIDByEntryNumber :one
 -- Resolves "#12" from search. artifact_visible() applies, so a private
@@ -89,19 +93,11 @@ WHERE a.entry_number = @entry_number::bigint
   AND artifact_visible(a.id, sqlc.narg('user_id')::uuid, sqlc.narg('is_admin')::boolean);
 
 -- name: CountLatestVersionPackages :one
--- Components in the artifact's newest visible SBOM of its latest version,
--- picked the way ListArtifacts picks it. Zero when nothing is visible.
-SELECT COALESCE((
-    SELECT COUNT(*) FROM component c WHERE c.sbom_id = (
-        SELECT s.id FROM sbom s
-        WHERE s.artifact_id = @artifact_id
-          AND s.namespace_id IN (SELECT visible_namespace_ids(sqlc.narg('user_id')::uuid, sqlc.narg('is_admin')::boolean))
-        ORDER BY s.version_major DESC NULLS LAST,
-                 s.version_minor DESC NULLS LAST,
-                 s.version_patch DESC NULLS LAST,
-                 s.created_at DESC, s.id DESC
-        LIMIT 1)
-), 0)::bigint AS package_count;
+-- Components in the SBOM the artifact is counted from (artifact_headline_sbom).
+-- Zero when nothing is visible.
+SELECT COUNT(*)::bigint AS package_count
+FROM component c
+WHERE c.sbom_id = artifact_headline_sbom(@artifact_id::uuid, sqlc.narg('user_id')::uuid, sqlc.narg('is_admin')::boolean);
 
 -- name: CountArtifacts :one
 -- The total behind ListArtifacts' first page, under the same filters and
@@ -135,21 +131,25 @@ SELECT a.id, a.type, a.name, a.group_name, a.purl, a.cpe, a.created_at, a.entry_
            WHEN EXISTS (
                SELECT 1 FROM enrichment pe JOIN sbom sx ON sx.id = pe.sbom_id
                WHERE sx.artifact_id = a.id AND pe.enricher_name = 'provenance'
+                 AND sx.namespace_id IN (SELECT visible_namespace_ids(sqlc.narg('user_id')::uuid, sqlc.narg('is_admin')::boolean))
                  AND pe.status = 'success' AND signing_status(pe.data) = 'artifact_missing'
            ) THEN 'artifact_missing'
            WHEN EXISTS (
                SELECT 1 FROM enrichment pe JOIN sbom sx ON sx.id = pe.sbom_id
                WHERE sx.artifact_id = a.id AND pe.enricher_name = 'provenance'
+                 AND sx.namespace_id IN (SELECT visible_namespace_ids(sqlc.narg('user_id')::uuid, sqlc.narg('is_admin')::boolean))
                  AND pe.status = 'success' AND signing_status(pe.data) = 'verification_failed'
            ) THEN 'verification_failed'
            WHEN EXISTS (
                SELECT 1 FROM enrichment pe JOIN sbom sx ON sx.id = pe.sbom_id
                WHERE sx.artifact_id = a.id AND pe.enricher_name = 'provenance'
+                 AND sx.namespace_id IN (SELECT visible_namespace_ids(sqlc.narg('user_id')::uuid, sqlc.narg('is_admin')::boolean))
                  AND pe.status = 'success' AND signing_status(pe.data) = 'signed'
            ) THEN 'signed'
            WHEN EXISTS (
                SELECT 1 FROM enrichment pe JOIN sbom sx ON sx.id = pe.sbom_id
                WHERE sx.artifact_id = a.id AND pe.enricher_name = 'provenance'
+                 AND sx.namespace_id IN (SELECT visible_namespace_ids(sqlc.narg('user_id')::uuid, sqlc.narg('is_admin')::boolean))
                  AND pe.status = 'success' AND signing_status(pe.data) = 'verified'
            ) THEN 'verified'
            ELSE 'unsigned'
@@ -176,38 +176,33 @@ SELECT a.id, a.type, a.name, a.group_name, a.purl, a.cpe, a.created_at, a.entry_
        COALESCE(vr.high,     0)::bigint AS vuln_high,
        COALESCE(vr.medium,   0)::bigint AS vuln_medium,
        COALESCE(vr.low,      0)::bigint AS vuln_low,
-       COALESCE(vr.unknown,  0)::bigint AS vuln_unknown
+       COALESCE(vr.unknown,  0)::bigint AS vuln_unknown,
+       COALESCE(vr.fixable,  0)::bigint AS vuln_fixable,
+       -- Which SBOM those counts are from, so the row can say so.
+       vr.sbom_id AS counted_sbom_id,
+       vr.subject_version AS counted_version,
+       COALESCE(vr.architecture, '')::text AS counted_architecture
 FROM artifact a
+-- An artifact is visible when any namespace it appears in is, so it can carry
+-- SBOMs from a namespace the viewer cannot see. Every SBOM read below is
+-- filtered to the viewer's namespaces: counting or picking one of the others
+-- would leak a private version through a shared artifact.
 LEFT JOIN sbom s ON s.artifact_id = a.id
+    AND s.namespace_id IN (SELECT visible_namespace_ids(sqlc.narg('user_id')::uuid, sqlc.narg('is_admin')::boolean))
 -- The inner join is LEFT so the lateral picks the winning SBOM and then looks
 -- for its rollup row, rather than the newest SBOM that happens to have one:
 -- an inner join would silently fall back to a superseded SBOM's findings.
+-- The counted SBOM is artifact_headline_sbom()'s pick, the one every artifact
+-- surface shares. The rollup is LEFT-joined to it rather than searched for, so
+-- a headline SBOM with no rollup row reads as no findings instead of falling
+-- back to an older SBOM that has one.
 LEFT JOIN LATERAL (
-    SELECT COALESCE(r.critical, 0)::bigint AS critical,
-           COALESCE(r.high,     0)::bigint AS high,
-           COALESCE(r.medium,   0)::bigint AS medium,
-           COALESCE(r.low,      0)::bigint AS low,
-           COALESCE(r.unknown,  0)::bigint AS unknown,
-           (COALESCE(r.critical, 0) + COALESCE(r.high, 0) + COALESCE(r.medium, 0)
-            + COALESCE(r.low, 0) + COALESCE(r.unknown, 0))::bigint AS total
-    FROM sbom sv
-    LEFT JOIN sbom_vuln_rollup r ON r.sbom_id = sv.id
-    WHERE sv.artifact_id = a.id
-    -- Version parts first, insert order only as a tiebreak. Ordering by
-    -- created_at alone meant "most recently ingested", so re-scanning or
-    -- backfilling an old tag rewrote this row's counts to that old tag's
-    -- findings. NULLS LAST because a subject_version that does
-    -- not parse — a digest, a branch name — is unknown, not newest; the
-    -- matching index idx_sbom_artifact_version declares the same.
-    --
-    -- The latest version still has one SBOM per architecture, so created_at
-    -- picks among those. That is deliberate: the column means "the latest
-    -- version, one arch of it", which the UI states rather than implies.
-    ORDER BY sv.version_major DESC NULLS LAST,
-             sv.version_minor DESC NULLS LAST,
-             sv.version_patch DESC NULLS LAST,
-             sv.created_at DESC, sv.id DESC
-    LIMIT 1
+    SELECT h.id AS sbom_id, hs.subject_version, sbom_architecture(h.id) AS architecture,
+           r.critical, r.high, r.medium, r.low, r.unknown, r.fixable,
+           (r.critical + r.high + r.medium + r.low + r.unknown)::bigint AS total
+    FROM (SELECT artifact_headline_sbom(a.id, sqlc.narg('user_id')::uuid, sqlc.narg('is_admin')::boolean) AS id) h
+    JOIN sbom hs ON hs.id = h.id
+    LEFT JOIN sbom_vuln_rollup r ON r.sbom_id = h.id
 ) vr ON TRUE
 WHERE (sqlc.narg('type')::text IS NULL OR a.type = sqlc.narg('type'))
   AND (sqlc.narg('name')::text IS NULL OR a.name ILIKE like_contains(sqlc.narg('name')::text))
@@ -231,7 +226,8 @@ WHERE (sqlc.narg('type')::text IS NULL OR a.type = sqlc.narg('type'))
     NOT sqlc.narg('has_cursor')::boolean
     OR (a.name, a.type, a.id) > (sqlc.narg('cursor_name')::text, sqlc.narg('cursor_type')::text, sqlc.narg('cursor_id')::uuid)
   )
-GROUP BY a.id, vr.critical, vr.high, vr.medium, vr.low, vr.unknown, vr.total
+GROUP BY a.id, vr.sbom_id, vr.subject_version, vr.architecture,
+         vr.critical, vr.high, vr.medium, vr.low, vr.unknown, vr.fixable, vr.total
 -- Two orderings in one query. The severity keys are wrapped in a CASE that
 -- collapses to NULL when @sort_severity is false, which makes every row tie on
 -- them and hands the decision to the trailing (name, type, id) — the default
@@ -274,21 +270,28 @@ LIMIT @row_limit OFFSET @row_offset;
 -- leaves those as gaps rather than drawing them as zero.
 WITH per_version AS (
     SELECT DISTINCT ON (s.artifact_id, s.subject_version)
-        s.id, s.artifact_id, s.subject_version,
+        s.id, s.artifact_id, s.subject_version, s.version_prerelease, s.version_variant,
         s.version_major, s.version_minor, s.version_patch, s.created_at
     FROM sbom s
+    CROSS JOIN LATERAL (SELECT sbom_architecture(s.id) AS arch) x
     WHERE s.artifact_id = ANY(@artifact_ids::uuid[])
       AND s.subject_version IS NOT NULL
       AND s.namespace_id IN (SELECT visible_namespace_ids(sqlc.narg('user_id')::uuid, sqlc.narg('is_admin')::boolean))
-    ORDER BY s.artifact_id, s.subject_version, s.created_at DESC, s.id DESC
+    -- version_headline_sbom()'s pick within each version, inline.
+    ORDER BY s.artifact_id, s.subject_version, sbom_arch_rank(x.arch), x.arch, s.created_at DESC, s.id DESC
 ),
+-- Ranked the way artifact_headline_sbom() orders versions, so rank 1 is the
+-- version the artifact is counted from.
 ranked AS (
     SELECT pv.*,
            ROW_NUMBER() OVER (
                PARTITION BY pv.artifact_id
-               ORDER BY pv.version_major DESC NULLS LAST,
+               ORDER BY pv.version_prerelease,
+                        pv.version_major DESC NULLS LAST,
                         pv.version_minor DESC NULLS LAST,
                         pv.version_patch DESC NULLS LAST,
+                        pv.version_variant <> '',
+                        pv.version_variant,
                         pv.created_at DESC, pv.id DESC
            ) AS rn
     FROM per_version pv
@@ -431,9 +434,11 @@ WITH sboms_meta AS (
         s.id,
         s.created_at,
         s.enrichment_sufficient,
+        s.version_major, s.version_minor, s.version_patch,
+        s.version_prerelease, s.version_variant,
         COALESCE(s.subject_version,
             COALESCE(e.data->>'imageVersion', u.data->>'imageVersion'),
-            s.id::text)                                                  AS version_key,
+            '(untagged)')                                                  AS version_key,
         COALESCE(e.data->>'architecture', u.data->>'architecture')       AS architecture,
         COALESCE(e.data->>'imageVersion',  u.data->>'imageVersion')      AS image_version,
         COALESCE(e.data->>'revision',      u.data->>'revision')          AS revision,
@@ -447,11 +452,16 @@ WITH sboms_meta AS (
     WHERE s.artifact_id = $1
       AND s.namespace_id IN (SELECT visible_namespace_ids(sqlc.narg('user_id')::uuid, sqlc.narg('is_admin')::boolean))
 ),
+-- The SBOM each version is counted from: version_headline_sbom()'s rule (the
+-- preferred architecture, then newest), applied inline because sboms_meta
+-- already holds every input and calling the function per version would read
+-- them again.
 newest_per_version AS (
     SELECT DISTINCT ON (version_key)
-        id, version_key, created_at, enrichment_sufficient, image_version, revision, source_url, build_date, signing_status
+        id, version_key, architecture, created_at, enrichment_sufficient, image_version, revision, source_url, build_date, signing_status,
+        version_major, version_minor, version_patch, version_prerelease, version_variant
     FROM sboms_meta
-    ORDER BY version_key, created_at DESC
+    ORDER BY version_key, sbom_arch_rank(architecture), architecture, created_at DESC, id DESC
 ),
 architectures_per_version AS (
     SELECT
@@ -468,6 +478,7 @@ sbom_count_per_version AS (
 SELECT
     n.version_key,
     n.id           AS newest_sbom_id,
+    COALESCE(n.architecture, '')::text AS counted_architecture,
     n.created_at,
     n.enrichment_sufficient,
     n.image_version,
@@ -493,25 +504,35 @@ SELECT
     COALESCE(r.medium,   0)::bigint AS vuln_medium,
     COALESCE(r.low,      0)::bigint AS vuln_low,
     COALESCE(r.unknown,  0)::bigint AS vuln_unknown,
+    COALESCE(r.fixable,  0)::bigint AS vuln_fixable,
     -- Matched against the vulnerability store long enough ago that the rollup
     -- above has caught up: two refresh intervals (RollupRefreshInterval is 15
     -- minutes). A fresher match may not be in the rollup yet, so it still reads
     -- "not scanned" rather than risk calling a version with findings clean.
-    (m.matched_at IS NOT NULL AND m.matched_at < now() - interval '30 minutes')::boolean AS vuln_matched,
+    sbom_vuln_settled(n.id) AS vuln_matched,
     COUNT(*) OVER() AS total_count
 FROM newest_per_version n
 JOIN architectures_per_version a ON a.version_key = n.version_key
 JOIN sbom_count_per_version c ON c.version_key = n.version_key
 LEFT JOIN sbom_vuln_rollup r ON r.sbom_id = n.id
-LEFT JOIN sbom_vuln_match m ON m.sbom_id = n.id
-ORDER BY n.created_at DESC, n.version_key
+-- The version line's order (the service's compareVersionLine), ingest time
+-- only as a tiebreak: ordering by created_at listed a version backfilled
+-- later above its successor. The service re-sorts in Go; this order decides
+-- which versions survive the fetch cap.
+ORDER BY n.version_major DESC NULLS LAST,
+         n.version_minor DESC NULLS LAST,
+         n.version_patch DESC NULLS LAST,
+         n.version_prerelease,
+         n.version_variant <> '',
+         n.version_variant,
+         n.created_at DESC, n.version_key
 LIMIT @row_limit OFFSET @row_offset;
 
 -- name: CountArtifactVersions :one
 SELECT COUNT(DISTINCT
     COALESCE(s.subject_version,
         COALESCE(e.data->>'imageVersion', u.data->>'imageVersion'),
-        s.id::text)
+        '(untagged)')
 )::bigint AS version_count
 FROM sbom s
 LEFT JOIN enrichment e ON e.sbom_id = s.id AND e.enricher_name = 'oci-metadata' AND e.status = 'success'

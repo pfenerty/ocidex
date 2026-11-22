@@ -1,3 +1,5 @@
+import type { CountedSBOM } from "~/api/client";
+
 export function aliasUrl(id: string): string {
     if (id.startsWith("CVE-"))     return `https://nvd.nist.gov/vuln/detail/${id}`;
     if (id.startsWith("GHSA-"))    return `https://github.com/advisories/${id}`;
@@ -122,4 +124,27 @@ export function noFixLabel(fixedVersion?: string, fixState?: string): string | u
         default:
             return undefined;
     }
+}
+
+/**
+ * Names the one SBOM a set of counts was taken from, "1.27.4-trixie · amd64":
+ * a version has one SBOM per architecture and their counts differ, so the
+ * figure means little without both. Undefined when nothing was counted.
+ */
+export function countedLabel(c: CountedSBOM | undefined): string | undefined {
+    if (c === undefined) return undefined;
+    const parts = [c.version, c.architecture].filter((p): p is string => p !== undefined && p !== "");
+    return parts.length > 0 ? parts.join(" · ") : undefined;
+}
+
+/**
+ * "12 fixable · 841 no fix available": how much of a finding count can be
+ * acted on. Most of a large image's findings are often won't-fix or no-fix-yet
+ * distro packages, and a total that counts them alike hides that. Undefined
+ * when the split was not counted or there is nothing to split.
+ */
+export function fixSplitLabel(v: { total: number; fixable?: number } | undefined): string | undefined {
+    if (v?.fixable === undefined || v.total === 0) return undefined;
+    const none = v.total - v.fixable;
+    return `${v.fixable.toLocaleString()} fixable · ${none.toLocaleString()} no fix available`;
 }

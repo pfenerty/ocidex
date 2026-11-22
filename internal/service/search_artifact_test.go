@@ -28,29 +28,54 @@ func TestSortVersions_SemverDescending(t *testing.T) {
 	is.Equal(keys(vs), []string{"1.11.0", "1.9.0", "1.2.0"})
 }
 
-func TestSortVersions_BuildTimeDescending(t *testing.T) {
+func TestSortVersions_AllOrdersByVersionNotBuildTime(t *testing.T) {
 	is := is.New(t)
 	older := time.Now().Add(-2 * time.Hour)
 	newer := time.Now().Add(-time.Hour)
-	// Higher semver but older build must sort last in build-time mode.
+	// 1.27.0 was backfilled after 1.27.1 was built; it still sorts below it,
+	// and a key with no version parts sorts below both however new it is.
 	vs := []ArtifactVersion{
-		{VersionKey: "2.0.0", BuildDate: &older},
 		{VersionKey: "main-abc", BuildDate: &newer},
+		{VersionKey: "1.27.0", BuildDate: &newer},
+		{VersionKey: "1.27.1", BuildDate: &older},
 	}
-	sortVersions(vs, SortBuildTime)
-	is.Equal(keys(vs), []string{"main-abc", "2.0.0"})
+	sortVersions(vs, SortAll)
+	is.Equal(keys(vs), []string{"1.27.1", "1.27.0", "main-abc"})
+}
+
+func TestSortVersions_AllPutsPrereleaseAfterItsRelease(t *testing.T) {
+	is := is.New(t)
+	vs := []ArtifactVersion{
+		{VersionKey: "1.20.5"},
+		{VersionKey: "1.21.0-rc.1"},
+		{VersionKey: "1.21.0-trixie"},
+		{VersionKey: "1.21.0"},
+		{VersionKey: "1.21.0-alpine"},
+	}
+	sortVersions(vs, SortAll)
+	is.Equal(keys(vs), []string{"1.21.0", "1.21.0-alpine", "1.21.0-trixie", "1.21.0-rc.1", "1.20.5"})
+}
+
+func TestVersionParts_MatchesGeneratedColumns(t *testing.T) {
+	is := is.New(t)
+	is.Equal(versionParts("v1.20.5"), [3]int{1, 20, 5})
+	is.Equal(versionParts("3.15"), [3]int{3, 15, -1})
+	is.Equal(versionParts("latest"), [3]int{-1, -1, -1})
+	// A SHA tag that starts with digits is not a version.
+	is.Equal(versionParts("97595216784cd503"), [3]int{-1, -1, -1})
 }
 
 func TestSortVersions_BuildTimeFallsBackToIngestion(t *testing.T) {
 	is := is.New(t)
 	older := time.Now().Add(-2 * time.Hour)
 	newer := time.Now().Add(-time.Hour)
-	// No BuildDate -> CreatedAt is used as the effective time.
+	// No BuildDate -> CreatedAt is used as the effective time between keys
+	// that tie on version.
 	vs := []ArtifactVersion{
 		{VersionKey: "a", CreatedAt: older},
 		{VersionKey: "b", CreatedAt: newer},
 	}
-	sortVersions(vs, SortBuildTime)
+	sortVersions(vs, SortAll)
 	is.Equal(keys(vs), []string{"b", "a"})
 }
 
@@ -124,9 +149,10 @@ func TestArtifactVersionFromRow_ZeroCountsMeanNoSummary(t *testing.T) {
 	is.Equal(artifactVersionFromRow(repository.ListArtifactVersionsRow{}).Vulns, (*VulnSummary)(nil))
 
 	withFindings := artifactVersionFromRow(repository.ListArtifactVersionsRow{
-		VulnCritical: 1, VulnLow: 2,
+		VulnCritical: 1, VulnLow: 2, VulnFixable: 1,
 	})
-	is.Equal(withFindings.Vulns, &VulnSummary{Critical: 1, Low: 2, Total: 3})
+	fixable := 1
+	is.Equal(withFindings.Vulns, &VulnSummary{Critical: 1, Low: 2, Total: 3, Fixable: &fixable})
 }
 
 // sbom_vuln_rollup holds a row only for an SBOM with at least one finding, so
@@ -158,4 +184,17 @@ func TestSortDirSign(t *testing.T) {
 	is := is.New(t)
 	is.Equal(sortDirSign(true), int32(1))   // desc: worst first
 	is.Equal(sortDirSign(false), int32(-1)) // asc
+}
+
+func TestCompareSeverityCounts_UnknownRanksBelowLow(t *testing.T) {
+	is := is.New(t)
+	// Unrated findings are the least severe: one LOW outranks any number of
+	// them, in the versions table's severity sort as on /artifacts.
+	is.Equal(compareSeverityCounts(&VulnSummary{Low: 1, Total: 1}, &VulnSummary{Unknown: 240, Total: 240}), 1)
+	vs := []ArtifactVersion{
+		{VersionKey: "unrated", Vulns: &VulnSummary{Unknown: 240, Total: 240}},
+		{VersionKey: "one-low", Vulns: &VulnSummary{Low: 1, Total: 1}},
+	}
+	sortVersionsBySeverity(vs, true)
+	is.Equal(keys(vs), []string{"one-low", "unrated"})
 }

@@ -33,7 +33,11 @@ func (s *searchService) GetArtifact(ctx context.Context, idStr string, vis Visib
 		return ArtifactDetail{}, ErrNotFound
 	}
 
-	row, err := q.GetArtifact(ctx, id)
+	row, err := q.GetArtifact(ctx, repository.GetArtifactParams{
+		ID:      id,
+		UserID:  uuidOrNull(vis.UserID),
+		IsAdmin: visAdminBool(vis),
+	})
 	if err != nil {
 		if errors.Is(err, pgx.ErrNoRows) {
 			return ArtifactDetail{}, ErrNotFound
@@ -184,7 +188,7 @@ const maxVersionsFetch = 10000
 // artifactVersionFromRow maps a ListArtifactVersions row to an ArtifactVersion.
 func artifactVersionFromRow(row repository.ListArtifactVersionsRow) ArtifactVersion {
 	v := ArtifactVersion{
-		VersionKey:    row.VersionKey.String,
+		VersionKey:    row.VersionKey,
 		SbomID:        row.NewestSbomID.String(),
 		SBOMCount:     row.SbomCount,
 		Sufficient:    row.EnrichmentSufficient,
@@ -209,8 +213,9 @@ func artifactVersionFromRow(row repository.ListArtifactVersionsRow) ArtifactVers
 	// vulnerabilities" or "never scanned" indistinguishably, so it maps to a nil
 	// summary rather than an all-zero one: the UI has to say "not scanned"
 	// (ADR-044), and an all-zero summary would license it to say "clean".
-	v.Vulns = vulnSummaryOrNil(row.VulnCritical, row.VulnHigh, row.VulnMedium, row.VulnLow, row.VulnUnknown)
+	v.Vulns = withFixable(vulnSummaryOrNil(row.VulnCritical, row.VulnHigh, row.VulnMedium, row.VulnLow, row.VulnUnknown), row.VulnFixable)
 	v.VulnMatched = row.VulnMatched
+	v.CountedSBOM = countedSBOM(row.NewestSbomID, row.VersionKey, row.CountedArchitecture)
 	if arches, ok := row.Architectures.([]interface{}); ok {
 		strs := make([]string, 0, len(arches))
 		for _, a := range arches {
@@ -225,14 +230,16 @@ func artifactVersionFromRow(row repository.ListArtifactVersionsRow) ArtifactVers
 }
 
 // sortVersions orders versions descending. SortSemver uses semantic-version
-// precedence (build time breaks ties); otherwise it orders by build time
-// (falling back to ingestion time).
+// precedence and SortAll the version line (compareVersionLine); build time,
+// falling back to ingestion time, only breaks ties.
 func sortVersions(vs []ArtifactVersion, mode VersionSortMode) {
+	compare := compareVersionLine
+	if mode == SortSemver {
+		compare = compareSemver
+	}
 	sort.SliceStable(vs, func(i, j int) bool {
-		if mode == SortSemver {
-			if cmp := compareSemver(vs[i].VersionKey, vs[j].VersionKey); cmp != 0 {
-				return cmp > 0 // descending
-			}
+		if cmp := compare(vs[i].VersionKey, vs[j].VersionKey); cmp != 0 {
+			return cmp > 0 // descending
 		}
 		ti, tj := versionEffectiveTime(vs[i]), versionEffectiveTime(vs[j])
 		return ti.After(tj) // descending
@@ -392,7 +399,8 @@ func (s *searchService) ListArtifacts(ctx context.Context, filter ArtifactFilter
 			// indistinguishably, so it maps to a nil summary rather than an
 			// all-zero one: the UI has to say "not scanned" (ADR-044), and an
 			// all-zero summary would license it to say "clean".
-			Vulns: vulnSummaryOrNil(row.VulnCritical, row.VulnHigh, row.VulnMedium, row.VulnLow, row.VulnUnknown),
+			Vulns:       withFixable(vulnSummaryOrNil(row.VulnCritical, row.VulnHigh, row.VulnMedium, row.VulnLow, row.VulnUnknown), row.VulnFixable),
+			CountedSBOM: countedSBOM(row.CountedSbomID, row.CountedVersion.String, row.CountedArchitecture),
 		})
 	}
 
@@ -454,6 +462,17 @@ func sortDirSign(desc bool) int32 {
 // vulnSummaryOrNil folds rollup counts into a summary, or nil when they are all
 // zero. See the ADR-044 note at the call sites: zero is absence of a rollup
 // row, which is unknown rather than clean, and a non-nil all-zero summary would
+// withFixable records the fixable count on a summary read from
+// sbom_vuln_rollup. A nil summary stays nil: no findings to divide.
+func withFixable(v *VulnSummary, fixable int64) *VulnSummary {
+	if v == nil {
+		return nil
+	}
+	n := int(fixable)
+	v.Fixable = &n
+	return v
+}
+
 // let a renderer claim otherwise.
 func vulnSummaryOrNil(critical, high, medium, low, unknown int64) *VulnSummary {
 	total := critical + high + medium + low + unknown
@@ -542,6 +561,8 @@ func (s *searchService) GetArtifactLicenseSummary(ctx context.Context, artifactI
 type ArtifactVulnSummary struct {
 	Summary        *VulnSummary
 	SubjectVersion string
+	// Counted is the SBOM the summary counts; nil when the viewer sees none.
+	Counted *CountedSBOM
 	// Matched reports that the counted SBOM has been matched against the
 	// vulnerability store, so an absent Summary means no findings rather than
 	// never scanned.
@@ -569,39 +590,35 @@ func (s *searchService) GetArtifactVulnSummary(ctx context.Context, artifactIDSt
 		return ArtifactVulnSummary{}, ErrNotFound
 	}
 
-	match, err := q.GetLatestArtifactSBOMMatch(ctx, artifactID)
+	match, err := q.GetLatestArtifactSBOMMatch(ctx, repository.GetLatestArtifactSBOMMatchParams{
+		ArtifactID: artifactID,
+		UserID:     uuidOrNull(vis.UserID),
+		IsAdmin:    visAdminBool(vis),
+	})
 	if err != nil && !errors.Is(err, pgx.ErrNoRows) {
 		return ArtifactVulnSummary{}, fmt.Errorf("checking vuln match: %w", err)
 	}
-	rows, err := q.GetArtifactVulnSummary(ctx, artifactID)
+	counted := countedSBOM(match.SbomID, match.SubjectVersion, match.Architecture)
+	row, err := q.GetArtifactVulnSummary(ctx, repository.GetArtifactVulnSummaryParams{
+		ArtifactID: artifactID,
+		UserID:     uuidOrNull(vis.UserID),
+		IsAdmin:    visAdminBool(vis),
+	})
+	if errors.Is(err, pgx.ErrNoRows) {
+		// No SBOM the viewer can see: nothing was counted.
+		return ArtifactVulnSummary{}, nil
+	}
 	if err != nil {
 		return ArtifactVulnSummary{}, fmt.Errorf("querying artifact vuln summary: %w", err)
 	}
-	if len(rows) == 0 {
-		return ArtifactVulnSummary{SubjectVersion: match.SubjectVersion, Matched: match.Matched}, nil
-	}
-
-	var vs VulnSummary
-	for _, r := range rows {
-		n := int(r.Count)
-		vs.Total += n
-		switch r.Severity.String {
-		case sevCritical:
-			vs.Critical += n
-		case sevHigh:
-			vs.High += n
-		case sevMedium:
-			vs.Medium += n
-		case sevLow:
-			vs.Low += n
-		default:
-			vs.Unknown += n
-		}
-	}
-	if vs.Total == 0 {
-		return ArtifactVulnSummary{SubjectVersion: match.SubjectVersion, Matched: match.Matched}, nil
-	}
-	return ArtifactVulnSummary{Summary: &vs, SubjectVersion: rows[0].SubjectVersion, Matched: match.Matched}, nil
+	// All zeros is no rollup row, which is "no findings" or "not scanned";
+	// Matched tells the caller which (ADR-044).
+	return ArtifactVulnSummary{
+		Summary:        withFixable(vulnSummaryOrNil(row.Critical, row.High, row.Medium, row.Low, row.Unknown), row.Fixable),
+		SubjectVersion: row.SubjectVersion,
+		Counted:        counted,
+		Matched:        match.Matched,
+	}, nil
 }
 
 // ListArtifactVulns returns one page of the artifact's vulnerability list.
@@ -738,7 +755,7 @@ func attachArtifactVulnVersions(ctx context.Context, q *repository.Queries, arti
 	byCanonical := make(map[string][]ArtifactVulnVersion, len(canonicalIDs))
 	for _, r := range rows {
 		v := ArtifactVulnVersion{
-			Version:              r.VersionKey.String,
+			Version:              r.VersionKey,
 			SbomID:               r.SbomID.String(),
 			AffectedPackageCount: r.AffectedPackageCount,
 			PackageNames:         []string{},

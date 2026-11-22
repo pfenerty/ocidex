@@ -190,8 +190,7 @@ LEFT JOIN LATERAL (
             FILTER (WHERE v.severity = 'MEDIUM')::bigint   AS medium,
         COUNT(DISTINCT COALESCE(NULLIF(v.canonical_id, ''), v.id))
             FILTER (WHERE v.severity = 'LOW')::bigint      AS low
-    FROM (SELECT DISTINCT purl, COALESCE(go_symbol_set_id, 0) AS go_symbol_set_id
-          FROM component WHERE sbom_id = s.id AND purl IS NOT NULL) comp
+    FROM sbom_match_scope(s.id) comp
     JOIN package_vulnerability pv ON pv.purl = comp.purl AND pv.go_symbol_set_id = comp.go_symbol_set_id
     JOIN vulnerability v ON v.id = pv.vulnerability_id
 ) vs ON s.id IS NOT NULL
@@ -333,8 +332,7 @@ LEFT JOIN LATERAL (
             FILTER (WHERE v.severity = 'MEDIUM')::bigint   AS medium,
         COUNT(DISTINCT COALESCE(NULLIF(v.canonical_id, ''), v.id))
             FILTER (WHERE v.severity = 'LOW')::bigint      AS low
-    FROM (SELECT DISTINCT purl, COALESCE(go_symbol_set_id, 0) AS go_symbol_set_id
-          FROM component WHERE sbom_id = s.id AND purl IS NOT NULL) comp
+    FROM sbom_match_scope(s.id) comp
     JOIN package_vulnerability pv ON pv.purl = comp.purl AND pv.go_symbol_set_id = comp.go_symbol_set_id
     JOIN vulnerability v ON v.id = pv.vulnerability_id
 ) vs ON s.id IS NOT NULL
@@ -550,8 +548,9 @@ WITH running AS (
         ORDER BY (s2.namespace_id = c.namespace_id) DESC, (s2.digest = w.image_digest) DESC, s2.created_at DESC
         LIMIT 1
     ) s ON true
-    JOIN component comp ON comp.sbom_id = s.id AND comp.purl IS NOT NULL
-    JOIN package_vulnerability pv ON pv.purl = comp.purl AND pv.go_symbol_set_id = COALESCE(comp.go_symbol_set_id, 0)
+    -- purl ∪ source_purl, the scope every other count matches on.
+    CROSS JOIN LATERAL sbom_match_scope(s.id) comp
+    JOIN package_vulnerability pv ON pv.purl = comp.purl AND pv.go_symbol_set_id = comp.go_symbol_set_id
     JOIN vulnerability v ON v.id = pv.vulnerability_id
     WHERE w.cluster_id = $1
       AND c.namespace_id IN (SELECT visible_namespace_ids(sqlc.narg('user_id')::uuid, sqlc.narg('is_admin')::boolean))
@@ -642,8 +641,9 @@ WITH running AS (
         ORDER BY (s2.namespace_id = c.namespace_id) DESC, (s2.digest = w.image_digest) DESC, s2.created_at DESC
         LIMIT 1
     ) s ON true
-    JOIN component comp ON comp.sbom_id = s.id AND comp.purl IS NOT NULL
-    JOIN package_vulnerability pv ON pv.purl = comp.purl AND pv.go_symbol_set_id = COALESCE(comp.go_symbol_set_id, 0)
+    -- purl ∪ source_purl, the scope every other count matches on.
+    CROSS JOIN LATERAL sbom_match_scope(s.id) comp
+    JOIN package_vulnerability pv ON pv.purl = comp.purl AND pv.go_symbol_set_id = comp.go_symbol_set_id
     JOIN vulnerability v ON v.id = pv.vulnerability_id
     WHERE w.cluster_id = $1
       AND c.namespace_id IN (SELECT visible_namespace_ids(sqlc.narg('user_id')::uuid, sqlc.narg('is_admin')::boolean))
@@ -690,12 +690,10 @@ JOIN LATERAL (
 LEFT JOIN artifact a ON a.id = s.artifact_id
 WHERE EXISTS (
     SELECT 1
-    FROM component comp
-    JOIN package_vulnerability pv ON pv.purl = comp.purl AND pv.go_symbol_set_id = COALESCE(comp.go_symbol_set_id, 0)
+    FROM sbom_match_scope(s.id) comp
+    JOIN package_vulnerability pv ON pv.purl = comp.purl AND pv.go_symbol_set_id = comp.go_symbol_set_id
     JOIN vulnerability v ON v.id = pv.vulnerability_id
-    WHERE comp.sbom_id = s.id
-      AND comp.purl IS NOT NULL
-      AND COALESCE(NULLIF(v.canonical_id, ''), v.id) = @canonical_id::text
+    WHERE COALESCE(NULLIF(v.canonical_id, ''), v.id) = @canonical_id::text
 )
   AND (sqlc.narg('cluster_id')::uuid IS NULL OR w.cluster_id = sqlc.narg('cluster_id')::uuid)
   AND c.namespace_id IN (SELECT visible_namespace_ids(sqlc.narg('user_id')::uuid, sqlc.narg('is_admin')::boolean))

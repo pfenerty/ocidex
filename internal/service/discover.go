@@ -72,6 +72,8 @@ type DiscoverFeatured struct {
 	// VulnMatched reports that the newest SBOM has been matched against the
 	// vulnerability store, so all-zero Vulns means clean, not unscanned.
 	VulnMatched bool `json:"vulnMatched" doc:"The newest SBOM has been matched against the vulnerability store"`
+	// CountedSBOM is the SBOM the card's counts come from.
+	CountedSBOM *CountedSBOM `json:"countedSbom,omitempty" doc:"The SBOM the card's counts come from"`
 }
 
 // VulnSeverityCounts is a per-severity vulnerability count.
@@ -81,6 +83,8 @@ type VulnSeverityCounts struct {
 	Medium   int64 `json:"medium"`
 	Low      int64 `json:"low"`
 	Unknown  int64 `json:"unknown"`
+	// Fixable is how many of the findings have a fixed version available.
+	Fixable int64 `json:"fixable" doc:"Findings with a fixed version available"`
 }
 
 // LicenseCategoryMix is a per-category component count (license_category()).
@@ -279,6 +283,7 @@ func buildDiscovery(
 			SbomID:         r.SbomID.String(),
 			SubjectVersion: textToPtr(r.SubjectVersion),
 			VulnMatched:    r.VulnMatched,
+			CountedSBOM:    countedSBOM(r.SbomID, r.SubjectVersion.String, r.Architecture),
 			CreatedAt:      r.CreatedAt.Time,
 			PackageCount:   r.PackageCount,
 			Vulns: VulnSeverityCounts{
@@ -287,6 +292,7 @@ func buildDiscovery(
 				Medium:   r.MediumCount,
 				Low:      r.LowCount,
 				Unknown:  r.UnknownCount,
+				Fixable:  r.FixableCount,
 			},
 			Licenses: LicenseCategoryMix{
 				Permissive:    r.PermissiveCount,

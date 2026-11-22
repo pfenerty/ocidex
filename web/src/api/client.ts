@@ -92,6 +92,7 @@ export type RegistryTrustCount = components["schemas"]["RegistryTrustCount"];
 export type ComponentSummary = components["schemas"]["ComponentSummary"];
 export type ComponentDetail = components["schemas"]["ComponentDetail"];
 export type VulnSummary = components["schemas"]["VulnSummary"];
+export type CountedSBOM = components["schemas"]["CountedSBOM"];
 export type SBOMVulnEntry = components["schemas"]["SBOMVulnEntry"];
 export type SBOMVulnPackage = components["schemas"]["SBOMVulnPackage"];
 export type ArtifactVulnEntry = components["schemas"]["ArtifactVulnEntry"];

@@ -259,7 +259,7 @@ func (f *fakeSearchService) GetArtifactContains(_ context.Context, _ string, _ s
 	return nil, nil
 }
 
-func (f *fakeSearchService) GetVulnerabilityDetail(_ context.Context, _ string, limit, offset int32, _ service.VisibilityFilter) (service.VulnerabilityDetailResult, error) {
+func (f *fakeSearchService) GetVulnerabilityDetail(_ context.Context, _ string, limit, offset int32, _ bool, _ service.VisibilityFilter) (service.VulnerabilityDetailResult, error) {
 	return service.VulnerabilityDetailResult{
 		Detail:         &service.VulnDetail{ID: "CVE-2021-0001", Severity: "HIGH", Aliases: []string{}},
 		Artifacts:      service.PagedResult[service.AffectedArtifact]{Total: 9, Limit: limit, Offset: offset},

@@ -5,19 +5,19 @@ import type { paths } from "~/types/openapi";
 
 export function useVulnerabilityDetail(
     id: Accessor<string>,
-    params: Accessor<{ limit?: number; offset?: number }>,
+    params: Accessor<{ limit?: number; offset?: number; allVersions?: boolean }>,
 ) {
     return createQuery(() => {
         const vulnId = id();
         const p = params();
         return {
-            queryKey: ["vuln", vulnId, p.limit, p.offset] as const,
+            queryKey: ["vuln", vulnId, p.limit, p.offset, p.allVersions ?? false] as const,
             queryFn: () =>
                 unwrap(
                     client.GET("/api/v1/vulns/{id}", {
                         params: {
                             path: { id: vulnId },
-                            query: { limit: p.limit, offset: p.offset },
+                            query: { limit: p.limit, offset: p.offset, allVersions: p.allVersions },
                         },
                     }),
                 ),
