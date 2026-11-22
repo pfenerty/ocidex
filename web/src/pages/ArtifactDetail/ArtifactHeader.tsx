@@ -3,7 +3,6 @@ import { Show } from "solid-js";
 import { A } from "@solidjs/router";
 import type { ArtifactDetail } from "~/api/client";
 import PurlLink from "~/components/PurlLink";
-import { Sprite } from "~/components/Sprite";
 import { Shiny } from "~/components/Shiny";
 import { entryText, type CriticalChange, type SeverityPoint } from "~/utils/versionDelta";
 import CopyShareLink, { artifactLookupPath } from "~/components/CopyShareLink";
@@ -75,16 +74,9 @@ export function ArtifactHeader(props: {
                     </Show>
                 </>
             }
-            title={
-                <span class="with-sprite">
-                    <Show when={props.points !== undefined && props.points.length > 0}>
-                        <Sprite points={props.points ?? []} size={34} class="sprite-title" />
-                    </Show>
-                    <span>
-                        <TitleWithPrefix name={artifactDisplayName(a())} />
-                    </span>
-                </span>
-            }
+            /* No sprite here: beside the wordmark it read as a second logo.
+               Sprites stay in the list and grid, where they tell rows apart. */
+            title={<TitleWithPrefix name={artifactDisplayName(a())} />}
             /* The entry: a two-line summary written from the version data. */
             subtitle={entryText(props.points ?? [], a().versionCount)}
             actions={
