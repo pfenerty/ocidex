@@ -663,6 +663,10 @@ type ArtifactVersion struct {
 	// distinguishing them. Callers must render nil as unknown, never as a clean
 	// zero (ADR-044) — the same contract SBOMDetail's tile already follows.
 	Vulns *VulnSummary `json:"vulns,omitempty"`
+	// VulnMatched reports that this version's newest SBOM was matched against
+	// the vulnerability store and the rollup has caught up, so an absent Vulns
+	// means no known vulnerabilities rather than never scanned.
+	VulnMatched bool `json:"vulnMatched" doc:"Matched against the vulnerability store, and the counts reflect it: an absent vulns then means none known"`
 }
 
 // SBOMSummary is a lightweight SBOM representation for list views.

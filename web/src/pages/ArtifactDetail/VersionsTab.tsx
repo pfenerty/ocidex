@@ -147,7 +147,11 @@ export function VersionsTab(props: {
                 // claim a clean bill of health nobody issued (ADR-044).
                 <Show
                     when={version.vulns}
-                    fallback={<StatusChip status={VULN_DATA_STATUS.unscanned} />}
+                    fallback={
+                        <StatusChip
+                            status={version.vulnMatched ? VULN_DATA_STATUS.clean : VULN_DATA_STATUS.unscanned}
+                        />
+                    }
                 >
                     {(v) => (
                         <VulnCountBadges

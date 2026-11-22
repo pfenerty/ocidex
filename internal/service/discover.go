@@ -69,6 +69,9 @@ type DiscoverFeatured struct {
 	// CriticalHistory is the newest public versions' critical counts, newest
 	// first, so the home table can show the change since the previous version.
 	CriticalHistory []VersionCritical `json:"criticalHistory,omitempty" doc:"Newest versions first, up to 12"`
+	// VulnMatched reports that the newest SBOM has been matched against the
+	// vulnerability store, so all-zero Vulns means clean, not unscanned.
+	VulnMatched bool `json:"vulnMatched" doc:"The newest SBOM has been matched against the vulnerability store"`
 }
 
 // VulnSeverityCounts is a per-severity vulnerability count.
@@ -275,6 +278,7 @@ func buildDiscovery(
 			Name:           r.Name,
 			SbomID:         r.SbomID.String(),
 			SubjectVersion: textToPtr(r.SubjectVersion),
+			VulnMatched:    r.VulnMatched,
 			CreatedAt:      r.CreatedAt.Time,
 			PackageCount:   r.PackageCount,
 			Vulns: VulnSeverityCounts{

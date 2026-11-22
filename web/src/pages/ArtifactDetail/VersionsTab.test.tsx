@@ -14,6 +14,7 @@ const version: ArtifactVersionSummary = {
     architectures: null,
     signingStatus: "unsigned",
     sufficient: true,
+    vulnMatched: false,
 };
 
 function renderTab(
@@ -77,6 +78,14 @@ describe("VersionsTab column gating", () => {
         // Type-agnostic columns survive.
         expect(getByText("Version")).toBeDefined();
         expect(getByText("Build Date")).toBeDefined();
+    });
+});
+
+describe("VersionsTab matched versions", () => {
+    it("calls a matched version with no findings clean", () => {
+        const { container } = renderTab(true, [{ ...version, vulnMatched: true }]);
+        expect(container.textContent).toContain("0 known");
+        expect(container.textContent).not.toContain("Not scanned");
     });
 });
 

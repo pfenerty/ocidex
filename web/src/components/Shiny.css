@@ -1,0 +1,14 @@
+.shiny {
+    display: inline-flex;
+    align-items: center;
+    gap: 0.25rem;
+    padding: 0.05rem 0.45rem;
+    border-radius: 999px;
+    background: var(--color-shiny-bg);
+    color: var(--color-shiny);
+    font-family: var(--font-sans);
+    font-size: var(--text-xs);
+    font-weight: 600;
+    vertical-align: middle;
+    white-space: nowrap;
+}

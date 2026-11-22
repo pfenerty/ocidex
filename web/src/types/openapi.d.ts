@@ -2126,6 +2126,8 @@ export interface components {
             sourceUrl?: string;
             sufficient: boolean;
             versionKey: string;
+            /** @description The newest SBOM was matched against the vulnerability store and the counts reflect it: an absent vulns then means none known */
+            vulnMatched: boolean;
             /** @description Severity counts for this version's newest SBOM. Absent means no findings are recorded, which may mean it was never scanned — do not render it as zero. */
             vulns?: components["schemas"]["VulnSummary"];
         };
@@ -2895,6 +2897,8 @@ export interface components {
             sbomId: string;
             subjectVersion?: string;
             type: string;
+            /** @description The newest SBOM has been matched against the vulnerability store */
+            vulnMatched: boolean;
             vulns: components["schemas"]["VulnSeverityCounts"];
         };
         DiscoverLicense: {
@@ -3115,6 +3119,8 @@ export interface components {
              * @example https://example.com/api/schemas/GetArtifactVulnSummaryOutputBody.json
              */
             readonly $schema?: string;
+            /** @description The counted SBOM has been matched against the vulnerability store; an absent summary then means no known vulnerabilities rather than never scanned */
+            matched: boolean;
             /** @description Version whose newest SBOM the summary counts */
             subjectVersion?: string;
             summary?: components["schemas"]["VulnSummary"];

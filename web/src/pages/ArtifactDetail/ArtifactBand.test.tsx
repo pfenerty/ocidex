@@ -140,6 +140,13 @@ describe("ArtifactBand vulnerability tile", () => {
         expect(sub(container, "Vulnerabilities")).toBe("Not scanned");
     });
 
+    it("says zero known once the SBOM has been matched with no findings", () => {
+        const { container } = renderBand({ vulns: undefined, vulnsMatched: true });
+        const t = tile(container, "Vulnerabilities");
+        expect(t.querySelector(".tile-value")?.textContent).toBe("0");
+        expect(sub(container, "Vulnerabilities")).toBe("0 known");
+    });
+
     it("is a button, because the page now has a vulnerabilities tab", () => {
         // The inverse of what this asserted before ocidex-unn8.6, and still the
         // same property: the tag must match whether there is anywhere to go. A

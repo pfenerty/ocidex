@@ -579,6 +579,7 @@ func (h *Handler) ListArtifactVersions(ctx context.Context, input *ListArtifactV
 			Sufficient:    v.Sufficient,
 			SigningStatus: v.SigningStatus,
 			Vulns:         v.Vulns,
+			VulnMatched:   v.VulnMatched,
 		})
 	}
 
@@ -672,6 +673,7 @@ func (h *Handler) GetArtifactVulnSummary(ctx context.Context, input *GetArtifact
 	out := &GetArtifactVulnSummaryOutput{}
 	out.Body.Summary = summary.Summary
 	out.Body.SubjectVersion = summary.SubjectVersion
+	out.Body.Matched = summary.Matched
 	return out, nil
 }
 

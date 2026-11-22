@@ -426,6 +426,10 @@
           "versionKey": {
             "type": "string"
           },
+          "vulnMatched": {
+            "description": "The newest SBOM was matched against the vulnerability store and the counts reflect it: an absent vulns then means none known",
+            "type": "boolean"
+          },
           "vulns": {
             "$ref": "#/components/schemas/VulnSummary",
             "description": "Severity counts for this version's newest SBOM. Absent means no findings are recorded, which may mean it was never scanned — do not render it as zero."
@@ -438,7 +442,8 @@
           "architectures",
           "createdAt",
           "sufficient",
-          "signingStatus"
+          "signingStatus",
+          "vulnMatched"
         ],
         "type": "object"
       },
@@ -2538,6 +2543,10 @@
           "type": {
             "type": "string"
           },
+          "vulnMatched": {
+            "description": "The newest SBOM has been matched against the vulnerability store",
+            "type": "boolean"
+          },
           "vulns": {
             "$ref": "#/components/schemas/VulnSeverityCounts"
           }
@@ -2550,7 +2559,8 @@
           "createdAt",
           "packageCount",
           "vulns",
-          "licenses"
+          "licenses",
+          "vulnMatched"
         ],
         "type": "object"
       },
@@ -3137,6 +3147,10 @@
             "readOnly": true,
             "type": "string"
           },
+          "matched": {
+            "description": "The counted SBOM has been matched against the vulnerability store; an absent summary then means no known vulnerabilities rather than never scanned",
+            "type": "boolean"
+          },
           "subjectVersion": {
             "description": "Version whose newest SBOM the summary counts",
             "type": "string"
@@ -3145,6 +3159,9 @@
             "$ref": "#/components/schemas/VulnSummary"
           }
         },
+        "required": [
+          "matched"
+        ],
         "type": "object"
       },
       "GetComponentVersionsOutputBody": {

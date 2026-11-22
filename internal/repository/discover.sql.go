@@ -59,7 +59,8 @@ SELECT p.id                                   AS artifact_id,
        lc.permissive_count,
        lc.weak_copyleft_count,
        lc.copyleft_count,
-       lc.uncategorized_count
+       lc.uncategorized_count,
+       EXISTS (SELECT 1 FROM sbom_vuln_match m WHERE m.sbom_id = l.sbom_id)::boolean AS vuln_matched
 FROM picked p
 CROSS JOIN LATERAL (
     SELECT s.id AS sbom_id, s.subject_version, s.created_at
@@ -133,6 +134,7 @@ type GetDiscoverFeaturedArtifactsRow struct {
 	WeakCopyleftCount  int64              `json:"weak_copyleft_count"`
 	CopyleftCount      int64              `json:"copyleft_count"`
 	UncategorizedCount int64              `json:"uncategorized_count"`
+	VulnMatched        bool               `json:"vuln_matched"`
 }
 
 // Landing-page cards: per artifact, its newest public SBOM summarised as a
@@ -174,6 +176,7 @@ func (q *Queries) GetDiscoverFeaturedArtifacts(ctx context.Context, arg GetDisco
 			&i.WeakCopyleftCount,
 			&i.CopyleftCount,
 			&i.UncategorizedCount,
+			&i.VulnMatched,
 		); err != nil {
 			return nil, err
 		}

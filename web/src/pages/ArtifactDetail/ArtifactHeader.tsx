@@ -4,6 +4,7 @@ import { A } from "@solidjs/router";
 import type { ArtifactDetail } from "~/api/client";
 import PurlLink from "~/components/PurlLink";
 import { Sprite } from "~/components/Sprite";
+import { Shiny } from "~/components/Shiny";
 import { entryText, type SeverityPoint } from "~/utils/versionDelta";
 import CopyShareLink, { artifactLookupPath } from "~/components/CopyShareLink";
 import WatchStar from "~/components/WatchStar";
@@ -20,7 +21,7 @@ import { safeHref } from "~/utils/links";
  * and the one thing on the page that looked clickable for no visible reason.
  * The registry is an action now, beside Compare, which is the page's primary.
  */
-export function ArtifactHeader(props: { artifact: ArtifactDetail; breadcrumb?: JSX.Element; points?: SeverityPoint[] }) {
+export function ArtifactHeader(props: { artifact: ArtifactDetail; breadcrumb?: JSX.Element; points?: SeverityPoint[]; shiny?: boolean }) {
     const a = () => props.artifact;
     const registryPurl = () => {
         const purl = a().purl;
@@ -36,6 +37,9 @@ export function ArtifactHeader(props: { artifact: ArtifactDetail; breadcrumb?: J
                 <>
                     <EntryLine kind="Artifact" id={a().id} number={a().entryNumber} />
                     <TypeBadge type={a().type} />
+                    <Show when={props.shiny === true}>
+                        <Shiny />
+                    </Show>
                 </>
             }
             title={

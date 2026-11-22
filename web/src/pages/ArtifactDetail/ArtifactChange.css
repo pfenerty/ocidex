@@ -34,7 +34,7 @@
 /* The verdict beside the band, so the band's tiles stay where they were. */
 .artifact-summary {
     display: grid;
-    grid-template-columns: auto minmax(0, 1fr);
+    grid-template-columns: minmax(0, 1fr);
     align-items: center;
     gap: 0.5rem 1rem;
     margin-bottom: 1rem;
@@ -42,6 +42,15 @@
 
 .artifact-summary .tile-band {
     margin-bottom: 0;
+}
+
+/* The verdict column exists only when there is a verdict: an artifact with
+   one comparable version has none, and an empty auto column squeezed the band
+   into a single narrow stack. */
+@media (min-width: 901px) {
+    .artifact-summary:has(.change-verdict) {
+        grid-template-columns: auto minmax(0, 1fr);
+    }
 }
 
 @media (max-width: 900px) {

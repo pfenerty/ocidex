@@ -547,11 +547,17 @@ SELECT
     COALESCE(r.medium,   0)::bigint AS vuln_medium,
     COALESCE(r.low,      0)::bigint AS vuln_low,
     COALESCE(r.unknown,  0)::bigint AS vuln_unknown,
+    -- Matched against the vulnerability store long enough ago that the rollup
+    -- above has caught up: two refresh intervals (RollupRefreshInterval is 15
+    -- minutes). A fresher match may not be in the rollup yet, so it still reads
+    -- "not scanned" rather than risk calling a version with findings clean.
+    (m.matched_at IS NOT NULL AND m.matched_at < now() - interval '30 minutes')::boolean AS vuln_matched,
     COUNT(*) OVER() AS total_count
 FROM newest_per_version n
 JOIN architectures_per_version a ON a.version_key = n.version_key
 JOIN sbom_count_per_version c ON c.version_key = n.version_key
 LEFT JOIN sbom_vuln_rollup r ON r.sbom_id = n.id
+LEFT JOIN sbom_vuln_match m ON m.sbom_id = n.id
 ORDER BY n.created_at DESC, n.version_key
 LIMIT $3 OFFSET $2
 `
@@ -581,6 +587,7 @@ type ListArtifactVersionsRow struct {
 	VulnMedium           int64              `json:"vuln_medium"`
 	VulnLow              int64              `json:"vuln_low"`
 	VulnUnknown          int64              `json:"vuln_unknown"`
+	VulnMatched          bool               `json:"vuln_matched"`
 	TotalCount           int64              `json:"total_count"`
 }
 
@@ -616,6 +623,7 @@ func (q *Queries) ListArtifactVersions(ctx context.Context, arg ListArtifactVers
 			&i.VulnMedium,
 			&i.VulnLow,
 			&i.VulnUnknown,
+			&i.VulnMatched,
 			&i.TotalCount,
 		); err != nil {
 			return nil, err

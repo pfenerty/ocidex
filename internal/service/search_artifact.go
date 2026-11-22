@@ -210,6 +210,7 @@ func artifactVersionFromRow(row repository.ListArtifactVersionsRow) ArtifactVers
 	// summary rather than an all-zero one: the UI has to say "not scanned"
 	// (ADR-044), and an all-zero summary would license it to say "clean".
 	v.Vulns = vulnSummaryOrNil(row.VulnCritical, row.VulnHigh, row.VulnMedium, row.VulnLow, row.VulnUnknown)
+	v.VulnMatched = row.VulnMatched
 	if arches, ok := row.Architectures.([]interface{}); ok {
 		strs := make([]string, 0, len(arches))
 		for _, a := range arches {
@@ -541,6 +542,10 @@ func (s *searchService) GetArtifactLicenseSummary(ctx context.Context, artifactI
 type ArtifactVulnSummary struct {
 	Summary        *VulnSummary
 	SubjectVersion string
+	// Matched reports that the counted SBOM has been matched against the
+	// vulnerability store, so an absent Summary means no findings rather than
+	// never scanned.
+	Matched bool
 }
 
 // GetArtifactVulnSummary returns per-severity vuln counts for the newest SBOM
@@ -564,12 +569,16 @@ func (s *searchService) GetArtifactVulnSummary(ctx context.Context, artifactIDSt
 		return ArtifactVulnSummary{}, ErrNotFound
 	}
 
+	match, err := q.GetLatestArtifactSBOMMatch(ctx, artifactID)
+	if err != nil && !errors.Is(err, pgx.ErrNoRows) {
+		return ArtifactVulnSummary{}, fmt.Errorf("checking vuln match: %w", err)
+	}
 	rows, err := q.GetArtifactVulnSummary(ctx, artifactID)
 	if err != nil {
 		return ArtifactVulnSummary{}, fmt.Errorf("querying artifact vuln summary: %w", err)
 	}
 	if len(rows) == 0 {
-		return ArtifactVulnSummary{}, nil
+		return ArtifactVulnSummary{SubjectVersion: match.SubjectVersion, Matched: match.Matched}, nil
 	}
 
 	var vs VulnSummary
@@ -590,9 +599,9 @@ func (s *searchService) GetArtifactVulnSummary(ctx context.Context, artifactIDSt
 		}
 	}
 	if vs.Total == 0 {
-		return ArtifactVulnSummary{}, nil
+		return ArtifactVulnSummary{SubjectVersion: match.SubjectVersion, Matched: match.Matched}, nil
 	}
-	return ArtifactVulnSummary{Summary: &vs, SubjectVersion: rows[0].SubjectVersion}, nil
+	return ArtifactVulnSummary{Summary: &vs, SubjectVersion: rows[0].SubjectVersion, Matched: match.Matched}, nil
 }
 
 // ListArtifactVulns returns one page of the artifact's vulnerability list.

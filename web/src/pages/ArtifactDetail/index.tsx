@@ -26,6 +26,7 @@ import { ArtifactHeader, ArtifactIdentity } from "./ArtifactHeader";
 import { ArtifactBand, type ArtifactTab } from "./ArtifactBand";
 import { ChangeVerdict, VersionChart, severityPoints } from "./ArtifactChange";
 import { StatBlock, type StatRow } from "./StatBlock";
+import { isShiny } from "~/components/Shiny";
 import { VersionsTab } from "./VersionsTab";
 import { LicensesTab } from "./LicensesTab";
 import { ChangelogTab } from "./ChangelogTab";
@@ -269,7 +270,7 @@ function ArtifactDetailPage() {
             >
                         {(a) => (
                             <>
-                                <ArtifactHeader artifact={a()} breadcrumb={<Breadcrumb items={crumbs()} />} points={latestPoints()} />
+                                <ArtifactHeader artifact={a()} breadcrumb={<Breadcrumb items={crumbs()} />} points={latestPoints()} shiny={vulnSummaryQuery.data !== undefined && isShiny(vulnSummaryQuery.data.matched, vulnSummaryQuery.data.summary?.total)} />
 
                                 <Show when={runningClusters().length > 0}>
                                     <p class="mb-3" data-testid="running-in">
@@ -289,6 +290,7 @@ function ArtifactDetailPage() {
                                         isContainer={isContainer()}
                                         vulns={vulnSummaryQuery.data?.summary}
                                         vulnsVersion={vulnSummaryQuery.data?.subjectVersion}
+                                        vulnsMatched={vulnSummaryQuery.data?.matched}
                                         ordering={effectiveMode()}
                                         active={tab()}
                                         onSelect={setTab}

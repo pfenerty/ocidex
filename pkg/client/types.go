@@ -1777,7 +1777,10 @@ type ArtifactVersionSummary struct {
 	SourceUrl     *string                             `json:"sourceUrl,omitempty"`
 	Sufficient    bool                                `json:"sufficient"`
 	VersionKey    string                              `json:"versionKey"`
-	Vulns         *VulnSummary                        `json:"vulns,omitempty"`
+
+	// VulnMatched The newest SBOM was matched against the vulnerability store and the counts reflect it: an absent vulns then means none known
+	VulnMatched bool         `json:"vulnMatched"`
+	Vulns       *VulnSummary `json:"vulns,omitempty"`
 }
 
 // ArtifactVersionSummarySigningStatus Signing status derived from provenance enrichment
@@ -2512,11 +2515,14 @@ type DiscoverFeatured struct {
 	Name            string             `json:"name"`
 
 	// PackageCount Components in the newest SBOM
-	PackageCount   int64              `json:"packageCount"`
-	SbomId         string             `json:"sbomId"`
-	SubjectVersion *string            `json:"subjectVersion,omitempty"`
-	Type           string             `json:"type"`
-	Vulns          VulnSeverityCounts `json:"vulns"`
+	PackageCount   int64   `json:"packageCount"`
+	SbomId         string  `json:"sbomId"`
+	SubjectVersion *string `json:"subjectVersion,omitempty"`
+	Type           string  `json:"type"`
+
+	// VulnMatched The newest SBOM has been matched against the vulnerability store
+	VulnMatched bool               `json:"vulnMatched"`
+	Vulns       VulnSeverityCounts `json:"vulns"`
 }
 
 // DiscoverLicense defines model for DiscoverLicense.
@@ -2729,6 +2735,9 @@ type GetArtifactUsagesOutputBody struct {
 type GetArtifactVulnSummaryOutputBody struct {
 	// Schema A URL to the JSON Schema for this object.
 	Schema *string `json:"$schema,omitempty"`
+
+	// Matched The counted SBOM has been matched against the vulnerability store; an absent summary then means no known vulnerabilities rather than never scanned
+	Matched bool `json:"matched"`
 
 	// SubjectVersion Version whose newest SBOM the summary counts
 	SubjectVersion *string      `json:"subjectVersion,omitempty"`

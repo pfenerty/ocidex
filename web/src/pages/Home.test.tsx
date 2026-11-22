@@ -41,6 +41,7 @@ interface FeaturedRow {
     packageCount: number;
     vulns: { critical: number; high: number; medium: number; low: number; unknown: number };
     licenses: { permissive: number; weakCopyleft: number; copyleft: number; uncategorized: number };
+    vulnMatched?: boolean;
 }
 
 interface DiscoveryData {
@@ -415,12 +416,31 @@ describe("Home discovery panels", () => {
         expect(row.querySelectorAll(".mix-bar .mix-seg")).toHaveLength(3);
     });
 
-    it("says an image has no known vulnerabilities instead of a dash", () => {
+    it("calls a matched image with no findings clean, and shiny", () => {
         const data = populatedDiscovery();
         const f = data.featuredArtifacts?.[0];
-        if (f) f.vulns = { critical: 0, high: 0, medium: 0, low: 0, unknown: 0 };
+        if (f) {
+            f.vulns = { critical: 0, high: 0, medium: 0, low: 0, unknown: 0 };
+            f.vulnMatched = true;
+        }
         const { container } = renderHome(warmStats, { isError: false, data });
-        expect(container.querySelector(".featured-row")?.textContent).toContain("0 known");
+        const row = container.querySelector(".featured-row");
+        expect(row?.textContent).toContain("0 known");
+        expect(row?.querySelector(".shiny")).not.toBeNull();
+    });
+
+    // No findings on an SBOM nobody matched is unknown, not clean (ADR-044).
+    it("says an unmatched image with no findings is not scanned, and not shiny", () => {
+        const data = populatedDiscovery();
+        const f = data.featuredArtifacts?.[0];
+        if (f) {
+            f.vulns = { critical: 0, high: 0, medium: 0, low: 0, unknown: 0 };
+            f.vulnMatched = false;
+        }
+        const { container } = renderHome(warmStats, { isError: false, data });
+        const row = container.querySelector(".featured-row");
+        expect(row?.textContent).toContain("Not scanned");
+        expect(row?.querySelector(".shiny")).toBeNull();
     });
 
     it("omits the featured section when nothing is featured", () => {

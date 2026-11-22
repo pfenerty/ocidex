@@ -11,6 +11,7 @@ import { CATEGORY_COLORS } from "~/utils/licenseUtils";
 import { plural, relativeDate } from "~/utils/format";
 import { splitImageRef } from "~/utils/oci";
 import { formatDelta, latestVerdict } from "~/utils/versionDelta";
+import { Shiny, isShiny } from "~/components/Shiny";
 import { StatusChip } from "~/components/ui";
 import { VULN_DATA_STATUS } from "~/utils/status";
 
@@ -138,9 +139,14 @@ const FEATURED_COLUMNS: Column<DiscoverFeatured>[] = [
     {
         header: "Image",
         render: (f) => (
-            <A href={`/artifacts/${f.artifactId}`} class="featured-link">
-                <ImageName name={f.name} class="featured-name" />
-            </A>
+            <span class="with-sprite">
+                <A href={`/artifacts/${f.artifactId}`} class="featured-link">
+                    <ImageName name={f.name} class="featured-name" />
+                </A>
+                <Show when={isShiny(f.vulnMatched, f.vulns.critical + f.vulns.high + f.vulns.medium + f.vulns.low + f.vulns.unknown)}>
+                    <Shiny />
+                </Show>
+            </span>
         ),
     },
     { header: "Latest", class: "featured-version", render: (f) => f.subjectVersion ?? "—" },
@@ -156,7 +162,12 @@ const FEATURED_COLUMNS: Column<DiscoverFeatured>[] = [
             const v = f.vulns;
             const total = v.critical + v.high + v.medium + v.low + v.unknown;
             return (
-                <Show when={total > 0} fallback={<StatusChip status={VULN_DATA_STATUS.clean} />}>
+                <Show
+                    when={total > 0}
+                    fallback={
+                        <StatusChip status={f.vulnMatched ? VULN_DATA_STATUS.clean : VULN_DATA_STATUS.unscanned} />
+                    }
+                >
                     <MixBar thin label="Vulnerabilities by severity" segments={severitySegments(v)} />
                 </Show>
             );

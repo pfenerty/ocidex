@@ -44,9 +44,15 @@ function breakdownTitle(v: VulnSummary): string {
  * says so instead of reading as clean. That is the same distinction ADR-044
  * insists on for unmatched cluster workloads: unknown must never read as clean.
  */
-function VulnTileSub(props: { vulns: VulnSummary | undefined }) {
+function VulnTileSub(props: { vulns: VulnSummary | undefined; matched?: boolean }) {
     return (
-        <Show when={props.vulns !== undefined} fallback={<StatusChip status={VULN_DATA_STATUS.unscanned} />}>
+        <Show
+            when={props.vulns !== undefined}
+            fallback={
+                // Matched with no findings is clean; otherwise it is unknown (ADR-044).
+                <StatusChip status={props.matched === true ? VULN_DATA_STATUS.clean : VULN_DATA_STATUS.unscanned} />
+            }
+        >
             <Show when={worstSeverity(props.vulns)} fallback={<>no known vulnerabilities</>}>
                 {(w) => (
                     <>
@@ -90,6 +96,8 @@ export function vulnTile<T extends string>(
     vulns: VulnSummary | undefined,
     id?: T,
     scope?: JSX.Element,
+    /** The counted SBOM was matched, so an absent summary means zero, not unknown. */
+    matched?: boolean,
 ): StatTile<T> {
     return {
         id,
@@ -101,11 +109,11 @@ export function vulnTile<T extends string>(
                 </Show>
             </>
         ),
-        value: vulns?.total ?? "—",
+        value: vulns?.total ?? (matched === true ? 0 : "—"),
         // Severity rides in the sub-line as a SeverityPill rather than as a
         // colour on the number: the shared redscale (`sev-*`) is a set of badge
         // *backgrounds*, so applying it to `.tile-value` would paint a
         // full-bleed block behind the count instead of tinting it.
-        sub: <VulnTileSub vulns={vulns} />,
+        sub: <VulnTileSub vulns={vulns} matched={matched} />,
     };
 }
