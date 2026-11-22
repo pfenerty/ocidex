@@ -185,3 +185,16 @@ func TestSortDirSign(t *testing.T) {
 	is.Equal(sortDirSign(true), int32(1))   // desc: worst first
 	is.Equal(sortDirSign(false), int32(-1)) // asc
 }
+
+func TestCompareSeverityCounts_UnknownRanksBelowLow(t *testing.T) {
+	is := is.New(t)
+	// Unrated findings are the least severe: one LOW outranks any number of
+	// them, in the versions table's severity sort as on /artifacts.
+	is.Equal(compareSeverityCounts(&VulnSummary{Low: 1, Total: 1}, &VulnSummary{Unknown: 240, Total: 240}), 1)
+	vs := []ArtifactVersion{
+		{VersionKey: "unrated", Vulns: &VulnSummary{Unknown: 240, Total: 240}},
+		{VersionKey: "one-low", Vulns: &VulnSummary{Low: 1, Total: 1}},
+	}
+	sortVersionsBySeverity(vs, true)
+	is.Equal(keys(vs), []string{"one-low", "unrated"})
+}
