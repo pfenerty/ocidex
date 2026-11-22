@@ -225,14 +225,11 @@ function ArtifactDetailPage() {
         { id: "versions", label: `Versions (${versionCount})` },
         { id: "changelog", label: "Changelog" },
         { id: "licenses", label: "Licenses" },
-        // No count without a summary: never-scanned is not "(0)" (ocidex-9yjp).
-        {
-            id: "vulns",
-            label: (() => {
-                const total = vulnSummaryQuery.data?.summary?.total;
-                return total === undefined ? "Vulnerabilities" : `Vulnerabilities (${total})`;
-            })(),
-        },
+        // No count: the band's tile counts one SBOM of the latest version,
+        // while the tab lists the newest SBOM of each recent version, so any
+        // number here disagreed with the rows under it. The tab states its own
+        // total; fetching that list just for a label is the heavy query.
+        { id: "vulns", label: "Vulnerabilities" },
         { id: "relationships", label: "Relationships" },
         ...(signedIn()
             ? [{ id: "running" as const, label: `Running (${(runningQuery.data ?? []).length})` }]
