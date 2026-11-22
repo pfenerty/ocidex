@@ -140,6 +140,28 @@ describe("Layout", () => {
         expect(getByRole("link", { name: "Sign in" })).toBeDefined();
     });
 
+    // The public links do not depend on who is looking, so they must not wait
+    // for /users/me; only the signed-in group does, and it sits after them so
+    // nothing moves when it arrives.
+    it("shows the public links while the session is pending and holds back only the signed-in group", () => {
+        mockUserFn = asResource(undefined, true);
+        const { container } = render(() => <Wrapped>page</Wrapped>);
+        const nav = container.querySelector("header.topbar nav");
+        if (nav === null) throw new Error("no nav rendered");
+        expect(nav.classList.contains("nav-pending")).toBe(false);
+        expect(nav.querySelector('[aria-label="Artifacts"]')?.closest(".nav-pending")).toBeNull();
+        expect(nav.querySelector(".nav-signed-in")?.classList.contains("nav-pending")).toBe(true);
+    });
+
+    it("puts every signed-in link after the public ones", () => {
+        mockUserFn = asResource(makeUser({ role: "admin" }));
+        const { container } = render(() => <Wrapped>page</Wrapped>);
+        const labels = [...(container.querySelector("header.topbar nav")?.querySelectorAll("a") ?? [])].map((a) =>
+            a.getAttribute("aria-label"),
+        );
+        expect(labels).toEqual(["Home", "Artifacts", "Components", "Licenses", "Vulnerabilities", "Compare", "Workspace", "Clusters", "Admin"]);
+    });
+
     it("redirects to /login when unauthenticated on /admin path", () => {
         mockLocation.pathname = "/admin";
         mockUserFn = asResource(undefined);
