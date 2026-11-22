@@ -301,9 +301,7 @@ function ArtifactDetailPage() {
                                     onSelect={setTab}
                                 />
 
-                                <StatBlock rows={statRows(a())} />
-
-                                <ArtifactIdentity artifact={a()} />
+                                <ArtifactIdentity artifact={a()} stats={<StatBlock rows={statRows(a())} />} />
 
                                 <TabBar tabs={tabs(a().versionCount)} active={tab()} onSelect={setTab} />
 

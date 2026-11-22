@@ -126,17 +126,17 @@ export function ArtifactHeader(props: {
  *
  * Group is not a row here: `artifactDisplayName` already prefixes it onto the
  * title, so a "Group" row was only ever a second rendering of the heading.
+ *
+ * The catalog comparison bars (`stats`) live here too. They restate the band's
+ * figures against catalog maxima, which is reference detail rather than an
+ * answer, so they do not earn a place above the tabs.
  */
-export function ArtifactIdentity(props: { artifact: ArtifactDetail }) {
+export function ArtifactIdentity(props: { artifact: ArtifactDetail; stats?: JSX.Element }) {
     const a = () => props.artifact;
-    const hasIdentity = () =>
-        (a().purl !== undefined && a().purl !== "") || (a().cpe !== undefined && a().cpe !== "");
-
     return (
         <details class="mb-4">
-            <summary class="text-muted text-sm cursor-pointer">
-                {hasIdentity() ? "Identity" : "Internal ID"}
-            </summary>
+            <summary class="text-muted text-sm cursor-pointer">Entry data</summary>
+            {props.stats}
             <Card class="mt-2">
                 <DetailGrid>
                     <DetailField label="Package URL" when={a().purl}>
