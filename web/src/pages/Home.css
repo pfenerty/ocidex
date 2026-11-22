@@ -403,14 +403,16 @@ td.featured-n {
     white-space: nowrap;
 }
 
-/* The advisory summary, two lines at most: enough to say what it is. */
+/* The advisory summary, one line: enough to say what it is, with the full
+   text on hover. Two lines ran the list to twice the height of the panel
+   beside it. */
 .landing-row-sub {
     margin: 0.25rem 0 0;
     font-size: var(--text-sm);
     line-height: 1.45;
     color: var(--color-text-muted);
     display: -webkit-box;
-    -webkit-line-clamp: 2;
+    -webkit-line-clamp: 1;
     -webkit-box-orient: vertical;
     overflow: hidden;
 }

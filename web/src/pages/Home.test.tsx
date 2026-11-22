@@ -393,6 +393,21 @@ describe("Home discovery panels", () => {
         expect(container.textContent).not.toContain("21 sboms");
     });
 
+    it("caps the blast radius list at five rows", () => {
+        const data = populatedDiscovery();
+        const first = data.topVulnerabilities[0];
+        data.topVulnerabilities = Array.from({ length: 8 }, (_, i) => ({
+            ...first,
+            id: `vuln-${i}`,
+            canonicalId: `CVE-2024-${1000 + i}`,
+        }));
+        const { container } = renderHome(warmStats, { isError: false, data });
+        const hrefs = [...container.querySelectorAll("a")]
+            .map((a) => a.getAttribute("href") ?? "")
+            .filter((h) => h.startsWith("/vulnerabilities/CVE-"));
+        expect(hrefs).toHaveLength(5);
+    });
+
     // ocidex-gu40: on a demo corpus the ranking was nothing but OCIDex's own
     // workers, so the landing page no longer carries it.
     it("does not rank artifacts by use any more", () => {

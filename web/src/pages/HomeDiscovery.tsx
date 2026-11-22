@@ -198,6 +198,9 @@ const FEATURED_COLUMNS: Column<DiscoverFeatured>[] = [
     },
 ];
 
+/** Widest blast radius rows: the panel matches the license panel beside it. */
+const BLAST_RADIUS_ROWS = 5;
+
 function VulnRow(props: { v: DiscoverVuln }): JSX.Element {
     return (
         <li class="landing-row">
@@ -213,7 +216,13 @@ function VulnRow(props: { v: DiscoverVuln }): JSX.Element {
                     {plural(props.v.affectedArtifactCount, "artifact")}
                 </span>
             </div>
-            <Show when={props.v.summary}>{(s) => <p class="landing-row-sub">{s()}</p>}</Show>
+            <Show when={props.v.summary}>
+                {(s) => (
+                    <p class="landing-row-sub" title={s()}>
+                        {s()}
+                    </p>
+                )}
+            </Show>
         </li>
     );
 }
@@ -314,7 +323,7 @@ export function HomeDiscovery(): JSX.Element {
                                 <h3 class="landing-subhead">Widest blast radius</h3>
                                 <ul class="landing-list">
                                     <For
-                                        each={data().topVulnerabilities}
+                                        each={(data().topVulnerabilities ?? []).slice(0, BLAST_RADIUS_ROWS)}
                                         fallback={<li class="landing-list-empty text-muted">No known vulnerabilities.</li>}
                                     >
                                         {(v) => <VulnRow v={v} />}
