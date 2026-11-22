@@ -49,6 +49,7 @@ func newServer(api client.Client, server string) *mcp.Server {
 	registerCatalogTools(srv, api)
 	registerAnalysisTools(srv, api)
 	registerRemediationTools(srv, api)
+	registerClusterTools(srv, api)
 	registerResources(srv, api, server)
 	return srv
 }
