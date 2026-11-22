@@ -82,17 +82,9 @@ func (q *Queries) CountArtifacts(ctx context.Context, arg CountArtifactsParams) 
 }
 
 const countLatestVersionPackages = `-- name: CountLatestVersionPackages :one
-SELECT COALESCE((
-    SELECT COUNT(*) FROM component c WHERE c.sbom_id = (
-        SELECT s.id FROM sbom s
-        WHERE s.artifact_id = $1
-          AND s.namespace_id IN (SELECT visible_namespace_ids($2::uuid, $3::boolean))
-        ORDER BY s.version_major DESC NULLS LAST,
-                 s.version_minor DESC NULLS LAST,
-                 s.version_patch DESC NULLS LAST,
-                 s.created_at DESC, s.id DESC
-        LIMIT 1)
-), 0)::bigint AS package_count
+SELECT COUNT(*)::bigint AS package_count
+FROM component c
+WHERE c.sbom_id = artifact_headline_sbom($1::uuid, $2::uuid, $3::boolean)
 `
 
 type CountLatestVersionPackagesParams struct {
@@ -101,8 +93,8 @@ type CountLatestVersionPackagesParams struct {
 	IsAdmin    pgtype.Bool `json:"is_admin"`
 }
 
-// Components in the artifact's newest visible SBOM of its latest version,
-// picked the way ListArtifacts picks it. Zero when nothing is visible.
+// Components in the SBOM the artifact is counted from (artifact_headline_sbom).
+// Zero when nothing is visible.
 func (q *Queries) CountLatestVersionPackages(ctx context.Context, arg CountLatestVersionPackagesParams) (int64, error) {
 	row := q.db.QueryRow(ctx, countLatestVersionPackages, arg.ArtifactID, arg.UserID, arg.IsAdmin)
 	var package_count int64
@@ -379,21 +371,26 @@ func (q *Queries) GetArtifactIDByEntryNumber(ctx context.Context, arg GetArtifac
 const listArtifactCriticalHistory = `-- name: ListArtifactCriticalHistory :many
 WITH per_version AS (
     SELECT DISTINCT ON (s.artifact_id, s.subject_version)
-        s.id, s.artifact_id, s.subject_version,
+        s.id, s.artifact_id, s.subject_version, s.version_prerelease, s.version_variant,
         s.version_major, s.version_minor, s.version_patch, s.created_at
     FROM sbom s
+    CROSS JOIN LATERAL (SELECT sbom_architecture(s.id) AS arch) x
     WHERE s.artifact_id = ANY($1::uuid[])
       AND s.subject_version IS NOT NULL
       AND s.namespace_id IN (SELECT visible_namespace_ids($2::uuid, $3::boolean))
-    ORDER BY s.artifact_id, s.subject_version, s.created_at DESC, s.id DESC
+    -- version_headline_sbom()'s pick within each version, inline.
+    ORDER BY s.artifact_id, s.subject_version, sbom_arch_rank(x.arch), x.arch, s.created_at DESC, s.id DESC
 ),
 ranked AS (
-    SELECT pv.id, pv.artifact_id, pv.subject_version, pv.version_major, pv.version_minor, pv.version_patch, pv.created_at,
+    SELECT pv.id, pv.artifact_id, pv.subject_version, pv.version_prerelease, pv.version_variant, pv.version_major, pv.version_minor, pv.version_patch, pv.created_at,
            ROW_NUMBER() OVER (
                PARTITION BY pv.artifact_id
-               ORDER BY pv.version_major DESC NULLS LAST,
+               ORDER BY pv.version_prerelease,
+                        pv.version_major DESC NULLS LAST,
                         pv.version_minor DESC NULLS LAST,
                         pv.version_patch DESC NULLS LAST,
+                        pv.version_variant <> '',
+                        pv.version_variant,
                         pv.created_at DESC, pv.id DESC
            ) AS rn
     FROM per_version pv
@@ -433,6 +430,8 @@ type ListArtifactCriticalHistoryRow struct {
 // interleave with others. `scanned` is false when the rollup has no row, which
 // is "no findings" or "never scanned" indistinguishably (ADR-044); the client
 // leaves those as gaps rather than drawing them as zero.
+// Ranked the way artifact_headline_sbom() orders versions, so rank 1 is the
+// version the artifact is counted from.
 func (q *Queries) ListArtifactCriticalHistory(ctx context.Context, arg ListArtifactCriticalHistoryParams) ([]ListArtifactCriticalHistoryRow, error) {
 	rows, err := q.db.Query(ctx, listArtifactCriticalHistory, arg.ArtifactIds, arg.UserID, arg.IsAdmin)
 	if err != nil {
@@ -515,7 +514,7 @@ newest_per_version AS (
     SELECT DISTINCT ON (version_key)
         id, version_key, created_at, enrichment_sufficient, image_version, revision, source_url, build_date, signing_status
     FROM sboms_meta
-    ORDER BY version_key, created_at DESC
+    ORDER BY version_key, sbom_arch_rank(architecture), architecture, created_at DESC, id DESC
 ),
 architectures_per_version AS (
     SELECT
@@ -601,6 +600,10 @@ type ListArtifactVersionsRow struct {
 	TotalCount           int64              `json:"total_count"`
 }
 
+// The SBOM each version is counted from: version_headline_sbom()'s rule (the
+// preferred architecture, then newest), applied inline because sboms_meta
+// already holds every input and calling the function per version would read
+// them again.
 func (q *Queries) ListArtifactVersions(ctx context.Context, arg ListArtifactVersionsParams) ([]ListArtifactVersionsRow, error) {
 	rows, err := q.db.Query(ctx, listArtifactVersions,
 		arg.ArtifactID,
@@ -704,32 +707,10 @@ FROM artifact a
 LEFT JOIN sbom s ON s.artifact_id = a.id
     AND s.namespace_id IN (SELECT visible_namespace_ids($1::uuid, $2::boolean))
 LEFT JOIN LATERAL (
-    SELECT COALESCE(r.critical, 0)::bigint AS critical,
-           COALESCE(r.high,     0)::bigint AS high,
-           COALESCE(r.medium,   0)::bigint AS medium,
-           COALESCE(r.low,      0)::bigint AS low,
-           COALESCE(r.unknown,  0)::bigint AS unknown,
-           (COALESCE(r.critical, 0) + COALESCE(r.high, 0) + COALESCE(r.medium, 0)
-            + COALESCE(r.low, 0) + COALESCE(r.unknown, 0))::bigint AS total
-    FROM sbom sv
-    LEFT JOIN sbom_vuln_rollup r ON r.sbom_id = sv.id
-    WHERE sv.artifact_id = a.id
-      AND sv.namespace_id IN (SELECT visible_namespace_ids($1::uuid, $2::boolean))
-    -- Version parts first, insert order only as a tiebreak. Ordering by
-    -- created_at alone meant "most recently ingested", so re-scanning or
-    -- backfilling an old tag rewrote this row's counts to that old tag's
-    -- findings. NULLS LAST because a subject_version that does
-    -- not parse — a digest, a branch name — is unknown, not newest; the
-    -- matching index idx_sbom_artifact_version declares the same.
-    --
-    -- The latest version still has one SBOM per architecture, so created_at
-    -- picks among those. That is deliberate: the column means "the latest
-    -- version, one arch of it", which the UI states rather than implies.
-    ORDER BY sv.version_major DESC NULLS LAST,
-             sv.version_minor DESC NULLS LAST,
-             sv.version_patch DESC NULLS LAST,
-             sv.created_at DESC, sv.id DESC
-    LIMIT 1
+    SELECT r.critical, r.high, r.medium, r.low, r.unknown,
+           (r.critical + r.high + r.medium + r.low + r.unknown)::bigint AS total
+    FROM sbom_vuln_rollup r
+    WHERE r.sbom_id = artifact_headline_sbom(a.id, $1::uuid, $2::boolean)
 ) vr ON TRUE
 WHERE ($3::text IS NULL OR a.type = $3)
   AND ($4::text IS NULL OR a.name ILIKE like_contains($4::text))
@@ -812,6 +793,10 @@ type ListArtifactsRow struct {
 // The inner join is LEFT so the lateral picks the winning SBOM and then looks
 // for its rollup row, rather than the newest SBOM that happens to have one:
 // an inner join would silently fall back to a superseded SBOM's findings.
+// The counted SBOM is artifact_headline_sbom()'s pick, the one every artifact
+// surface shares. The rollup is LEFT-joined to it rather than searched for, so
+// a headline SBOM with no rollup row reads as no findings instead of falling
+// back to an older SBOM that has one.
 // Two orderings in one query. The severity keys are wrapped in a CASE that
 // collapses to NULL when @sort_severity is false, which makes every row tie on
 // them and hands the decision to the trailing (name, type, id) — the default

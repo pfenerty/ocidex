@@ -267,8 +267,8 @@ LIMIT @row_limit::int;
 -- With @names empty, the public container images with the most packages fill
 -- the slots.
 --
--- "Newest" is the GetArtifactVulnSummary ordering (version parts, created_at
--- as a tiebreak), and the severity counts use its unit, distinct canonical_id
+-- The SBOM is artifact_headline_sbom()'s pick for an anonymous viewer, and the
+-- severity counts use GetArtifactVulnSummary's unit, distinct canonical_id
 -- per severity, so a card and that artifact's own page agree.
 WITH public_ns AS (
     SELECT visible_namespace_ids(NULL::uuid, false) AS id
@@ -323,13 +323,7 @@ FROM picked p
 CROSS JOIN LATERAL (
     SELECT s.id AS sbom_id, s.subject_version, s.created_at
     FROM sbom s
-    WHERE s.artifact_id = p.id
-      AND s.namespace_id IN (SELECT id FROM public_ns)
-    ORDER BY s.version_major DESC NULLS LAST,
-             s.version_minor DESC NULLS LAST,
-             s.version_patch DESC NULLS LAST,
-             s.created_at DESC, s.id DESC
-    LIMIT 1
+    WHERE s.id = artifact_headline_sbom(p.id, NULL::uuid, false)
 ) l
 CROSS JOIN LATERAL (
     SELECT COUNT(*)::bigint AS package_count

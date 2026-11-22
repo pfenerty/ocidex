@@ -17,15 +17,9 @@ WITH visible_artifact AS (
     WHERE artifact_visible(a.id, $1::uuid, $2::boolean)
 ),
 latest AS (
-    SELECT DISTINCT ON (s.artifact_id) s.artifact_id, s.id AS sbom_id, s.subject_version
-    FROM sbom s
-    WHERE s.artifact_id IN (SELECT id FROM visible_artifact)
-      AND s.namespace_id IN (SELECT visible_namespace_ids($1::uuid, $2::boolean))
-    ORDER BY s.artifact_id,
-             s.version_major DESC NULLS LAST,
-             s.version_minor DESC NULLS LAST,
-             s.version_patch DESC NULLS LAST,
-             s.created_at DESC, s.id DESC
+    SELECT va.id AS artifact_id, s.id AS sbom_id, s.subject_version
+    FROM visible_artifact va
+    JOIN sbom s ON s.id = artifact_headline_sbom(va.id, $1::uuid, $2::boolean)
 ),
 per_artifact AS (
     SELECT l.artifact_id,
@@ -69,8 +63,8 @@ type GetArtifactMaximaRow struct {
 
 // The largest value of each stat-block figure across visible artifacts, so an
 // artifact page can draw its bars against the catalog. Per artifact, figures
-// are read from its latest version the way ListArtifacts picks it (version
-// parts, then created_at); versions and SBOMs count the whole artifact.
+// are read from the SBOM it is counted from (artifact_headline_sbom); versions
+// and SBOMs count the whole artifact.
 // Computed by the stats warmer, never on a request.
 func (q *Queries) GetArtifactMaxima(ctx context.Context, arg GetArtifactMaximaParams) (GetArtifactMaximaRow, error) {
 	row := q.db.QueryRow(ctx, getArtifactMaxima, arg.UserID, arg.IsAdmin)

@@ -93,19 +93,11 @@ WHERE a.entry_number = @entry_number::bigint
   AND artifact_visible(a.id, sqlc.narg('user_id')::uuid, sqlc.narg('is_admin')::boolean);
 
 -- name: CountLatestVersionPackages :one
--- Components in the artifact's newest visible SBOM of its latest version,
--- picked the way ListArtifacts picks it. Zero when nothing is visible.
-SELECT COALESCE((
-    SELECT COUNT(*) FROM component c WHERE c.sbom_id = (
-        SELECT s.id FROM sbom s
-        WHERE s.artifact_id = @artifact_id
-          AND s.namespace_id IN (SELECT visible_namespace_ids(sqlc.narg('user_id')::uuid, sqlc.narg('is_admin')::boolean))
-        ORDER BY s.version_major DESC NULLS LAST,
-                 s.version_minor DESC NULLS LAST,
-                 s.version_patch DESC NULLS LAST,
-                 s.created_at DESC, s.id DESC
-        LIMIT 1)
-), 0)::bigint AS package_count;
+-- Components in the SBOM the artifact is counted from (artifact_headline_sbom).
+-- Zero when nothing is visible.
+SELECT COUNT(*)::bigint AS package_count
+FROM component c
+WHERE c.sbom_id = artifact_headline_sbom(@artifact_id::uuid, sqlc.narg('user_id')::uuid, sqlc.narg('is_admin')::boolean);
 
 -- name: CountArtifacts :one
 -- The total behind ListArtifacts' first page, under the same filters and
@@ -195,33 +187,15 @@ LEFT JOIN sbom s ON s.artifact_id = a.id
 -- The inner join is LEFT so the lateral picks the winning SBOM and then looks
 -- for its rollup row, rather than the newest SBOM that happens to have one:
 -- an inner join would silently fall back to a superseded SBOM's findings.
+-- The counted SBOM is artifact_headline_sbom()'s pick, the one every artifact
+-- surface shares. The rollup is LEFT-joined to it rather than searched for, so
+-- a headline SBOM with no rollup row reads as no findings instead of falling
+-- back to an older SBOM that has one.
 LEFT JOIN LATERAL (
-    SELECT COALESCE(r.critical, 0)::bigint AS critical,
-           COALESCE(r.high,     0)::bigint AS high,
-           COALESCE(r.medium,   0)::bigint AS medium,
-           COALESCE(r.low,      0)::bigint AS low,
-           COALESCE(r.unknown,  0)::bigint AS unknown,
-           (COALESCE(r.critical, 0) + COALESCE(r.high, 0) + COALESCE(r.medium, 0)
-            + COALESCE(r.low, 0) + COALESCE(r.unknown, 0))::bigint AS total
-    FROM sbom sv
-    LEFT JOIN sbom_vuln_rollup r ON r.sbom_id = sv.id
-    WHERE sv.artifact_id = a.id
-      AND sv.namespace_id IN (SELECT visible_namespace_ids(sqlc.narg('user_id')::uuid, sqlc.narg('is_admin')::boolean))
-    -- Version parts first, insert order only as a tiebreak. Ordering by
-    -- created_at alone meant "most recently ingested", so re-scanning or
-    -- backfilling an old tag rewrote this row's counts to that old tag's
-    -- findings. NULLS LAST because a subject_version that does
-    -- not parse — a digest, a branch name — is unknown, not newest; the
-    -- matching index idx_sbom_artifact_version declares the same.
-    --
-    -- The latest version still has one SBOM per architecture, so created_at
-    -- picks among those. That is deliberate: the column means "the latest
-    -- version, one arch of it", which the UI states rather than implies.
-    ORDER BY sv.version_major DESC NULLS LAST,
-             sv.version_minor DESC NULLS LAST,
-             sv.version_patch DESC NULLS LAST,
-             sv.created_at DESC, sv.id DESC
-    LIMIT 1
+    SELECT r.critical, r.high, r.medium, r.low, r.unknown,
+           (r.critical + r.high + r.medium + r.low + r.unknown)::bigint AS total
+    FROM sbom_vuln_rollup r
+    WHERE r.sbom_id = artifact_headline_sbom(a.id, sqlc.narg('user_id')::uuid, sqlc.narg('is_admin')::boolean)
 ) vr ON TRUE
 WHERE (sqlc.narg('type')::text IS NULL OR a.type = sqlc.narg('type'))
   AND (sqlc.narg('name')::text IS NULL OR a.name ILIKE like_contains(sqlc.narg('name')::text))
@@ -288,21 +262,28 @@ LIMIT @row_limit OFFSET @row_offset;
 -- leaves those as gaps rather than drawing them as zero.
 WITH per_version AS (
     SELECT DISTINCT ON (s.artifact_id, s.subject_version)
-        s.id, s.artifact_id, s.subject_version,
+        s.id, s.artifact_id, s.subject_version, s.version_prerelease, s.version_variant,
         s.version_major, s.version_minor, s.version_patch, s.created_at
     FROM sbom s
+    CROSS JOIN LATERAL (SELECT sbom_architecture(s.id) AS arch) x
     WHERE s.artifact_id = ANY(@artifact_ids::uuid[])
       AND s.subject_version IS NOT NULL
       AND s.namespace_id IN (SELECT visible_namespace_ids(sqlc.narg('user_id')::uuid, sqlc.narg('is_admin')::boolean))
-    ORDER BY s.artifact_id, s.subject_version, s.created_at DESC, s.id DESC
+    -- version_headline_sbom()'s pick within each version, inline.
+    ORDER BY s.artifact_id, s.subject_version, sbom_arch_rank(x.arch), x.arch, s.created_at DESC, s.id DESC
 ),
+-- Ranked the way artifact_headline_sbom() orders versions, so rank 1 is the
+-- version the artifact is counted from.
 ranked AS (
     SELECT pv.*,
            ROW_NUMBER() OVER (
                PARTITION BY pv.artifact_id
-               ORDER BY pv.version_major DESC NULLS LAST,
+               ORDER BY pv.version_prerelease,
+                        pv.version_major DESC NULLS LAST,
                         pv.version_minor DESC NULLS LAST,
                         pv.version_patch DESC NULLS LAST,
+                        pv.version_variant <> '',
+                        pv.version_variant,
                         pv.created_at DESC, pv.id DESC
            ) AS rn
     FROM per_version pv
@@ -461,11 +442,15 @@ WITH sboms_meta AS (
     WHERE s.artifact_id = $1
       AND s.namespace_id IN (SELECT visible_namespace_ids(sqlc.narg('user_id')::uuid, sqlc.narg('is_admin')::boolean))
 ),
+-- The SBOM each version is counted from: version_headline_sbom()'s rule (the
+-- preferred architecture, then newest), applied inline because sboms_meta
+-- already holds every input and calling the function per version would read
+-- them again.
 newest_per_version AS (
     SELECT DISTINCT ON (version_key)
         id, version_key, created_at, enrichment_sufficient, image_version, revision, source_url, build_date, signing_status
     FROM sboms_meta
-    ORDER BY version_key, created_at DESC
+    ORDER BY version_key, sbom_arch_rank(architecture), architecture, created_at DESC, id DESC
 ),
 architectures_per_version AS (
     SELECT
