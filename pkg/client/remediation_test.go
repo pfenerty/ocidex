@@ -158,6 +158,18 @@ func TestRemediationReadsRequest(t *testing.T) {
 			},
 		},
 		{
+			name:     "enrichment summary",
+			wantPath: "/api/v1/enrichment-jobs/summary",
+			body:     `{"data":[{"enricherName":"grype","state":"pending","count":4}]}`,
+			call: func(c Client) error {
+				rows, err := c.GetEnrichmentJobsSummary(context.Background())
+				if err == nil && (len(rows) != 1 || rows[0].Count != 4) {
+					t.Errorf("rows = %+v", rows)
+				}
+				return err
+			},
+		},
+		{
 			name:      "sbom drift",
 			wantPath:  "/api/v1/sboms/sb-1/drift",
 			wantQuery: "cursor=abc",

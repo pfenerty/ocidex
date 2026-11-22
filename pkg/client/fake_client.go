@@ -62,6 +62,7 @@ type FakeClient struct {
 	ListTopVulnerabilitiesFn     func(ctx context.Context, params ListTopVulnerabilitiesParams) (Page[TopVulnEntry], error)
 	ListMyVulnerabilitiesFn      func(ctx context.Context, params ListMyVulnerabilitiesParams) (Page[TopVulnEntry], error)
 	ListVulnerabilityWorkloadsFn func(ctx context.Context, vulnID string, params ListVulnerabilityWorkloadsParams) ([]RunningWorkloadResponse, error)
+	GetEnrichmentJobsSummaryFn   func(ctx context.Context) ([]EnrichmentJobSummaryRow, error)
 
 	// SBOM + artifact
 	IngestSBOMFn                func(ctx context.Context, data []byte, params IngestSbomParams) (IngestSBOMOutputBody, error)
@@ -628,6 +629,13 @@ func (f *FakeClient) ListMyVulnerabilities(ctx context.Context, params ListMyVul
 func (f *FakeClient) ListVulnerabilityWorkloads(ctx context.Context, vulnID string, params ListVulnerabilityWorkloadsParams) ([]RunningWorkloadResponse, error) {
 	if f.ListVulnerabilityWorkloadsFn != nil {
 		return f.ListVulnerabilityWorkloadsFn(ctx, vulnID, params)
+	}
+	return nil, nil
+}
+
+func (f *FakeClient) GetEnrichmentJobsSummary(ctx context.Context) ([]EnrichmentJobSummaryRow, error) {
+	if f.GetEnrichmentJobsSummaryFn != nil {
+		return f.GetEnrichmentJobsSummaryFn(ctx)
 	}
 	return nil, nil
 }

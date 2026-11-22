@@ -110,6 +110,7 @@ type Client interface {
 	ListJobs(ctx context.Context, filter JobFilter, opts PageOpts) (Page[ScanJobResponse], error)
 	GetJob(ctx context.Context, id string) (ScanJobResponse, error)
 	RetryJob(ctx context.Context, id string) error
+	GetEnrichmentJobsSummary(ctx context.Context) ([]EnrichmentJobSummaryRow, error)
 
 	GetDashboardStats(ctx context.Context) (DashboardStatsOutputBody, error)
 

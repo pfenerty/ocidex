@@ -50,6 +50,7 @@ func newServer(api client.Client, server string) *mcp.Server {
 	registerAnalysisTools(srv, api)
 	registerRemediationTools(srv, api)
 	registerClusterTools(srv, api)
+	registerInsightTools(srv, api)
 	registerResources(srv, api, server)
 	return srv
 }
