@@ -197,7 +197,7 @@ func registerClusterVulns(srv *mcp.Server, api client.Client) {
 		switch in.Sort {
 		case "", "worst":
 		case "workloads":
-			s, d := client.ListClusterVulnsParamsSort("workloadCount"), client.ListClusterVulnsParamsDir("desc")
+			s, d := client.ListClusterVulnsParamsSort("workloadCount"), client.ListClusterVulnsParamsDir(sortDescending)
 			params.Sort, params.Dir = &s, &d
 		default:
 			return nil, clusterVulnsOutput{}, fmt.Errorf("sort %q is not worst or workloads", in.Sort)
@@ -287,7 +287,7 @@ func registerClusterImages(srv *mcp.Server, api client.Client) {
 		if err := validMatchState(in.MatchState); err != nil {
 			return nil, clusterImagesOutput{}, err
 		}
-		s, d := client.ListClusterImagesParamsSort("vulnCount"), client.ListClusterImagesParamsDir("desc")
+		s, d := client.ListClusterImagesParamsSort("vulnCount"), client.ListClusterImagesParamsDir(sortDescending)
 		params := client.ListClusterImagesParams{
 			K8sNamespace: optional(in.K8sNamespace),
 			Q:            optional(in.Query),
@@ -379,7 +379,7 @@ func registerClusterWorkloads(srv *mcp.Server, api client.Client) {
 		if err := validMatchState(in.MatchState); err != nil {
 			return nil, clusterWorkloadsOutput{}, err
 		}
-		s, d := client.ListClusterWorkloadsParamsSort("vulnCount"), client.ListClusterWorkloadsParamsDir("desc")
+		s, d := client.ListClusterWorkloadsParamsSort("vulnCount"), client.ListClusterWorkloadsParamsDir(sortDescending)
 		params := client.ListClusterWorkloadsParams{
 			K8sNamespace: optional(in.K8sNamespace),
 			Q:            optional(in.Query),

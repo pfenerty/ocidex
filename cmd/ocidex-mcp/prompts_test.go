@@ -38,7 +38,8 @@ func TestGuidanceNamesOnlyRealTools(t *testing.T) {
 	session := connect(t, &client.FakeClient{})
 	tools := listedTools(t, session)
 
-	texts := []string{session.InitializeResult().Instructions}
+	texts := make([]string, 0, 3)
+	texts = append(texts, session.InitializeResult().Instructions)
 	for _, p := range []struct{ name, argKey, argVal string }{
 		{"remediate_image", "image", "ghcr.io/acme/api"},
 		{"remediate_cluster", "cluster", "homelab"},

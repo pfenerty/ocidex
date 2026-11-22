@@ -316,17 +316,17 @@ func registerFindingsTools(srv *mcp.Server, api client.Client) {
 // findings come first, so a truncated rollup is still the part that matters.
 func allSBOMFindings(ctx context.Context, api client.Client, sbomID string, sev *client.ListSbomVulnsParamsSeverity) ([]client.SBOMVulnEntry, bool, error) {
 	var all []client.SBOMVulnEntry
-	for offset := int32(0); ; {
+	for offset := 0; ; {
 		page, err := api.ListSBOMVulns(ctx, sbomID, client.ListSbomVulnsParams{
 			Severity: sev,
 			Limit:    optionalInt32(maxAPIPage),
-			Offset:   optionalInt32(int(offset)),
+			Offset:   optionalInt32(offset),
 		})
 		if err != nil {
 			return nil, false, err
 		}
 		all = append(all, page.Data...)
-		offset += int32(len(page.Data))
+		offset += len(page.Data)
 		if len(page.Data) == 0 || int64(offset) >= page.Pagination.Total {
 			return all, false, nil
 		}

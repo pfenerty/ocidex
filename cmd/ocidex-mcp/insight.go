@@ -50,15 +50,17 @@ type topVulnsOutput struct {
 	Offset          int32           `json:"offset"`
 }
 
-// topVulnSorts maps the tool's sort names onto the API's, with the direction
-// that makes each one read "most important first".
-var topVulnSorts = map[string][2]string{
-	"severity":  {"severity", "desc"},
-	"cvss":      {"cvssScore", "desc"},
-	"sboms":     {"affectedSbomCount", "desc"},
-	"packages":  {"affectedPurlCount", "desc"},
-	"published": {"publishedAt", "desc"},
+// topVulnSorts maps the tool's sort names onto the API's columns.
+// Every ranking reads best descending, so only the column varies.
+var topVulnSorts = map[string]string{
+	"severity":  "severity",
+	"cvss":      "cvssScore",
+	"sboms":     "affectedSbomCount",
+	"packages":  "affectedPurlCount",
+	"published": "publishedAt",
 }
+
+const sortDescending = "desc"
 
 func registerTopVulnerabilities(srv *mcp.Server, api client.Client) {
 	mcp.AddTool(srv, &mcp.Tool{
@@ -95,7 +97,7 @@ func registerTopVulnerabilities(srv *mcp.Server, api client.Client) {
 			if perr != nil {
 				return nil, topVulnsOutput{}, perr
 			}
-			s, d := client.ListMyVulnerabilitiesParamsSort(sortSpec[0]), client.ListMyVulnerabilitiesParamsSortDir(sortSpec[1])
+			s, d := client.ListMyVulnerabilitiesParamsSort(sortSpec), client.ListMyVulnerabilitiesParamsSortDir(sortDescending)
 			page, err = api.ListMyVulnerabilities(ctx, client.ListMyVulnerabilitiesParams{
 				Q: optional(in.Query), Severity: sev, Sort: &s, SortDir: &d, Limit: limit, Offset: offset,
 			})
@@ -104,7 +106,7 @@ func registerTopVulnerabilities(srv *mcp.Server, api client.Client) {
 			if perr != nil {
 				return nil, topVulnsOutput{}, perr
 			}
-			s, d := client.ListTopVulnerabilitiesParamsSort(sortSpec[0]), client.ListTopVulnerabilitiesParamsSortDir(sortSpec[1])
+			s, d := client.ListTopVulnerabilitiesParamsSort(sortSpec), client.ListTopVulnerabilitiesParamsSortDir(sortDescending)
 			page, err = api.ListTopVulnerabilities(ctx, client.ListTopVulnerabilitiesParams{
 				Q: optional(in.Query), Severity: sev, Sort: &s, SortDir: &d, Limit: limit, Offset: offset,
 			})
