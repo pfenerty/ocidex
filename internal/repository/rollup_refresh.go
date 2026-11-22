@@ -162,16 +162,31 @@ ORDER BY cl.license_id, s.namespace_id, c.name, COALESCE(c.group_name, ''), COAL
 // One row per (canonical vulnerability, namespace). purls is a set because the
 // same package can be affected in several namespaces and the list reports a
 // count distinct across all of them.
+//
+// A component is affected when a finding names its purl or its source purl
+// (the scope every other count uses), and purls holds the component's own
+// purl either way, so "affected packages" counts packages a reader can find in
+// an SBOM rather than source packages that appear in none.
 const vulnRollupAggregate = `
-SELECT v.canonical_id, s.namespace_id,
-       count(DISTINCT comp.sbom_id)::bigint AS sbom_count,
-       array_agg(DISTINCT pv.purl)::text[] AS purls
-FROM vulnerability v
-JOIN package_vulnerability pv ON pv.vulnerability_id = v.id
-JOIN component comp ON comp.purl = pv.purl AND COALESCE(comp.go_symbol_set_id, 0) = pv.go_symbol_set_id
-JOIN sbom s ON s.id = comp.sbom_id
-WHERE v.canonical_id <> '' AND comp.purl IS NOT NULL
-GROUP BY v.canonical_id, s.namespace_id`
+WITH matched AS (
+    SELECT v.canonical_id, comp.sbom_id, comp.purl
+    FROM vulnerability v
+    JOIN package_vulnerability pv ON pv.vulnerability_id = v.id
+    JOIN component comp ON comp.purl = pv.purl AND COALESCE(comp.go_symbol_set_id, 0) = pv.go_symbol_set_id
+    WHERE v.canonical_id <> ''
+    UNION
+    SELECT v.canonical_id, comp.sbom_id, comp.purl
+    FROM vulnerability v
+    JOIN package_vulnerability pv ON pv.vulnerability_id = v.id AND pv.go_symbol_set_id = 0
+    JOIN component comp ON comp.source_purl = pv.purl
+    WHERE v.canonical_id <> ''
+)
+SELECT m.canonical_id, s.namespace_id,
+       count(DISTINCT m.sbom_id)::bigint AS sbom_count,
+       COALESCE(array_agg(DISTINCT m.purl) FILTER (WHERE m.purl IS NOT NULL), '{}')::text[] AS purls
+FROM matched m
+JOIN sbom s ON s.id = m.sbom_id
+GROUP BY m.canonical_id, s.namespace_id`
 
 // Per-severity finding counts at SBOM grain, backing the
 // severity columns on the artifact-versions, /artifacts and /components lists.
