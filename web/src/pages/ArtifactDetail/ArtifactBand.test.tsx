@@ -140,6 +140,23 @@ describe("ArtifactBand vulnerability tile", () => {
         expect(tile(container, "Vulnerabilities").querySelector(".tile-scope")?.textContent).toBe("1.27.4-trixie · amd64");
     });
 
+    it("states the critical change since the previous version beside the count", () => {
+        const { container } = renderBand({
+            vulns: { total: 23, critical: 23, high: 0, medium: 0, low: 0, unknown: 0 },
+            vulnsChange: { previous: "1.27.1", delta: -82 },
+        });
+        expect(sub(container, "Vulnerabilities")).toContain("23 critical −82 vs 1.27.1");
+        expect(tile(container, "Vulnerabilities").querySelector(".tile-delta-worse")).toBeNull();
+    });
+
+    it("marks a rise and names it critical when the worst finding is not", () => {
+        const { container } = renderBand({
+            vulns: { total: 4, critical: 0, high: 4, medium: 0, low: 0, unknown: 0 },
+            vulnsChange: { previous: "2.0.0", delta: 0 },
+        });
+        expect(sub(container, "Vulnerabilities")).toContain("4 high ±0 critical vs 2.0.0");
+    });
+
     it("says not scanned rather than zero when there is no summary", () => {
         // ADR-044's rule, applied here: unknown must never read as clean.
         const { container } = renderBand({ vulns: undefined });

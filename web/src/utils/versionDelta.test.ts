@@ -1,5 +1,5 @@
 import { describe, it, expect } from "vitest";
-import { entryText, formatDelta, historyPoints, latestVerdict, sameVariantAsNewest, variantOf, versionDeltas } from "./versionDelta";
+import { criticalChange, entryText, formatDelta, historyPoints, latestVerdict, sameVariantAsNewest, variantOf, versionDeltas } from "./versionDelta";
 import golden from "./versionLine.golden.json";
 
 const py = [
@@ -142,5 +142,24 @@ describe("historyPoints", () => {
             { versionKey: "0.9.0", arch: "amd64", critical: undefined },
         ]);
         expect(historyPoints(null)).toEqual([]);
+    });
+});
+
+describe("criticalChange", () => {
+    const rows = [
+        { versionKey: "1.28.0-rc.1", arch: "amd64", critical: 5 },
+        { versionKey: "1.27.4", arch: "amd64", critical: 23 },
+        { versionKey: "1.27.1", arch: "amd64", critical: 105 },
+    ];
+
+    // The tile counts the headline version, not the newest row: a prerelease
+    // above it in the table is not what it changed from or to.
+    it("compares the named version with its own predecessor", () => {
+        expect(criticalChange(rows, "1.27.4")).toEqual({ previous: "1.27.1", delta: -82 });
+    });
+
+    it("is undefined with nothing comparable or an unknown version", () => {
+        expect(criticalChange(rows, "1.27.1")).toBeUndefined();
+        expect(criticalChange(rows, "9.9.9")).toBeUndefined();
     });
 });

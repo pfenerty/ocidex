@@ -75,15 +75,49 @@ export function variantOf(versionKey: string): string {
  */
 export function versionDeltas(rows: readonly SeverityPoint[]): VersionDelta[] {
     return rows.map((row, i) => {
-        const variant = variantOf(row.versionKey);
-        const line = rows.slice(i + 1).filter((r) => variantOf(r.versionKey) === variant);
-        const prev = line.find((r) => sameArch(r, row));
-        if (prev === undefined) return line.length > 0 ? { noSharedArch: true } : {};
+        const { prev, line } = predecessor(rows, i);
+        if (prev === undefined) return line > 0 ? { noSharedArch: true } : {};
         return {
             critical: diff(row.critical, prev.critical),
             high: diff(row.high, prev.high),
         };
     });
+}
+
+/**
+ * The version a row is compared with: the next row below it of the same
+ * variant counted on the same architecture. line is how many rows of the
+ * variant lie below it at all, so a caller can tell "nothing earlier" from
+ * "nothing earlier on this architecture".
+ */
+function predecessor(rows: readonly SeverityPoint[], i: number): { prev?: SeverityPoint; line: number } {
+    const row = rows[i];
+    const variant = variantOf(row.versionKey);
+    const below = rows.slice(i + 1).filter((r) => variantOf(r.versionKey) === variant);
+    return { prev: below.find((r) => sameArch(r, row)), line: below.length };
+}
+
+/** A version's critical count against the version it is compared with. */
+export interface CriticalChange {
+    /** The version compared against. */
+    previous: string;
+    delta: number;
+}
+
+/**
+ * How one version's critical count changed from the version it is compared
+ * with, by the versions table's rule (versionDeltas). For the artifact's
+ * headline version, so the tile states the change of the version it counts
+ * rather than of whichever row happens to be newest. Undefined when the
+ * version is not on the list, either side was never scanned, or nothing
+ * earlier is comparable.
+ */
+export function criticalChange(rows: readonly SeverityPoint[], versionKey: string): CriticalChange | undefined {
+    const i = rows.findIndex((r) => r.versionKey === versionKey);
+    if (i < 0) return undefined;
+    const { prev } = predecessor(rows, i);
+    const delta = prev === undefined ? undefined : diff(rows[i].critical, prev.critical);
+    return prev === undefined || delta === undefined ? undefined : { previous: prev.versionKey, delta };
 }
 
 function diff(cur: number | undefined, prev: number | undefined): number | undefined {

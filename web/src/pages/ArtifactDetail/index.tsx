@@ -24,7 +24,8 @@ import { Breadcrumb, QueryBoundary, Segmented, TabBar, createExpandedSet, type C
 import { artifactDisplayName, plural } from "~/utils/format";
 import { ArtifactHeader, ArtifactIdentity } from "./ArtifactHeader";
 import { ArtifactBand, type ArtifactTab } from "./ArtifactBand";
-import { ChangeVerdict, VersionChart, severityPoints } from "./ArtifactChange";
+import { VersionChart, severityPoints } from "./ArtifactChange";
+import { criticalChange } from "~/utils/versionDelta";
 import { StatBlock, type StatRow } from "./StatBlock";
 import { isShiny } from "~/components/Shiny";
 import { VersionsTab } from "./VersionsTab";
@@ -142,6 +143,13 @@ function ArtifactDetailPage() {
         () => ({ limit: versionLimit, offset: 0, mode: viewMode() }),
     );
     const latestPoints = () => severityPoints(latestVersionsQuery.data?.data);
+    // The tile counts the headline version, which need not be the table's
+    // first row (a newer prerelease sorts above it), so the change is looked
+    // up by that version rather than taken from the top.
+    const headlineChange = () => {
+        const version = vulnSummaryQuery.data?.subjectVersion;
+        return version === undefined || version === "" ? undefined : criticalChange(latestPoints(), version);
+    };
 
     // Catalog maximums come from the warmed stats snapshot; until it is warm
     // there is nothing to scale against and the block stays hidden.
@@ -280,20 +288,18 @@ function ArtifactDetailPage() {
                                     </p>
                                 </Show>
 
-                                <div class="artifact-summary">
-                                    <ChangeVerdict points={latestPoints()} />
-                                    <ArtifactBand
-                                        artifact={a()}
-                                        isContainer={isContainer()}
-                                        vulns={vulnSummaryQuery.data?.summary}
-                                        vulnsVersion={vulnSummaryQuery.data?.subjectVersion}
-                                        vulnsCounted={vulnSummaryQuery.data?.countedSbom}
-                                        vulnsMatched={vulnSummaryQuery.data?.matched}
-                                        ordering={effectiveMode()}
-                                        active={tab()}
-                                        onSelect={setTab}
-                                    />
-                                </div>
+                                <ArtifactBand
+                                    artifact={a()}
+                                    isContainer={isContainer()}
+                                    vulns={vulnSummaryQuery.data?.summary}
+                                    vulnsVersion={vulnSummaryQuery.data?.subjectVersion}
+                                    vulnsCounted={vulnSummaryQuery.data?.countedSbom}
+                                    vulnsChange={headlineChange()}
+                                    vulnsMatched={vulnSummaryQuery.data?.matched}
+                                    ordering={effectiveMode()}
+                                    active={tab()}
+                                    onSelect={setTab}
+                                />
 
                                 <StatBlock rows={statRows(a())} />
 

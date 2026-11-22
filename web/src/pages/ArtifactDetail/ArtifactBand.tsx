@@ -1,5 +1,6 @@
 import type { ArtifactDetail, CountedSBOM, VulnSummary } from "~/api/client";
 import { countedLabel } from "~/utils/vuln";
+import type { CriticalChange } from "~/utils/versionDelta";
 import { StatBand, type StatTile } from "~/components/ui";
 import { vulnTile } from "~/components/VulnTile";
 import { trustStatus, trustBadgeClass } from "~/utils/trust";
@@ -28,6 +29,8 @@ export function ArtifactBand(props: {
     vulnsVersion?: string;
     /** The SBOM the summary counts; names version and architecture in the scope. */
     vulnsCounted?: CountedSBOM;
+    /** How that version's critical count changed from the one before it. */
+    vulnsChange?: CriticalChange;
     /** That version's SBOM has been matched against the vulnerability store. */
     vulnsMatched?: boolean;
     /** The ordering the versions list resolved to, captioning the Versions tile. */
@@ -81,6 +84,7 @@ export function ArtifactBand(props: {
                         ? props.vulnsVersion
                         : "latest version"),
                 props.vulnsMatched,
+                props.vulnsChange,
             ),
         ];
 

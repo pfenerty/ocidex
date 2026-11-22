@@ -139,3 +139,13 @@
     text-overflow: ellipsis;
     white-space: nowrap;
 }
+
+/* The vulnerability tile's change since the previous version: muted unless it
+ * went up, which takes the shared "worse" colour. */
+.tile-delta {
+    color: var(--color-text-muted);
+}
+
+.tile-delta-worse {
+    color: var(--color-worse);
+}

@@ -1,7 +1,7 @@
 import "./ArtifactChange.css";
 import { For, Show, type JSX } from "solid-js";
 import type { ArtifactVersionSummary } from "~/api/client";
-import { formatDelta, latestVerdict, sameVariantAsNewest, type SeverityPoint } from "~/utils/versionDelta";
+import { formatDelta, sameVariantAsNewest, type SeverityPoint } from "~/utils/versionDelta";
 
 /** The table's rows as severity points, newest first. */
 export function severityPoints(versions: readonly ArtifactVersionSummary[] | undefined): SeverityPoint[] {
@@ -11,28 +11,6 @@ export function severityPoints(versions: readonly ArtifactVersionSummary[] | und
         critical: v.vulns?.critical,
         high: v.vulns?.high,
     }));
-}
-
-/**
- * The page's answer, before any detail: how many critical findings the newest
- * version gained or shed against the one before it. Rendered only when two
- * scanned versions exist; a single version has nothing to compare.
- */
-export function ChangeVerdict(props: { points: SeverityPoint[] }): JSX.Element {
-    const verdict = () => latestVerdict(props.points);
-    return (
-        <Show when={verdict()}>
-            {(v) => (
-                <div class="change-verdict" data-direction={v().delta < 0 ? "better" : v().delta > 0 ? "worse" : "same"}>
-                    <span class="change-verdict-number">{formatDelta(v().delta)}</span>
-                    <p class="change-verdict-says">
-                        <strong>critical</strong> in {v().latest} compared with {v().previous}.{" "}
-                        {v().critical.toLocaleString()} remain.
-                    </p>
-                </div>
-            )}
-        </Show>
-    );
 }
 
 const W = 1000;
