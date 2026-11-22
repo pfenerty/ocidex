@@ -275,7 +275,7 @@ function ArtifactDetailPage() {
             >
                         {(a) => (
                             <>
-                                <ArtifactHeader artifact={a()} breadcrumb={<Breadcrumb items={crumbs()} />} points={latestPoints()} shiny={vulnSummaryQuery.data !== undefined && isShiny(vulnSummaryQuery.data.matched, vulnSummaryQuery.data.summary?.total)} />
+                                <ArtifactHeader artifact={a()} breadcrumb={<Breadcrumb items={crumbs()} />} points={latestPoints()} change={headlineChange()} shiny={vulnSummaryQuery.data !== undefined && isShiny(vulnSummaryQuery.data.matched, vulnSummaryQuery.data.summary?.total)} />
 
                                 <Show when={runningClusters().length > 0}>
                                     <p class="mb-3" data-testid="running-in">

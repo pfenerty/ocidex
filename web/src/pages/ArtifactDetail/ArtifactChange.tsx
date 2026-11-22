@@ -7,6 +7,7 @@ import { formatDelta, sameVariantAsNewest, type SeverityPoint } from "~/utils/ve
 export function severityPoints(versions: readonly ArtifactVersionSummary[] | undefined): SeverityPoint[] {
     return (versions ?? []).map((v) => ({
         versionKey: v.versionKey,
+        sbomId: v.sbomId,
         arch: v.countedSbom?.architecture,
         critical: v.vulns?.critical,
         high: v.vulns?.high,

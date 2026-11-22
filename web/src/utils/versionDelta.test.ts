@@ -155,7 +155,9 @@ describe("criticalChange", () => {
     // The tile counts the headline version, not the newest row: a prerelease
     // above it in the table is not what it changed from or to.
     it("compares the named version with its own predecessor", () => {
-        expect(criticalChange(rows, "1.27.4")).toEqual({ previous: "1.27.1", delta: -82 });
+        expect(criticalChange(rows, "1.27.4")).toEqual({ previous: "1.27.1", delta: -82, fromSbomId: undefined, toSbomId: undefined });
+        const withIds = rows.map((r, i) => ({ ...r, sbomId: `s${i}` }));
+        expect(criticalChange(withIds, "1.27.4")).toMatchObject({ fromSbomId: "s2", toSbomId: "s1" });
     });
 
     it("is undefined with nothing comparable or an unknown version", () => {

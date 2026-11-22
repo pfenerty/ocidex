@@ -8,6 +8,8 @@ export const UNTAGGED_VERSION = "(untagged)";
 /** Critical and high counts for one version; undefined when it was never scanned. */
 export interface SeverityPoint {
     versionKey: string;
+    /** The SBOM the counts were taken from, where known: what a comparison opens. */
+    sbomId?: string;
     /**
      * The architecture the counts were taken from (the version's counted SBOM).
      * Architectures carry different packages, so two versions' counts compare
@@ -102,6 +104,9 @@ export interface CriticalChange {
     /** The version compared against. */
     previous: string;
     delta: number;
+    /** The two SBOMs compared, where known, so the change can open as a diff. */
+    fromSbomId?: string;
+    toSbomId?: string;
 }
 
 /**
@@ -117,7 +122,9 @@ export function criticalChange(rows: readonly SeverityPoint[], versionKey: strin
     if (i < 0) return undefined;
     const { prev } = predecessor(rows, i);
     const delta = prev === undefined ? undefined : diff(rows[i].critical, prev.critical);
-    return prev === undefined || delta === undefined ? undefined : { previous: prev.versionKey, delta };
+    return prev === undefined || delta === undefined
+        ? undefined
+        : { previous: prev.versionKey, delta, fromSbomId: prev.sbomId, toSbomId: rows[i].sbomId };
 }
 
 function diff(cur: number | undefined, prev: number | undefined): number | undefined {

@@ -5,7 +5,7 @@ import type { ArtifactDetail } from "~/api/client";
 import PurlLink from "~/components/PurlLink";
 import { Sprite } from "~/components/Sprite";
 import { Shiny } from "~/components/Shiny";
-import { entryText, type SeverityPoint } from "~/utils/versionDelta";
+import { entryText, type CriticalChange, type SeverityPoint } from "~/utils/versionDelta";
 import CopyShareLink, { artifactLookupPath } from "~/components/CopyShareLink";
 import WatchStar from "~/components/WatchStar";
 import { Button, ButtonGroup, Card, DetailField, DetailGrid, EntryLine, PageHeader, TitleWithPrefix, TypeBadge } from "~/components/ui";
@@ -21,7 +21,24 @@ import { safeHref } from "~/utils/links";
  * and the one thing on the page that looked clickable for no visible reason.
  * The registry is an action now, beside Compare, which is the page's primary.
  */
-export function ArtifactHeader(props: { artifact: ArtifactDetail; breadcrumb?: JSX.Element; points?: SeverityPoint[]; shiny?: boolean }) {
+/** The diff of the change the tile states, or an empty diff without one. */
+export function compareHref(change: CriticalChange | undefined): string {
+    if (change?.fromSbomId === undefined || change.toSbomId === undefined) return "/diff";
+    return `/diff?from=${encodeURIComponent(change.fromSbomId)}&to=${encodeURIComponent(change.toSbomId)}`;
+}
+
+function compareTitle(change: CriticalChange | undefined): string | undefined {
+    return change === undefined ? undefined : `Compare with ${change.previous}`;
+}
+
+export function ArtifactHeader(props: {
+    artifact: ArtifactDetail;
+    breadcrumb?: JSX.Element;
+    points?: SeverityPoint[];
+    shiny?: boolean;
+    /** The change the vulnerabilities tile states; Compare opens it as a diff. */
+    change?: CriticalChange;
+}) {
     const a = () => props.artifact;
     const registryPurl = () => {
         const purl = a().purl;
@@ -86,7 +103,11 @@ export function ArtifactHeader(props: { artifact: ArtifactDetail; breadcrumb?: J
                         </Button>
                     </Show>
                     <CopyShareLink path={artifactLookupPath(a())} />
-                    <Button as={A} href={`/diff`} size="sm" variant="primary">
+                    {/* Opens the change the tile states, both sides filled in; an
+                        empty /diff made the reader find this artifact again.
+                        Not the page's primary action: the answer is already on
+                        the page, this is the detail behind it. */}
+                    <Button as={A} href={compareHref(props.change)} size="sm" title={compareTitle(props.change)}>
                         Compare SBOMs
                     </Button>
                 </ButtonGroup>
