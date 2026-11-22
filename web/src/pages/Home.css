@@ -266,9 +266,21 @@ td.featured-n {
     font-weight: 600;
 }
 
+/* Narrow: the mix is a proportion to glance at, and the counts beside it
+   carry the numbers. */
 .featured-mix {
-    width: 22%;
-    min-width: 8rem;
+    width: 72px;
+}
+
+/* The critical change inside the Crit cell, secondary to the count. */
+.featured-delta {
+    margin-left: 0.35rem;
+    font-size: var(--text-xs);
+    color: var(--color-text-muted);
+}
+
+.featured-delta-worse {
+    color: var(--color-worse);
 }
 
 /* --- proportional bars ----------------------------------------------------- */

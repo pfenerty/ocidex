@@ -128,7 +128,6 @@ const num = (x: number, crit = false): JSX.Element => (
     <span class={x === 0 ? "featured-zero" : crit ? "featured-crit" : undefined}>{x.toLocaleString()}</span>
 );
 
-/** Featured images as one table to scan and compare: name, latest, size, findings. */
 /** Critical change in the newest version against the previous one of its variant. */
 function critDelta(f: DiscoverFeatured): number | undefined {
     const v = latestVerdict(historyPoints(f.criticalHistory));
@@ -151,7 +150,31 @@ const FEATURED_COLUMNS: Column<DiscoverFeatured>[] = [
     },
     { header: "Latest", class: "featured-version", render: (f) => f.subjectVersion ?? "—" },
     { header: "Packages", align: "right", class: "featured-n", render: (f) => f.packageCount.toLocaleString() },
-    { header: "Crit", align: "right", class: "featured-n", render: (f) => num(f.vulns.critical, true) },
+    {
+        // The change rides in the count it changes, small and muted; a rise
+        // takes the worse colour. No change says nothing: "±0" was noise on a
+        // third of the rows.
+        header: "Crit",
+        align: "right",
+        class: "featured-n",
+        render: (f) => {
+            const d = critDelta(f);
+            return (
+                <>
+                    {num(f.vulns.critical, true)}
+                    <Show when={d !== undefined && d !== 0}>
+                        <span
+                            class="featured-delta"
+                            classList={{ "featured-delta-worse": (d ?? 0) > 0 }}
+                            title="Critical findings in the latest version compared with the previous one"
+                        >
+                            {formatDelta(d ?? 0)}
+                        </span>
+                    </Show>
+                </>
+            );
+        },
+    },
     { header: "High", align: "right", class: "featured-n", render: (f) => num(f.vulns.high) },
     { header: "Med", align: "right", class: "featured-n", render: (f) => num(f.vulns.medium) },
     { header: "Low", align: "right", class: "featured-n", render: (f) => num(f.vulns.low) },
@@ -169,24 +192,6 @@ const FEATURED_COLUMNS: Column<DiscoverFeatured>[] = [
                     }
                 >
                     <MixBar thin label="Vulnerabilities by severity" segments={severitySegments(v)} />
-                </Show>
-            );
-        },
-    },
-    {
-        header: "Δ crit",
-        align: "right",
-        render: (f) => {
-            const d = critDelta(f);
-            return (
-                <Show when={d !== undefined} fallback={<span class="text-muted">—</span>}>
-                    <span
-                        class="delta-cell"
-                        classList={{ "delta-zero": d === 0, "delta-worse": (d ?? 0) > 0 }}
-                        title="Critical findings in the latest version compared with the previous one"
-                    >
-                        {formatDelta(d ?? 0)}
-                    </span>
                 </Show>
             );
         },

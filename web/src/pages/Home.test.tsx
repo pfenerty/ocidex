@@ -1,6 +1,6 @@
 // @vitest-environment happy-dom
 import { describe, it, expect, vi } from "vitest";
-import { render } from "@solidjs/testing-library";
+import { cleanup, render } from "@solidjs/testing-library";
 import { useDashboardStats, useDiscovery } from "~/api/queries";
 import Home from "~/pages/Home";
 import type { JSX } from "solid-js";
@@ -43,6 +43,7 @@ interface FeaturedRow {
     vulns: { critical: number; high: number; medium: number; low: number; unknown: number };
     licenses: { permissive: number; weakCopyleft: number; copyleft: number; uncategorized: number };
     vulnMatched?: boolean;
+    criticalHistory?: { versionKey: string; critical?: number }[];
 }
 
 interface DiscoveryData {
@@ -415,6 +416,30 @@ describe("Home discovery panels", () => {
         const counts = [...row.querySelectorAll(".featured-n")].map((c) => c.textContent);
         expect(counts).toEqual(["1,234", "2", "5", "0", "1"]);
         expect(row.querySelectorAll(".mix-bar .mix-seg")).toHaveLength(3);
+    });
+
+    it("puts the critical change in the Crit cell and says nothing for no change", () => {
+        const data = populatedDiscovery();
+        const f = data.featuredArtifacts?.[0];
+        if (f) {
+            f.criticalHistory = [
+                { versionKey: "18.1", critical: 2 },
+                { versionKey: "18.0", critical: 5 },
+            ];
+        }
+        const { container } = renderHome(warmStats, { isError: false, data });
+        const crit = container.querySelectorAll(".featured-row .featured-n")[1];
+        expect(crit.textContent).toBe("2−3");
+        expect(crit.querySelector(".featured-delta-worse")).toBeNull();
+        expect([...container.querySelectorAll("th")].map((h) => h.textContent)).not.toContain("Δ crit");
+
+        if (f) f.criticalHistory = [
+            { versionKey: "18.1", critical: 2 },
+            { versionKey: "18.0", critical: 2 },
+        ];
+        cleanup();
+        const again = renderHome(warmStats, { isError: false, data }).container;
+        expect(again.querySelectorAll(".featured-row .featured-n")[1].textContent).toBe("2");
     });
 
     it("calls a matched image with no findings clean, and shiny", () => {
