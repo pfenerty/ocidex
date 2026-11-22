@@ -1,16 +1,15 @@
 <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 32 32" role="img" aria-label="OCIDex">
-  <!-- Canonical OCIDex mark ("Device", ocidex-iz0r). Outlined paths only, never live text.
-       favicon.svg (web, site) and site/src/assets/logo.svg are byte-identical copies;
-       brandAssets.test.ts enforces that. The cut-outs are holes (evenodd), so the mark
-       sits on any background; only the body and LED colours follow the theme. -->
+  <!-- Canonical OCIDex mark. Three bars stepping down: each version's critical
+       count, with the part the release fixed drawn as an open outline above
+       the bar. Outlined paths only, never live text, and outline rather than
+       hatching so it holds at 16px. favicon.svg (web, site) and
+       site/src/assets/logo.svg are byte-identical copies; brandAssets.test.ts
+       enforces that. One colour, which follows the theme. -->
   <style>
-    .body { fill: #161922 }
-    .led { fill: #D7262E }
+    .body { fill: #1C1512 }
     @media (prefers-color-scheme: dark) {
-      .body { fill: #E6E8EF }
-      .led { fill: #F0484E }
+      .body { fill: #EFE8E2 }
     }
   </style>
-  <path class="body" fill-rule="evenodd" d="M10.5 3h11A7.5 7.5 0 0 1 29 10.5v11a7.5 7.5 0 0 1-7.5 7.5h-11A7.5 7.5 0 0 1 3 21.5v-11A7.5 7.5 0 0 1 10.5 3zM11.2 6.5a4.7 4.7 0 1 0 0 9.4 4.7 4.7 0 1 0 0-9.4zM9.75 18.2h12.5a1.35 1.35 0 0 1 0 2.7H9.75a1.35 1.35 0 0 1 0-2.7zM9.75 22.6h6.7a1.35 1.35 0 0 1 0 2.7h-6.7a1.35 1.35 0 0 1 0-2.7z"/>
-  <circle class="led" cx="11.2" cy="11.2" r="3.1"/>
+  <path class="body" fill-rule="evenodd" d="M3 4h7v24H3zM12.5 16h7v12h-7zM22 22h7v6h-7zM12.5 8h7v8h-7zM14.5 10v6h3v-6zM22 14h7v8h-7zM24 16v6h3v-6z"/>
 </svg>

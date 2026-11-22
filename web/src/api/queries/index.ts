@@ -16,7 +16,8 @@ export { useListAPIKeys, useCreateAPIKey, useDeleteAPIKey, useListUsers, useUpda
 export { useListSources } from "./sources";
 export { useWatches, useWatchFeed, useToggleWatch } from "./watches";
 export type { SelfScopedOptions } from "./selfScoped";
-export { useMyNamespaces, useMyActivity, useMyDriftFeed, useMyVulnerabilities, useMyClusters } from "./me";
+export { useMyNamespaces, useMyActivity, useMyDriftFeed, useMyVulnerabilities, useMyClusters, useMySeenOnlyImages } from "./me";
+export type { SeenOnlyImage } from "./me";
 export {
     useListClusters,
     useCluster,

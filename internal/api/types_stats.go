@@ -22,6 +22,7 @@ type DashboardStatsOutput struct {
 		TopPackages           []PackageSummaryEntry    `json:"topPackages"`
 		VulnCount             int64                    `json:"vulnCount"`
 		VulnSeverity          VulnSeverityEntry        `json:"vulnSeverity"`
+		ArtifactMaxima        service.ArtifactMaxima   `json:"artifactMaxima" doc:"Largest value of each artifact stat-block figure across the visible catalog, for scaling its bars"`
 		Warming               bool                     `json:"warming" doc:"No snapshot is available yet and every count is a zero placeholder; render a loading state and retry"`
 	}
 }

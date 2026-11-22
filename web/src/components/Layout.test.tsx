@@ -88,7 +88,7 @@ describe("Layout", () => {
         mockLocation.pathname = "/artifacts";
     });
 
-    it("renders sidebar with brand on non-login path", () => {
+    it("renders topbar with brand on non-login path", () => {
         mockUserFn = asResource(makeUser());
         const { getByText } = render(() => <Wrapped>page</Wrapped>);
         // The descriptor beside the mark (ocidex-iz0r.3), unbroken in one element
@@ -105,7 +105,7 @@ describe("Layout", () => {
         expect(link?.getAttribute("rel")).toContain("external");
     });
 
-    it("passes children through without sidebar on /login path", () => {
+    it("passes children through without topbar on /login path", () => {
         mockLocation.pathname = "/login";
         mockUserFn = asResource(undefined);
         const { getByText, queryByText } = render(() => <Wrapped>login-content</Wrapped>);
@@ -190,9 +190,9 @@ describe("Layout", () => {
 });
 
 /**
- * Below 768px the sidebar collapses to a 56px icon rail and this button opens
+ * Below 768px the topbar collapses to a 56px icon rail and this button opens
  * it back up. The CSS half of the contract — which labels the rail hides and
- * the drawer restores — is asserted in `sidebarRailContract.test.ts`, since
+ * the drawer restores — is asserted in `topbarDrawerContract.test.ts`, since
  * happy-dom has no layout engine and no media queries to evaluate.
  */
 describe("Layout mobile drawer", () => {
@@ -206,16 +206,16 @@ describe("Layout mobile drawer", () => {
         const { getByLabelText, container } = render(() => <Wrapped>page</Wrapped>);
         const toggle = getByLabelText("Open navigation");
         expect(toggle.getAttribute("aria-expanded")).toBe("false");
-        expect(container.querySelector(".sidebar-open")).toBeNull();
-        expect(container.querySelector(".sidebar-backdrop")).toBeNull();
+        expect(container.querySelector(".topbar-open")).toBeNull();
+        expect(container.querySelector(".topbar-backdrop")).toBeNull();
     });
 
     it("opens the drawer and its backdrop when the toggle is clicked", () => {
         const { getByLabelText, container } = render(() => <Wrapped>page</Wrapped>);
         fireEvent.click(getByLabelText("Open navigation"));
 
-        expect(container.querySelector(".sidebar-open")).not.toBeNull();
-        expect(container.querySelector(".sidebar-backdrop")).not.toBeNull();
+        expect(container.querySelector(".topbar-open")).not.toBeNull();
+        expect(container.querySelector(".topbar-backdrop")).not.toBeNull();
         expect(getByLabelText("Close navigation").getAttribute("aria-expanded")).toBe("true");
     });
 
@@ -223,20 +223,20 @@ describe("Layout mobile drawer", () => {
         const { getByLabelText, container } = render(() => <Wrapped>page</Wrapped>);
         fireEvent.click(getByLabelText("Open navigation"));
 
-        const backdrop = container.querySelector(".sidebar-backdrop");
+        const backdrop = container.querySelector(".topbar-backdrop");
         if (backdrop === null) throw new Error("the drawer rendered no backdrop");
         fireEvent.click(backdrop);
 
-        expect(container.querySelector(".sidebar-open")).toBeNull();
+        expect(container.querySelector(".topbar-open")).toBeNull();
     });
 
     it("closes on Escape", () => {
         const { getByLabelText, container } = render(() => <Wrapped>page</Wrapped>);
         fireEvent.click(getByLabelText("Open navigation"));
-        expect(container.querySelector(".sidebar-open")).not.toBeNull();
+        expect(container.querySelector(".topbar-open")).not.toBeNull();
 
         fireEvent.keyDown(window, { key: "Escape" });
-        expect(container.querySelector(".sidebar-open")).toBeNull();
+        expect(container.querySelector(".topbar-open")).toBeNull();
     });
 
     // The rail hides these labels with `display: none`, which takes them out of
@@ -244,23 +244,23 @@ describe("Layout mobile drawer", () => {
     it("names every nav link even with its label hidden", () => {
         mockUserFn = asResource(makeUser({ role: "admin" }));
         const { container } = render(() => <Wrapped>page</Wrapped>);
-        // Scoped to the sidebar: the command palette is mounted alongside it
+        // Scoped to the topbar: the command palette is mounted alongside it
         // and offers the same route names.
-        const sidebar = container.querySelector("aside.sidebar");
-        if (sidebar === null) throw new Error("no sidebar rendered");
+        const topbar = container.querySelector("header.topbar");
+        if (topbar === null) throw new Error("no topbar rendered");
         for (const name of ["Home", "Workspace", "Artifacts", "Components", "Licenses",
             "Vulnerabilities", "Compare", "Clusters", "Admin", "Search", "Sign out"]) {
-            expect(sidebar.querySelector(`[aria-label="${name}"]`)).not.toBeNull();
+            expect(topbar.querySelector(`[aria-label="${name}"]`)).not.toBeNull();
         }
     });
 
     describe("role emphasis", () => {
         const railHrefs = (container: HTMLElement) =>
-            [...(container.querySelector("aside.sidebar nav")?.querySelectorAll("a") ?? [])].map(
+            [...(container.querySelector("header.topbar nav")?.querySelectorAll("a") ?? [])].map(
                 (a) => a.getAttribute("href"),
             );
         const led = (container: HTMLElement) =>
-            [...(container.querySelector("aside.sidebar nav")?.querySelectorAll("a[data-lead]") ?? [])].map(
+            [...(container.querySelector("header.topbar nav")?.querySelectorAll("a[data-lead]") ?? [])].map(
                 (a) => a.getAttribute("href"),
             );
 

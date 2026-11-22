@@ -6,8 +6,12 @@ import Artifacts from "~/pages/Artifacts";
 import type { JSX } from "solid-js";
 
 vi.mock("~/api/queries", () => ({
+    useMyClusters: () => ({ data: undefined }),
+    useMySeenOnlyImages: () => ({ data: undefined }),
     useArtifactsInfinite: vi.fn(),
 }));
+
+vi.mock("~/context/auth", () => ({ useAuth: () => ({ user: () => undefined }) }));
 
 vi.mock("~/api/client", () => ({
     API_BASE_URL: "",

@@ -1,5 +1,5 @@
 import { describe, it, expect, vi, beforeEach, afterEach } from "vitest";
-import { shortDigest, shortId, plural, hasText, formatDate, relativeDate } from "./format";
+import { shortDigest, shortId, plural, hasText, formatDate, relativeDate, formatEntryNumber } from "./format";
 
 describe("shortDigest", () => {
     it("truncates sha256 digest", () => {
@@ -136,5 +136,12 @@ describe("relativeDate", () => {
     it("falls back to the date beyond a year either way", () => {
         expect(relativeDate(at(400 * DAY))).toBe(formatDate(at(400 * DAY)));
         expect(relativeDate(at(-400 * DAY))).toBe(formatDate(at(-400 * DAY)));
+    });
+});
+
+describe("formatEntryNumber", () => {
+    it("pads to three digits and grows past them", () => {
+        expect(formatEntryNumber(12)).toBe("\u2116 012");
+        expect(formatEntryNumber(1234)).toBe("\u2116 1234");
     });
 });

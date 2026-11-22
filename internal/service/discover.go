@@ -7,6 +7,8 @@ import (
 
 	"golang.org/x/sync/errgroup"
 
+	"github.com/jackc/pgx/v5/pgtype"
+
 	"github.com/pfenerty/ocidex/internal/repository"
 )
 
@@ -64,6 +66,12 @@ type DiscoverFeatured struct {
 	// Licenses counts the newest SBOM's components per license category; a
 	// component under two licenses of one category counts once in it.
 	Licenses LicenseCategoryMix `json:"licenses"`
+	// CriticalHistory is the newest public versions' critical counts, newest
+	// first, so the home table can show the change since the previous version.
+	CriticalHistory []VersionCritical `json:"criticalHistory,omitempty" doc:"Newest versions first, up to 12"`
+	// VulnMatched reports that the newest SBOM has been matched against the
+	// vulnerability store, so all-zero Vulns means clean, not unscanned.
+	VulnMatched bool `json:"vulnMatched" doc:"The newest SBOM has been matched against the vulnerability store"`
 }
 
 // VulnSeverityCounts is a per-severity vulnerability count.
@@ -243,6 +251,11 @@ func (s *searchService) WarmDiscovery(ctx context.Context) (*Discovery, error) {
 
 	payload := buildDiscovery(featured, top, recent, vulns, licenses)
 
+	// Public scope: the snapshot is the anonymous view (see GetDiscovery).
+	if err := attachFeaturedHistory(ctx, q, payload.FeaturedArtifacts); err != nil {
+		return nil, err
+	}
+
 	if s.discoverCache != nil {
 		s.discoverCache.set(discoverCacheKey, payload)
 	}
@@ -265,6 +278,7 @@ func buildDiscovery(
 			Name:           r.Name,
 			SbomID:         r.SbomID.String(),
 			SubjectVersion: textToPtr(r.SubjectVersion),
+			VulnMatched:    r.VulnMatched,
 			CreatedAt:      r.CreatedAt.Time,
 			PackageCount:   r.PackageCount,
 			Vulns: VulnSeverityCounts{
@@ -355,4 +369,42 @@ func buildDiscovery(
 		LicenseSpread:      licenseItems,
 		GeneratedAt:        time.Now().UTC(),
 	}
+}
+
+// attachFeaturedHistory fills CriticalHistory on the featured rows with one
+// query, as the artifact list does, scoped to public namespaces.
+func attachFeaturedHistory(ctx context.Context, q *repository.Queries, items []DiscoverFeatured) error {
+	if len(items) == 0 {
+		return nil
+	}
+	ids := make([]pgtype.UUID, 0, len(items))
+	index := make(map[string]int, len(items))
+	for i, it := range items {
+		id, err := parseID(it.ArtifactID)
+		if err != nil {
+			return err
+		}
+		ids = append(ids, id)
+		index[it.ArtifactID] = i
+	}
+	rows, err := q.ListArtifactCriticalHistory(ctx, repository.ListArtifactCriticalHistoryParams{
+		ArtifactIds: ids,
+		IsAdmin:     pgtype.Bool{Bool: false, Valid: true},
+	})
+	if err != nil {
+		return fmt.Errorf("listing featured critical history: %w", err)
+	}
+	for _, r := range rows {
+		i, ok := index[r.ArtifactID.String()]
+		if !ok {
+			continue
+		}
+		point := VersionCritical{VersionKey: r.VersionKey}
+		if r.Scanned {
+			c := r.Critical
+			point.Critical = &c
+		}
+		items[i].CriticalHistory = append(items[i].CriticalHistory, point)
+	}
+	return nil
 }

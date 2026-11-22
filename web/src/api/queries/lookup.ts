@@ -101,3 +101,21 @@ export function conflictCandidates(error: unknown): LookupCandidate[] | null {
 export function isNotFound(error: unknown): boolean {
     return error instanceof APIClientError && error.status === 404;
 }
+
+/** Resolve an entry number ("#12") to the artifact it names. */
+export function useArtifactByEntryNumber(n: Accessor<number | undefined>) {
+    return createQuery(() => {
+        const number = n();
+        return {
+            queryKey: ["artifact-by-number", number] as const,
+            queryFn: () =>
+                unwrap(
+                    client.GET("/api/v1/artifacts/by-number/{number}", {
+                        params: { path: { number: number ?? 0 } },
+                    }),
+                ),
+            enabled: number !== undefined,
+            retry: false,
+        };
+    });
+}

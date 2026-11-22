@@ -1,3 +1,4 @@
+import { formatEntryNumber } from "~/utils/format";
 import type { JSX } from "solid-js";
 import { Show, onCleanup, onMount } from "solid-js";
 
@@ -31,13 +32,20 @@ export function documentTitleFor(text: string): string {
  * the kind of thing, then its short id, the way a Dex entry opens with its number.
  * Chips (type, status) follow it as siblings in the `eyebrow` slot.
  */
-export function EntryLine(props: { kind: string; id?: string }): JSX.Element {
+export function EntryLine(props: { kind: string; id?: string; number?: number }): JSX.Element {
     return (
         <span class="entry-line">
             {props.kind}
-            <Show when={props.id !== undefined && props.id !== ""}>
-                {" № "}
-                {props.id?.slice(0, 8)}
+            <Show
+                when={props.number}
+                fallback={
+                    <Show when={props.id !== undefined && props.id !== ""}>
+                        {" № "}
+                        {props.id?.slice(0, 8)}
+                    </Show>
+                }
+            >
+                {(n) => <> {formatEntryNumber(n())}</>}
             </Show>
         </span>
     );

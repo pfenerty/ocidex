@@ -3,17 +3,17 @@ import { readFileSync, readdirSync, statSync } from "node:fs";
 import { join } from "node:path";
 
 /**
- * The red/blue split documented in index.css (ocidex-ag4q.11).
+ * The one-job-per-hue split documented in index.css.
  *
- *   red  (--color-brand)     identity only (the mark's LED)
- *   ink  (--color-ink)       the one primary action
- *   blue (--color-secondary) navigation and state
+ *   brand     (--color-brand)      the mark only
+ *   ink       (--color-ink)        the one primary action
+ *   secondary (--color-secondary)  navigation and state
+ *   severity  (--color-severity-*) findings, and nothing else
  *
- * Nothing in the type system or the linter can tell those apart, and the whole
- * failure mode this replaces was the two tokens drifting into interchangeable
- * use over 47 call sites. So the rule is asserted here: the specific places
- * that were wrong stay fixed, and any *new* red outside the allowed brand
- * surfaces fails the build rather than quietly re-blurring the split.
+ * Nothing in the type system or the linter can tell those apart, and the
+ * failure mode this guards against is tokens drifting into interchangeable
+ * use. So the rule is asserted here: any new use of the brand outside the
+ * mark, or of the brand for state, fails the build.
  */
 
 const SRC = __dirname;
@@ -32,25 +32,21 @@ function sources(dir = SRC, acc: string[] = []): string[] {
     return acc;
 }
 
-// Brand red is the mark's LED and nothing else (ocidex-iz0r). index.css
-// defines the token and the one rule that uses it (.brand-mark-led); no other
-// stylesheet or component may reach for it. The sidebar slab, the wordmark's
-// red "Dex", the H1 underline and the spinner each used to, and each read as
-// "error" or "click" rather than "OCIDex".
-const BRAND_FILES = ["index.css"];
-
-describe("brand red stays on the mark", () => {
-    it("is used by exactly one rule in index.css, the mark's LED", () => {
+// The brand token belongs to the mark, and the mark is now one ink colour, so
+// nothing paints with it. Each past use (the sidebar slab, a red "Dex" in the
+// wordmark, an H1 underline, the spinner) read as "error" or "click".
+describe("brand red is not used", () => {
+    it("by any rule in index.css", () => {
         const css = read("index.css");
         const uses = [...css.matchAll(/([^{}]+)\{[^{}]*var\(--color-brand[^)]*\)[^{}]*\}/g)].map((m) =>
             m[1].replace(/\/\*[\s\S]*?\*\//g, "").trim(),
         );
-        expect(uses).toEqual([".brand-mark-led"]);
+        expect(uses).toEqual([]);
     });
 
-    it("is not reachable from any other file", () => {
+    it("by any other file", () => {
         const offenders = sources()
-            .filter((f) => !BRAND_FILES.some((b) => f.endsWith(b)))
+            .filter((f) => !f.endsWith("index.css"))
             .filter((f) => readFileSync(f, "utf-8").includes("--color-brand"))
             .map((f) => f.slice(SRC.length + 1));
         expect(offenders).toEqual([]);
@@ -70,13 +66,13 @@ describe("the primary action is ink, not brand red", () => {
     });
 });
 
-describe("navigation and state read blue", () => {
-    // Each of these shipped red, so red marked "where you are" with exactly the
-    // same colour as "this deletes something".
+describe("navigation and state use the secondary token", () => {
+    // Each of these once shipped brand red, so red marked "where you are" with
+    // exactly the same colour as "this deletes something".
     it.each([
         ["index.css", ".tab-bar button.active"],
         ["components/TileBand.css", ".tile.active"],
-        ["components/Layout.css", ".sidebar nav a.active"],
+        ["components/Layout.css", ".topbar nav a.active"],
         ["components/ThemeToggle.css", ".theme-icon.active"],
     ])("%s: %s", (file, selector) => {
         const css = read(file);

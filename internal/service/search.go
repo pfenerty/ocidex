@@ -53,6 +53,7 @@ type SearchService interface {
 	ListRecentProvenanceDrift(ctx context.Context, page DriftPage, vis VisibilityFilter) (CursorPage[RecentDriftEntry], error)
 	ListOwnedActivity(ctx context.Context, ownerID string, page FeedPage) (CursorPage[ActivityEntry], error)
 	LookupArtifact(ctx context.Context, query ArtifactLookupQuery, vis VisibilityFilter) ([]LookupCandidate, error)
+	ResolveArtifactEntryNumber(ctx context.Context, entryNumber int64, vis VisibilityFilter) (string, error)
 	LookupSBOM(ctx context.Context, query SBOMLookupQuery, vis VisibilityFilter) ([]LookupCandidate, error)
 	LookupLicense(ctx context.Context, spdxID string, vis VisibilityFilter) (LicenseCount, error)
 }
@@ -84,12 +85,24 @@ type DashboardStats struct {
 	TopPackages           []PackageSummary
 	VulnCount             int64
 	VulnSeverity          VulnSeverityBreakdown
+	ArtifactMaxima        ArtifactMaxima
 
 	// Warming reports that no computed snapshot was available and every count
 	// above is a zero placeholder. Clients must render their loading state
 	// rather than "0 artifacts" — the stats are computed out-of-band by the
 	// background warmer and appear on a later poll.
 	Warming bool
+}
+
+// ArtifactMaxima is the largest value of each artifact stat-block figure across
+// the visible catalog, read from each artifact's latest version.
+type ArtifactMaxima struct {
+	Packages      int64 `json:"packages"`
+	Versions      int64 `json:"versions"`
+	SBOMs         int64 `json:"sboms"`
+	Architectures int64 `json:"architectures"`
+	Critical      int64 `json:"critical"`
+	High          int64 `json:"high"`
 }
 
 // ArtifactTypeCount is the number of tracked artifacts of one CycloneDX type.
@@ -593,12 +606,26 @@ type ArtifactSummary struct {
 	SbomCount           int64   `json:"sbomCount"`
 	SufficientSbomCount int64   `json:"sufficientSbomCount"`
 	SigningStatus       string  `json:"signingStatus"`
+	// EntryNumber is the artifact's place in indexing order, shown as "№ 012".
+	// Never reused, so a deleted artifact leaves a gap.
+	EntryNumber int64 `json:"entryNumber" doc:"Sequential number in the order the artifact was first indexed. Never reused."`
+	// CriticalHistory is the newest versions' critical counts, newest first,
+	// for the list's per-artifact sprite. Set by ListArtifacts only.
+	CriticalHistory []VersionCritical `json:"criticalHistory,omitempty" doc:"Newest versions first, up to 12. List responses only."`
 
 	// Vulns is nil when the artifact's newest SBOM has no sbom_vuln_rollup
 	// row, which means "no known vulnerabilities" or "never scanned" without
 	// distinguishing them. Callers must render nil as unknown, never as a
 	// clean zero (ADR-044) — the same contract ArtifactVersion.Vulns carries.
 	Vulns *VulnSummary `json:"vulns,omitempty"`
+}
+
+// VersionCritical is one version's critical count. Critical is nil when the
+// version has no rollup row, which is "no findings" or "never scanned"
+// indistinguishably (ADR-044): render it as unknown, never as zero.
+type VersionCritical struct {
+	VersionKey string `json:"versionKey"`
+	Critical   *int64 `json:"critical,omitempty"`
 }
 
 // ArtifactDetail extends ArtifactSummary with full metadata.
@@ -608,6 +635,8 @@ type ArtifactDetail struct {
 	Cpe          *string   `json:"cpe,omitempty"`
 	CreatedAt    time.Time `json:"createdAt"`
 	VersionCount int64     `json:"versionCount"`
+	// PackageCount is the component count of the latest version's newest SBOM.
+	PackageCount int64 `json:"packageCount"`
 	// Watched reports whether the calling user has this artifact on their
 	// watchlist. It rides along with the detail response so the star renders
 	// in its final state on first paint rather than flipping in after a
@@ -634,6 +663,10 @@ type ArtifactVersion struct {
 	// distinguishing them. Callers must render nil as unknown, never as a clean
 	// zero (ADR-044) — the same contract SBOMDetail's tile already follows.
 	Vulns *VulnSummary `json:"vulns,omitempty"`
+	// VulnMatched reports that this version's newest SBOM was matched against
+	// the vulnerability store and the rollup has caught up, so an absent Vulns
+	// means no known vulnerabilities rather than never scanned.
+	VulnMatched bool `json:"vulnMatched" doc:"Matched against the vulnerability store, and the counts reflect it: an absent vulns then means none known"`
 }
 
 // SBOMSummary is a lightweight SBOM representation for list views.

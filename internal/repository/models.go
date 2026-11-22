@@ -24,13 +24,14 @@ type ApiKey struct {
 }
 
 type Artifact struct {
-	ID        pgtype.UUID        `json:"id"`
-	Type      string             `json:"type"`
-	Name      string             `json:"name"`
-	GroupName pgtype.Text        `json:"group_name"`
-	Purl      pgtype.Text        `json:"purl"`
-	Cpe       pgtype.Text        `json:"cpe"`
-	CreatedAt pgtype.Timestamptz `json:"created_at"`
+	ID          pgtype.UUID        `json:"id"`
+	Type        string             `json:"type"`
+	Name        string             `json:"name"`
+	GroupName   pgtype.Text        `json:"group_name"`
+	Purl        pgtype.Text        `json:"purl"`
+	Cpe         pgtype.Text        `json:"cpe"`
+	CreatedAt   pgtype.Timestamptz `json:"created_at"`
+	EntryNumber int64              `json:"entry_number"`
 }
 
 type ArtifactNamespace struct {

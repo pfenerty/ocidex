@@ -9,6 +9,7 @@
        colour, never a link and never mono (ocidex-iz0r.6). The red underline
        stub that used to follow it is gone: brand red is the mark's alone. */
     font-family: var(--font-display);
+    font-stretch: var(--font-display-stretch);
     font-size: var(--text-3xl);
     font-weight: 700;
     letter-spacing: -0.02em;
@@ -45,6 +46,9 @@
 .page-header p {
     color: var(--color-text-muted);
     margin-top: 0.25rem;
+    /* A reading measure, so a long subtitle wraps rather than pushing the
+       header's actions onto a line of their own. */
+    max-width: 72ch;
 }
 
 .page-header-row {
@@ -80,10 +84,12 @@
 /* Brand display font */
 .brand {
     font-family: var(--font-display);
+    font-stretch: var(--font-display-stretch);
 }
 
 .entry-number {
     font-family: var(--font-display);
+    font-stretch: var(--font-display-stretch);
     font-size: 0.75rem;
     font-weight: 500;
     color: var(--color-text-muted);
@@ -102,49 +108,50 @@
 
 .layout {
     display: flex;
+    flex-direction: column;
     width: 100%;
     min-height: 100vh;
 }
 
-.sidebar {
-    width: 220px;
-    background: var(--color-surface);
-    border-right: 1px solid var(--color-border);
-    display: flex;
-    flex-direction: column;
-    flex-shrink: 0;
+/* The shell is one bar across the top, so tables get the full width of the
+   window. Mark, nav, search, then the More menu and the session on the right. */
+.topbar {
     position: sticky;
     top: 0;
-    height: 100vh;
-    overflow-y: auto;
-}
-
-/* Mark, wordmark and descriptor on the sidebar's own surface (ocidex-iz0r.3).
-   This was a brand-red slab with white type: the loudest thing on every page,
-   and the same red as the CRITICAL badge. The mark's LED now carries the brand
-   alone, and the wordmark is plain text colour, so both themes need nothing
-   beyond the tokens. */
-.sidebar-brand {
+    z-index: 40;
     display: flex;
     align-items: center;
-    gap: 0.625rem;
-    padding: 1.125rem 1rem 1rem;
+    gap: 1rem;
+    padding: 0.5rem 1.25rem;
+    background: var(--color-bg);
+    border-bottom: 1px solid var(--color-border);
+}
+
+.topbar-brand {
+    display: flex;
+    flex: none;
+    align-items: center;
+    gap: 0.5rem;
     color: var(--color-text);
     text-decoration: none;
 }
 
-.sidebar-brand:hover {
+.topbar-brand:hover {
     text-decoration: none;
 }
 
-.sidebar-brand h1 {
+.topbar-brand h1 {
+    font-family: var(--font-display);
+    font-stretch: var(--font-display-stretch);
     font-size: 1.2rem;
-    font-weight: 700;
-    letter-spacing: -0.025em;
+    font-weight: 800;
+    letter-spacing: -0.01em;
     line-height: 1;
 }
 
-.sidebar-brand p {
+/* The descriptor has no room in one bar; the mobile drawer shows it. */
+.topbar-brand p {
+    display: none;
     font-family: var(--font-mono);
     font-size: var(--text-xs);
     color: var(--color-text-muted);
@@ -153,191 +160,278 @@
 }
 
 /* See `settled` in Layout.tsx: laid out, not shown, until the session is known. */
-.sidebar nav.nav-pending {
+.topbar nav.nav-pending {
     visibility: hidden;
 }
 
-.sidebar-auth-pending {
+.topbar-auth-pending {
+    width: 5rem;
     height: 2rem;
 }
 
-.sidebar-footer {
-    margin-top: auto;
-    padding: 0.75rem;
-    border-top: 1px solid var(--color-border);
-    display: flex;
-    flex-direction: column;
-    gap: 0.5rem;
-}
-
-.sidebar-about {
+.topbar nav {
     display: flex;
     align-items: center;
-    gap: 0.5rem;
-    padding: 0.25rem 0.75rem;
-    color: var(--color-text-muted);
-    font-size: 0.75rem;
-    text-decoration: none;
-}
-
-.sidebar-about:hover {
-    color: var(--color-text);
-    text-decoration: none;
-}
-
-.sidebar-sign-in {
-    display: flex;
-    align-items: center;
-    justify-content: center;
-    gap: 0.5rem;
-    padding: 0.45rem 0.75rem;
-    border-radius: var(--radius-md);
-    background: var(--color-surface-hover);
-    color: var(--color-text);
-    font-size: 0.8rem;
-    font-weight: 500;
-    text-decoration: none;
-    transition: background 0.15s, color 0.15s;
-}
-
-.sidebar-sign-in:hover {
-    background: var(--color-border);
-    color: var(--color-text);
-    text-decoration: none;
-}
-
-.sidebar-user {
-    display: flex;
-    align-items: center;
-    justify-content: space-between;
-    gap: 0.5rem;
-}
-
-.sidebar-user-info {
-    display: flex;
-    align-items: center;
-    gap: 0.4rem;
-    min-width: 0;
-    font-size: 0.8rem;
-    color: var(--color-text-muted);
-}
-
-.sidebar-user-icon {
-    flex-shrink: 0;
-    color: var(--color-text-dim);
-}
-
-.sidebar-logout-btn {
-    flex-shrink: 0;
-    background: none;
-    border: none;
-    color: var(--color-text-dim);
-    cursor: pointer;
-    padding: 0.2rem;
-    border-radius: var(--radius-sm);
-    transition: color 0.15s, background 0.15s;
-}
-
-.sidebar-logout-btn:hover {
-    color: var(--color-text);
-    background: var(--color-surface-hover);
-}
-
-.sidebar nav {
-    display: flex;
-    flex-direction: column;
     gap: 2px;
-    padding: 0 0.5rem;
+    min-width: 0;
 }
 
-.sidebar nav a {
+.topbar nav a {
     display: flex;
     align-items: center;
     gap: 0.5rem;
-    padding: 0.5rem 0.75rem;
+    padding: 0.375rem 0.625rem;
     border-radius: var(--radius-md);
     color: var(--color-text-muted);
     font-size: 0.875rem;
     font-weight: 500;
+    white-space: nowrap;
     transition:
         background 0.15s,
         color 0.15s;
     text-decoration: none;
 }
 
-.sidebar nav a:hover {
+.topbar nav a:hover {
+    background: var(--color-surface-hover);
+    color: var(--color-text);
+}
+
+.topbar nav a.active {
+    background: var(--color-surface-hover);
+    color: var(--color-secondary);
+}
+
+/* Role emphasis: a caller whose namespace roles are mostly 'security' or
+   mostly 'developer' gets the two links their work starts from accented:
+   full-strength label text and a 2px bar under the label.
+
+   Accent only: the link is in the same place, in the same order, for every
+   caller, and nothing is hidden from anyone. The bar is an inset shadow so it
+   costs no layout. It stays below `.active` in the cascade: where you are
+   beats what you are here for. */
+.topbar nav a[data-lead] {
+    color: var(--color-text);
+    box-shadow: inset 0 -2px 0 var(--color-secondary);
+}
+
+/* Icons belong to the drawer, where the links stack; in the bar the labels
+   are enough. */
+@media (min-width: 769px) {
+    .topbar nav a svg {
+        display: none;
+    }
+
+    /* Search follows the nav on the right. In the markup it comes first,
+       which is the order the mobile bar and drawer want. */
+    .topbar nav {
+        order: 1;
+    }
+
+    .topbar-search {
+        order: 2;
+    }
+
+    .topbar-footer {
+        order: 3;
+    }
+}
+
+/* The palette's own door, with its key printed on it. */
+.topbar-search {
+    display: flex;
+    align-items: center;
+    gap: 0.5rem;
+    width: 16rem;
+    margin-left: auto;
+    padding: 0.375rem 0.625rem;
+    border: 1px solid var(--color-border-hover);
+    border-radius: var(--radius-md);
+    background: var(--color-surface);
+    color: var(--color-text-dim);
+    font-family: var(--font-sans);
+    font-size: var(--text-sm);
+    cursor: pointer;
+    text-align: left;
+}
+
+.topbar-search:hover {
+    border-color: var(--color-text-dim);
+    color: var(--color-text-muted);
+}
+
+.topbar-search span {
+    flex: 1;
+}
+
+.topbar-search kbd {
+    font-family: var(--font-mono);
+    font-size: var(--text-xs);
+    color: var(--color-text-dim);
+}
+
+/* The right-hand cluster: the More menu, then sign in or the signed-in user. */
+.topbar-footer {
+    display: flex;
+    align-items: center;
+    gap: 0.5rem;
+}
+
+.topbar-more {
+    position: relative;
+}
+
+.topbar-more-toggle {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    padding: 0.4rem;
+    border: 1px solid transparent;
+    border-radius: var(--radius-md);
+    background: none;
+    color: var(--color-text-muted);
+    cursor: pointer;
+}
+
+.topbar-more-toggle:hover,
+.topbar-more-toggle[aria-expanded="true"] {
+    color: var(--color-text);
+    background: var(--color-surface-hover);
+}
+
+.topbar-more-menu {
+    display: none;
+    position: absolute;
+    top: calc(100% + 6px);
+    right: 0;
+    z-index: 70;
+    min-width: 12rem;
+    flex-direction: column;
+    gap: 2px;
+    padding: 0.375rem;
+    background: var(--color-elevated);
+    border: 1px solid var(--color-border);
+    border-radius: var(--radius-lg);
+    box-shadow: 0 8px 24px rgba(0, 0, 0, 0.25);
+}
+
+.topbar-more-menu.open {
+    display: flex;
+}
+
+.topbar-about {
+    display: flex;
+    align-items: center;
+    gap: 0.5rem;
+    padding: 0.375rem 0.5rem;
+    border-radius: var(--radius-sm);
+    color: var(--color-text-muted);
+    font-size: 0.8125rem;
+    text-decoration: none;
+}
+
+.topbar-about:hover {
     background: var(--color-surface-hover);
     color: var(--color-text);
     text-decoration: none;
 }
 
-.sidebar nav a.active {
-    background: var(--color-surface-hover);
-    color: var(--color-secondary);
+.topbar-sign-in {
+    display: flex;
+    align-items: center;
+    gap: 0.4rem;
+    padding: 0.375rem 0.75rem;
+    border: 1px solid var(--color-border-hover);
+    border-radius: var(--radius-md);
+    background: var(--color-surface);
+    color: var(--color-text);
+    font-size: 0.8125rem;
+    font-weight: 500;
+    white-space: nowrap;
+    text-decoration: none;
+    transition: border-color 0.15s;
 }
 
-/* Role emphasis (ocidex-y0hg.9). A caller whose namespace roles are mostly
-   'security' or mostly 'developer' gets the two links their work starts from
-   accented: full-strength label text and a 2px bar down the left edge.
+.topbar-sign-in:hover {
+    border-color: var(--color-text-dim);
+    text-decoration: none;
+}
 
-   Accent only — the link is in the same place, in the same order, for every
-   caller, and nothing is hidden from anyone. The bar is an inset shadow rather
-   than a border so it costs no layout: turning it on must not shift the rest
-   of the rail by a pixel.
+.topbar-user {
+    display: flex;
+    align-items: center;
+    gap: 0.25rem;
+    min-width: 0;
+}
 
-   It stays below `.active` in the cascade on purpose. Where you are beats what
-   you are here for, and the two markers are different anyway — `.active`
-   recolours the whole row, this one only lifts the text and draws the bar. */
-.sidebar nav a[data-lead] {
+.topbar-user-info {
+    display: flex;
+    align-items: center;
+    gap: 0.4rem;
+    min-width: 0;
+    max-width: 12rem;
+    font-size: 0.8125rem;
+    color: var(--color-text-muted);
+}
+
+.topbar-user-icon {
+    flex-shrink: 0;
+    color: var(--color-text-dim);
+}
+
+.topbar-logout-btn {
+    flex-shrink: 0;
+    background: none;
+    border: none;
+    color: var(--color-text-dim);
+    cursor: pointer;
+    padding: 0.3rem;
+    border-radius: var(--radius-sm);
+    transition: color 0.15s, background 0.15s;
+}
+
+.topbar-logout-btn:hover {
     color: var(--color-text);
-    box-shadow: inset 2px 0 0 var(--color-secondary);
+    background: var(--color-surface-hover);
 }
 
 .main-content {
-    flex: 1;
+    width: 100%;
     padding: 2rem;
     overflow-x: auto;
     min-width: 0;
-    /* Without this the column takes whatever the window gives it: measured at
-       2200px, 1220px of content was spread over the full field, so table rows
-       became mostly whitespace with the first and last cell a screen apart.
-
-       1600px is chosen against the content, not by feel. The widest public
-       table (/vulnerabilities, 7 columns) wants 803px at min-content; the
-       widest in the app is admin Sources at 9 columns. 1600 clears both with
-       room, and anything that still exceeds it scrolls in this column's own
-       overflow-x rather than stretching the page.
-
-       `margin-inline: auto` centres it in the area beside the sidebar, so the
-       reading column stays put as the window grows. Below 1600px `flex: 1`
-       wins and nothing about the current layout changes. */
+    /* 1600px is chosen against the content, not by feel: the widest table in
+       the app (admin Sources, 9 columns) clears it with room, and anything
+       still wider scrolls in this column's own overflow-x rather than
+       stretching the page. `margin-inline: auto` keeps the reading column
+       centred as the window grows. */
     max-width: 1600px;
     margin-inline: auto;
 }
 
 /*
- * The drawer toggle. Hidden above the breakpoint, where the sidebar is already
+ * The drawer toggle. Hidden above the breakpoint, where the topbar is already
  * open and there is nothing to reveal.
  */
-.sidebar-drawer-toggle {
+.topbar-drawer-toggle {
     display: none;
 }
 
 /* Both the toggle and its backdrop are inert above the breakpoint, so a drawer
    left open across a resize to desktop does not strand a black sheet over the
    page. */
-.sidebar-backdrop {
+.topbar-backdrop {
     display: none;
 }
 
 /*
- * Below 768px the sidebar is a top bar (ocidex-iz0r.3): mark and wordmark on the
- * left, search and the menu button on the right. `.sidebar-open` is the same
+ * Below 768px the topbar is a top bar (ocidex-iz0r.3): mark and wordmark on the
+ * left, search and the menu button on the right. `.topbar-open` is the same
  * element opened as a drawer over the content.
  *
  * This replaced a 56px icon rail, which hid the brand entirely (the mark had no
  * room and the wordmark was cut to "OCI") and left most of the nav as unlabelled
- * icons. The drawer is still the sidebar itself, not a second copy of the nav:
+ * icons. The drawer is still the topbar itself, not a second copy of the nav:
  * one set of links, one footer, one place to add a route.
  */
 @media (max-width: 768px) {
@@ -345,7 +439,7 @@
         flex-direction: column;
     }
 
-    .sidebar {
+    .topbar {
         position: sticky;
         top: 0;
         z-index: 40;
@@ -360,24 +454,25 @@
         overflow: visible;
     }
 
-    .sidebar-brand {
+    .topbar-brand {
         order: 0;
         flex: 1;
         min-width: 0;
         padding: 0.625rem 0.5rem;
     }
 
-    .sidebar-brand p,
-    .sidebar nav,
-    .sidebar-footer,
-    .sidebar-search span,
-    .sidebar-search kbd {
+    .topbar-brand p,
+    .topbar nav,
+    .topbar-footer,
+    .topbar-more-menu,
+    .topbar-search span,
+    .topbar-search kbd {
         display: none;
     }
 
-    /* Two classes: the base .sidebar-search rule comes later in this file and
+    /* Two classes: the base .topbar-search rule comes later in this file and
        would otherwise win at equal specificity. */
-    .sidebar .sidebar-search {
+    .topbar .topbar-search {
         order: 1;
         width: auto;
         margin: 0;
@@ -387,7 +482,7 @@
         color: var(--color-text-muted);
     }
 
-    .sidebar-drawer-toggle {
+    .topbar-drawer-toggle {
         order: 2;
         display: flex;
         align-items: center;
@@ -399,7 +494,7 @@
         color: var(--color-text-muted);
     }
 
-    .sidebar-drawer-toggle:hover {
+    .topbar-drawer-toggle:hover {
         color: var(--color-text);
         background: var(--color-surface-hover);
     }
@@ -415,11 +510,11 @@
 
     /* The bar leaves the flow when it becomes the drawer; hold its height so
        the page under the backdrop does not jump up. */
-    .layout:has(.sidebar-open) {
+    .layout:has(.topbar-open) {
         padding-top: 53px;
     }
 
-    .sidebar-open {
+    .topbar-open {
         position: fixed;
         top: 0;
         left: 0;
@@ -436,27 +531,55 @@
         box-shadow: 0 0 32px rgba(0, 0, 0, 0.45);
     }
 
-    .sidebar-open .sidebar-drawer-toggle {
+    .topbar-open .topbar-drawer-toggle {
         order: -1;
         align-self: flex-end;
         margin: 0.5rem 0.5rem 0;
     }
 
-    .sidebar-open .sidebar-brand {
+    .topbar-open .topbar-brand {
         flex: none;
         padding: 0.25rem 1rem 1rem;
     }
 
-    .sidebar-open .sidebar-brand p {
+    .topbar-open .topbar-brand p {
         display: block;
     }
 
-    .sidebar-open nav,
-    .sidebar-open .sidebar-footer {
+    .topbar-open nav,
+    .topbar-open .topbar-footer,
+    .topbar-open .topbar-more-menu {
         display: flex;
     }
 
-    .sidebar-open .sidebar-search {
+    .topbar-open nav {
+        flex-direction: column;
+        align-items: stretch;
+        padding: 0 0.5rem;
+    }
+
+    .topbar-open .topbar-footer {
+        flex-direction: column;
+        align-items: stretch;
+        margin-top: auto;
+        padding: 0.75rem;
+        border-top: 1px solid var(--color-border);
+    }
+
+    /* In the drawer the menu's contents sit inline; there is nothing to open. */
+    .topbar-open .topbar-more-toggle {
+        display: none;
+    }
+
+    .topbar-open .topbar-more-menu {
+        position: static;
+        padding: 0;
+        background: none;
+        border: none;
+        box-shadow: none;
+    }
+
+    .topbar-open .topbar-search {
         order: 0;
         margin: 0 0.5rem 0.75rem;
         padding: 0.375rem 0.625rem;
@@ -465,56 +588,16 @@
         color: var(--color-text-dim);
     }
 
-    .sidebar-open .sidebar-search span,
-    .sidebar-open .sidebar-search kbd {
+    .topbar-open .topbar-search span,
+    .topbar-open .topbar-search kbd {
         display: initial;
     }
 
-    .sidebar-backdrop {
+    .topbar-backdrop {
         display: block;
         position: fixed;
         inset: 0;
         z-index: 50;
         background: rgba(0, 0, 0, 0.5);
     }
-}
-
-/* The sidebar trigger. A shortcut nobody is told about is a shortcut nobody
-   uses, so the rail carries the same door with its key printed on it. */
-.sidebar-search {
-    display: flex;
-    align-items: center;
-    gap: 0.5rem;
-    /* Inset by the same 0.5rem `.sidebar nav` uses, rather than `width: 100%`
-       flush to both edges. Two reasons, and either alone would justify it: it
-       lines the trigger up with the nav links directly beneath it, and the
-       sidebar is `overflow-y: auto` — which computes `overflow-x` to `auto`
-       too — so a full-bleed child's focus ring was clipped on both sides at
-       `outline-offset: 2px`. */
-    width: auto;
-    margin: 0 0.5rem 0.75rem;
-    padding: 0.375rem 0.625rem;
-    border: 1px solid var(--color-border);
-    border-radius: var(--radius-md);
-    background: var(--color-bg);
-    color: var(--color-text-dim);
-    font-family: var(--font-sans);
-    font-size: var(--text-sm);
-    cursor: pointer;
-    text-align: left;
-}
-
-.sidebar-search:hover {
-    border-color: var(--color-border-hover);
-    color: var(--color-text-muted);
-}
-
-.sidebar-search span {
-    flex: 1;
-}
-
-.sidebar-search kbd {
-    font-family: var(--font-mono);
-    font-size: var(--text-xs);
-    color: var(--color-text-dim);
 }

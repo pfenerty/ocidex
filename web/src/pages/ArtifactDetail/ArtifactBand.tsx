@@ -25,6 +25,8 @@ export function ArtifactBand(props: {
     /** The version the vulnerability summary counts, named in the tile's scope:
      *  the highest by version parts, which need not be the newest build. */
     vulnsVersion?: string;
+    /** That version's SBOM has been matched against the vulnerability store. */
+    vulnsMatched?: boolean;
     /** The ordering the versions list resolved to, captioning the Versions tile. */
     ordering: "semver" | "all";
     active: ArtifactTab;
@@ -74,6 +76,7 @@ export function ArtifactBand(props: {
                 props.vulnsVersion !== undefined && props.vulnsVersion !== ""
                     ? props.vulnsVersion
                     : "latest version",
+                props.vulnsMatched,
             ),
         ];
 

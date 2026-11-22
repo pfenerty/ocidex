@@ -2,13 +2,16 @@ import { A } from "@solidjs/router";
 import { Clock, Scale, ShieldAlert, Sparkles } from "lucide-solid";
 import { For, Show, type JSX } from "solid-js";
 import { Skeleton } from "~/components/Skeleton";
-import { Badge, Card, QueryBoundary } from "~/components/ui";
-import { SeverityPill, VulnCountBadges, severityColorClass } from "~/components/VulnBadge";
+import DataTable, { type Column } from "~/components/DataTable";
+import { Card, QueryBoundary } from "~/components/ui";
+import { SeverityPill, severityColorClass } from "~/components/VulnBadge";
 import { useDashboardStats, useDiscovery } from "~/api/queries";
 import type { DiscoverFeatured, DiscoverRecent, DiscoverVuln } from "~/api/queries";
 import { CATEGORY_COLORS } from "~/utils/licenseUtils";
 import { plural, relativeDate } from "~/utils/format";
 import { splitImageRef } from "~/utils/oci";
+import { formatDelta, latestVerdict } from "~/utils/versionDelta";
+import { Shiny, isShiny } from "~/components/Shiny";
 import { StatusChip } from "~/components/ui";
 import { VULN_DATA_STATUS } from "~/utils/status";
 
@@ -78,15 +81,6 @@ function licenseSegment(category: string, count: number): MixSegment {
     };
 }
 
-function featuredLicenseSegments(f: DiscoverFeatured): MixSegment[] {
-    return [
-        licenseSegment("permissive", f.licenses.permissive),
-        licenseSegment("weak-copyleft", f.licenses.weakCopyleft),
-        licenseSegment("copyleft", f.licenses.copyleft),
-        licenseSegment("uncategorized", f.licenses.uncategorized),
-    ];
-}
-
 function severitySegments(v: {
     critical: number;
     high: number;
@@ -130,45 +124,74 @@ function SectionHead(props: { icon: JSX.Element; title: string; href: string; hr
     );
 }
 
-function FeaturedCard(props: { item: DiscoverFeatured }): JSX.Element {
-    const f = () => props.item;
-    const vulnTotal = () =>
-        f().vulns.critical + f().vulns.high + f().vulns.medium + f().vulns.low + f().vulns.unknown;
-    return (
-        <Card as="li" class="featured-card">
-            <div class="featured-top">
-                {/* The name is the card's one link; .featured-link::after
-                    stretches it over the card so the whole tile is the target. */}
-                <A href={`/artifacts/${f().artifactId}`} class="featured-link">
-                    <ImageName name={f().name} class="featured-name" />
-                </A>
-                <Show when={f().subjectVersion}>{(v) => <Badge>{v()}</Badge>}</Show>
-            </div>
-            <dl class="featured-facts">
-                <div>
-                    <dt>Packages</dt>
-                    <dd>{f().packageCount.toLocaleString()}</dd>
-                </div>
-                <div>
-                    <dt>Vulnerabilities</dt>
-                    <dd>
-                        <Show when={vulnTotal() > 0} fallback={<StatusChip status={VULN_DATA_STATUS.clean} />}>
-                            <VulnCountBadges
-                                criticalCount={f().vulns.critical}
-                                highCount={f().vulns.high}
-                                mediumCount={f().vulns.medium}
-                                lowCount={f().vulns.low}
-                                unknownCount={f().vulns.unknown}
-                            />
-                        </Show>
-                    </dd>
-                </div>
-            </dl>
-            <MixBar thin label="Licenses" segments={featuredLicenseSegments(f())} />
-            <p class="featured-updated">updated {relativeDate(f().createdAt)}</p>
-        </Card>
-    );
+const num = (x: number, crit = false): JSX.Element => (
+    <span class={x === 0 ? "featured-zero" : crit ? "featured-crit" : undefined}>{x.toLocaleString()}</span>
+);
+
+/** Featured images as one table to scan and compare: name, latest, size, findings. */
+/** Critical change in the newest version against the previous one of its variant. */
+function critDelta(f: DiscoverFeatured): number | undefined {
+    const v = latestVerdict((f.criticalHistory ?? []).map((h) => ({ versionKey: h.versionKey, critical: h.critical })));
+    return v?.delta;
 }
+
+const FEATURED_COLUMNS: Column<DiscoverFeatured>[] = [
+    {
+        header: "Image",
+        render: (f) => (
+            <span class="with-sprite">
+                <A href={`/artifacts/${f.artifactId}`} class="featured-link">
+                    <ImageName name={f.name} class="featured-name" />
+                </A>
+                <Show when={isShiny(f.vulnMatched, f.vulns.critical + f.vulns.high + f.vulns.medium + f.vulns.low + f.vulns.unknown)}>
+                    <Shiny />
+                </Show>
+            </span>
+        ),
+    },
+    { header: "Latest", class: "featured-version", render: (f) => f.subjectVersion ?? "—" },
+    { header: "Packages", align: "right", class: "featured-n", render: (f) => f.packageCount.toLocaleString() },
+    { header: "Crit", align: "right", class: "featured-n", render: (f) => num(f.vulns.critical, true) },
+    { header: "High", align: "right", class: "featured-n", render: (f) => num(f.vulns.high) },
+    { header: "Med", align: "right", class: "featured-n", render: (f) => num(f.vulns.medium) },
+    { header: "Low", align: "right", class: "featured-n", render: (f) => num(f.vulns.low) },
+    {
+        header: "Mix",
+        class: "featured-mix",
+        render: (f) => {
+            const v = f.vulns;
+            const total = v.critical + v.high + v.medium + v.low + v.unknown;
+            return (
+                <Show
+                    when={total > 0}
+                    fallback={
+                        <StatusChip status={f.vulnMatched ? VULN_DATA_STATUS.clean : VULN_DATA_STATUS.unscanned} />
+                    }
+                >
+                    <MixBar thin label="Vulnerabilities by severity" segments={severitySegments(v)} />
+                </Show>
+            );
+        },
+    },
+    {
+        header: "Δ crit",
+        align: "right",
+        render: (f) => {
+            const d = critDelta(f);
+            return (
+                <Show when={d !== undefined} fallback={<span class="text-muted">—</span>}>
+                    <span
+                        class="delta-cell"
+                        classList={{ "delta-zero": d === 0, "delta-worse": (d ?? 0) > 0 }}
+                        title="Critical findings in the latest version compared with the previous one"
+                    >
+                        {formatDelta(d ?? 0)}
+                    </span>
+                </Show>
+            );
+        },
+    },
+];
 
 function VulnRow(props: { v: DiscoverVuln }): JSX.Element {
     return (
@@ -258,11 +281,16 @@ export function HomeDiscovery(): JSX.Element {
                                     href="/artifacts"
                                     hrefLabel="All artifacts"
                                 />
-                                <ul class="featured-grid">
-                                    <For each={data().featuredArtifacts}>
-                                        {(f) => <FeaturedCard item={f} />}
-                                    </For>
-                                </ul>
+                                <DataTable
+                                    bare
+                                    class="featured-table"
+                                    columns={FEATURED_COLUMNS}
+                                    rows={data().featuredArtifacts ?? []}
+                                    loading={false}
+                                    isError={false}
+                                    emptyTitle="Nothing featured"
+                                    rowClass={() => "featured-row"}
+                                />
                             </section>
                         </Show>
 

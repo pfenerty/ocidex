@@ -503,6 +503,22 @@ func (h *Handler) GetArtifact(ctx context.Context, input *GetArtifactInput) (*Ge
 	return out, nil
 }
 
+// GetArtifactByEntryNumber handles GET /api/v1/artifacts/by-number/{number}.
+func (h *Handler) GetArtifactByEntryNumber(ctx context.Context, input *GetArtifactByEntryNumberInput) (*GetArtifactOutput, error) {
+	vis := visibilityFilterFromContext(ctx)
+	id, err := h.artifacts.ResolveArtifactEntryNumber(ctx, input.Number, vis)
+	if err != nil {
+		return nil, mapServiceError(err)
+	}
+	detail, err := h.artifacts.GetArtifact(ctx, id, vis)
+	if err != nil {
+		return nil, mapServiceError(err)
+	}
+	out := &GetArtifactOutput{}
+	out.Body = detail
+	return out, nil
+}
+
 // ListArtifactSBOMs handles GET /api/v1/artifacts/{id}/sboms.
 func (h *Handler) ListArtifactSBOMs(ctx context.Context, input *ListArtifactSBOMsInput) (*ListArtifactSBOMsOutput, error) {
 	id, err := requireUUID(input.ID)
@@ -563,6 +579,7 @@ func (h *Handler) ListArtifactVersions(ctx context.Context, input *ListArtifactV
 			Sufficient:    v.Sufficient,
 			SigningStatus: v.SigningStatus,
 			Vulns:         v.Vulns,
+			VulnMatched:   v.VulnMatched,
 		})
 	}
 
@@ -656,6 +673,7 @@ func (h *Handler) GetArtifactVulnSummary(ctx context.Context, input *GetArtifact
 	out := &GetArtifactVulnSummaryOutput{}
 	out.Body.Summary = summary.Summary
 	out.Body.SubjectVersion = summary.SubjectVersion
+	out.Body.Matched = summary.Matched
 	return out, nil
 }
 
@@ -753,6 +771,7 @@ func (h *Handler) GetDashboardStats(ctx context.Context, _ *struct{}) (*Dashboar
 	out.Body.TopPackages = pkgs
 	out.Body.Warming = stats.Warming
 	out.Body.VulnCount = stats.VulnCount
+	out.Body.ArtifactMaxima = stats.ArtifactMaxima
 	out.Body.VulnSeverity = VulnSeverityEntry{
 		Critical: stats.VulnSeverity.Critical,
 		High:     stats.VulnSeverity.High,

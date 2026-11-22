@@ -16,6 +16,8 @@ const ARTIFACT: ArtifactDetail = {
     createdAt: "2026-07-14T12:00:50Z",
     versionCount: 60,
     watched: false,
+    entryNumber: 12,
+    packageCount: 1200,
 };
 
 const VULNS: VulnSummary = { total: 85, critical: 12, high: 30, medium: 40, low: 3, unknown: 0 };
@@ -136,6 +138,13 @@ describe("ArtifactBand vulnerability tile", () => {
         const t = tile(container, "Vulnerabilities");
         expect(t.querySelector(".tile-value")?.textContent).toBe("—");
         expect(sub(container, "Vulnerabilities")).toBe("Not scanned");
+    });
+
+    it("says zero known once the SBOM has been matched with no findings", () => {
+        const { container } = renderBand({ vulns: undefined, vulnsMatched: true });
+        const t = tile(container, "Vulnerabilities");
+        expect(t.querySelector(".tile-value")?.textContent).toBe("0");
+        expect(sub(container, "Vulnerabilities")).toBe("0 known");
     });
 
     it("is a button, because the page now has a vulnerabilities tab", () => {

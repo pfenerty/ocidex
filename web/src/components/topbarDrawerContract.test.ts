@@ -4,7 +4,7 @@ import { readFileSync } from "node:fs";
 import { join } from "node:path";
 
 /**
- * The mobile sidebar is one element in two states: a top bar (mark, search,
+ * On mobile the top bar is one element in two states: a single row (mark, search,
  * menu; ocidex-iz0r.3, which replaced a 56px icon rail) and the same element
  * opened into a drawer. Everything the bar hides, the drawer has to show again.
  * The rail's version of this bug (ocidex-ag4q.49) was a footer label missing
@@ -13,7 +13,7 @@ import { join } from "node:path";
  *
  * happy-dom has no layout engine and no cascade to query, so this reads the
  * stylesheet as text. A visual check catches the miss once; this keeps it
- * caught when someone adds the next labelled control to the sidebar.
+ * caught when someone adds the next labelled control to the topbar.
  */
 
 const CSS = join(__dirname, "Layout.css");
@@ -47,11 +47,11 @@ function rules(block: string): [string[], string][] {
 }
 
 /**
- * Drop the state token, so `.sidebar nav a span` and `.sidebar-open nav a span`
+ * Drop the state token, so `.topbar nav a span` and `.topbar-open nav a span`
  * name the same thing and can be compared as sets.
  */
 function withoutState(selector: string): string {
-    return selector.replace(/^\.sidebar(-open)?\s+/, "").trim();
+    return selector.replace(/^\.topbar(-open)?\s+/, "").trim();
 }
 
 function displayValue(decls: string): string | undefined {
@@ -70,8 +70,8 @@ function displayStates(): { hidden: Set<string>; shown: Set<string> } {
         for (const selector of selectors) {
             // The backdrop and the toggle are chrome, not content: they exist
             // in only one state by design.
-            if (/\.sidebar-backdrop|\.sidebar-drawer-toggle/.test(selector)) continue;
-            const isDrawer = selector.startsWith(".sidebar-open");
+            if (/\.topbar-backdrop|\.topbar-drawer-toggle/.test(selector)) continue;
+            const isDrawer = selector.startsWith(".topbar-open");
             if (display === "none" && !isDrawer) hidden.add(withoutState(selector));
             else if (display !== "none" && isDrawer) shown.add(withoutState(selector));
         }
@@ -79,7 +79,7 @@ function displayStates(): { hidden: Set<string>; shown: Set<string> } {
     return { hidden, shown };
 }
 
-describe("mobile sidebar bar/drawer contract", () => {
+describe("mobile topbar bar/drawer contract", () => {
     it("shows in the drawer everything it hides in the bar", () => {
         const { hidden, shown } = displayStates();
         expect(hidden.size).toBeGreaterThan(0);
@@ -90,13 +90,13 @@ describe("mobile sidebar bar/drawer contract", () => {
         // The bar is one row: anything labelled lives in the drawer.
         const { hidden } = displayStates();
         expect(hidden).toContain("nav");
-        expect(hidden).toContain(".sidebar-footer");
+        expect(hidden).toContain(".topbar-footer");
     });
 
     it("lifts the open drawer out of flow so it does not shove the article", () => {
         const positioned = rules(mobileBlock()).some(
             ([selectors, decls]) =>
-                selectors.includes(".sidebar-open") && /position\s*:\s*fixed/.test(decls),
+                selectors.includes(".topbar-open") && /position\s*:\s*fixed/.test(decls),
         );
         expect(positioned).toBe(true);
     });

@@ -317,7 +317,8 @@ SELECT p.id                                   AS artifact_id,
        lc.permissive_count,
        lc.weak_copyleft_count,
        lc.copyleft_count,
-       lc.uncategorized_count
+       lc.uncategorized_count,
+       EXISTS (SELECT 1 FROM sbom_vuln_match m WHERE m.sbom_id = l.sbom_id)::boolean AS vuln_matched
 FROM picked p
 CROSS JOIN LATERAL (
     SELECT s.id AS sbom_id, s.subject_version, s.created_at

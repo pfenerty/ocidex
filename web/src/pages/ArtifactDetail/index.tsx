@@ -1,6 +1,8 @@
+import type { ArtifactDetail } from "~/api/client";
 import "~/components/DetailSection.css";
 import { createSignal, Show } from "solid-js";
 import { useParams, useSearchParams } from "@solidjs/router";
+import NotFound from "~/pages/NotFound";
 import {
     useArtifact,
     useArtifactVersions,
@@ -9,6 +11,7 @@ import {
     useArtifactUsages,
     useArtifactVulnSummary,
     useArtifactWorkloads,
+    useDashboardStats,
 } from "~/api/queries";
 import { useAuth } from "~/context/auth";
 import { StatusPill } from "~/components/ui";
@@ -21,6 +24,9 @@ import { Breadcrumb, QueryBoundary, Segmented, TabBar, createExpandedSet, type C
 import { artifactDisplayName, plural } from "~/utils/format";
 import { ArtifactHeader, ArtifactIdentity } from "./ArtifactHeader";
 import { ArtifactBand, type ArtifactTab } from "./ArtifactBand";
+import { ChangeVerdict, VersionChart, severityPoints } from "./ArtifactChange";
+import { StatBlock, type StatRow } from "./StatBlock";
+import { isShiny } from "~/components/Shiny";
 import { VersionsTab } from "./VersionsTab";
 import { LicensesTab } from "./LicensesTab";
 import { ChangelogTab } from "./ChangelogTab";
@@ -34,7 +40,7 @@ function one(v: string | string[] | undefined): string | undefined {
     return Array.isArray(v) ? v[0] : v;
 }
 
-export default function ArtifactDetail() {
+function ArtifactDetailPage() {
     const params = useParams<{ id: string }>();
     const [searchParams, setSearchParams] = useSearchParams();
     const [versionOffset, setVersionOffset] = createSignal(0);
@@ -127,6 +133,35 @@ export default function ArtifactDetail() {
             dir: versionSortBy() === undefined ? undefined : versionSortDir(),
         }),
     );
+
+    // The newest page in the default order, for the verdict and the chart. Same
+    // key as the table's default view, so it costs no request until the reader
+    // sorts or pages away, and the verdict then stays put.
+    const latestVersionsQuery = useArtifactVersions(
+        () => params.id,
+        () => ({ limit: versionLimit, offset: 0, mode: viewMode() }),
+    );
+    const latestPoints = () => severityPoints(latestVersionsQuery.data?.data);
+
+    // Catalog maximums come from the warmed stats snapshot; until it is warm
+    // there is nothing to scale against and the block stays hidden.
+    const catalogStats = useDashboardStats();
+    const statRows = (a: ArtifactDetail): StatRow[] => {
+        const m = catalogStats.data?.warming === false ? catalogStats.data.artifactMaxima : undefined;
+        if (m === undefined) return [];
+        const vulns = vulnSummaryQuery.data?.summary;
+        const latestArch = latestVersionsQuery.data?.data[0]?.architectures?.length;
+        return [
+            { label: "PKG", title: "Packages in the latest version", value: a.packageCount, max: m.packages },
+            { label: "VER", title: "Versions", value: a.versionCount, max: m.versions },
+            { label: "SBM", title: "SBOMs", value: a.sbomCount, max: m.sboms },
+            ...(isContainer()
+                ? [{ label: "ARC", title: "Architectures in the latest version", value: latestArch, max: m.architectures }]
+                : []),
+            { label: "CRT", title: "Critical findings, latest version", value: vulns?.critical, max: m.critical, tone: "critical" },
+            { label: "HGH", title: "High findings, latest version", value: vulns?.high, max: m.high, tone: "high" },
+        ];
+    };
 
     // Sorting reorders the whole result set server-side, so the current page
     // number means nothing afterwards.
@@ -235,7 +270,7 @@ export default function ArtifactDetail() {
             >
                         {(a) => (
                             <>
-                                <ArtifactHeader artifact={a()} breadcrumb={<Breadcrumb items={crumbs()} />} />
+                                <ArtifactHeader artifact={a()} breadcrumb={<Breadcrumb items={crumbs()} />} points={latestPoints()} shiny={vulnSummaryQuery.data !== undefined && isShiny(vulnSummaryQuery.data.matched, vulnSummaryQuery.data.summary?.total)} />
 
                                 <Show when={runningClusters().length > 0}>
                                     <p class="mb-3" data-testid="running-in">
@@ -248,15 +283,21 @@ export default function ArtifactDetail() {
                                     </p>
                                 </Show>
 
-                                <ArtifactBand
-                                    artifact={a()}
-                                    isContainer={isContainer()}
-                                    vulns={vulnSummaryQuery.data?.summary}
-                                    vulnsVersion={vulnSummaryQuery.data?.subjectVersion}
-                                    ordering={effectiveMode()}
-                                    active={tab()}
-                                    onSelect={setTab}
-                                />
+                                <div class="artifact-summary">
+                                    <ChangeVerdict points={latestPoints()} />
+                                    <ArtifactBand
+                                        artifact={a()}
+                                        isContainer={isContainer()}
+                                        vulns={vulnSummaryQuery.data?.summary}
+                                        vulnsVersion={vulnSummaryQuery.data?.subjectVersion}
+                                        vulnsMatched={vulnSummaryQuery.data?.matched}
+                                        ordering={effectiveMode()}
+                                        active={tab()}
+                                        onSelect={setTab}
+                                    />
+                                </div>
+
+                                <StatBlock rows={statRows(a())} />
 
                                 <ArtifactIdentity artifact={a()} />
 
@@ -295,6 +336,7 @@ export default function ArtifactDetail() {
                                             </Show>
                                         )}
                                     </Show>
+                                    <VersionChart points={latestPoints()} />
                                     <VersionsTab
                                         artifactId={params.id}
                                         isContainer={isContainer()}
@@ -396,5 +438,21 @@ export default function ArtifactDetail() {
                         )}
             </QueryBoundary>
         </>
+    );
+}
+
+const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+
+/**
+ * An id that is not a UUID can never name an artifact: the API answers 422,
+ * which the page used to show raw. It is a mistyped or guessed URL, so it gets
+ * the not-found page, which offers search and a did-you-mean.
+ */
+export default function ArtifactDetail() {
+    const params = useParams<{ id: string }>();
+    return (
+        <Show when={UUID_RE.test(params.id)} fallback={<NotFound />}>
+            <ArtifactDetailPage />
+        </Show>
     );
 }

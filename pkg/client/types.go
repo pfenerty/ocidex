@@ -1688,12 +1688,19 @@ type AffectedComponent struct {
 // ArtifactDetail defines model for ArtifactDetail.
 type ArtifactDetail struct {
 	// Schema A URL to the JSON Schema for this object.
-	Schema              *string      `json:"$schema,omitempty"`
-	Cpe                 *string      `json:"cpe,omitempty"`
-	CreatedAt           time.Time    `json:"createdAt"`
+	Schema    *string   `json:"$schema,omitempty"`
+	Cpe       *string   `json:"cpe,omitempty"`
+	CreatedAt time.Time `json:"createdAt"`
+
+	// CriticalHistory Newest versions first, up to 12. List responses only.
+	CriticalHistory *[]VersionCritical `json:"criticalHistory,omitempty"`
+
+	// EntryNumber Sequential number in the order the artifact was first indexed. Never reused.
+	EntryNumber         int64        `json:"entryNumber"`
 	Group               *string      `json:"group,omitempty"`
 	Id                  string       `json:"id"`
 	Name                string       `json:"name"`
+	PackageCount        int64        `json:"packageCount"`
 	Purl                *string      `json:"purl,omitempty"`
 	SbomCount           int64        `json:"sbomCount"`
 	SigningStatus       string       `json:"signingStatus"`
@@ -1702,6 +1709,16 @@ type ArtifactDetail struct {
 	VersionCount        int64        `json:"versionCount"`
 	Vulns               *VulnSummary `json:"vulns,omitempty"`
 	Watched             bool         `json:"watched"`
+}
+
+// ArtifactMaxima defines model for ArtifactMaxima.
+type ArtifactMaxima struct {
+	Architectures int64 `json:"architectures"`
+	Critical      int64 `json:"critical"`
+	High          int64 `json:"high"`
+	Packages      int64 `json:"packages"`
+	Sboms         int64 `json:"sboms"`
+	Versions      int64 `json:"versions"`
 }
 
 // ArtifactRelation defines model for ArtifactRelation.
@@ -1722,6 +1739,11 @@ type ArtifactRelation struct {
 
 // ArtifactSummary defines model for ArtifactSummary.
 type ArtifactSummary struct {
+	// CriticalHistory Newest versions first, up to 12. List responses only.
+	CriticalHistory *[]VersionCritical `json:"criticalHistory,omitempty"`
+
+	// EntryNumber Sequential number in the order the artifact was first indexed. Never reused.
+	EntryNumber         int64        `json:"entryNumber"`
 	Group               *string      `json:"group,omitempty"`
 	Id                  string       `json:"id"`
 	Name                string       `json:"name"`
@@ -1755,7 +1777,10 @@ type ArtifactVersionSummary struct {
 	SourceUrl     *string                             `json:"sourceUrl,omitempty"`
 	Sufficient    bool                                `json:"sufficient"`
 	VersionKey    string                              `json:"versionKey"`
-	Vulns         *VulnSummary                        `json:"vulns,omitempty"`
+
+	// VulnMatched The newest SBOM was matched against the vulnerability store and the counts reflect it: an absent vulns then means none known
+	VulnMatched bool         `json:"vulnMatched"`
+	Vulns       *VulnSummary `json:"vulns,omitempty"`
 }
 
 // ArtifactVersionSummarySigningStatus Signing status derived from provenance enrichment
@@ -2419,6 +2444,7 @@ type DashboardStatsOutputBody struct {
 	// Schema A URL to the JSON Schema for this object.
 	Schema                *string                   `json:"$schema,omitempty"`
 	ArtifactCount         int64                     `json:"artifactCount"`
+	ArtifactMaxima        ArtifactMaxima            `json:"artifactMaxima"`
 	ArtifactTypes         *[]ArtifactTypeCountEntry `json:"artifactTypes"`
 	IngestionTimeline     *[]DailyCountEntry        `json:"ingestionTimeline"`
 	LicenseCategories     *[]CategoryCountEntry     `json:"licenseCategories"`
@@ -2480,17 +2506,23 @@ type DiscoverArtifact struct {
 
 // DiscoverFeatured defines model for DiscoverFeatured.
 type DiscoverFeatured struct {
-	ArtifactId string             `json:"artifactId"`
-	CreatedAt  time.Time          `json:"createdAt"`
-	Licenses   LicenseCategoryMix `json:"licenses"`
-	Name       string             `json:"name"`
+	ArtifactId string    `json:"artifactId"`
+	CreatedAt  time.Time `json:"createdAt"`
+
+	// CriticalHistory Newest versions first, up to 12
+	CriticalHistory *[]VersionCritical `json:"criticalHistory,omitempty"`
+	Licenses        LicenseCategoryMix `json:"licenses"`
+	Name            string             `json:"name"`
 
 	// PackageCount Components in the newest SBOM
-	PackageCount   int64              `json:"packageCount"`
-	SbomId         string             `json:"sbomId"`
-	SubjectVersion *string            `json:"subjectVersion,omitempty"`
-	Type           string             `json:"type"`
-	Vulns          VulnSeverityCounts `json:"vulns"`
+	PackageCount   int64   `json:"packageCount"`
+	SbomId         string  `json:"sbomId"`
+	SubjectVersion *string `json:"subjectVersion,omitempty"`
+	Type           string  `json:"type"`
+
+	// VulnMatched The newest SBOM has been matched against the vulnerability store
+	VulnMatched bool               `json:"vulnMatched"`
+	Vulns       VulnSeverityCounts `json:"vulns"`
 }
 
 // DiscoverLicense defines model for DiscoverLicense.
@@ -2703,6 +2735,9 @@ type GetArtifactUsagesOutputBody struct {
 type GetArtifactVulnSummaryOutputBody struct {
 	// Schema A URL to the JSON Schema for this object.
 	Schema *string `json:"$schema,omitempty"`
+
+	// Matched The counted SBOM has been matched against the vulnerability store; an absent summary then means no known vulnerabilities rather than never scanned
+	Matched bool `json:"matched"`
 
 	// SubjectVersion Version whose newest SBOM the summary counts
 	SubjectVersion *string      `json:"subjectVersion,omitempty"`
@@ -4206,6 +4241,12 @@ type UserResponse struct {
 	DisplayName string `json:"displayName"`
 	Id          string `json:"id"`
 	Role        string `json:"role"`
+}
+
+// VersionCritical defines model for VersionCritical.
+type VersionCritical struct {
+	Critical   *int64 `json:"critical,omitempty"`
+	VersionKey string `json:"versionKey"`
 }
 
 // VersionOutputBody defines model for VersionOutputBody.

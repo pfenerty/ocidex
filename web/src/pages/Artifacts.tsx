@@ -1,13 +1,17 @@
 import { createMemo, Show } from "solid-js";
+import { Sprite } from "~/components/Sprite";
+import { ArtifactGrid } from "~/components/ArtifactGrid";
 import { A, useSearchParams } from "@solidjs/router";
-import { useArtifactsInfinite } from "~/api/queries";
+import { useArtifactsInfinite, useMyClusters, useMySeenOnlyImages } from "~/api/queries";
+import { useAuth } from "~/context/auth";
 import DataTable from "~/components/DataTable";
 import type { Column, SortDir } from "~/components/DataTable";
 import { VulnCountBadges } from "~/components/VulnBadge";
 import { artifactDisplayName, plural } from "~/utils/format";
 import { SigningBadge, TypeBadge } from "~/components/cells";
 import { DEFAULT_PAGE_SIZE, type ArtifactSummary } from "~/api/client";
-import { PageHeader, Toolbar } from "~/components/ui";
+import { PageHeader, Segmented, Toolbar } from "~/components/ui";
+import LoadMore from "~/components/LoadMore";
 import type { ToolbarField } from "~/components/ui";
 import { StatusChip } from "~/components/ui";
 import { VULN_DATA_STATUS } from "~/utils/status";
@@ -79,7 +83,14 @@ const groupKey = (a: ArtifactSummary): string => {
 const columns: Column<ArtifactSummary>[] = [
     {
         header: "Artifact",
-        render: (a) => <A href={`/artifacts/${a.id}`}>{artifactDisplayName(a)}</A>,
+        render: (a) => (
+            <span class="with-sprite">
+                <Sprite
+                    points={(a.criticalHistory ?? []).map((h) => ({ versionKey: h.versionKey, critical: h.critical }))}
+                />
+                <A href={`/artifacts/${a.id}`}>{artifactDisplayName(a)}</A>
+            </span>
+        ),
     },
     {
         header: "Type",
@@ -169,6 +180,11 @@ const columns: Column<ArtifactSummary>[] = [
     },
 ];
 
+const VIEWS = [
+    { id: "table", label: "Table", title: "Every artifact as a sortable table" },
+    { id: "grid", label: "Grid", title: "Every artifact as a numbered slot with its sprite" },
+] as const;
+
 export default function Artifacts() {
     // Every filter lives in the URL, not just the type. Home's breakdown chips
     // already linked into `?type=`; name was a local signal, so the one view a
@@ -251,6 +267,16 @@ export default function Artifacts() {
 
     // Changing the sort re-orders the whole result set server-side, so every
     // page already loaded is stale — dropping the cursor restarts from page one.
+    // Table or the numbered grid, kept in the URL so a link opens the same view.
+    const view = (): "table" | "grid" => (param("view") === "grid" ? "grid" : "table");
+
+    // For a signed-in caller, the grid also shows what runs on their clusters
+    // with no SBOM. Only fetched while the grid is on screen.
+    const { user } = useAuth();
+    const gridSignedIn = () => user() !== undefined && view() === "grid";
+    const myClusters = useMyClusters({ enabled: gridSignedIn });
+    const seenOnly = useMySeenOnlyImages(() => (myClusters.data?.data ?? []).map((c) => c.id), { enabled: gridSignedIn });
+
     const sortArtifacts = (key: string, dir: SortDir) => {
         setSearchParams({
             sort: key === "severity" ? "severity" : undefined,
@@ -265,8 +291,30 @@ export default function Artifacts() {
                 subtitle="Software artifacts (container images, libraries, applications) tracked by OCIDex"
             />
 
-            <Toolbar class="mb-4" fields={FILTERS} />
+            <div class="artifacts-toolbar">
+                <Toolbar fields={FILTERS} />
+                <Segmented
+                    label="Artifact view"
+                    options={VIEWS}
+                    value={view()}
+                    onChange={(v) => setSearchParams({ view: v === "grid" ? "grid" : undefined })}
+                />
+            </div>
 
+            <Show when={view() === "grid"}>
+                <ArtifactGrid artifacts={rawArtifacts()} seenOnly={seenOnly.data} />
+                <Show when={query.hasNextPage}>
+                    <LoadMore
+                        loaded={rawArtifacts().length}
+                        hasMore={query.hasNextPage}
+                        loading={query.isFetchingNextPage}
+                        onClick={() => void query.fetchNextPage()}
+                        total={query.data?.pages[0]?.total}
+                    />
+                </Show>
+            </Show>
+
+            <Show when={view() === "table"}>
             <DataTable
                 columns={columns}
                 rows={query.data === undefined ? undefined : artifacts()}
@@ -309,6 +357,7 @@ export default function Artifacts() {
                     total: query.data?.pages[0]?.total,
                 }}
             />
+            </Show>
         </>
     );
 }

@@ -1,9 +1,8 @@
 /* Every family named first in a --font-* token below must be requested here,
-   or the token silently falls through to its OS fallback: Inter and JetBrains
-   Mono were declared but never fetched, so body text rendered in the system
-   font and every digest/purl in generic monospace (ocidex-ag4q.9).
-   fontContract.test.ts enforces the pairing. */
-@import url("https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500&family=Space+Grotesk:wght@500;700&display=swap");
+   or the token silently falls through to its OS fallback. fontContract.test.ts
+   enforces the pairing. Anybody is requested with its width axis, which
+   --font-display-stretch depends on. */
+@import url("https://fonts.googleapis.com/css2?family=Anybody:wdth,wght@50..150,500..800&family=JetBrains+Mono:wght@400;500&family=Schibsted+Grotesk:wght@400;500;600;700&display=swap");
 @import "tailwindcss";
 
 /* ============================================
@@ -11,118 +10,117 @@
    ============================================ */
 
 @theme {
-    /* --- One job per hue (ocidex-iz0r) ---
+    /* --- One job per hue ---
 
-       A Pokedex is a quiet instrument with one light on it. Until iz0r the app
-       was the opposite: one red was the sidebar slab, the wordmark, every
-       primary button, the H1 underline and (by value) critical severity, so
-       red meant "brand", "click", "danger" and "worst CVE" at once.
-
-         red  (--color-brand)     — identity only. The mark's lens-LED and
-                                    the "this is live" light. Never a button,
-                                    border, underline or badge: if it is
-                                    clickable, it is not red.
+       Severity is the only strong colour in the app. Everything a user reads
+       or clicks is ink on a warm neutral, so the eye lands on findings first.
 
          ink  (--color-ink)       — the one action a view is built around
                                     (.btn-primary), as the inverted surface:
                                     light on dark, dark on light.
 
-         blue (--color-secondary) — navigation and state. Links, hovers on
-                                    link-like affordances, active tabs, active
-                                    tiles, selected filters, focus rings.
-                                    Answers "where am I / where can I go",
-                                    never "do this".
+         --color-secondary        — navigation and state: links, active tabs,
+                                    active tiles, selected filters, focus
+                                    rings. It is ink-valued on purpose. Where
+                                    you are is shown by weight, underline and
+                                    position, not by a second hue competing
+                                    with the severity scale.
+
+         --color-severity-*       — the warm severity ramp, critical to low,
+                                    each with the foreground that reads on it.
+
+         --color-worse            — a count that went up since the previous
+                                    version. Amber, so it never reads as a
+                                    severity.
+
+         --color-brand            — the mark only. Never a button, border,
+                                    underline or badge.
 
          --color-danger           — consequence: .btn-danger, errors.
 
-       A status vocabulary must not borrow any of these: --color-severity-critical
-       exists so that restyling the brand cannot silently restyle the top of
-       the severity scale. And --color-info is an alias of --color-secondary
-       rather than a second copy of the hex, since "informational" and
-       "interactive" are the same blue by construction.
+       --color-severity-critical is its own token so that restyling the brand
+       cannot silently restyle the top of the severity scale. --color-info is an
+       alias of --color-secondary rather than a second copy of the hex.
 
-       colorSemantics.test.ts enforces the split. */
-    --color-brand: #F0484E;
-    --color-brand-hover: #F26D72;
-    --color-brand-fg: #FFFFFF;
+       colorSemantics.test.ts enforces the split; contrastContract.test.ts
+       measures every pairing. */
+    --color-brand: #FF6A4D;
+    --color-brand-hover: #FF8A72;
+    --color-brand-fg: #141110;
 
-    /* The primary action. Inverted text-on-page, so it is the highest-contrast
-       control on any surface without spending a hue: #0C0E14 on #E6E8EF is
-       15.6:1. Disabled is the shared opacity step, never a darker tint. */
-    --color-ink: #E6E8EF;
+    /* The primary action. Inverted text-on-page, the highest-contrast control
+       on any surface without spending a hue. */
+    --color-ink: #EFE8E2;
     --color-ink-hover: #FFFFFF;
-    --color-ink-fg: #0C0E14;
+    --color-ink-fg: #141110;
 
-    --color-secondary: #5B8DEF;
-    --color-secondary-hover: #7BA4F4;
-    /* Ink, not white — this token names "the readable foreground *on*
-       --color-secondary", and the dark theme's secondary is a light blue.
-       #FFFFFF on #5B8DEF is 3.23:1, which is what the selected segment of a
-       .btn-group (the Semver/Date toggle on ArtifactDetail, among others) was
-       rendering. The page background reads 5.99 on it and 7.4 on the hover
-       step. The light theme keeps white, where secondary is blue-700. */
-    --color-secondary-fg: #0C0E14;
+    --color-secondary: #EFE8E2;
+    --color-secondary-hover: #FFFFFF;
+    --color-secondary-fg: #141110;
 
-    /* The keyboard ring. An alias, not a fourth blue: "you are here with the
-       keyboard" is the same question --color-secondary already answers, and
-       defining it once means the light palette needs no second declaration —
-       the var resolves at the use site, so .light's own --color-secondary wins
-       automatically. Every :focus-visible rule in the app reads this. */
+    /* The keyboard ring. An alias, so the light palette needs no second
+       declaration: the var resolves at the use site. */
     --color-focus: var(--color-secondary);
 
-    /* --- Neutral Surfaces (dark default) --- */
-    --color-bg: #0C0E14;
-    --color-surface: #161921;
-    --color-surface-hover: #1E2230;
-    --color-elevated: #252838;
-    --color-border: #2A2E3E;
-    --color-border-hover: #3A3F52;
+    /* --- Neutral surfaces (dark default), a slight warm bias --- */
+    --color-bg: #141110;
+    --color-surface: #1B1715;
+    --color-surface-hover: #25201C;
+    --color-elevated: #2A2420;
+    --color-border: #322B27;
+    --color-border-hover: #463D37;
 
     /* --- Text --- */
-    --color-text: #E4E7F0;
-    --color-text-muted: #8B90A5;
-    /* Not #5C6070, which is the light theme's *muted* grey reused here one rung
-       too low: it measured 3.09:1 on --color-bg and 2.90 on a card, so the
-       sidebar search trigger, its ⌘K hint and every dim timestamp missed AA in
-       the dark theme as well. #82879D reads 5.42 on --color-bg and 4.94 on a
-       card, and is still a visible step below --color-text-muted (6.09 / 5.55).
-       It does not reach 4.5 on --color-elevated (4.10) or --color-surface-hover
-       (4.45); closing those would mean moving it onto --color-text-muted and
-       collapsing the two greys into one, which is a worse trade than the
-       residual — and --color-text-muted itself is only 4.61 on elevated. */
-    --color-text-dim: #82879D;
+    --color-text: #EFE8E2;
+    --color-text-muted: #A3968D;
+    /* A visible step below muted that still clears AA on bg (5.17) and surface
+       (4.90). Not held to AA on elevated or surface-hover; that would collapse
+       it into muted. */
+    --color-text-dim: #918479;
 
     /* --- Semantic --- */
-    --color-success: #34D399;
-    --color-success-bg: rgba(52, 211, 153, 0.12);
-    --color-warning: #FBBF24;
-    --color-warning-bg: rgba(251, 191, 36, 0.12);
-    --color-danger: #F06565;
-    --color-danger-bg: rgba(240, 101, 101, 0.10);
-    --color-danger-hover: #F28888;
+    --color-success: #4CC38A;
+    --color-success-bg: rgba(76, 195, 138, 0.12);
+    --color-warning: #F5B544;
+    --color-warning-bg: rgba(245, 181, 68, 0.12);
+    --color-danger: #FF7A66;
+    --color-danger-bg: rgba(255, 122, 102, 0.10);
+    --color-danger-hover: #FF9A8A;
     --color-info: var(--color-secondary);
-    --color-info-bg: rgba(91, 141, 239, 0.12);
-    /* The top of VulnBadge's de-escalating redscale. Deliberately its own
-       value rather than var(--color-brand): severity is not brand. */
-    --color-severity-critical: #DC3545;
+    --color-info-bg: rgba(239, 232, 226, 0.08);
+
+    /* --- Severity: one warm ramp, critical to low ---
+       Each step carries its own foreground. In this theme the ramp is light
+       enough that every step takes dark text. */
+    --color-severity-critical: #FF6A4D;
+    --color-severity-critical-fg: #141110;
+    --color-severity-high: #EE8A4A;
+    --color-severity-high-fg: #141110;
+    --color-severity-medium: #C98A55;
+    --color-severity-medium-fg: #141110;
+    --color-severity-low: #9C7C66;
+    --color-severity-low-fg: #141110;
+
+    /* --- Change --- */
+    --color-worse: #F5B544;
+    --color-worse-bg: rgba(245, 181, 68, 0.14);
+    /* An artifact whose latest version has no known vulnerabilities. Used for
+       nothing else. */
+    --color-shiny: #F5CB5C;
+    --color-shiny-bg: rgba(245, 203, 92, 0.12);
 
     /* --- Typography --- */
-    --font-sans: "Inter", -apple-system, BlinkMacSystemFont, "Segoe UI",
-        sans-serif;
+    --font-sans: "Schibsted Grotesk", -apple-system, BlinkMacSystemFont,
+        "Segoe UI", sans-serif;
     --font-mono: "JetBrains Mono", "Fira Code", "Cascadia Code", monospace;
+    /* Titles, counts and change numbers only. Anybody is a width-variable
+       face; it is always set condensed (see --font-display-stretch). */
+    --font-display: "Anybody", "Arial Narrow", sans-serif;
 
-    /* Type scale. The root stays 14px — the density is deliberate — so these are
-       the ratios that have to do the work: the old spread was body 14px against
-       a 21px page title and 14px card titles, which is why every page read flat.
-
-       These also back Tailwind's text-* utilities (v4 generates them from this
-       namespace), so --text-xs/sm/base keep their default values. That was only
-       half true until ocidex-ag4q.53: a hand-written `.text-sm { font-size:
-       0.8rem }` sat in @layer utilities, later in the file and at the same
-       specificity as the generated one, so every `text-sm` shipped 11.2px while
-       this token said 12.25px. The rule is gone; the token is the only source of
-       a text-* size now, and typeScale.test.ts fails if another one appears.
-       px values are at the 14px root. */
+    /* Type scale. The root stays 14px — the density is deliberate. These back
+       Tailwind's text-* utilities, so --text-xs/sm/base keep their default
+       values; typeScale.test.ts fails if a hand-written .text-* rule shadows
+       them. px values are at the 14px root. */
     --text-xs: 0.75rem;      /* 10.5px */
     --text-sm: 0.875rem;     /* 12.25px */
     --text-base: 1rem;       /* 14px */
@@ -138,10 +136,14 @@
     --radius-xl: 0.75rem;
 
     /* --- Brand chrome --- */
-    --color-accent-amber: #FFB020;
-    --color-chrome-deep: #1A1F2E;
-    --color-entry-edge: var(--color-brand);
-    --font-display: "Space Grotesk", "Inter", sans-serif;
+    --color-accent-amber: #F5B544;
+    --color-chrome-deep: #1F1A17;
+    --color-entry-edge: var(--color-border-hover);
+}
+
+/* Not a Tailwind theme namespace, so it lives outside @theme. */
+:root {
+    --font-display-stretch: 80%;
 }
 
 /* ============================================
@@ -149,84 +151,61 @@
    ============================================ */
 
 .light {
-    --color-brand: #D7262E;
-    --color-brand-hover: #B91C24;
+    --color-brand: #B42318;
+    --color-brand-hover: #912018;
     --color-brand-fg: #FFFFFF;
 
-    /* #FFFFFF on #161922 is 17.9:1; the hover step lifts toward the border
-       grey rather than going darker, which there is no room for. */
-    --color-ink: #161922;
-    --color-ink-hover: #2E3242;
+    --color-ink: #1C1512;
+    --color-ink-hover: #3A302B;
     --color-ink-fg: #FFFFFF;
 
-    /* blue-700, not blue-600. This is the link and interactive colour (ADR of
-       1.3: blue = interactive), and #2563EB reads 4.42:1 on --color-elevated —
-       so any link inside a raised card missed AA. #1D4ED8 is 5.71 there and
-       6.20 on the page background; the hover step moves to blue-800. */
-    --color-secondary: #1D4ED8;
-    --color-secondary-hover: #1E40AF;
+    --color-secondary: #1C1512;
+    --color-secondary-hover: #3A302B;
     --color-secondary-fg: #FFFFFF;
 
-    --color-bg: #F8F6F1;
+    /* A light warm grey page under white cards. Elevated is white too:
+       separation from a card comes from the border and shadow popovers
+       already carry. */
+    --color-bg: #F7F6F4;
     --color-surface: #FFFFFF;
-    --color-surface-hover: #F3F1EC;
-    /* Lighter than the page, not darker — the third instance of the same
-       dark-ladder-by-position bug as --color-text-dim below. #F0EDE7 sat a
-       step *below* --color-bg, which is what "elevated" means going up from
-       #0C0E14 and the opposite of what it means coming down from white. It
-       also made this the darkest surface in the theme, so the semantic
-       foreground tokens measured their worst against the one surface that
-       floats above everything: success and warning both landed at 4.3:1 on
-       it. Toasts, the command palette, the combobox popover and the login
-       button are the users; separation from a white card now comes from the
-       border and shadow they already carry, and every token clears 4.9 here. */
-    --color-elevated: #FDFCFA;
-    --color-border: #E0DDD5;
-    --color-border-hover: #C8C4BA;
+    --color-surface-hover: #F0EEEA;
+    --color-elevated: #FFFFFF;
+    --color-border: #E4E1DC;
+    --color-border-hover: #CFCAC3;
 
-    --color-text: #1A1D27;
-    --color-text-muted: #5C6070;
-    /* Not #8B90A5. The light palette was built by swapping the dark ladder's
-       two greys, which works going *up* from #0C0E14 and does not work coming
-       *down* from white: #8B90A5 measures 3.17:1 on a card and 2.93:1 on the
-       page background, so every timestamp, hint and unit label on every route
-       failed AA at once — by far the largest single finding of the light-mode
-       audit. #666B7A reads 5.13 on a card, 4.75 on the page background and
-       4.71 on --color-surface-hover — the last of those is why it is not the
-       slightly lighter #6B7080 tried first, which fell to 4.37 exactly when a
-       table row is hovered and being read. It still sits a clear step lighter
-       than --color-text-muted (6.25). */
-    --color-text-dim: #666B7A;
+    --color-text: #1C1512;
+    --color-text-muted: #675B54;
+    --color-text-dim: #6F635B;
 
-    /* Both were the -600 step of their ramp, which is the step that reads well
-       *on* a dark background and not the step that reads *against* white:
-       #16A34A measures 3.30:1 on a card and 2.82:1 on --color-elevated, and
-       #D97706 is worse at 3.19 / 2.73. Every badge, alert and status label
-       carrying success or warning failed AA on every light route at once. The
-       -700 step clears it (5.01 and 5.02 on a card) and is still unmistakably
-       green and amber. The dark theme keeps the brighter values above, where
-       the polarity is reversed and they measure fine. */
+    /* The -700 steps: the -600 steps read well on dark and fail against
+       white. */
     --color-success: #15803D;
     --color-success-bg: rgba(21, 128, 61, 0.10);
     --color-warning: #B45309;
     --color-warning-bg: rgba(180, 83, 9, 0.10);
-    /* The same one-step correction, for the same reason, one shade less
-       obviously: #DC2626 measured 4.47:1 on --color-bg and 4.13 on
-       --color-elevated — passing on a white card and failing on the two
-       surfaces most of the app actually paints. The Licenses tab's "STRONG"
-       copyleft label was the visible case. #B91C1C clears 5.5 on every
-       surface, so the hover step moves down to red-800 to stay distinct. */
     --color-danger: #B91C1C;
     --color-danger-bg: rgba(185, 28, 28, 0.08);
     --color-danger-hover: #991B1B;
     --color-info: var(--color-secondary);
-    --color-info-bg: rgba(29, 78, 216, 0.08);
-    --color-severity-critical: #CC1429;
+    --color-info-bg: rgba(28, 21, 18, 0.06);
 
-    /* Same -700 correction: this token's only text use is DataTable's sort
-       arrow, a 0.65rem glyph that was 2.95:1 on the page background. */
+    /* The two deep steps take white; the two pale steps take ink. */
+    --color-severity-critical: #B42318;
+    --color-severity-critical-fg: #FFFFFF;
+    --color-severity-high: #C2410C;
+    --color-severity-high-fg: #FFFFFF;
+    --color-severity-medium: #DE8F45;
+    --color-severity-medium-fg: #1C1512;
+    --color-severity-low: #DCC3A6;
+    --color-severity-low-fg: #1C1512;
+
+    --color-worse: #B54708;
+    --color-worse-bg: #FEF0E1;
+    --color-shiny: #8A5D00;
+    --color-shiny-bg: #FFF5D6;
+
     --color-accent-amber: #B45309;
-    --color-chrome-deep: #1A1D27;
+    --color-chrome-deep: #1C1512;
 }
 
 /* ============================================
@@ -298,6 +277,21 @@
     a:hover {
         color: var(--color-secondary-hover);
         text-decoration: underline;
+    }
+
+    /* Links are ink, the same colour as the text around them, so a link
+       inside running text or a table cell carries a quiet underline at rest.
+       Chrome links (nav, tabs, buttons, tiles) keep none: :where() keeps this
+       at zero specificity so any component rule overrides it. */
+    :where(p, li, dd, td) a:where(:not([class*="btn"])) {
+        text-decoration: underline;
+        text-decoration-color: var(--color-border-hover);
+        text-decoration-thickness: 1px;
+        text-underline-offset: 3px;
+    }
+
+    :where(p, li, dd, td) a:where(:not([class*="btn"])):hover {
+        text-decoration-color: currentColor;
     }
 
     /*
@@ -829,15 +823,33 @@
     .tone-fill-off { background: var(--color-text-muted); }
     .tone-fill-unknown { background: var(--color-border-hover); }
 
-    /* The mark's lens-LED (components/BrandMark.tsx): the one sanctioned use of
-       brand red. The body is currentColor, so the mark follows whatever text
-       colour it sits in. */
+    /* The mark (components/BrandMark.tsx) is currentColor, so it follows
+       whatever text colour it sits in. */
     .brand-mark {
         flex-shrink: 0;
     }
 
-    .brand-mark-led {
-        fill: var(--color-brand);
+    /* A count's change against the previous version: the versions table and
+       the home featured table. */
+    .delta-cell {
+        font-family: var(--font-display);
+        font-stretch: 80%;
+        font-weight: 700;
+        font-size: var(--text-lg);
+        font-variant-numeric: tabular-nums;
+        white-space: nowrap;
+    }
+
+    .delta-cell.delta-zero {
+        color: var(--color-text-dim);
+        font-weight: 500;
+    }
+
+    .delta-cell.delta-worse {
+        color: var(--color-worse);
+        background: var(--color-worse-bg);
+        padding: 0 0.3rem;
+        border-radius: var(--radius-sm);
     }
 
     /* Buttons — class variants */

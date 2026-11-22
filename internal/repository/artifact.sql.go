@@ -81,6 +81,35 @@ func (q *Queries) CountArtifacts(ctx context.Context, arg CountArtifactsParams) 
 	return column_1, err
 }
 
+const countLatestVersionPackages = `-- name: CountLatestVersionPackages :one
+SELECT COALESCE((
+    SELECT COUNT(*) FROM component c WHERE c.sbom_id = (
+        SELECT s.id FROM sbom s
+        WHERE s.artifact_id = $1
+          AND s.namespace_id IN (SELECT visible_namespace_ids($2::uuid, $3::boolean))
+        ORDER BY s.version_major DESC NULLS LAST,
+                 s.version_minor DESC NULLS LAST,
+                 s.version_patch DESC NULLS LAST,
+                 s.created_at DESC, s.id DESC
+        LIMIT 1)
+), 0)::bigint AS package_count
+`
+
+type CountLatestVersionPackagesParams struct {
+	ArtifactID pgtype.UUID `json:"artifact_id"`
+	UserID     pgtype.UUID `json:"user_id"`
+	IsAdmin    pgtype.Bool `json:"is_admin"`
+}
+
+// Components in the artifact's newest visible SBOM of its latest version,
+// picked the way ListArtifacts picks it. Zero when nothing is visible.
+func (q *Queries) CountLatestVersionPackages(ctx context.Context, arg CountLatestVersionPackagesParams) (int64, error) {
+	row := q.db.QueryRow(ctx, countLatestVersionPackages, arg.ArtifactID, arg.UserID, arg.IsAdmin)
+	var package_count int64
+	err := row.Scan(&package_count)
+	return package_count, err
+}
+
 const countSBOMsByArtifact = `-- name: CountSBOMsByArtifact :one
 SELECT COUNT(*)
 FROM sbom s
@@ -205,7 +234,7 @@ func (q *Queries) DeleteSBOMsByArtifact(ctx context.Context, artifactID pgtype.U
 }
 
 const getArtifact = `-- name: GetArtifact :one
-SELECT a.id, a.type, a.name, a.group_name, a.purl, a.cpe, a.created_at,
+SELECT a.id, a.type, a.name, a.group_name, a.purl, a.cpe, a.created_at, a.entry_number,
        (SELECT CASE
            WHEN EXISTS (
                SELECT 1 FROM enrichment pe JOIN sbom sx ON sx.id = pe.sbom_id
@@ -241,6 +270,7 @@ type GetArtifactRow struct {
 	Purl          pgtype.Text        `json:"purl"`
 	Cpe           pgtype.Text        `json:"cpe"`
 	CreatedAt     pgtype.Timestamptz `json:"created_at"`
+	EntryNumber   int64              `json:"entry_number"`
 	SigningStatus string             `json:"signing_status"`
 }
 
@@ -281,6 +311,7 @@ func (q *Queries) GetArtifact(ctx context.Context, id pgtype.UUID) (GetArtifactR
 		&i.Purl,
 		&i.Cpe,
 		&i.CreatedAt,
+		&i.EntryNumber,
 		&i.SigningStatus,
 	)
 	return i, err
@@ -311,6 +342,111 @@ func (q *Queries) GetArtifactByIdentity(ctx context.Context, arg GetArtifactById
 	var i GetArtifactByIdentityRow
 	err := row.Scan(&i.ID, &i.Purl, &i.Cpe)
 	return i, err
+}
+
+const getArtifactIDByEntryNumber = `-- name: GetArtifactIDByEntryNumber :one
+SELECT a.id
+FROM artifact a
+WHERE a.entry_number = $1::bigint
+  AND artifact_visible(a.id, $2::uuid, $3::boolean)
+`
+
+type GetArtifactIDByEntryNumberParams struct {
+	EntryNumber int64       `json:"entry_number"`
+	UserID      pgtype.UUID `json:"user_id"`
+	IsAdmin     pgtype.Bool `json:"is_admin"`
+}
+
+// Resolves "#12" from search. artifact_visible() applies, so a private
+// artifact's number resolves to nothing for a caller who cannot see it.
+func (q *Queries) GetArtifactIDByEntryNumber(ctx context.Context, arg GetArtifactIDByEntryNumberParams) (pgtype.UUID, error) {
+	row := q.db.QueryRow(ctx, getArtifactIDByEntryNumber, arg.EntryNumber, arg.UserID, arg.IsAdmin)
+	var id pgtype.UUID
+	err := row.Scan(&id)
+	return id, err
+}
+
+const listArtifactCriticalHistory = `-- name: ListArtifactCriticalHistory :many
+WITH per_version AS (
+    SELECT DISTINCT ON (s.artifact_id, s.subject_version)
+        s.id, s.artifact_id, s.subject_version,
+        s.version_major, s.version_minor, s.version_patch, s.created_at
+    FROM sbom s
+    WHERE s.artifact_id = ANY($1::uuid[])
+      AND s.subject_version IS NOT NULL
+      AND s.namespace_id IN (SELECT visible_namespace_ids($2::uuid, $3::boolean))
+    ORDER BY s.artifact_id, s.subject_version, s.created_at DESC, s.id DESC
+),
+ranked AS (
+    SELECT pv.id, pv.artifact_id, pv.subject_version, pv.version_major, pv.version_minor, pv.version_patch, pv.created_at,
+           ROW_NUMBER() OVER (
+               PARTITION BY pv.artifact_id
+               ORDER BY pv.version_major DESC NULLS LAST,
+                        pv.version_minor DESC NULLS LAST,
+                        pv.version_patch DESC NULLS LAST,
+                        pv.created_at DESC, pv.id DESC
+           ) AS rn
+    FROM per_version pv
+)
+SELECT r.artifact_id,
+       r.subject_version::text AS version_key,
+       r.rn::bigint AS rank,
+       COALESCE(vr.critical, 0)::bigint AS critical,
+       (vr.sbom_id IS NOT NULL)::boolean AS scanned
+FROM ranked r
+LEFT JOIN sbom_vuln_rollup vr ON vr.sbom_id = r.id
+WHERE r.rn <= 12
+ORDER BY r.artifact_id, r.rn
+`
+
+type ListArtifactCriticalHistoryParams struct {
+	ArtifactIds []pgtype.UUID `json:"artifact_ids"`
+	UserID      pgtype.UUID   `json:"user_id"`
+	IsAdmin     pgtype.Bool   `json:"is_admin"`
+}
+
+type ListArtifactCriticalHistoryRow struct {
+	ArtifactID pgtype.UUID `json:"artifact_id"`
+	VersionKey string      `json:"version_key"`
+	Rank       int64       `json:"rank"`
+	Critical   int64       `json:"critical"`
+	Scanned    bool        `json:"scanned"`
+}
+
+// The newest versions of each listed artifact with their critical counts, for
+// the per-artifact sprite. Run for one page of artifacts at a time rather than
+// joined into ListArtifacts, which is already the heaviest list query.
+//
+// One row per version: the newest SBOM of each subject_version, ordered the way
+// ListArtifacts picks its latest version. Twelve rather than six, because the
+// client keeps only the newest version's variant ("-trixie") and a variant can
+// interleave with others. `scanned` is false when the rollup has no row, which
+// is "no findings" or "never scanned" indistinguishably (ADR-044); the client
+// leaves those as gaps rather than drawing them as zero.
+func (q *Queries) ListArtifactCriticalHistory(ctx context.Context, arg ListArtifactCriticalHistoryParams) ([]ListArtifactCriticalHistoryRow, error) {
+	rows, err := q.db.Query(ctx, listArtifactCriticalHistory, arg.ArtifactIds, arg.UserID, arg.IsAdmin)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	items := []ListArtifactCriticalHistoryRow{}
+	for rows.Next() {
+		var i ListArtifactCriticalHistoryRow
+		if err := rows.Scan(
+			&i.ArtifactID,
+			&i.VersionKey,
+			&i.Rank,
+			&i.Critical,
+			&i.Scanned,
+		); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
 }
 
 const listArtifactNamespaceIDs = `-- name: ListArtifactNamespaceIDs :many
@@ -411,11 +547,17 @@ SELECT
     COALESCE(r.medium,   0)::bigint AS vuln_medium,
     COALESCE(r.low,      0)::bigint AS vuln_low,
     COALESCE(r.unknown,  0)::bigint AS vuln_unknown,
+    -- Matched against the vulnerability store long enough ago that the rollup
+    -- above has caught up: two refresh intervals (RollupRefreshInterval is 15
+    -- minutes). A fresher match may not be in the rollup yet, so it still reads
+    -- "not scanned" rather than risk calling a version with findings clean.
+    (m.matched_at IS NOT NULL AND m.matched_at < now() - interval '30 minutes')::boolean AS vuln_matched,
     COUNT(*) OVER() AS total_count
 FROM newest_per_version n
 JOIN architectures_per_version a ON a.version_key = n.version_key
 JOIN sbom_count_per_version c ON c.version_key = n.version_key
 LEFT JOIN sbom_vuln_rollup r ON r.sbom_id = n.id
+LEFT JOIN sbom_vuln_match m ON m.sbom_id = n.id
 ORDER BY n.created_at DESC, n.version_key
 LIMIT $3 OFFSET $2
 `
@@ -445,6 +587,7 @@ type ListArtifactVersionsRow struct {
 	VulnMedium           int64              `json:"vuln_medium"`
 	VulnLow              int64              `json:"vuln_low"`
 	VulnUnknown          int64              `json:"vuln_unknown"`
+	VulnMatched          bool               `json:"vuln_matched"`
 	TotalCount           int64              `json:"total_count"`
 }
 
@@ -480,6 +623,7 @@ func (q *Queries) ListArtifactVersions(ctx context.Context, arg ListArtifactVers
 			&i.VulnMedium,
 			&i.VulnLow,
 			&i.VulnUnknown,
+			&i.VulnMatched,
 			&i.TotalCount,
 		); err != nil {
 			return nil, err
@@ -493,7 +637,7 @@ func (q *Queries) ListArtifactVersions(ctx context.Context, arg ListArtifactVers
 }
 
 const listArtifacts = `-- name: ListArtifacts :many
-SELECT a.id, a.type, a.name, a.group_name, a.purl, a.cpe, a.created_at,
+SELECT a.id, a.type, a.name, a.group_name, a.purl, a.cpe, a.created_at, a.entry_number,
        COUNT(s.id) AS sbom_count,
        COUNT(s.id) FILTER (WHERE s.enrichment_sufficient) AS sufficient_sbom_count,
        (SELECT CASE
@@ -630,6 +774,7 @@ type ListArtifactsRow struct {
 	Purl                pgtype.Text        `json:"purl"`
 	Cpe                 pgtype.Text        `json:"cpe"`
 	CreatedAt           pgtype.Timestamptz `json:"created_at"`
+	EntryNumber         int64              `json:"entry_number"`
 	SbomCount           int64              `json:"sbom_count"`
 	SufficientSbomCount int64              `json:"sufficient_sbom_count"`
 	SigningStatus       string             `json:"signing_status"`
@@ -698,6 +843,7 @@ func (q *Queries) ListArtifacts(ctx context.Context, arg ListArtifactsParams) ([
 			&i.Purl,
 			&i.Cpe,
 			&i.CreatedAt,
+			&i.EntryNumber,
 			&i.SbomCount,
 			&i.SufficientSbomCount,
 			&i.SigningStatus,

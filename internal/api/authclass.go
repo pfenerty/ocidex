@@ -191,16 +191,17 @@ var authRules = map[string]AuthRule{
 	"get-artifact-license-summary": {Class: ClassPublic, Notes: noteVisFilter},
 
 	// --- Artifacts ----------------------------------------------------------
-	"list-artifacts":            {Class: ClassPublic, Notes: noteVisFilter},
-	"lookup-artifact":           {Class: ClassPublic, Notes: "VisibilityFilter applied before the ambiguity count (ADR-042)."},
-	"get-artifact":              {Class: ClassPublic, Notes: noteVisFilter},
-	"list-artifact-sboms":       {Class: ClassPublic, Notes: noteVisFilter},
-	"list-artifact-versions":    {Class: ClassPublic, Notes: noteVisFilter},
-	"get-artifact-vuln-summary": {Class: ClassPublic, Notes: noteVisFilter},
-	"list-artifact-vulns":       {Class: ClassPublic, Notes: noteVisFilter},
-	"get-artifact-usages":       {Class: ClassPublic, Notes: "Filtered via visible_namespace_ids (ADR-041)."},
-	"get-artifact-contains":     {Class: ClassPublic, Notes: "Filtered via visible_namespace_ids (ADR-041)."},
-	"delete-artifact":           {Class: ClassCapability, Cap: authz.CapDeleteArtifact, Write: true, Notes: "RequireCapabilityInAny(delete_artifact) over every namespace the artifact hangs from; deletes only in the caller's namespaces holding delete_artifact (admin: all). ADR-046 M7."},
+	"list-artifacts":               {Class: ClassPublic, Notes: noteVisFilter},
+	"lookup-artifact":              {Class: ClassPublic, Notes: "VisibilityFilter applied before the ambiguity count (ADR-042)."},
+	"get-artifact":                 {Class: ClassPublic, Notes: noteVisFilter},
+	"get-artifact-by-entry-number": {Class: ClassPublic, Notes: noteVisFilter},
+	"list-artifact-sboms":          {Class: ClassPublic, Notes: noteVisFilter},
+	"list-artifact-versions":       {Class: ClassPublic, Notes: noteVisFilter},
+	"get-artifact-vuln-summary":    {Class: ClassPublic, Notes: noteVisFilter},
+	"list-artifact-vulns":          {Class: ClassPublic, Notes: noteVisFilter},
+	"get-artifact-usages":          {Class: ClassPublic, Notes: "Filtered via visible_namespace_ids (ADR-041)."},
+	"get-artifact-contains":        {Class: ClassPublic, Notes: "Filtered via visible_namespace_ids (ADR-041)."},
+	"delete-artifact":              {Class: ClassCapability, Cap: authz.CapDeleteArtifact, Write: true, Notes: "RequireCapabilityInAny(delete_artifact) over every namespace the artifact hangs from; deletes only in the caller's namespaces holding delete_artifact (admin: all). ADR-046 M7."},
 
 	// --- Components & licenses ---------------------------------------------
 	"search-components":                {Class: ClassPublic, Notes: noteVisFilter},

@@ -1,7 +1,8 @@
 import { For, Show, createEffect } from "solid-js";
 import type { JSX } from "solid-js";
-import { A, useNavigate, useSearchParams } from "@solidjs/router";
+import { A, useNavigate, useParams, useSearchParams } from "@solidjs/router";
 import {
+    useArtifactByEntryNumber,
     useArtifactLookup,
     useSBOMLookup,
     conflictCandidates,
@@ -166,6 +167,26 @@ export function SBOMLookup(): JSX.Element {
             canonicalPath={(id) => `/sboms/${id}`}
             ready={ready()}
             requirement="This link needs either a digest, or both artifact and version query parameters."
+            query={query}
+        />
+    );
+}
+
+/** /artifacts/by-number/:number — "#12" from search, resolved to the artifact. */
+export function ArtifactByNumber(): JSX.Element {
+    const params = useParams<{ number: string }>();
+    const number = (): number | undefined => {
+        const n = Number(params.number);
+        return Number.isInteger(n) && n > 0 ? n : undefined;
+    };
+    const query = useArtifactByEntryNumber(number);
+
+    return (
+        <ResolverView
+            resource="artifact"
+            canonicalPath={(id) => `/artifacts/${id}`}
+            ready={number() !== undefined}
+            requirement="An entry number is a whole number from 1, e.g. /artifacts/by-number/12."
             query={query}
         />
     );

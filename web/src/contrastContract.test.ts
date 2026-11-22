@@ -89,29 +89,31 @@ const FOREGROUNDS = [
     "--color-warning",
     "--color-danger",
     "--color-accent-amber",
+    "--color-severity-critical",
+    "--color-worse",
+    "--color-shiny",
 ];
 
 /**
- * Brand red is never small text: since ocidex-iz0r it is the mark's LED, and
- * its remaining text uses are large display wordmarks, which are WCAG "large"
- * and so take the 3:1 threshold.
- * --color-severity-critical is not a text colour at all: it is the deepest
- * step of the redscale in VulnBadge.css, where white sits *on* it (asserted in
- * ON_PAIRS below). Listing them here rather than dropping them keeps that
- * distinction stated instead of silently unchecked.
+ * Brand red is never small text: it is the mark, and its remaining text uses
+ * are large display wordmarks, which are WCAG "large" and so take the 3:1
+ * threshold. It is listed rather than dropped so the distinction stays stated.
  */
 const LARGE_FOREGROUNDS = ["--color-brand"];
 
 /**
- * A foreground painted *on* a filled background. The `-fg` tokens name theirs
- * explicitly; `.sev-critical` in VulnBadge.css is white on the deepest step of
- * the severity redscale, which is the pairing that has no token to name it.
+ * A foreground painted *on* a filled background. Each `-fg` token names the
+ * fill it reads on; the severity steps are the chips and pills in VulnBadge.css.
  */
 const ON_PAIRS: [string, string][] = [
     ["--color-ink-fg", "--color-ink"],
     ["--color-ink-fg", "--color-ink-hover"],
     ["--color-secondary-fg", "--color-secondary"],
     ["--color-text", "--color-elevated"],
+    ["--color-severity-critical-fg", "--color-severity-critical"],
+    ["--color-severity-high-fg", "--color-severity-high"],
+    ["--color-severity-medium-fg", "--color-severity-medium"],
+    ["--color-severity-low-fg", "--color-severity-low"],
 ];
 
 describe("palette contrast", () => {
@@ -142,11 +144,6 @@ describe("palette contrast", () => {
                     `${fg} (${tokens[fg]}) on ${surface} (${tokens[surface]})`,
                 ).toBeGreaterThanOrEqual(3);
             }
-        });
-
-        it("puts white on the deepest step of the severity redscale", () => {
-            const ratio = contrast([255, 255, 255], hex(tokens["--color-severity-critical"]));
-            expect(+ratio.toFixed(2)).toBeGreaterThanOrEqual(4.5);
         });
 
         it.each(ON_PAIRS)("%s clears 4.5:1 on %s", (fg, bg) => {

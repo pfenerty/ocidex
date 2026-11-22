@@ -72,6 +72,15 @@ func (s *searchService) GetArtifact(ctx context.Context, idStr string, vis Visib
 		return ArtifactDetail{}, fmt.Errorf("counting versions: %w", err)
 	}
 
+	packageCount, err := q.CountLatestVersionPackages(ctx, repository.CountLatestVersionPackagesParams{
+		ArtifactID: id,
+		UserID:     uuidOrNull(vis.UserID),
+		IsAdmin:    visAdminBool(vis),
+	})
+	if err != nil {
+		return ArtifactDetail{}, fmt.Errorf("counting packages: %w", err)
+	}
+
 	// The watch flag is per-caller, so it is skipped entirely when there is no
 	// caller — an anonymous request has no watchlist to be on.
 	var watched bool
@@ -94,11 +103,13 @@ func (s *searchService) GetArtifact(ctx context.Context, idStr string, vis Visib
 			SbomCount:           sbomCount,
 			SufficientSbomCount: sufficientCount,
 			SigningStatus:       row.SigningStatus,
+			EntryNumber:         row.EntryNumber,
 		},
 		Purl:         textToPtr(row.Purl),
 		Cpe:          textToPtr(row.Cpe),
 		CreatedAt:    row.CreatedAt.Time,
 		VersionCount: versionCount,
+		PackageCount: packageCount,
 		Watched:      watched,
 	}, nil
 }
@@ -199,6 +210,7 @@ func artifactVersionFromRow(row repository.ListArtifactVersionsRow) ArtifactVers
 	// summary rather than an all-zero one: the UI has to say "not scanned"
 	// (ADR-044), and an all-zero summary would license it to say "clean".
 	v.Vulns = vulnSummaryOrNil(row.VulnCritical, row.VulnHigh, row.VulnMedium, row.VulnLow, row.VulnUnknown)
+	v.VulnMatched = row.VulnMatched
 	if arches, ok := row.Architectures.([]interface{}); ok {
 		strs := make([]string, 0, len(arches))
 		for _, a := range arches {
@@ -373,6 +385,7 @@ func (s *searchService) ListArtifacts(ctx context.Context, filter ArtifactFilter
 			SbomCount:           row.SbomCount,
 			SufficientSbomCount: row.SufficientSbomCount,
 			SigningStatus:       row.SigningStatus,
+			EntryNumber:         row.EntryNumber,
 			// Zero total means sbom_vuln_rollup had no row for the newest
 			// SBOM, since the rollup only records SBOMs with at least one
 			// finding. That is "no known vulnerabilities" or "never scanned"
@@ -383,7 +396,50 @@ func (s *searchService) ListArtifacts(ctx context.Context, filter ArtifactFilter
 		})
 	}
 
+	if err := s.attachCriticalHistory(ctx, q, items, filter.Visibility); err != nil {
+		return CursorPage[ArtifactSummary]{}, err
+	}
+
 	return CursorPage[ArtifactSummary]{Data: items, HasMore: hasMore}, nil
+}
+
+// attachCriticalHistory fills CriticalHistory for one page of artifacts with a
+// single query, so the list's main query does not grow a second lateral.
+func (s *searchService) attachCriticalHistory(ctx context.Context, q *repository.Queries, items []ArtifactSummary, vis VisibilityFilter) error {
+	if len(items) == 0 {
+		return nil
+	}
+	ids := make([]pgtype.UUID, 0, len(items))
+	index := make(map[string]int, len(items))
+	for i, it := range items {
+		id, err := parseID(it.ID)
+		if err != nil {
+			return err
+		}
+		ids = append(ids, id)
+		index[it.ID] = i
+	}
+	rows, err := q.ListArtifactCriticalHistory(ctx, repository.ListArtifactCriticalHistoryParams{
+		ArtifactIds: ids,
+		UserID:      uuidOrNull(vis.UserID),
+		IsAdmin:     visAdminBool(vis),
+	})
+	if err != nil {
+		return fmt.Errorf("listing artifact critical history: %w", err)
+	}
+	for _, r := range rows {
+		i, ok := index[r.ArtifactID.String()]
+		if !ok {
+			continue
+		}
+		point := VersionCritical{VersionKey: r.VersionKey}
+		if r.Scanned {
+			c := r.Critical
+			point.Critical = &c
+		}
+		items[i].CriticalHistory = append(items[i].CriticalHistory, point)
+	}
+	return nil
 }
 
 // sortDirSign maps a direction onto the multiplier the ORDER BY in
@@ -486,6 +542,10 @@ func (s *searchService) GetArtifactLicenseSummary(ctx context.Context, artifactI
 type ArtifactVulnSummary struct {
 	Summary        *VulnSummary
 	SubjectVersion string
+	// Matched reports that the counted SBOM has been matched against the
+	// vulnerability store, so an absent Summary means no findings rather than
+	// never scanned.
+	Matched bool
 }
 
 // GetArtifactVulnSummary returns per-severity vuln counts for the newest SBOM
@@ -509,12 +569,16 @@ func (s *searchService) GetArtifactVulnSummary(ctx context.Context, artifactIDSt
 		return ArtifactVulnSummary{}, ErrNotFound
 	}
 
+	match, err := q.GetLatestArtifactSBOMMatch(ctx, artifactID)
+	if err != nil && !errors.Is(err, pgx.ErrNoRows) {
+		return ArtifactVulnSummary{}, fmt.Errorf("checking vuln match: %w", err)
+	}
 	rows, err := q.GetArtifactVulnSummary(ctx, artifactID)
 	if err != nil {
 		return ArtifactVulnSummary{}, fmt.Errorf("querying artifact vuln summary: %w", err)
 	}
 	if len(rows) == 0 {
-		return ArtifactVulnSummary{}, nil
+		return ArtifactVulnSummary{SubjectVersion: match.SubjectVersion, Matched: match.Matched}, nil
 	}
 
 	var vs VulnSummary
@@ -535,9 +599,9 @@ func (s *searchService) GetArtifactVulnSummary(ctx context.Context, artifactIDSt
 		}
 	}
 	if vs.Total == 0 {
-		return ArtifactVulnSummary{}, nil
+		return ArtifactVulnSummary{SubjectVersion: match.SubjectVersion, Matched: match.Matched}, nil
 	}
-	return ArtifactVulnSummary{Summary: &vs, SubjectVersion: rows[0].SubjectVersion}, nil
+	return ArtifactVulnSummary{Summary: &vs, SubjectVersion: rows[0].SubjectVersion, Matched: match.Matched}, nil
 }
 
 // ListArtifactVulns returns one page of the artifact's vulnerability list.
@@ -698,4 +762,22 @@ func attachArtifactVulnVersions(ctx context.Context, q *repository.Queries, arti
 		}
 	}
 	return nil
+}
+
+// ResolveArtifactEntryNumber returns the id of the visible artifact with this
+// entry number, or ErrNotFound. Invisible and missing are the same answer, so
+// a number does not reveal a private artifact.
+func (s *searchService) ResolveArtifactEntryNumber(ctx context.Context, entryNumber int64, vis VisibilityFilter) (string, error) {
+	id, err := repository.New(s.db).GetArtifactIDByEntryNumber(ctx, repository.GetArtifactIDByEntryNumberParams{
+		EntryNumber: entryNumber,
+		UserID:      uuidOrNull(vis.UserID),
+		IsAdmin:     visAdminBool(vis),
+	})
+	if err != nil {
+		if errors.Is(err, pgx.ErrNoRows) {
+			return "", ErrNotFound
+		}
+		return "", fmt.Errorf("resolving entry number: %w", err)
+	}
+	return id.String(), nil
 }

@@ -70,6 +70,7 @@ function vulnSortValue(vulns: VulnCounts): number {
 
 interface ImageIdentity {
     imageRef: string;
+    matchState?: string;
     imageDigest?: string;
     artifactId?: string;
     artifactName?: string;
@@ -86,8 +87,15 @@ interface ImageIdentity {
  */
 export function ImageCell(props: { row: ImageIdentity }) {
     const parts = () => splitImageRef(props.row.imageRef);
+    // Seen running but not caught: a valid digest that matches nothing
+    // ingested. Drawn as a silhouette beside the name, with the way to close
+    // the gap, so it reads as "not in the catalog yet" rather than as clean.
+    const seenOnly = () => props.row.matchState === "unknown";
     return (
-        <div class="inventory-cell">
+        <div class="inventory-cell" classList={{ "inventory-silhouette": seenOnly() }}>
+            <Show when={seenOnly()}>
+                <span class="silhouette-sprite" aria-hidden="true">?</span>
+            </Show>
             <span class="font-mono text-sm" title={props.row.imageDigest ?? props.row.imageRef}>
                 <Show
                     when={parts()}
@@ -104,6 +112,11 @@ export function ImageCell(props: { row: ImageIdentity }) {
                     {(d) => <span class="text-muted"> @ {shortDigest(d())}</span>}
                 </Show>
             </span>
+            <Show when={seenOnly()}>
+                <span class="inventory-cell-sub">
+                    <A href="?tab=gaps">Index it</A>
+                </span>
+            </Show>
             <Show when={props.row.artifactId}>
                 {(id) => (
                     <span class="inventory-cell-sub">

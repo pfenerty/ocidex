@@ -237,3 +237,8 @@ export function plural(count: number, word: string, pluralWord?: string): string
 export function hasText(s: string | null | undefined): s is string {
     return s !== undefined && s !== null && s !== "";
 }
+
+/** An artifact's entry number as the header shows it: "№ 012". */
+export function formatEntryNumber(n: number): string {
+    return `\u2116 ${String(n).padStart(3, "0")}`;
+}

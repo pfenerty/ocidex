@@ -158,6 +158,23 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/v1/artifacts/by-number/{number}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Get an artifact by its entry number */
+        get: operations["get-artifact-by-entry-number"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/v1/artifacts/lookup": {
         parameters: {
             query?: never;
@@ -2010,9 +2027,18 @@ export interface components {
             cpe?: string;
             /** Format: date-time */
             createdAt: string;
+            /** @description Newest versions first, up to 12. List responses only. */
+            criticalHistory?: components["schemas"]["VersionCritical"][] | null;
+            /**
+             * Format: int64
+             * @description Sequential number in the order the artifact was first indexed. Never reused.
+             */
+            entryNumber: number;
             group?: string;
             id: string;
             name: string;
+            /** Format: int64 */
+            packageCount: number;
             purl?: string;
             /** Format: int64 */
             sbomCount: number;
@@ -2024,6 +2050,20 @@ export interface components {
             versionCount: number;
             vulns?: components["schemas"]["VulnSummary"];
             watched: boolean;
+        };
+        ArtifactMaxima: {
+            /** Format: int64 */
+            architectures: number;
+            /** Format: int64 */
+            critical: number;
+            /** Format: int64 */
+            high: number;
+            /** Format: int64 */
+            packages: number;
+            /** Format: int64 */
+            sboms: number;
+            /** Format: int64 */
+            versions: number;
         };
         ArtifactRelation: {
             artifactGroup?: string;
@@ -2041,6 +2081,13 @@ export interface components {
             subjectVersion?: string;
         };
         ArtifactSummary: {
+            /** @description Newest versions first, up to 12. List responses only. */
+            criticalHistory?: components["schemas"]["VersionCritical"][] | null;
+            /**
+             * Format: int64
+             * @description Sequential number in the order the artifact was first indexed. Never reused.
+             */
+            entryNumber: number;
             group?: string;
             id: string;
             name: string;
@@ -2079,6 +2126,8 @@ export interface components {
             sourceUrl?: string;
             sufficient: boolean;
             versionKey: string;
+            /** @description The newest SBOM was matched against the vulnerability store and the counts reflect it: an absent vulns then means none known */
+            vulnMatched: boolean;
             /** @description Severity counts for this version's newest SBOM. Absent means no findings are recorded, which may mean it was never scanned — do not render it as zero. */
             vulns?: components["schemas"]["VulnSummary"];
         };
@@ -2763,6 +2812,8 @@ export interface components {
             readonly $schema?: string;
             /** Format: int64 */
             artifactCount: number;
+            /** @description Largest value of each artifact stat-block figure across the visible catalog, for scaling its bars */
+            artifactMaxima: components["schemas"]["ArtifactMaxima"];
             artifactTypes: components["schemas"]["ArtifactTypeCountEntry"][] | null;
             ingestionTimeline: components["schemas"]["DailyCountEntry"][] | null;
             licenseCategories: components["schemas"]["CategoryCountEntry"][] | null;
@@ -2834,6 +2885,8 @@ export interface components {
             artifactId: string;
             /** Format: date-time */
             createdAt: string;
+            /** @description Newest versions first, up to 12 */
+            criticalHistory?: components["schemas"]["VersionCritical"][] | null;
             licenses: components["schemas"]["LicenseCategoryMix"];
             name: string;
             /**
@@ -2844,6 +2897,8 @@ export interface components {
             sbomId: string;
             subjectVersion?: string;
             type: string;
+            /** @description The newest SBOM has been matched against the vulnerability store */
+            vulnMatched: boolean;
             vulns: components["schemas"]["VulnSeverityCounts"];
         };
         DiscoverLicense: {
@@ -3064,6 +3119,8 @@ export interface components {
              * @example https://example.com/api/schemas/GetArtifactVulnSummaryOutputBody.json
              */
             readonly $schema?: string;
+            /** @description The counted SBOM has been matched against the vulnerability store; an absent summary then means no known vulnerabilities rather than never scanned */
+            matched: boolean;
             /** @description Version whose newest SBOM the summary counts */
             subjectVersion?: string;
             summary?: components["schemas"]["VulnSummary"];
@@ -4718,6 +4775,11 @@ export interface components {
             id: string;
             role: string;
         };
+        VersionCritical: {
+            /** Format: int64 */
+            critical?: number;
+            versionKey: string;
+        };
         VersionOutputBody: {
             /**
              * Format: uri
@@ -5154,6 +5216,38 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["ListArtifactsOutputBody"];
+                };
+            };
+            /** @description Error */
+            default: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["ErrorModel"];
+                };
+            };
+        };
+    };
+    "get-artifact-by-entry-number": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                /** @description The artifact's entry number, as shown in the header */
+                number: number;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description OK */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ArtifactDetail"];
                 };
             };
             /** @description Error */

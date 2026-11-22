@@ -3,7 +3,7 @@ import { A } from "@solidjs/router";
 import { Button } from "~/components/ui";
 import { LayoutDashboard } from "lucide-solid";
 import { useAuth } from "~/context/auth";
-import { useMyNamespaces, useMyDriftFeed, useWatches } from "~/api/queries";
+import { useMyClusters, useMyNamespaces, useMyDriftFeed, useWatches } from "~/api/queries";
 import { plural } from "~/utils/format";
 import "./Dashboard.css";
 
@@ -32,6 +32,26 @@ export function HomeBand(): JSX.Element {
     const namespaces = useMyNamespaces({ enabled: signedIn });
     const watches = useWatches({ enabled: signedIn });
     const drift = useMyDriftFeed({ enabled: signedIn });
+    const clusters = useMyClusters({ enabled: signedIn });
+
+    // Seen is every container running on the caller's clusters; caught is the
+    // share matched to an SBOM. Summed from each cluster's coverage, which the
+    // cluster list already carries.
+    const coverage = () => {
+        const list = clusters.data?.data;
+        if (list === undefined) return undefined;
+        let total = 0;
+        let matched = 0;
+        let unknown = 0;
+        for (const c of list) {
+            const cov = c.summary?.coverage;
+            if (cov === undefined) continue;
+            total += cov.total;
+            matched += cov.matched;
+            unknown += cov.unknown;
+        }
+        return total === 0 ? undefined : { total, matched, unknown };
+    };
 
     return (
         <Show when={user()}>
@@ -56,6 +76,22 @@ export function HomeBand(): JSX.Element {
                         {/* Drift shows only when there is some — a permanent
                             "0 drift events" trains people to stop reading the
                             band, and this is the figure worth interrupting for. */}
+                        <Show when={coverage()}>
+                            {(c) => (
+                                <>
+                                    <span class="home-band-sep">·</span>
+                                    <span>
+                                        {c().total.toLocaleString()} seen running, {c().matched.toLocaleString()} caught (
+                                        {Math.round((c().matched / c().total) * 100)}%)
+                                    </span>
+                                    <Show when={c().unknown > 0}>
+                                        <A href="/artifacts?view=grid" class="home-band-alert">
+                                            {plural(c().unknown, "with no SBOM", "with no SBOM")}
+                                        </A>
+                                    </Show>
+                                </>
+                            )}
+                        </Show>
                         <Show when={(drift.data?.data.length ?? 0) > 0}>
                             <span class="home-band-sep">·</span>
                             <span class="home-band-alert">

@@ -1,10 +1,9 @@
 import { A } from "@solidjs/router";
-import { ExternalLink, Boxes, FileStack, Package, Scale, Search, ShieldAlert } from "lucide-solid";
+import { ExternalLink, Search } from "lucide-solid";
 import { For, Show } from "solid-js";
 import { openCommandPalette, isAppleShortcut } from "~/components/CommandPalette";
 import { Skeleton } from "~/components/Skeleton";
-import { Button, StatBand, TypeBadge } from "~/components/ui";
-import type { StatTile } from "~/components/ui";
+import { Button, TypeBadge } from "~/components/ui";
 import { useDashboardStats } from "~/api/queries";
 import { HomeBand } from "~/pages/Dashboard/HomeBand";
 import { HomeDiscovery } from "~/pages/HomeDiscovery";
@@ -12,54 +11,50 @@ import "./Home.css";
 
 type Stats = NonNullable<ReturnType<typeof useDashboardStats>["data"]>;
 
-const ICON = 14;
+/** One figure in the stat strip; `href` only where a list page receives it. */
+interface Fact {
+    href?: string;
+    value: string;
+    label: string;
+}
 
 /**
- * The corpus in numbers. A tile links only where a list page exists to receive
- * the click — SBOMs are reachable only through their artifact, so that one is a
- * figure and nothing more.
+ * The corpus in numbers. A figure links only where a list page exists to
+ * receive the click: SBOMs are reachable only through their artifact.
  */
-function statTiles(data: Stats): StatTile[] {
+function facts(data: Stats): Fact[] {
     return [
-        {
-            href: "/artifacts",
-            icon: <Boxes size={ICON} />,
-            head: "Artifacts",
-            value: data.artifactCount.toLocaleString(),
-            sub: "images, binaries and libraries",
-        },
-        {
-            icon: <FileStack size={ICON} />,
-            head: "SBOMs",
-            value: data.sbomCount.toLocaleString(),
-            sub: "one per image, arch and flavor",
-        },
-        {
-            href: "/components",
-            icon: <Package size={ICON} />,
-            head: "Packages",
-            value: data.packageCount.toLocaleString(),
-            // versionCount is distinct *package* versions (db/queries/stats.sql
-            // counts component_rollup.versions), not artifact versions — it
-            // belongs here, not on the SBOM tile where it read as though the
-            // catalog held more versions than SBOMs.
-            sub: `${data.versionCount.toLocaleString()} package versions`,
-        },
-        {
-            href: "/licenses",
-            icon: <Scale size={ICON} />,
-            head: "Licenses",
-            value: data.licenseCount.toLocaleString(),
-            sub: "seen across the catalog",
-        },
-        {
-            href: "/vulnerabilities",
-            icon: <ShieldAlert size={ICON} />,
-            head: "Vulnerabilities",
-            value: data.vulnCount.toLocaleString(),
-            sub: "matched to indexed packages",
-        },
+        { href: "/artifacts", value: data.artifactCount.toLocaleString(), label: "artifacts" },
+        { value: data.sbomCount.toLocaleString(), label: "SBOMs" },
+        // versionCount is distinct *package* versions, not artifact versions.
+        { href: "/components", value: data.packageCount.toLocaleString(), label: "packages" },
+        { href: "/licenses", value: data.licenseCount.toLocaleString(), label: "licenses" },
+        { href: "/vulnerabilities", value: data.vulnCount.toLocaleString(), label: "vulnerabilities" },
     ];
+}
+
+function FactStrip(props: { data: Stats }) {
+    return (
+        <div class="landing-facts">
+            <For each={facts(props.data)}>
+                {(f) => {
+                    const inner = (
+                        <>
+                            <span class="landing-fact-value">{f.value}</span>
+                            <span class="landing-fact-label">{f.label}</span>
+                        </>
+                    );
+                    return f.href !== undefined ? (
+                        <A href={f.href} class="landing-fact">
+                            {inner}
+                        </A>
+                    ) : (
+                        <div class="landing-fact">{inner}</div>
+                    );
+                }}
+            </For>
+        </div>
+    );
 }
 
 export default function Home() {
@@ -68,11 +63,15 @@ export default function Home() {
     return (
         <div class="landing">
             <section class="landing-hero">
-                <h1 class="brand landing-title">Know what you ship, and what you run.</h1>
+                <h1 class="brand landing-title">What changed since the last tag.</h1>
+                {/* The line stays short; this does the explaining, with the
+                    real count once stats arrive. */}
                 <p class="landing-pitch">
-                    OCIDex reads a software bill of materials for every image, binary and
-                    library you ship: the packages inside, their licenses and the
-                    vulnerabilities they carry, tracked from version to version.
+                    SBOMs for{" "}
+                    {stats.data && !stats.data.warming
+                        ? `${stats.data.artifactCount.toLocaleString()} images, binaries and libraries`
+                        : "every image, binary and library you ship"}
+                    , read down to each package and compared version to version.
                 </p>
                 {/* The palette is the fastest way into the catalog, and the
                     sidebar's button is easy to miss on a first visit. This is
@@ -103,15 +102,7 @@ export default function Home() {
                 >
                     {(data) => (
                         <>
-                            {/* The corpus in numbers, as the same StatBand every
-                                detail page uses. It was a single mono-spaced run
-                                of "38 artifacts · 107,868 packages · …" — legible
-                                but inert, and it gave a stranger no way to act on
-                                any of the four figures. Each tile that has a list
-                                page behind it is now the link to it; SBOMs has no
-                                list route, so it stays a plain tile rather than
-                                pretending to be clickable (ocidex-ag4q.42). */}
-                            <StatBand class="landing-band" tiles={statTiles(data())} />
+                            <FactStrip data={data()} />
                             {/* The breakdown counts the same artifact set as
                                 artifactCount above, so the chips always sum to
                                 it. The field is nullable in the generated spec —

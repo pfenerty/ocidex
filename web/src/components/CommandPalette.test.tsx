@@ -138,6 +138,17 @@ describe("CommandPalette", () => {
         fireEvent.keyDown(document, { key: "Escape" });
     });
 
+    it("offers the artifact with an entry number for #12 and №12", () => {
+        const { input, labels } = mount(member);
+        pressShortcut();
+        fireEvent.input(input(), { target: { value: "#12" } });
+        expect(labels()).toContain("Open artifact \u2116 012");
+        fireEvent.input(input(), { target: { value: "\u211612" } });
+        expect(labels()).toContain("Open artifact \u2116 012");
+        fireEvent.input(input(), { target: { value: "#1" } });
+        expect(labels()).toContain("Open artifact \u2116 001");
+    });
+
     it("filters on keywords the label never shows", () => {
         const { input, labels } = mount(member);
         pressShortcut();

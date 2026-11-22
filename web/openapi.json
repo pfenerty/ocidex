@@ -141,6 +141,21 @@
             "format": "date-time",
             "type": "string"
           },
+          "criticalHistory": {
+            "description": "Newest versions first, up to 12. List responses only.",
+            "items": {
+              "$ref": "#/components/schemas/VersionCritical"
+            },
+            "type": [
+              "array",
+              "null"
+            ]
+          },
+          "entryNumber": {
+            "description": "Sequential number in the order the artifact was first indexed. Never reused.",
+            "format": "int64",
+            "type": "integer"
+          },
           "group": {
             "type": "string"
           },
@@ -149,6 +164,10 @@
           },
           "name": {
             "type": "string"
+          },
+          "packageCount": {
+            "format": "int64",
+            "type": "integer"
           },
           "purl": {
             "type": "string"
@@ -181,13 +200,53 @@
         "required": [
           "createdAt",
           "versionCount",
+          "packageCount",
           "watched",
           "id",
           "type",
           "name",
           "sbomCount",
           "sufficientSbomCount",
-          "signingStatus"
+          "signingStatus",
+          "entryNumber"
+        ],
+        "type": "object"
+      },
+      "ArtifactMaxima": {
+        "additionalProperties": false,
+        "properties": {
+          "architectures": {
+            "format": "int64",
+            "type": "integer"
+          },
+          "critical": {
+            "format": "int64",
+            "type": "integer"
+          },
+          "high": {
+            "format": "int64",
+            "type": "integer"
+          },
+          "packages": {
+            "format": "int64",
+            "type": "integer"
+          },
+          "sboms": {
+            "format": "int64",
+            "type": "integer"
+          },
+          "versions": {
+            "format": "int64",
+            "type": "integer"
+          }
+        },
+        "required": [
+          "packages",
+          "versions",
+          "sboms",
+          "architectures",
+          "critical",
+          "high"
         ],
         "type": "object"
       },
@@ -243,6 +302,21 @@
       "ArtifactSummary": {
         "additionalProperties": false,
         "properties": {
+          "criticalHistory": {
+            "description": "Newest versions first, up to 12. List responses only.",
+            "items": {
+              "$ref": "#/components/schemas/VersionCritical"
+            },
+            "type": [
+              "array",
+              "null"
+            ]
+          },
+          "entryNumber": {
+            "description": "Sequential number in the order the artifact was first indexed. Never reused.",
+            "format": "int64",
+            "type": "integer"
+          },
           "group": {
             "type": "string"
           },
@@ -276,7 +350,8 @@
           "name",
           "sbomCount",
           "sufficientSbomCount",
-          "signingStatus"
+          "signingStatus",
+          "entryNumber"
         ],
         "type": "object"
       },
@@ -351,6 +426,10 @@
           "versionKey": {
             "type": "string"
           },
+          "vulnMatched": {
+            "description": "The newest SBOM was matched against the vulnerability store and the counts reflect it: an absent vulns then means none known",
+            "type": "boolean"
+          },
           "vulns": {
             "$ref": "#/components/schemas/VulnSummary",
             "description": "Severity counts for this version's newest SBOM. Absent means no findings are recorded, which may mean it was never scanned — do not render it as zero."
@@ -363,7 +442,8 @@
           "architectures",
           "createdAt",
           "sufficient",
-          "signingStatus"
+          "signingStatus",
+          "vulnMatched"
         ],
         "type": "object"
       },
@@ -2136,6 +2216,10 @@
             "format": "int64",
             "type": "integer"
           },
+          "artifactMaxima": {
+            "$ref": "#/components/schemas/ArtifactMaxima",
+            "description": "Largest value of each artifact stat-block figure across the visible catalog, for scaling its bars"
+          },
           "artifactTypes": {
             "items": {
               "$ref": "#/components/schemas/ArtifactTypeCountEntry"
@@ -2232,6 +2316,7 @@
           "topPackages",
           "vulnCount",
           "vulnSeverity",
+          "artifactMaxima",
           "warming"
         ],
         "type": "object"
@@ -2428,6 +2513,16 @@
             "format": "date-time",
             "type": "string"
           },
+          "criticalHistory": {
+            "description": "Newest versions first, up to 12",
+            "items": {
+              "$ref": "#/components/schemas/VersionCritical"
+            },
+            "type": [
+              "array",
+              "null"
+            ]
+          },
           "licenses": {
             "$ref": "#/components/schemas/LicenseCategoryMix"
           },
@@ -2448,6 +2543,10 @@
           "type": {
             "type": "string"
           },
+          "vulnMatched": {
+            "description": "The newest SBOM has been matched against the vulnerability store",
+            "type": "boolean"
+          },
           "vulns": {
             "$ref": "#/components/schemas/VulnSeverityCounts"
           }
@@ -2460,7 +2559,8 @@
           "createdAt",
           "packageCount",
           "vulns",
-          "licenses"
+          "licenses",
+          "vulnMatched"
         ],
         "type": "object"
       },
@@ -3047,6 +3147,10 @@
             "readOnly": true,
             "type": "string"
           },
+          "matched": {
+            "description": "The counted SBOM has been matched against the vulnerability store; an absent summary then means no known vulnerabilities rather than never scanned",
+            "type": "boolean"
+          },
           "subjectVersion": {
             "description": "Version whose newest SBOM the summary counts",
             "type": "string"
@@ -3055,6 +3159,9 @@
             "$ref": "#/components/schemas/VulnSummary"
           }
         },
+        "required": [
+          "matched"
+        ],
         "type": "object"
       },
       "GetComponentVersionsOutputBody": {
@@ -7294,6 +7401,22 @@
         ],
         "type": "object"
       },
+      "VersionCritical": {
+        "additionalProperties": false,
+        "properties": {
+          "critical": {
+            "format": "int64",
+            "type": "integer"
+          },
+          "versionKey": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "versionKey"
+        ],
+        "type": "object"
+      },
       "VersionOutputBody": {
         "additionalProperties": false,
         "properties": {
@@ -8139,6 +8262,51 @@
           }
         },
         "summary": "List artifacts",
+        "tags": [
+          "Artifacts"
+        ]
+      }
+    },
+    "/api/v1/artifacts/by-number/{number}": {
+      "get": {
+        "operationId": "get-artifact-by-entry-number",
+        "parameters": [
+          {
+            "description": "The artifact's entry number, as shown in the header",
+            "in": "path",
+            "name": "number",
+            "required": true,
+            "schema": {
+              "description": "The artifact's entry number, as shown in the header",
+              "format": "int64",
+              "minimum": 1,
+              "type": "integer"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ArtifactDetail"
+                }
+              }
+            },
+            "description": "OK"
+          },
+          "default": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorModel"
+                }
+              }
+            },
+            "description": "Error"
+          }
+        },
+        "summary": "Get an artifact by its entry number",
         "tags": [
           "Artifacts"
         ]

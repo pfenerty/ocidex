@@ -53,7 +53,7 @@ RETURNING id;
 -- See ocidex-goh.16 and, in tests/artifact_rollup_scope_test.go,
 -- TestArtifactRollupSigningStatus_ArtifactMissingDominates and
 -- TestArtifactRollupSigningStatus_FailureBeatsVerified.
-SELECT a.id, a.type, a.name, a.group_name, a.purl, a.cpe, a.created_at,
+SELECT a.id, a.type, a.name, a.group_name, a.purl, a.cpe, a.created_at, a.entry_number,
        (SELECT CASE
            WHEN EXISTS (
                SELECT 1 FROM enrichment pe JOIN sbom sx ON sx.id = pe.sbom_id
@@ -80,6 +80,29 @@ SELECT a.id, a.type, a.name, a.group_name, a.purl, a.cpe, a.created_at,
 FROM artifact a
 WHERE a.id = $1;
 
+-- name: GetArtifactIDByEntryNumber :one
+-- Resolves "#12" from search. artifact_visible() applies, so a private
+-- artifact's number resolves to nothing for a caller who cannot see it.
+SELECT a.id
+FROM artifact a
+WHERE a.entry_number = @entry_number::bigint
+  AND artifact_visible(a.id, sqlc.narg('user_id')::uuid, sqlc.narg('is_admin')::boolean);
+
+-- name: CountLatestVersionPackages :one
+-- Components in the artifact's newest visible SBOM of its latest version,
+-- picked the way ListArtifacts picks it. Zero when nothing is visible.
+SELECT COALESCE((
+    SELECT COUNT(*) FROM component c WHERE c.sbom_id = (
+        SELECT s.id FROM sbom s
+        WHERE s.artifact_id = @artifact_id
+          AND s.namespace_id IN (SELECT visible_namespace_ids(sqlc.narg('user_id')::uuid, sqlc.narg('is_admin')::boolean))
+        ORDER BY s.version_major DESC NULLS LAST,
+                 s.version_minor DESC NULLS LAST,
+                 s.version_patch DESC NULLS LAST,
+                 s.created_at DESC, s.id DESC
+        LIMIT 1)
+), 0)::bigint AS package_count;
+
 -- name: CountArtifacts :one
 -- The total behind ListArtifacts' first page, under the same filters and
 -- visibility rule, so the list can say "20 of 126". Keyset
@@ -105,7 +128,7 @@ WHERE (sqlc.narg('type')::text IS NULL OR a.type = sqlc.narg('type'))
 -- query's comment. The two ladders are duplicated rather than shared, so a
 -- change to one that is not made to the other is how they drift; both are
 -- asserted together in TestArtifactRollupSigningStatus_FailureBeatsVerified.
-SELECT a.id, a.type, a.name, a.group_name, a.purl, a.cpe, a.created_at,
+SELECT a.id, a.type, a.name, a.group_name, a.purl, a.cpe, a.created_at, a.entry_number,
        COUNT(s.id) AS sbom_count,
        COUNT(s.id) FILTER (WHERE s.enrichment_sufficient) AS sufficient_sbom_count,
        (SELECT CASE
@@ -237,6 +260,48 @@ ORDER BY
 -- ADR-043 rule (1) rules a keyset cursor out — the ORDER BY columns are a
 -- rollup that a refresh pass rewrites under the reader's feet.
 LIMIT @row_limit OFFSET @row_offset;
+
+-- name: ListArtifactCriticalHistory :many
+-- The newest versions of each listed artifact with their critical counts, for
+-- the per-artifact sprite. Run for one page of artifacts at a time rather than
+-- joined into ListArtifacts, which is already the heaviest list query.
+--
+-- One row per version: the newest SBOM of each subject_version, ordered the way
+-- ListArtifacts picks its latest version. Twelve rather than six, because the
+-- client keeps only the newest version's variant ("-trixie") and a variant can
+-- interleave with others. `scanned` is false when the rollup has no row, which
+-- is "no findings" or "never scanned" indistinguishably (ADR-044); the client
+-- leaves those as gaps rather than drawing them as zero.
+WITH per_version AS (
+    SELECT DISTINCT ON (s.artifact_id, s.subject_version)
+        s.id, s.artifact_id, s.subject_version,
+        s.version_major, s.version_minor, s.version_patch, s.created_at
+    FROM sbom s
+    WHERE s.artifact_id = ANY(@artifact_ids::uuid[])
+      AND s.subject_version IS NOT NULL
+      AND s.namespace_id IN (SELECT visible_namespace_ids(sqlc.narg('user_id')::uuid, sqlc.narg('is_admin')::boolean))
+    ORDER BY s.artifact_id, s.subject_version, s.created_at DESC, s.id DESC
+),
+ranked AS (
+    SELECT pv.*,
+           ROW_NUMBER() OVER (
+               PARTITION BY pv.artifact_id
+               ORDER BY pv.version_major DESC NULLS LAST,
+                        pv.version_minor DESC NULLS LAST,
+                        pv.version_patch DESC NULLS LAST,
+                        pv.created_at DESC, pv.id DESC
+           ) AS rn
+    FROM per_version pv
+)
+SELECT r.artifact_id,
+       r.subject_version::text AS version_key,
+       r.rn::bigint AS rank,
+       COALESCE(vr.critical, 0)::bigint AS critical,
+       (vr.sbom_id IS NOT NULL)::boolean AS scanned
+FROM ranked r
+LEFT JOIN sbom_vuln_rollup vr ON vr.sbom_id = r.id
+WHERE r.rn <= 12
+ORDER BY r.artifact_id, r.rn;
 
 -- name: LookupArtifacts :many
 -- ADR-042 R3/R4: name-keyed resolver. Unlike ListArtifacts, `name` here is an
@@ -428,11 +493,17 @@ SELECT
     COALESCE(r.medium,   0)::bigint AS vuln_medium,
     COALESCE(r.low,      0)::bigint AS vuln_low,
     COALESCE(r.unknown,  0)::bigint AS vuln_unknown,
+    -- Matched against the vulnerability store long enough ago that the rollup
+    -- above has caught up: two refresh intervals (RollupRefreshInterval is 15
+    -- minutes). A fresher match may not be in the rollup yet, so it still reads
+    -- "not scanned" rather than risk calling a version with findings clean.
+    (m.matched_at IS NOT NULL AND m.matched_at < now() - interval '30 minutes')::boolean AS vuln_matched,
     COUNT(*) OVER() AS total_count
 FROM newest_per_version n
 JOIN architectures_per_version a ON a.version_key = n.version_key
 JOIN sbom_count_per_version c ON c.version_key = n.version_key
 LEFT JOIN sbom_vuln_rollup r ON r.sbom_id = n.id
+LEFT JOIN sbom_vuln_match m ON m.sbom_id = n.id
 ORDER BY n.created_at DESC, n.version_key
 LIMIT @row_limit OFFSET @row_offset;
 

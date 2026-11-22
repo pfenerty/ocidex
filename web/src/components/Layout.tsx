@@ -1,7 +1,7 @@
 import "./Layout.css";
 import { A, useNavigate, useLocation } from "@solidjs/router";
 import { createEffect, createSignal, lazy, onCleanup, onMount, Show, type ParentProps } from "solid-js";
-import { Home, LayoutDashboard, Package, Layers, ShieldCheck, ArrowUpDown, ShieldAlert, Server, Database, Settings, LogOut, Search, Menu, X, User, Info, BookOpen, CircleHelp } from "lucide-solid";
+import { Home, LayoutDashboard, Package, Layers, ShieldCheck, ArrowUpDown, ShieldAlert, Server, Database, Settings, LogOut, Search, Menu, X, User, Info, BookOpen, CircleHelp, Ellipsis } from "lucide-solid";
 import ThemeToggle from "~/components/ThemeToggle";
 import { BrandMark } from "~/components/BrandMark";
 import CommandPalette, { openCommandPalette, isAppleShortcut } from "~/components/CommandPalette";
@@ -20,9 +20,9 @@ const PersonaSwitcher = import.meta.env.DEV
     : undefined;
 
 /**
- * Which nav links the sidebar accents, per role emphasis (ocidex-y0hg.9).
+ * Which nav links the topbar accents, per role emphasis (ocidex-y0hg.9).
  *
- * The rail is *accented*, never reordered and never filtered: link positions
+ * The nav is *accented*, never reordered and never filtered: link positions
  * are muscle memory, and a nav that rearranges itself per persona costs more
  * than the emphasis is worth. Every link every caller is entitled to stays
  * exactly where it was; two of them get a marker saying "this is the one your
@@ -63,13 +63,16 @@ export default function Layout(props: ParentProps) {
         }
     });
 
-    // Below 768px the sidebar is a 56px icon rail, and this opens it back up
-    // into a full-width drawer over the content. It is deliberately the *same*
-    // sidebar rather than a second copy of the nav: one set of links, one
-    // footer, one place for a route to be added. The rail hides the labels with
-    // `display: none`, so the open drawer is the element in its natural state.
+    // Below 768px the bar keeps only the mark, search and a menu button, and
+    // this opens the same element into a drawer over the content: one set of
+    // links, one footer, one place for a route to be added.
     const [drawerOpen, setDrawerOpen] = createSignal(false);
     const closeDrawer = () => setDrawerOpen(false);
+
+    // The More menu: theme, About, API, Docs. Closes on navigation, Escape and
+    // any click outside it.
+    const [moreOpen, setMoreOpen] = createSignal(false);
+    let moreRef: HTMLDivElement | undefined;
 
     // Any navigation closes it. Watching the path rather than putting an
     // onClick on each link also covers the browser Back button and the command
@@ -77,14 +80,25 @@ export default function Layout(props: ParentProps) {
     createEffect(() => {
         void location.pathname;
         closeDrawer();
+        setMoreOpen(false);
     });
 
     onMount(() => {
         const onKeyDown = (e: KeyboardEvent) => {
-            if (e.key === "Escape") closeDrawer();
+            if (e.key === "Escape") {
+                closeDrawer();
+                setMoreOpen(false);
+            }
+        };
+        const onPointerDown = (e: PointerEvent) => {
+            if (moreOpen() && moreRef !== undefined && !moreRef.contains(e.target as Node)) setMoreOpen(false);
         };
         window.addEventListener("keydown", onKeyDown);
-        onCleanup(() => window.removeEventListener("keydown", onKeyDown));
+        window.addEventListener("pointerdown", onPointerDown);
+        onCleanup(() => {
+            window.removeEventListener("keydown", onKeyDown);
+            window.removeEventListener("pointerdown", onPointerDown);
+        });
     });
 
     // Until /users/me answers, the shell does not know who is looking, and
@@ -111,36 +125,33 @@ export default function Layout(props: ParentProps) {
         {PersonaSwitcher && <PersonaSwitcher />}
         <Show when={location.pathname !== "/login"} fallback={<>{props.children}</>}>
         <div class="layout">
-            {/* Only ever visible under the drawer — see `.sidebar-backdrop`. It
+            {/* Only ever visible under the drawer — see `.topbar-backdrop`. It
                 catches the tap that closes the drawer and, more importantly,
                 stops that tap from also activating whatever it landed on. */}
             <Show when={drawerOpen()}>
-                <div class="sidebar-backdrop" onClick={closeDrawer} />
+                <div class="topbar-backdrop" onClick={closeDrawer} />
             </Show>
-            <aside class="sidebar" classList={{ "sidebar-open": drawerOpen() }}>
+            <header class="topbar" classList={{ "topbar-open": drawerOpen() }}>
                 {/* Hidden above the breakpoint, where nothing is collapsed. */}
                 <button
                     type="button"
-                    class="sidebar-drawer-toggle"
+                    class="topbar-drawer-toggle"
                     aria-label={drawerOpen() ? "Close navigation" : "Open navigation"}
                     aria-expanded={drawerOpen()}
                     onClick={() => setDrawerOpen((o) => !o)}
                 >
                     {drawerOpen() ? <X size={18} /> : <Menu size={18} />}
                 </button>
-                {/* The mark carries the only brand red in the shell: its LED
-                    (ocidex-iz0r.3). The red slab that used to hold the
-                    wordmark read as an error banner on every page. */}
-                <A href="/" end class="sidebar-brand" aria-label="OCIDex home">
-                    <BrandMark size={28} />
+                <A href="/" end class="topbar-brand" aria-label="OCIDex home">
+                    <BrandMark size={22} />
                     <div>
-                        <h1 class="brand">OCIDex</h1>
+                        <h1 class="brand">ocidex</h1>
                         <p>Supply-chain catalog</p>
                     </div>
                 </A>
                 {/* The palette's own door. A shortcut nobody is told about is a
                     shortcut nobody uses. */}
-                <button type="button" class="sidebar-search" aria-label="Search" onClick={openCommandPalette}>
+                <button type="button" class="topbar-search" aria-label="Search" onClick={openCommandPalette}>
                     <Search size={14} />
                     <span>Search</span>
                     <kbd>{isAppleShortcut() ? "\u2318K" : "Ctrl K"}</kbd>
@@ -201,51 +212,65 @@ export default function Layout(props: ParentProps) {
                         </A>
                     </Show>
                 </nav>
-                <div class="sidebar-footer">
-                    <ThemeToggle />
-                    {/* Attribution for the bundled packages and the vulnerability
-                        feeds, whose licenses ask for it where the data is shown
-                        (ocidex-7hhp). */}
-                    <A href="/about" class="sidebar-about" aria-label="About and licenses">
-                        <Info size={14} />
-                        <span>About</span>
-                    </A>
-                    {/* The reference is served by the API, outside the SPA's
-                        routes (ocidex-a0p4). rel="external" is what makes this a
-                        page load: the router intercepts plain same-origin
-                        anchors too, and would render its own 404. */}
-                    <a href={API_REFERENCE_URL} rel="external" class="sidebar-about" aria-label="API reference">
-                        <BookOpen size={14} />
-                        <span>API</span>
-                    </a>
-                    {/* The public docs site, a separate origin (ocidex-mxy0.10). */}
-                    <a href={DOCS_URL} rel="external noopener" target="_blank" class="sidebar-about" aria-label="Documentation">
-                        <CircleHelp size={14} />
-                        <span>Docs</span>
-                    </a>
+                <div class="topbar-footer">
+                    <div class="topbar-more" ref={moreRef}>
+                        <button
+                            type="button"
+                            class="topbar-more-toggle"
+                            aria-label="More"
+                            aria-haspopup="true"
+                            aria-expanded={moreOpen()}
+                            onClick={() => setMoreOpen((o) => !o)}
+                        >
+                            <Ellipsis size={18} />
+                        </button>
+                        <div class="topbar-more-menu" classList={{ open: moreOpen() }}>
+                        <ThemeToggle />
+                        {/* Attribution for the bundled packages and the vulnerability
+                            feeds, whose licenses ask for it where the data is shown
+                            (ocidex-7hhp). */}
+                        <A href="/about" class="topbar-about" aria-label="About and licenses">
+                            <Info size={14} />
+                            <span>About</span>
+                        </A>
+                        {/* The reference is served by the API, outside the SPA's
+                            routes (ocidex-a0p4). rel="external" is what makes this a
+                            page load: the router intercepts plain same-origin
+                            anchors too, and would render its own 404. */}
+                        <a href={API_REFERENCE_URL} rel="external" class="topbar-about" aria-label="API reference">
+                            <BookOpen size={14} />
+                            <span>API</span>
+                        </a>
+                        {/* The public docs site, a separate origin (ocidex-mxy0.10). */}
+                        <a href={DOCS_URL} rel="external noopener" target="_blank" class="topbar-about" aria-label="Documentation">
+                            <CircleHelp size={14} />
+                            <span>Docs</span>
+                        </a>
+                        </div>
+                    </div>
                     {/* Neither the sign-in label nor its icon names an issuer:
                         which ones exist is a deployment decision, and the login
                         page is what asks. */}
-                    <Show when={settled()} fallback={<div class="sidebar-auth-pending" aria-hidden="true" />}>
+                    <Show when={settled()} fallback={<div class="topbar-auth-pending" aria-hidden="true" />}>
                     <Show when={user()} fallback={
-                        <A href="/login" class="sidebar-sign-in" aria-label="Sign in">
+                        <A href="/login" class="topbar-sign-in" aria-label="Sign in">
                             <User size={16} />
                             <span>Sign in</span>
                         </A>
                     }>
                         {(u) => (
-                        <div class="sidebar-user">
-                            <div class="sidebar-user-info">
-                                <User size={14} class="sidebar-user-icon" />
+                        <div class="topbar-user">
+                            <div class="topbar-user-info">
+                                <User size={14} class="topbar-user-icon" />
                                 <span class="truncate">{u().displayName}</span>
                             </div>
                             <button
                                 onClick={() => void handleLogout()}
-                                class="sidebar-logout-btn"
+                                class="topbar-logout-btn"
                                 title="Sign out"
                                 // `title` alone is a weak accessible name and a
                                 // hover-only one. Every other icon-only control
-                                // in the rail carries an aria-label for exactly
+                                // in the bar carries an aria-label for exactly
                                 // this reason (ocidex-ag4q.49); this one was
                                 // missed because its tooltip made it look named.
                                 aria-label="Sign out"
@@ -257,7 +282,7 @@ export default function Layout(props: ParentProps) {
                     </Show>
                     </Show>
                 </div>
-            </aside>
+            </header>
             <main class="main-content">{props.children}</main>
         </div>
         </Show>

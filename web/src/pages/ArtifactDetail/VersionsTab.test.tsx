@@ -14,6 +14,7 @@ const version: ArtifactVersionSummary = {
     architectures: null,
     signingStatus: "unsigned",
     sufficient: true,
+    vulnMatched: false,
 };
 
 function renderTab(
@@ -49,9 +50,22 @@ function renderTab(
 }
 
 describe("VersionsTab column gating", () => {
-    it("shows architecture and signing for a container", () => {
+    it("shows architecture for a container", () => {
         const { getByText } = renderTab(true);
-        expect(getByText("Architectures")).toBeDefined();
+        expect(getByText("Arch")).toBeDefined();
+    });
+
+    // A status every row shares is said once, by the band's Signing tile.
+    it("drops the signing column when every row has the same status", () => {
+        const { queryByText } = renderTab(true);
+        expect(queryByText("Signing")).toBeNull();
+    });
+
+    it("shows the signing column when rows differ", () => {
+        const { getByText } = renderTab(true, [
+            version,
+            { ...version, sbomId: "s2", versionKey: "1.0.1", signingStatus: "verified" },
+        ]);
         expect(getByText("Signing")).toBeDefined();
     });
 
@@ -59,11 +73,19 @@ describe("VersionsTab column gating", () => {
     // signature, so those columns would be a stripe of em-dashes (ocidex-rj4.3).
     it("omits architecture and signing for a non-container", () => {
         const { queryByText, getByText } = renderTab(false);
-        expect(queryByText("Architectures")).toBeNull();
+        expect(queryByText("Arch")).toBeNull();
         expect(queryByText("Signing")).toBeNull();
         // Type-agnostic columns survive.
         expect(getByText("Version")).toBeDefined();
         expect(getByText("Build Date")).toBeDefined();
+    });
+});
+
+describe("VersionsTab matched versions", () => {
+    it("calls a matched version with no findings clean", () => {
+        const { container } = renderTab(true, [{ ...version, vulnMatched: true }]);
+        expect(container.textContent).toContain("0 known");
+        expect(container.textContent).not.toContain("Not scanned");
     });
 });
 

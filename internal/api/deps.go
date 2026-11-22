@@ -46,6 +46,7 @@ type ArtifactReader interface {
 	ListArtifacts(ctx context.Context, filter service.ArtifactFilter) (service.CursorPage[service.ArtifactSummary], error)
 	CountArtifacts(ctx context.Context, filter service.ArtifactFilter) (int64, error)
 	LookupArtifact(ctx context.Context, query service.ArtifactLookupQuery, vis service.VisibilityFilter) ([]service.LookupCandidate, error)
+	ResolveArtifactEntryNumber(ctx context.Context, entryNumber int64, vis service.VisibilityFilter) (string, error)
 	ListSBOMsByArtifact(ctx context.Context, artifactID string, subjectVersion, imageVersion string, page service.SBOMByArtifactPage, vis service.VisibilityFilter) (service.CursorPage[service.SBOMSummary], error)
 	ListVersionsByArtifact(ctx context.Context, artifactID string, limit, offset int32, mode service.VersionSortMode, colSort service.VersionColumnSort, vis service.VisibilityFilter) (service.ArtifactVersionsPage, error)
 	GetArtifactChangelog(ctx context.Context, artifactID string, query service.ChangelogQuery, vis service.VisibilityFilter) (service.Changelog, error)

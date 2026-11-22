@@ -51,6 +51,11 @@ type GetArtifactInput struct {
 	ID string `path:"id" doc:"Artifact UUID" format:"uuid"`
 }
 
+// GetArtifactByEntryNumberInput is the request for GET /api/v1/artifacts/by-number/{number}.
+type GetArtifactByEntryNumberInput struct {
+	Number int64 `path:"number" minimum:"1" doc:"The artifact's entry number, as shown in the header"`
+}
+
 // GetArtifactOutput is the response for GET /api/v1/artifacts/{id}.
 type GetArtifactOutput struct {
 	Body service.ArtifactDetail
@@ -129,7 +134,8 @@ type ArtifactVersionSummary struct {
 	SigningStatus string     `json:"signingStatus" enum:"unsigned,signed,verified,verification_failed,artifact_missing" doc:"Signing status derived from provenance enrichment"`
 	// Omitted rather than zeroed when nothing is known, so a client cannot read
 	// "never scanned" as "clean" (ADR-044).
-	Vulns *service.VulnSummary `json:"vulns,omitempty" doc:"Severity counts for this version's newest SBOM. Absent means no findings are recorded, which may mean it was never scanned — do not render it as zero."`
+	Vulns       *service.VulnSummary `json:"vulns,omitempty" doc:"Severity counts for this version's newest SBOM. Absent means no findings are recorded, which may mean it was never scanned — do not render it as zero."`
+	VulnMatched bool                 `json:"vulnMatched" doc:"The newest SBOM was matched against the vulnerability store and the counts reflect it: an absent vulns then means none known"`
 }
 
 // ListArtifactVersionsOutput is the response for GET /api/v1/artifacts/{id}/versions.
@@ -203,6 +209,9 @@ type GetArtifactVulnSummaryOutput struct {
 		// SubjectVersion is the version the summary counts: the highest by
 		// version parts, which need not be the newest build.
 		SubjectVersion string `json:"subjectVersion,omitempty" doc:"Version whose newest SBOM the summary counts"`
+		// Matched is true once that SBOM has been matched against the
+		// vulnerability store: only then does an absent summary mean clean.
+		Matched bool `json:"matched" doc:"The counted SBOM has been matched against the vulnerability store; an absent summary then means no known vulnerabilities rather than never scanned"`
 	}
 }
 
