@@ -794,7 +794,7 @@ func (s *sbomService) ListArtifactNamespaceIDs(ctx context.Context, idStr string
 		return nil, err
 	}
 	q := repository.New(s.pool)
-	if _, err := q.GetArtifact(ctx, id); err != nil {
+	if _, err := q.GetArtifact(ctx, repository.GetArtifactParams{ID: id}); err != nil {
 		return nil, ErrNotFound
 	}
 	ids, err := q.ListArtifactNamespaceIDs(ctx, id)

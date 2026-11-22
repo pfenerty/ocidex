@@ -33,7 +33,11 @@ func (s *searchService) GetArtifact(ctx context.Context, idStr string, vis Visib
 		return ArtifactDetail{}, ErrNotFound
 	}
 
-	row, err := q.GetArtifact(ctx, id)
+	row, err := q.GetArtifact(ctx, repository.GetArtifactParams{
+		ID:      id,
+		UserID:  uuidOrNull(vis.UserID),
+		IsAdmin: visAdminBool(vis),
+	})
 	if err != nil {
 		if errors.Is(err, pgx.ErrNoRows) {
 			return ArtifactDetail{}, ErrNotFound
@@ -569,11 +573,19 @@ func (s *searchService) GetArtifactVulnSummary(ctx context.Context, artifactIDSt
 		return ArtifactVulnSummary{}, ErrNotFound
 	}
 
-	match, err := q.GetLatestArtifactSBOMMatch(ctx, artifactID)
+	match, err := q.GetLatestArtifactSBOMMatch(ctx, repository.GetLatestArtifactSBOMMatchParams{
+		ArtifactID: artifactID,
+		UserID:     uuidOrNull(vis.UserID),
+		IsAdmin:    visAdminBool(vis),
+	})
 	if err != nil && !errors.Is(err, pgx.ErrNoRows) {
 		return ArtifactVulnSummary{}, fmt.Errorf("checking vuln match: %w", err)
 	}
-	rows, err := q.GetArtifactVulnSummary(ctx, artifactID)
+	rows, err := q.GetArtifactVulnSummary(ctx, repository.GetArtifactVulnSummaryParams{
+		ArtifactID: artifactID,
+		UserID:     uuidOrNull(vis.UserID),
+		IsAdmin:    visAdminBool(vis),
+	})
 	if err != nil {
 		return ArtifactVulnSummary{}, fmt.Errorf("querying artifact vuln summary: %w", err)
 	}

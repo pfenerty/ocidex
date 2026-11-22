@@ -58,27 +58,31 @@ SELECT a.id, a.type, a.name, a.group_name, a.purl, a.cpe, a.created_at, a.entry_
            WHEN EXISTS (
                SELECT 1 FROM enrichment pe JOIN sbom sx ON sx.id = pe.sbom_id
                WHERE sx.artifact_id = a.id AND pe.enricher_name = 'provenance'
+                 AND sx.namespace_id IN (SELECT visible_namespace_ids(sqlc.narg('user_id')::uuid, sqlc.narg('is_admin')::boolean))
                  AND pe.status = 'success' AND signing_status(pe.data) = 'artifact_missing'
            ) THEN 'artifact_missing'
            WHEN EXISTS (
                SELECT 1 FROM enrichment pe JOIN sbom sx ON sx.id = pe.sbom_id
                WHERE sx.artifact_id = a.id AND pe.enricher_name = 'provenance'
+                 AND sx.namespace_id IN (SELECT visible_namespace_ids(sqlc.narg('user_id')::uuid, sqlc.narg('is_admin')::boolean))
                  AND pe.status = 'success' AND signing_status(pe.data) = 'verification_failed'
            ) THEN 'verification_failed'
            WHEN EXISTS (
                SELECT 1 FROM enrichment pe JOIN sbom sx ON sx.id = pe.sbom_id
                WHERE sx.artifact_id = a.id AND pe.enricher_name = 'provenance'
+                 AND sx.namespace_id IN (SELECT visible_namespace_ids(sqlc.narg('user_id')::uuid, sqlc.narg('is_admin')::boolean))
                  AND pe.status = 'success' AND signing_status(pe.data) = 'signed'
            ) THEN 'signed'
            WHEN EXISTS (
                SELECT 1 FROM enrichment pe JOIN sbom sx ON sx.id = pe.sbom_id
                WHERE sx.artifact_id = a.id AND pe.enricher_name = 'provenance'
+                 AND sx.namespace_id IN (SELECT visible_namespace_ids(sqlc.narg('user_id')::uuid, sqlc.narg('is_admin')::boolean))
                  AND pe.status = 'success' AND signing_status(pe.data) = 'verified'
            ) THEN 'verified'
            ELSE 'unsigned'
        END)::text AS signing_status
 FROM artifact a
-WHERE a.id = $1;
+WHERE a.id = @id;
 
 -- name: GetArtifactIDByEntryNumber :one
 -- Resolves "#12" from search. artifact_visible() applies, so a private
@@ -135,21 +139,25 @@ SELECT a.id, a.type, a.name, a.group_name, a.purl, a.cpe, a.created_at, a.entry_
            WHEN EXISTS (
                SELECT 1 FROM enrichment pe JOIN sbom sx ON sx.id = pe.sbom_id
                WHERE sx.artifact_id = a.id AND pe.enricher_name = 'provenance'
+                 AND sx.namespace_id IN (SELECT visible_namespace_ids(sqlc.narg('user_id')::uuid, sqlc.narg('is_admin')::boolean))
                  AND pe.status = 'success' AND signing_status(pe.data) = 'artifact_missing'
            ) THEN 'artifact_missing'
            WHEN EXISTS (
                SELECT 1 FROM enrichment pe JOIN sbom sx ON sx.id = pe.sbom_id
                WHERE sx.artifact_id = a.id AND pe.enricher_name = 'provenance'
+                 AND sx.namespace_id IN (SELECT visible_namespace_ids(sqlc.narg('user_id')::uuid, sqlc.narg('is_admin')::boolean))
                  AND pe.status = 'success' AND signing_status(pe.data) = 'verification_failed'
            ) THEN 'verification_failed'
            WHEN EXISTS (
                SELECT 1 FROM enrichment pe JOIN sbom sx ON sx.id = pe.sbom_id
                WHERE sx.artifact_id = a.id AND pe.enricher_name = 'provenance'
+                 AND sx.namespace_id IN (SELECT visible_namespace_ids(sqlc.narg('user_id')::uuid, sqlc.narg('is_admin')::boolean))
                  AND pe.status = 'success' AND signing_status(pe.data) = 'signed'
            ) THEN 'signed'
            WHEN EXISTS (
                SELECT 1 FROM enrichment pe JOIN sbom sx ON sx.id = pe.sbom_id
                WHERE sx.artifact_id = a.id AND pe.enricher_name = 'provenance'
+                 AND sx.namespace_id IN (SELECT visible_namespace_ids(sqlc.narg('user_id')::uuid, sqlc.narg('is_admin')::boolean))
                  AND pe.status = 'success' AND signing_status(pe.data) = 'verified'
            ) THEN 'verified'
            ELSE 'unsigned'
@@ -178,7 +186,12 @@ SELECT a.id, a.type, a.name, a.group_name, a.purl, a.cpe, a.created_at, a.entry_
        COALESCE(vr.low,      0)::bigint AS vuln_low,
        COALESCE(vr.unknown,  0)::bigint AS vuln_unknown
 FROM artifact a
+-- An artifact is visible when any namespace it appears in is, so it can carry
+-- SBOMs from a namespace the viewer cannot see. Every SBOM read below is
+-- filtered to the viewer's namespaces: counting or picking one of the others
+-- would leak a private version through a shared artifact.
 LEFT JOIN sbom s ON s.artifact_id = a.id
+    AND s.namespace_id IN (SELECT visible_namespace_ids(sqlc.narg('user_id')::uuid, sqlc.narg('is_admin')::boolean))
 -- The inner join is LEFT so the lateral picks the winning SBOM and then looks
 -- for its rollup row, rather than the newest SBOM that happens to have one:
 -- an inner join would silently fall back to a superseded SBOM's findings.
@@ -193,6 +206,7 @@ LEFT JOIN LATERAL (
     FROM sbom sv
     LEFT JOIN sbom_vuln_rollup r ON r.sbom_id = sv.id
     WHERE sv.artifact_id = a.id
+      AND sv.namespace_id IN (SELECT visible_namespace_ids(sqlc.narg('user_id')::uuid, sqlc.narg('is_admin')::boolean))
     -- Version parts first, insert order only as a tiebreak. Ordering by
     -- created_at alone meant "most recently ingested", so re-scanning or
     -- backfilling an old tag rewrote this row's counts to that old tag's

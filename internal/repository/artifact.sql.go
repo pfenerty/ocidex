@@ -239,28 +239,38 @@ SELECT a.id, a.type, a.name, a.group_name, a.purl, a.cpe, a.created_at, a.entry_
            WHEN EXISTS (
                SELECT 1 FROM enrichment pe JOIN sbom sx ON sx.id = pe.sbom_id
                WHERE sx.artifact_id = a.id AND pe.enricher_name = 'provenance'
+                 AND sx.namespace_id IN (SELECT visible_namespace_ids($1::uuid, $2::boolean))
                  AND pe.status = 'success' AND signing_status(pe.data) = 'artifact_missing'
            ) THEN 'artifact_missing'
            WHEN EXISTS (
                SELECT 1 FROM enrichment pe JOIN sbom sx ON sx.id = pe.sbom_id
                WHERE sx.artifact_id = a.id AND pe.enricher_name = 'provenance'
+                 AND sx.namespace_id IN (SELECT visible_namespace_ids($1::uuid, $2::boolean))
                  AND pe.status = 'success' AND signing_status(pe.data) = 'verification_failed'
            ) THEN 'verification_failed'
            WHEN EXISTS (
                SELECT 1 FROM enrichment pe JOIN sbom sx ON sx.id = pe.sbom_id
                WHERE sx.artifact_id = a.id AND pe.enricher_name = 'provenance'
+                 AND sx.namespace_id IN (SELECT visible_namespace_ids($1::uuid, $2::boolean))
                  AND pe.status = 'success' AND signing_status(pe.data) = 'signed'
            ) THEN 'signed'
            WHEN EXISTS (
                SELECT 1 FROM enrichment pe JOIN sbom sx ON sx.id = pe.sbom_id
                WHERE sx.artifact_id = a.id AND pe.enricher_name = 'provenance'
+                 AND sx.namespace_id IN (SELECT visible_namespace_ids($1::uuid, $2::boolean))
                  AND pe.status = 'success' AND signing_status(pe.data) = 'verified'
            ) THEN 'verified'
            ELSE 'unsigned'
        END)::text AS signing_status
 FROM artifact a
-WHERE a.id = $1
+WHERE a.id = $3
 `
+
+type GetArtifactParams struct {
+	UserID  pgtype.UUID `json:"user_id"`
+	IsAdmin pgtype.Bool `json:"is_admin"`
+	ID      pgtype.UUID `json:"id"`
+}
 
 type GetArtifactRow struct {
 	ID            pgtype.UUID        `json:"id"`
@@ -300,8 +310,8 @@ type GetArtifactRow struct {
 // See ocidex-goh.16 and, in tests/artifact_rollup_scope_test.go,
 // TestArtifactRollupSigningStatus_ArtifactMissingDominates and
 // TestArtifactRollupSigningStatus_FailureBeatsVerified.
-func (q *Queries) GetArtifact(ctx context.Context, id pgtype.UUID) (GetArtifactRow, error) {
-	row := q.db.QueryRow(ctx, getArtifact, id)
+func (q *Queries) GetArtifact(ctx context.Context, arg GetArtifactParams) (GetArtifactRow, error) {
+	row := q.db.QueryRow(ctx, getArtifact, arg.UserID, arg.IsAdmin, arg.ID)
 	var i GetArtifactRow
 	err := row.Scan(
 		&i.ID,
@@ -644,21 +654,25 @@ SELECT a.id, a.type, a.name, a.group_name, a.purl, a.cpe, a.created_at, a.entry_
            WHEN EXISTS (
                SELECT 1 FROM enrichment pe JOIN sbom sx ON sx.id = pe.sbom_id
                WHERE sx.artifact_id = a.id AND pe.enricher_name = 'provenance'
+                 AND sx.namespace_id IN (SELECT visible_namespace_ids($1::uuid, $2::boolean))
                  AND pe.status = 'success' AND signing_status(pe.data) = 'artifact_missing'
            ) THEN 'artifact_missing'
            WHEN EXISTS (
                SELECT 1 FROM enrichment pe JOIN sbom sx ON sx.id = pe.sbom_id
                WHERE sx.artifact_id = a.id AND pe.enricher_name = 'provenance'
+                 AND sx.namespace_id IN (SELECT visible_namespace_ids($1::uuid, $2::boolean))
                  AND pe.status = 'success' AND signing_status(pe.data) = 'verification_failed'
            ) THEN 'verification_failed'
            WHEN EXISTS (
                SELECT 1 FROM enrichment pe JOIN sbom sx ON sx.id = pe.sbom_id
                WHERE sx.artifact_id = a.id AND pe.enricher_name = 'provenance'
+                 AND sx.namespace_id IN (SELECT visible_namespace_ids($1::uuid, $2::boolean))
                  AND pe.status = 'success' AND signing_status(pe.data) = 'signed'
            ) THEN 'signed'
            WHEN EXISTS (
                SELECT 1 FROM enrichment pe JOIN sbom sx ON sx.id = pe.sbom_id
                WHERE sx.artifact_id = a.id AND pe.enricher_name = 'provenance'
+                 AND sx.namespace_id IN (SELECT visible_namespace_ids($1::uuid, $2::boolean))
                  AND pe.status = 'success' AND signing_status(pe.data) = 'verified'
            ) THEN 'verified'
            ELSE 'unsigned'
@@ -688,6 +702,7 @@ SELECT a.id, a.type, a.name, a.group_name, a.purl, a.cpe, a.created_at, a.entry_
        COALESCE(vr.unknown,  0)::bigint AS vuln_unknown
 FROM artifact a
 LEFT JOIN sbom s ON s.artifact_id = a.id
+    AND s.namespace_id IN (SELECT visible_namespace_ids($1::uuid, $2::boolean))
 LEFT JOIN LATERAL (
     SELECT COALESCE(r.critical, 0)::bigint AS critical,
            COALESCE(r.high,     0)::bigint AS high,
@@ -699,6 +714,7 @@ LEFT JOIN LATERAL (
     FROM sbom sv
     LEFT JOIN sbom_vuln_rollup r ON r.sbom_id = sv.id
     WHERE sv.artifact_id = a.id
+      AND sv.namespace_id IN (SELECT visible_namespace_ids($1::uuid, $2::boolean))
     -- Version parts first, insert order only as a tiebreak. Ordering by
     -- created_at alone meant "most recently ingested", so re-scanning or
     -- backfilling an old tag rewrote this row's counts to that old tag's
@@ -715,23 +731,23 @@ LEFT JOIN LATERAL (
              sv.created_at DESC, sv.id DESC
     LIMIT 1
 ) vr ON TRUE
-WHERE ($1::text IS NULL OR a.type = $1)
-  AND ($2::text IS NULL OR a.name ILIKE like_contains($2::text))
-  AND ($3::boolean IS NULL
-       OR NOT $3::boolean
+WHERE ($3::text IS NULL OR a.type = $3)
+  AND ($4::text IS NULL OR a.name ILIKE like_contains($4::text))
+  AND ($5::boolean IS NULL
+       OR NOT $5::boolean
        OR EXISTS (SELECT 1 FROM sbom s2 WHERE s2.artifact_id = a.id AND s2.enrichment_sufficient))
   -- owned_only is the ownership path for /api/v1/users/me/artifacts. An
   -- artifact is "mine" when it appears in a namespace I own; artifact_visible()
   -- would additionally admit every public artifact and every artifact with no
   -- namespace link at all, which is exactly what this collection must exclude
   -- (see ListNamespaces).
-  AND CASE WHEN COALESCE($4::boolean, false)
+  AND CASE WHEN COALESCE($6::boolean, false)
            THEN EXISTS (
                SELECT 1 FROM artifact_namespace an
                WHERE an.artifact_id = a.id
                  AND an.namespace_id IN (
-                       SELECT owned_namespace_ids($5::uuid)))
-           ELSE artifact_visible(a.id, $5::uuid, $6::boolean)
+                       SELECT owned_namespace_ids($1::uuid)))
+           ELSE artifact_visible(a.id, $1::uuid, $2::boolean)
       END
   AND (
     NOT $7::boolean
@@ -750,12 +766,12 @@ LIMIT $14 OFFSET $13
 `
 
 type ListArtifactsParams struct {
+	UserID            pgtype.UUID `json:"user_id"`
+	IsAdmin           pgtype.Bool `json:"is_admin"`
 	Type              pgtype.Text `json:"type"`
 	Name              pgtype.Text `json:"name"`
 	RequireSufficient pgtype.Bool `json:"require_sufficient"`
 	OwnedOnly         pgtype.Bool `json:"owned_only"`
-	UserID            pgtype.UUID `json:"user_id"`
-	IsAdmin           pgtype.Bool `json:"is_admin"`
 	HasCursor         pgtype.Bool `json:"has_cursor"`
 	CursorName        pgtype.Text `json:"cursor_name"`
 	CursorType        pgtype.Text `json:"cursor_type"`
@@ -789,6 +805,10 @@ type ListArtifactsRow struct {
 // query's comment. The two ladders are duplicated rather than shared, so a
 // change to one that is not made to the other is how they drift; both are
 // asserted together in TestArtifactRollupSigningStatus_FailureBeatsVerified.
+// An artifact is visible when any namespace it appears in is, so it can carry
+// SBOMs from a namespace the viewer cannot see. Every SBOM read below is
+// filtered to the viewer's namespaces: counting or picking one of the others
+// would leak a private version through a shared artifact.
 // The inner join is LEFT so the lateral picks the winning SBOM and then looks
 // for its rollup row, rather than the newest SBOM that happens to have one:
 // an inner join would silently fall back to a superseded SBOM's findings.
@@ -813,12 +833,12 @@ type ListArtifactsRow struct {
 // rollup that a refresh pass rewrites under the reader's feet.
 func (q *Queries) ListArtifacts(ctx context.Context, arg ListArtifactsParams) ([]ListArtifactsRow, error) {
 	rows, err := q.db.Query(ctx, listArtifacts,
+		arg.UserID,
+		arg.IsAdmin,
 		arg.Type,
 		arg.Name,
 		arg.RequireSufficient,
 		arg.OwnedOnly,
-		arg.UserID,
-		arg.IsAdmin,
 		arg.HasCursor,
 		arg.CursorName,
 		arg.CursorType,

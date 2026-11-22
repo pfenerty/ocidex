@@ -213,7 +213,11 @@ func (s *searchService) visibleArtifact(
 		return repository.GetArtifactRow{}, ErrNotFound
 	}
 
-	row, err := q.GetArtifact(ctx, id)
+	row, err := q.GetArtifact(ctx, repository.GetArtifactParams{
+		ID:      id,
+		UserID:  uuidOrNull(vis.UserID),
+		IsAdmin: visAdminBool(vis),
+	})
 	if err != nil {
 		if errors.Is(err, pgx.ErrNoRows) {
 			return repository.GetArtifactRow{}, ErrNotFound
