@@ -85,7 +85,9 @@ func TestHeadlineSBOMIsOneSBOMEverywhere(t *testing.T) {
 	match, err := q.GetLatestArtifactSBOMMatch(ctx, repository.GetLatestArtifactSBOMMatchParams{ArtifactID: artifactID, UserID: anon, IsAdmin: noAdmin})
 	is.NoErr(err)
 	is.Equal(match.SubjectVersion, "1.27.4")
-	is.True(match.Matched) // GetLatestArtifactSBOMMatch
+	is.True(match.Matched)
+	is.Equal(labelOf(ids, match.SbomID.String()), want)
+	is.Equal(match.Architecture, "amd64") // GetLatestArtifactSBOMMatch
 
 	summary, err := q.GetArtifactVulnSummary(ctx, repository.GetArtifactVulnSummaryParams{ArtifactID: artifactID, UserID: anon, IsAdmin: noAdmin})
 	is.NoErr(err)
@@ -99,7 +101,10 @@ func TestHeadlineSBOMIsOneSBOMEverywhere(t *testing.T) {
 	list, err := q.ListArtifacts(ctx, repository.ListArtifactsParams{UserID: anon, IsAdmin: noAdmin, HasCursor: pgtype.Bool{Valid: true}, SortDir: 1, RowLimit: 10})
 	is.NoErr(err)
 	is.Equal(len(list), 1)
-	is.Equal(list[0].VulnCritical, int64(1)) // ListArtifacts
+	is.Equal(list[0].VulnCritical, int64(1))
+	is.Equal(labelOf(ids, list[0].CountedSbomID.String()), want)
+	is.Equal(list[0].CountedVersion.String, "1.27.4")
+	is.Equal(list[0].CountedArchitecture, "amd64") // ListArtifacts
 
 	maxima, err := q.GetArtifactMaxima(ctx, repository.GetArtifactMaximaParams{UserID: anon, IsAdmin: noAdmin})
 	is.NoErr(err)
@@ -109,7 +114,8 @@ func TestHeadlineSBOMIsOneSBOMEverywhere(t *testing.T) {
 	featured, err := q.GetDiscoverFeaturedArtifacts(ctx, repository.GetDiscoverFeaturedArtifactsParams{RowLimit: 5, Names: []string{"headline"}})
 	is.NoErr(err)
 	is.Equal(len(featured), 1)
-	is.Equal(labelOf(ids, featured[0].SbomID.String()), want) // GetDiscoverFeaturedArtifacts
+	is.Equal(labelOf(ids, featured[0].SbomID.String()), want)
+	is.Equal(featured[0].Architecture, "amd64") // GetDiscoverFeaturedArtifacts
 
 	versions, err := q.ListArtifactVersions(ctx, repository.ListArtifactVersionsParams{ArtifactID: artifactID, RowLimit: 20, UserID: anon, IsAdmin: noAdmin})
 	is.NoErr(err)
@@ -117,6 +123,7 @@ func TestHeadlineSBOMIsOneSBOMEverywhere(t *testing.T) {
 	for _, v := range versions {
 		if v.VersionKey.String == "1.27.4" {
 			versionRow = v.NewestSbomID.String()
+			is.Equal(v.CountedArchitecture, "amd64")
 		}
 	}
 	is.Equal(labelOf(ids, versionRow), want) // ListArtifactVersions

@@ -215,6 +215,7 @@ func artifactVersionFromRow(row repository.ListArtifactVersionsRow) ArtifactVers
 	// (ADR-044), and an all-zero summary would license it to say "clean".
 	v.Vulns = vulnSummaryOrNil(row.VulnCritical, row.VulnHigh, row.VulnMedium, row.VulnLow, row.VulnUnknown)
 	v.VulnMatched = row.VulnMatched
+	v.CountedSBOM = countedSBOM(row.NewestSbomID, row.VersionKey.String, row.CountedArchitecture)
 	if arches, ok := row.Architectures.([]interface{}); ok {
 		strs := make([]string, 0, len(arches))
 		for _, a := range arches {
@@ -396,7 +397,8 @@ func (s *searchService) ListArtifacts(ctx context.Context, filter ArtifactFilter
 			// indistinguishably, so it maps to a nil summary rather than an
 			// all-zero one: the UI has to say "not scanned" (ADR-044), and an
 			// all-zero summary would license it to say "clean".
-			Vulns: vulnSummaryOrNil(row.VulnCritical, row.VulnHigh, row.VulnMedium, row.VulnLow, row.VulnUnknown),
+			Vulns:       vulnSummaryOrNil(row.VulnCritical, row.VulnHigh, row.VulnMedium, row.VulnLow, row.VulnUnknown),
+			CountedSBOM: countedSBOM(row.CountedSbomID, row.CountedVersion.String, row.CountedArchitecture),
 		})
 	}
 
@@ -546,6 +548,8 @@ func (s *searchService) GetArtifactLicenseSummary(ctx context.Context, artifactI
 type ArtifactVulnSummary struct {
 	Summary        *VulnSummary
 	SubjectVersion string
+	// Counted is the SBOM the summary counts; nil when the viewer sees none.
+	Counted *CountedSBOM
 	// Matched reports that the counted SBOM has been matched against the
 	// vulnerability store, so an absent Summary means no findings rather than
 	// never scanned.
@@ -581,6 +585,7 @@ func (s *searchService) GetArtifactVulnSummary(ctx context.Context, artifactIDSt
 	if err != nil && !errors.Is(err, pgx.ErrNoRows) {
 		return ArtifactVulnSummary{}, fmt.Errorf("checking vuln match: %w", err)
 	}
+	counted := countedSBOM(match.SbomID, match.SubjectVersion, match.Architecture)
 	rows, err := q.GetArtifactVulnSummary(ctx, repository.GetArtifactVulnSummaryParams{
 		ArtifactID: artifactID,
 		UserID:     uuidOrNull(vis.UserID),
@@ -590,7 +595,7 @@ func (s *searchService) GetArtifactVulnSummary(ctx context.Context, artifactIDSt
 		return ArtifactVulnSummary{}, fmt.Errorf("querying artifact vuln summary: %w", err)
 	}
 	if len(rows) == 0 {
-		return ArtifactVulnSummary{SubjectVersion: match.SubjectVersion, Matched: match.Matched}, nil
+		return ArtifactVulnSummary{SubjectVersion: match.SubjectVersion, Counted: counted, Matched: match.Matched}, nil
 	}
 
 	var vs VulnSummary
@@ -611,9 +616,9 @@ func (s *searchService) GetArtifactVulnSummary(ctx context.Context, artifactIDSt
 		}
 	}
 	if vs.Total == 0 {
-		return ArtifactVulnSummary{SubjectVersion: match.SubjectVersion, Matched: match.Matched}, nil
+		return ArtifactVulnSummary{SubjectVersion: match.SubjectVersion, Counted: counted, Matched: match.Matched}, nil
 	}
-	return ArtifactVulnSummary{Summary: &vs, SubjectVersion: rows[0].SubjectVersion, Matched: match.Matched}, nil
+	return ArtifactVulnSummary{Summary: &vs, SubjectVersion: rows[0].SubjectVersion, Counted: counted, Matched: match.Matched}, nil
 }
 
 // ListArtifactVulns returns one page of the artifact's vulnerability list.

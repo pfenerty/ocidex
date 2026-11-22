@@ -1688,9 +1688,10 @@ type AffectedComponent struct {
 // ArtifactDetail defines model for ArtifactDetail.
 type ArtifactDetail struct {
 	// Schema A URL to the JSON Schema for this object.
-	Schema    *string   `json:"$schema,omitempty"`
-	Cpe       *string   `json:"cpe,omitempty"`
-	CreatedAt time.Time `json:"createdAt"`
+	Schema      *string      `json:"$schema,omitempty"`
+	CountedSbom *CountedSBOM `json:"countedSbom,omitempty"`
+	Cpe         *string      `json:"cpe,omitempty"`
+	CreatedAt   time.Time    `json:"createdAt"`
 
 	// CriticalHistory Newest versions first, up to 12. List responses only.
 	CriticalHistory *[]VersionCritical `json:"criticalHistory,omitempty"`
@@ -1739,6 +1740,8 @@ type ArtifactRelation struct {
 
 // ArtifactSummary defines model for ArtifactSummary.
 type ArtifactSummary struct {
+	CountedSbom *CountedSBOM `json:"countedSbom,omitempty"`
+
 	// CriticalHistory Newest versions first, up to 12. List responses only.
 	CriticalHistory *[]VersionCritical `json:"criticalHistory,omitempty"`
 
@@ -2174,6 +2177,16 @@ type ConnectClusterOutputBody struct {
 	Credential ClusterCredentialResponse `json:"credential"`
 }
 
+// CountedSBOM defines model for CountedSBOM.
+type CountedSBOM struct {
+	// Architecture Architecture of the counted SBOM; absent when unknown
+	Architecture *string            `json:"architecture,omitempty"`
+	Id           openapi_types.UUID `json:"id"`
+
+	// Version Subject version of the counted SBOM
+	Version *string `json:"version,omitempty"`
+}
+
 // CreateAPIKeyInputBody defines model for CreateAPIKeyInputBody.
 type CreateAPIKeyInputBody struct {
 	// Schema A URL to the JSON Schema for this object.
@@ -2506,8 +2519,9 @@ type DiscoverArtifact struct {
 
 // DiscoverFeatured defines model for DiscoverFeatured.
 type DiscoverFeatured struct {
-	ArtifactId string    `json:"artifactId"`
-	CreatedAt  time.Time `json:"createdAt"`
+	ArtifactId  string       `json:"artifactId"`
+	CountedSbom *CountedSBOM `json:"countedSbom,omitempty"`
+	CreatedAt   time.Time    `json:"createdAt"`
 
 	// CriticalHistory Newest versions first, up to 12
 	CriticalHistory *[]VersionCritical `json:"criticalHistory,omitempty"`
@@ -2734,7 +2748,8 @@ type GetArtifactUsagesOutputBody struct {
 // GetArtifactVulnSummaryOutputBody defines model for GetArtifactVulnSummaryOutputBody.
 type GetArtifactVulnSummaryOutputBody struct {
 	// Schema A URL to the JSON Schema for this object.
-	Schema *string `json:"$schema,omitempty"`
+	Schema      *string      `json:"$schema,omitempty"`
+	CountedSbom *CountedSBOM `json:"countedSbom,omitempty"`
 
 	// Matched The counted SBOM has been matched against the vulnerability store; an absent summary then means no known vulnerabilities rather than never scanned
 	Matched bool `json:"matched"`

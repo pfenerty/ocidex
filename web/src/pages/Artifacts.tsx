@@ -15,6 +15,7 @@ import LoadMore from "~/components/LoadMore";
 import type { ToolbarField } from "~/components/ui";
 import { StatusChip } from "~/components/ui";
 import { VULN_DATA_STATUS } from "~/utils/status";
+import { countedLabel } from "~/utils/vuln";
 
 const ARTIFACT_TYPES = [
     "application",
@@ -124,7 +125,7 @@ const columns: Column<ArtifactSummary>[] = [
                 Vulnerabilities
                 <span
                     class="col-scope"
-                    title="Counted over the artifact's latest version only — a finding that only an older release carries has already been superseded"
+                    title="Counted over one SBOM of the artifact's latest stable version (amd64 first, then arm64) — a finding that only an older release carries has already been superseded. Hover a row to see which."
                 >
                     latest version
                 </span>
@@ -133,29 +134,35 @@ const columns: Column<ArtifactSummary>[] = [
         mobileLabel: "Vulnerabilities",
         sortKey: "severity",
         sortType: "numeric",
-        render: (a) => (
-            // `vulns` is absent when the artifact's newest SBOM has no rollup
-            // row, which means "no findings" or "never scanned" without
-            // distinguishing them. Rendering that as a zero — or as
-            // VulnCountBadges' own em dash, which reads the same — would claim
-            // a clean bill of health nobody issued (ADR-044).
-            <Show
-                when={a.vulns}
-                fallback={
-                    <StatusChip status={VULN_DATA_STATUS.unscanned} />
-                }
-            >
-                {(v) => (
-                    <VulnCountBadges
-                        criticalCount={v().critical}
-                        highCount={v().high}
-                        mediumCount={v().medium}
-                        lowCount={v().low}
-                        unknownCount={v().unknown}
-                    />
-                )}
-            </Show>
-        ),
+        render: (a) => {
+            // The column header can only name the rule; which version and
+            // architecture a row was counted over is per row.
+            const counted = countedLabel(a.countedSbom);
+            return (
+                <span title={counted !== undefined ? `Counted over ${counted}` : undefined}>
+                    {/* `vulns` is absent when the artifact's newest SBOM has no
+                        rollup row, which means "no findings" or "never scanned"
+                        without distinguishing them. Rendering that as a zero —
+                        or as VulnCountBadges' own em dash, which reads the same
+                        — would claim a clean bill of health nobody issued
+                        (ADR-044). */}
+                    <Show
+                        when={a.vulns}
+                        fallback={<StatusChip status={VULN_DATA_STATUS.unscanned} />}
+                    >
+                        {(v) => (
+                            <VulnCountBadges
+                                criticalCount={v().critical}
+                                highCount={v().high}
+                                mediumCount={v().medium}
+                                lowCount={v().low}
+                                unknownCount={v().unknown}
+                            />
+                        )}
+                    </Show>
+                </span>
+            );
+        },
     },
     {
         header: "SBOMs",

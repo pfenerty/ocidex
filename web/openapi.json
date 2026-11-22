@@ -134,6 +134,10 @@
             "readOnly": true,
             "type": "string"
           },
+          "countedSbom": {
+            "$ref": "#/components/schemas/CountedSBOM",
+            "description": "The SBOM the vulnerability counts come from. List responses only."
+          },
           "cpe": {
             "type": "string"
           },
@@ -302,6 +306,10 @@
       "ArtifactSummary": {
         "additionalProperties": false,
         "properties": {
+          "countedSbom": {
+            "$ref": "#/components/schemas/CountedSBOM",
+            "description": "The SBOM the vulnerability counts come from. List responses only."
+          },
           "criticalHistory": {
             "description": "Newest versions first, up to 12. List responses only.",
             "items": {
@@ -1601,6 +1609,27 @@
         ],
         "type": "object"
       },
+      "CountedSBOM": {
+        "additionalProperties": false,
+        "properties": {
+          "architecture": {
+            "description": "Architecture of the counted SBOM; absent when unknown",
+            "type": "string"
+          },
+          "id": {
+            "format": "uuid",
+            "type": "string"
+          },
+          "version": {
+            "description": "Subject version of the counted SBOM",
+            "type": "string"
+          }
+        },
+        "required": [
+          "id"
+        ],
+        "type": "object"
+      },
       "CreateAPIKeyInputBody": {
         "additionalProperties": false,
         "properties": {
@@ -2509,6 +2538,10 @@
           "artifactId": {
             "type": "string"
           },
+          "countedSbom": {
+            "$ref": "#/components/schemas/CountedSBOM",
+            "description": "The SBOM the card's counts come from"
+          },
           "createdAt": {
             "format": "date-time",
             "type": "string"
@@ -3146,6 +3179,10 @@
             "format": "uri",
             "readOnly": true,
             "type": "string"
+          },
+          "countedSbom": {
+            "$ref": "#/components/schemas/CountedSBOM",
+            "description": "The SBOM the summary counts"
           },
           "matched": {
             "description": "The counted SBOM has been matched against the vulnerability store; an absent summary then means no known vulnerabilities rather than never scanned",

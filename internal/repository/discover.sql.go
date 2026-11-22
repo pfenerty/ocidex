@@ -49,6 +49,7 @@ SELECT p.id                                   AS artifact_id,
        p.name,
        l.sbom_id,
        l.subject_version,
+       COALESCE(sbom_architecture(l.sbom_id), '')::text AS architecture,
        l.created_at,
        pc.package_count,
        vc.critical_count,
@@ -117,6 +118,7 @@ type GetDiscoverFeaturedArtifactsRow struct {
 	Name               string             `json:"name"`
 	SbomID             pgtype.UUID        `json:"sbom_id"`
 	SubjectVersion     pgtype.Text        `json:"subject_version"`
+	Architecture       string             `json:"architecture"`
 	CreatedAt          pgtype.Timestamptz `json:"created_at"`
 	PackageCount       int64              `json:"package_count"`
 	CriticalCount      int64              `json:"critical_count"`
@@ -159,6 +161,7 @@ func (q *Queries) GetDiscoverFeaturedArtifacts(ctx context.Context, arg GetDisco
 			&i.Name,
 			&i.SbomID,
 			&i.SubjectVersion,
+			&i.Architecture,
 			&i.CreatedAt,
 			&i.PackageCount,
 			&i.CriticalCount,

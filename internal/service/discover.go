@@ -72,6 +72,8 @@ type DiscoverFeatured struct {
 	// VulnMatched reports that the newest SBOM has been matched against the
 	// vulnerability store, so all-zero Vulns means clean, not unscanned.
 	VulnMatched bool `json:"vulnMatched" doc:"The newest SBOM has been matched against the vulnerability store"`
+	// CountedSBOM is the SBOM the card's counts come from.
+	CountedSBOM *CountedSBOM `json:"countedSbom,omitempty" doc:"The SBOM the card's counts come from"`
 }
 
 // VulnSeverityCounts is a per-severity vulnerability count.
@@ -279,6 +281,7 @@ func buildDiscovery(
 			SbomID:         r.SbomID.String(),
 			SubjectVersion: textToPtr(r.SubjectVersion),
 			VulnMatched:    r.VulnMatched,
+			CountedSBOM:    countedSBOM(r.SbomID, r.SubjectVersion.String, r.Architecture),
 			CreatedAt:      r.CreatedAt.Time,
 			PackageCount:   r.PackageCount,
 			Vulns: VulnSeverityCounts{

@@ -290,6 +290,7 @@ function ArtifactDetailPage() {
                                         isContainer={isContainer()}
                                         vulns={vulnSummaryQuery.data?.summary}
                                         vulnsVersion={vulnSummaryQuery.data?.subjectVersion}
+                                        vulnsCounted={vulnSummaryQuery.data?.countedSbom}
                                         vulnsMatched={vulnSummaryQuery.data?.matched}
                                         ordering={effectiveMode()}
                                         active={tab()}

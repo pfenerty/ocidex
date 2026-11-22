@@ -2024,6 +2024,8 @@ export interface components {
              * @example https://example.com/api/schemas/ArtifactDetail.json
              */
             readonly $schema?: string;
+            /** @description The SBOM the vulnerability counts come from. List responses only. */
+            countedSbom?: components["schemas"]["CountedSBOM"];
             cpe?: string;
             /** Format: date-time */
             createdAt: string;
@@ -2081,6 +2083,8 @@ export interface components {
             subjectVersion?: string;
         };
         ArtifactSummary: {
+            /** @description The SBOM the vulnerability counts come from. List responses only. */
+            countedSbom?: components["schemas"]["CountedSBOM"];
             /** @description Newest versions first, up to 12. List responses only. */
             criticalHistory?: components["schemas"]["VersionCritical"][] | null;
             /**
@@ -2551,6 +2555,14 @@ export interface components {
             /** @description The cluster's first agent credential; its key is shown only here */
             credential: components["schemas"]["ClusterCredentialResponse"];
         };
+        CountedSBOM: {
+            /** @description Architecture of the counted SBOM; absent when unknown */
+            architecture?: string;
+            /** Format: uuid */
+            id: string;
+            /** @description Subject version of the counted SBOM */
+            version?: string;
+        };
         CreateAPIKeyInputBody: {
             /**
              * Format: uri
@@ -2883,6 +2895,8 @@ export interface components {
         };
         DiscoverFeatured: {
             artifactId: string;
+            /** @description The SBOM the card's counts come from */
+            countedSbom?: components["schemas"]["CountedSBOM"];
             /** Format: date-time */
             createdAt: string;
             /** @description Newest versions first, up to 12 */
@@ -3119,6 +3133,8 @@ export interface components {
              * @example https://example.com/api/schemas/GetArtifactVulnSummaryOutputBody.json
              */
             readonly $schema?: string;
+            /** @description The SBOM the summary counts */
+            countedSbom?: components["schemas"]["CountedSBOM"];
             /** @description The counted SBOM has been matched against the vulnerability store; an absent summary then means no known vulnerabilities rather than never scanned */
             matched: boolean;
             /** @description Version whose newest SBOM the summary counts */

@@ -1,3 +1,5 @@
+import type { CountedSBOM } from "~/api/client";
+
 export function aliasUrl(id: string): string {
     if (id.startsWith("CVE-"))     return `https://nvd.nist.gov/vuln/detail/${id}`;
     if (id.startsWith("GHSA-"))    return `https://github.com/advisories/${id}`;
@@ -122,4 +124,15 @@ export function noFixLabel(fixedVersion?: string, fixState?: string): string | u
         default:
             return undefined;
     }
+}
+
+/**
+ * Names the one SBOM a set of counts was taken from, "1.27.4-trixie · amd64":
+ * a version has one SBOM per architecture and their counts differ, so the
+ * figure means little without both. Undefined when nothing was counted.
+ */
+export function countedLabel(c: CountedSBOM | undefined): string | undefined {
+    if (c === undefined) return undefined;
+    const parts = [c.version, c.architecture].filter((p): p is string => p !== undefined && p !== "");
+    return parts.length > 0 ? parts.join(" · ") : undefined;
 }

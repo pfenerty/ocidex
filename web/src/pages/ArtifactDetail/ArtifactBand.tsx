@@ -1,4 +1,5 @@
-import type { ArtifactDetail, VulnSummary } from "~/api/client";
+import type { ArtifactDetail, CountedSBOM, VulnSummary } from "~/api/client";
+import { countedLabel } from "~/utils/vuln";
 import { StatBand, type StatTile } from "~/components/ui";
 import { vulnTile } from "~/components/VulnTile";
 import { trustStatus, trustBadgeClass } from "~/utils/trust";
@@ -25,6 +26,8 @@ export function ArtifactBand(props: {
     /** The version the vulnerability summary counts, named in the tile's scope:
      *  the highest by version parts, which need not be the newest build. */
     vulnsVersion?: string;
+    /** The SBOM the summary counts; names version and architecture in the scope. */
+    vulnsCounted?: CountedSBOM;
     /** That version's SBOM has been matched against the vulnerability store. */
     vulnsMatched?: boolean;
     /** The ordering the versions list resolved to, captioning the Versions tile. */
@@ -73,9 +76,10 @@ export function ArtifactBand(props: {
             vulnTile<ArtifactTab>(
                 props.vulns,
                 "vulns",
-                props.vulnsVersion !== undefined && props.vulnsVersion !== ""
-                    ? props.vulnsVersion
-                    : "latest version",
+                countedLabel(props.vulnsCounted) ??
+                    (props.vulnsVersion !== undefined && props.vulnsVersion !== ""
+                        ? props.vulnsVersion
+                        : "latest version"),
                 props.vulnsMatched,
             ),
         ];

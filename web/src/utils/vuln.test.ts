@@ -1,5 +1,5 @@
 import { describe, it, expect } from "vitest";
-import { parseCvssVector, cvssVersion, noFixLabel } from "./vuln";
+import { parseCvssVector, cvssVersion, noFixLabel, countedLabel } from "./vuln";
 
 describe("cvssVersion", () => {
     it("extracts v3 prefix", () => {
@@ -77,5 +77,19 @@ describe("noFixLabel", () => {
         expect(noFixLabel("1.2.3", "fixed")).toBeUndefined();
         expect(noFixLabel(undefined, "unknown")).toBeUndefined();
         expect(noFixLabel(undefined, undefined)).toBeUndefined();
+    });
+});
+
+describe("countedLabel", () => {
+    const id = "00000000-0000-0000-0000-000000000001";
+    it("joins version and architecture", () => {
+        expect(countedLabel({ id, version: "1.27.4-trixie", architecture: "amd64" })).toBe("1.27.4-trixie · amd64");
+    });
+    it("drops an unknown architecture", () => {
+        expect(countedLabel({ id, version: "1.27.4" })).toBe("1.27.4");
+    });
+    it("is undefined with nothing to say", () => {
+        expect(countedLabel(undefined)).toBeUndefined();
+        expect(countedLabel({ id })).toBeUndefined();
     });
 });

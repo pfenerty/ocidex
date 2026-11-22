@@ -512,7 +512,7 @@ WITH sboms_meta AS (
 ),
 newest_per_version AS (
     SELECT DISTINCT ON (version_key)
-        id, version_key, created_at, enrichment_sufficient, image_version, revision, source_url, build_date, signing_status
+        id, version_key, architecture, created_at, enrichment_sufficient, image_version, revision, source_url, build_date, signing_status
     FROM sboms_meta
     ORDER BY version_key, sbom_arch_rank(architecture), architecture, created_at DESC, id DESC
 ),
@@ -531,6 +531,7 @@ sbom_count_per_version AS (
 SELECT
     n.version_key,
     n.id           AS newest_sbom_id,
+    COALESCE(n.architecture, '')::text AS counted_architecture,
     n.created_at,
     n.enrichment_sufficient,
     n.image_version,
@@ -582,6 +583,7 @@ type ListArtifactVersionsParams struct {
 type ListArtifactVersionsRow struct {
 	VersionKey           pgtype.Text        `json:"version_key"`
 	NewestSbomID         pgtype.UUID        `json:"newest_sbom_id"`
+	CountedArchitecture  string             `json:"counted_architecture"`
 	CreatedAt            pgtype.Timestamptz `json:"created_at"`
 	EnrichmentSufficient bool               `json:"enrichment_sufficient"`
 	ImageVersion         interface{}        `json:"image_version"`
@@ -622,6 +624,7 @@ func (q *Queries) ListArtifactVersions(ctx context.Context, arg ListArtifactVers
 		if err := rows.Scan(
 			&i.VersionKey,
 			&i.NewestSbomID,
+			&i.CountedArchitecture,
 			&i.CreatedAt,
 			&i.EnrichmentSufficient,
 			&i.ImageVersion,
@@ -702,15 +705,21 @@ SELECT a.id, a.type, a.name, a.group_name, a.purl, a.cpe, a.created_at, a.entry_
        COALESCE(vr.high,     0)::bigint AS vuln_high,
        COALESCE(vr.medium,   0)::bigint AS vuln_medium,
        COALESCE(vr.low,      0)::bigint AS vuln_low,
-       COALESCE(vr.unknown,  0)::bigint AS vuln_unknown
+       COALESCE(vr.unknown,  0)::bigint AS vuln_unknown,
+       -- Which SBOM those counts are from, so the row can say so.
+       vr.sbom_id AS counted_sbom_id,
+       vr.subject_version AS counted_version,
+       COALESCE(vr.architecture, '')::text AS counted_architecture
 FROM artifact a
 LEFT JOIN sbom s ON s.artifact_id = a.id
     AND s.namespace_id IN (SELECT visible_namespace_ids($1::uuid, $2::boolean))
 LEFT JOIN LATERAL (
-    SELECT r.critical, r.high, r.medium, r.low, r.unknown,
+    SELECT h.id AS sbom_id, hs.subject_version, sbom_architecture(h.id) AS architecture,
+           r.critical, r.high, r.medium, r.low, r.unknown,
            (r.critical + r.high + r.medium + r.low + r.unknown)::bigint AS total
-    FROM sbom_vuln_rollup r
-    WHERE r.sbom_id = artifact_headline_sbom(a.id, $1::uuid, $2::boolean)
+    FROM (SELECT artifact_headline_sbom(a.id, $1::uuid, $2::boolean) AS id) h
+    JOIN sbom hs ON hs.id = h.id
+    LEFT JOIN sbom_vuln_rollup r ON r.sbom_id = h.id
 ) vr ON TRUE
 WHERE ($3::text IS NULL OR a.type = $3)
   AND ($4::text IS NULL OR a.name ILIKE like_contains($4::text))
@@ -734,7 +743,8 @@ WHERE ($3::text IS NULL OR a.type = $3)
     NOT $7::boolean
     OR (a.name, a.type, a.id) > ($8::text, $9::text, $10::uuid)
   )
-GROUP BY a.id, vr.critical, vr.high, vr.medium, vr.low, vr.unknown, vr.total
+GROUP BY a.id, vr.sbom_id, vr.subject_version, vr.architecture,
+         vr.critical, vr.high, vr.medium, vr.low, vr.unknown, vr.total
 ORDER BY
     CASE WHEN $11::boolean THEN COALESCE(vr.total, 0) = 0 END,
     CASE WHEN $11::boolean THEN COALESCE(vr.critical, 0) * $12::int END DESC,
@@ -780,6 +790,9 @@ type ListArtifactsRow struct {
 	VulnMedium          int64              `json:"vuln_medium"`
 	VulnLow             int64              `json:"vuln_low"`
 	VulnUnknown         int64              `json:"vuln_unknown"`
+	CountedSbomID       pgtype.UUID        `json:"counted_sbom_id"`
+	CountedVersion      pgtype.Text        `json:"counted_version"`
+	CountedArchitecture string             `json:"counted_architecture"`
 }
 
 // Same worst-case-first rollup precedence as GetArtifact above — see that
@@ -857,6 +870,9 @@ func (q *Queries) ListArtifacts(ctx context.Context, arg ListArtifactsParams) ([
 			&i.VulnMedium,
 			&i.VulnLow,
 			&i.VulnUnknown,
+			&i.CountedSbomID,
+			&i.CountedVersion,
+			&i.CountedArchitecture,
 		); err != nil {
 			return nil, err
 		}

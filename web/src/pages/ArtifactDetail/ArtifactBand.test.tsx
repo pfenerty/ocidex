@@ -132,6 +132,14 @@ describe("ArtifactBand vulnerability tile", () => {
         expect(tile(container, "Vulnerabilities").querySelector(".tile-scope")?.textContent).toBe("v0.1.0");
     });
 
+    it("names the counted SBOM's version and architecture when it has them", () => {
+        const { container } = renderBand({
+            vulnsVersion: "1.27.4-trixie",
+            vulnsCounted: { id: "00000000-0000-0000-0000-000000000001", version: "1.27.4-trixie", architecture: "amd64" },
+        });
+        expect(tile(container, "Vulnerabilities").querySelector(".tile-scope")?.textContent).toBe("1.27.4-trixie · amd64");
+    });
+
     it("says not scanned rather than zero when there is no summary", () => {
         // ADR-044's rule, applied here: unknown must never read as clean.
         const { container } = renderBand({ vulns: undefined });

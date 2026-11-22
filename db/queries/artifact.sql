@@ -176,7 +176,11 @@ SELECT a.id, a.type, a.name, a.group_name, a.purl, a.cpe, a.created_at, a.entry_
        COALESCE(vr.high,     0)::bigint AS vuln_high,
        COALESCE(vr.medium,   0)::bigint AS vuln_medium,
        COALESCE(vr.low,      0)::bigint AS vuln_low,
-       COALESCE(vr.unknown,  0)::bigint AS vuln_unknown
+       COALESCE(vr.unknown,  0)::bigint AS vuln_unknown,
+       -- Which SBOM those counts are from, so the row can say so.
+       vr.sbom_id AS counted_sbom_id,
+       vr.subject_version AS counted_version,
+       COALESCE(vr.architecture, '')::text AS counted_architecture
 FROM artifact a
 -- An artifact is visible when any namespace it appears in is, so it can carry
 -- SBOMs from a namespace the viewer cannot see. Every SBOM read below is
@@ -192,10 +196,12 @@ LEFT JOIN sbom s ON s.artifact_id = a.id
 -- a headline SBOM with no rollup row reads as no findings instead of falling
 -- back to an older SBOM that has one.
 LEFT JOIN LATERAL (
-    SELECT r.critical, r.high, r.medium, r.low, r.unknown,
+    SELECT h.id AS sbom_id, hs.subject_version, sbom_architecture(h.id) AS architecture,
+           r.critical, r.high, r.medium, r.low, r.unknown,
            (r.critical + r.high + r.medium + r.low + r.unknown)::bigint AS total
-    FROM sbom_vuln_rollup r
-    WHERE r.sbom_id = artifact_headline_sbom(a.id, sqlc.narg('user_id')::uuid, sqlc.narg('is_admin')::boolean)
+    FROM (SELECT artifact_headline_sbom(a.id, sqlc.narg('user_id')::uuid, sqlc.narg('is_admin')::boolean) AS id) h
+    JOIN sbom hs ON hs.id = h.id
+    LEFT JOIN sbom_vuln_rollup r ON r.sbom_id = h.id
 ) vr ON TRUE
 WHERE (sqlc.narg('type')::text IS NULL OR a.type = sqlc.narg('type'))
   AND (sqlc.narg('name')::text IS NULL OR a.name ILIKE like_contains(sqlc.narg('name')::text))
@@ -219,7 +225,8 @@ WHERE (sqlc.narg('type')::text IS NULL OR a.type = sqlc.narg('type'))
     NOT sqlc.narg('has_cursor')::boolean
     OR (a.name, a.type, a.id) > (sqlc.narg('cursor_name')::text, sqlc.narg('cursor_type')::text, sqlc.narg('cursor_id')::uuid)
   )
-GROUP BY a.id, vr.critical, vr.high, vr.medium, vr.low, vr.unknown, vr.total
+GROUP BY a.id, vr.sbom_id, vr.subject_version, vr.architecture,
+         vr.critical, vr.high, vr.medium, vr.low, vr.unknown, vr.total
 -- Two orderings in one query. The severity keys are wrapped in a CASE that
 -- collapses to NULL when @sort_severity is false, which makes every row tie on
 -- them and hands the decision to the trailing (name, type, id) — the default
@@ -448,7 +455,7 @@ WITH sboms_meta AS (
 -- them again.
 newest_per_version AS (
     SELECT DISTINCT ON (version_key)
-        id, version_key, created_at, enrichment_sufficient, image_version, revision, source_url, build_date, signing_status
+        id, version_key, architecture, created_at, enrichment_sufficient, image_version, revision, source_url, build_date, signing_status
     FROM sboms_meta
     ORDER BY version_key, sbom_arch_rank(architecture), architecture, created_at DESC, id DESC
 ),
@@ -467,6 +474,7 @@ sbom_count_per_version AS (
 SELECT
     n.version_key,
     n.id           AS newest_sbom_id,
+    COALESCE(n.architecture, '')::text AS counted_architecture,
     n.created_at,
     n.enrichment_sufficient,
     n.image_version,
