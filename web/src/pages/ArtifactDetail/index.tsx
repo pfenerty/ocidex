@@ -24,7 +24,7 @@ import { Breadcrumb, QueryBoundary, Segmented, TabBar, createExpandedSet, type C
 import { artifactDisplayName, plural } from "~/utils/format";
 import { ArtifactHeader, ArtifactIdentity } from "./ArtifactHeader";
 import { ArtifactBand, type ArtifactTab } from "./ArtifactBand";
-import { VersionChart, severityPoints } from "./ArtifactChange";
+import { severityPoints } from "./ArtifactChange";
 import { criticalChange } from "~/utils/versionDelta";
 import { StatBlock, type StatRow } from "./StatBlock";
 import { isShiny } from "~/components/Shiny";
@@ -135,9 +135,9 @@ function ArtifactDetailPage() {
         }),
     );
 
-    // The newest page in the default order, for the verdict and the chart. Same
-    // key as the table's default view, so it costs no request until the reader
-    // sorts or pages away, and the verdict then stays put.
+    // The newest page in the default order, for the tile's change and the entry
+    // text. Same key as the table's default view, so it costs no request until
+    // the reader sorts or pages away, and the tile then stays put.
     const latestVersionsQuery = useArtifactVersions(
         () => params.id,
         () => ({ limit: versionLimit, offset: 0, mode: viewMode() }),
@@ -338,7 +338,6 @@ function ArtifactDetailPage() {
                                             </Show>
                                         )}
                                     </Show>
-                                    <VersionChart points={latestPoints()} />
                                     <VersionsTab
                                         artifactId={params.id}
                                         isContainer={isContainer()}
