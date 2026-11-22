@@ -252,6 +252,11 @@ function ArtifactDetailPage() {
         { id: "semver", label: "Semver", title: "Only semver versions, ordered by semantic version" },
         { id: "all", label: "All", title: "All versions, highest version first" },
     ];
+    // The version-order switch. The versions tab shows it on its own row; the
+    // changelog puts it on the row with its other controls.
+    const orderControl = (cls?: string) => (
+        <Segmented class={cls} label="Version order" options={MODES} value={effectiveMode()} onChange={selectMode} />
+    );
 
     const crumbs = (): Crumb[] => [
         { label: "Artifacts", href: "/artifacts" },
@@ -304,15 +309,7 @@ function ArtifactDetailPage() {
 
                                 <TabBar tabs={tabs(a().versionCount)} active={tab()} onSelect={setTab} />
 
-                                <Show when={hasSemver() && (tab() === "versions" || tab() === "changelog")}>
-                                    <Segmented
-                                        class="mb-4"
-                                        label="Version order"
-                                        options={MODES}
-                                        value={effectiveMode()}
-                                        onChange={selectMode}
-                                    />
-                                </Show>
+                                <Show when={hasSemver() && tab() === "versions"}>{orderControl("mb-4")}</Show>
 
                                 <Show when={tab() === "versions"}>
                                     {/* Semver mode drops every other version, so the
@@ -377,6 +374,7 @@ function ArtifactDetailPage() {
                                                 onFlavorChange={selectChangelogFlavor}
                                                 viewMode={changelogView()}
                                                 onViewModeChange={setChangelogView}
+                                                order={hasSemver() ? orderControl() : undefined}
                                             />
                                         )}
                                     </QueryBoundary>

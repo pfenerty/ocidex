@@ -32,3 +32,21 @@
 .changelog-entry table {
     font-size: 0.825rem;
 }
+
+/* Order, architecture, flavor and view on one row; the view toggle keeps to
+   the right edge and everything wraps on a narrow screen. */
+.changelog-controls {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: 0.5rem 1rem;
+    margin-bottom: 1rem;
+}
+
+.changelog-controls-end {
+    margin-left: auto;
+}
+
+.changelog-arch-picker {
+    width: 12rem;
+}
