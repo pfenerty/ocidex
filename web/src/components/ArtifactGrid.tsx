@@ -36,8 +36,22 @@ export function ArtifactGrid(props: { artifacts: ArtifactSummary[]; seenOnly?: S
                                 class="artifact-slot-sprite"
                                 size={40}
                                 points={historyPoints(a.criticalHistory)}
+                                tintNewest
                             />
                             <span class="artifact-slot-name">{short(a)}</span>
+                            {/* The latest version's critical count: the sprite is
+                                scaled to the artifact's own history, so on its own
+                                it cannot say how many. Absent when not scanned. */}
+                            <Show when={a.vulns}>
+                                {(v) => (
+                                    <span
+                                        class="artifact-slot-crit"
+                                        classList={{ "artifact-slot-crit-some": v().critical > 0 }}
+                                    >
+                                        {v().critical.toLocaleString()} critical
+                                    </span>
+                                )}
+                            </Show>
                         </A>
                     </li>
                 )}

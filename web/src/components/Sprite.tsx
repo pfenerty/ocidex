@@ -16,7 +16,17 @@ const TOP = 3;
  * Versions with no findings record are left out rather than drawn as zero,
  * since "no findings" and "never scanned" look the same in the data.
  */
-export function Sprite(props: { points: SeverityPoint[]; size?: number; class?: string }): JSX.Element {
+export function Sprite(props: {
+    points: SeverityPoint[];
+    size?: number;
+    class?: string;
+    /**
+     * Draw the newest bar in the critical colour when it has critical
+     * findings. Each sprite scales to its own maximum, so a row of them reads
+     * as identical glyphs; the tint says which ones carry criticals now.
+     */
+    tintNewest?: boolean;
+}): JSX.Element {
     const hatchId = `sprite-hatch-${createUniqueId()}`;
     const bars = () => sameVariantAsNewest(props.points).slice(0, MAX_BARS).reverse();
     const max = () => Math.max(1, ...bars().map((p) => p.critical ?? 0));
@@ -50,9 +60,14 @@ export function Sprite(props: { points: SeverityPoint[]; size?: number; class?: 
                             const cur = () => p.critical ?? 0;
                             const prev = () => (i() > 0 ? bars()[i() - 1].critical ?? 0 : cur());
                             const x = () => start() + i() * (width() + gap);
+                            const newestCritical = () =>
+                                props.tintNewest === true && i() === bars().length - 1 && cur() > 0;
                             return (
                                 <g>
-                                    <rect class="sprite-bar" x={x()} y={y(floor(cur()))} width={width()} height={BASE - y(floor(cur()))} />
+                                    <rect
+                                        class="sprite-bar"
+                                        classList={{ "sprite-bar-critical": newestCritical() }}
+                                        x={x()} y={y(floor(cur()))} width={width()} height={BASE - y(floor(cur()))} />
                                     <Show when={prev() > cur()}>
                                         <rect
                                             class="sprite-fixed"
