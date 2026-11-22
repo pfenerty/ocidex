@@ -70,7 +70,7 @@ func TestHeadlineSBOMIsOneSBOMEverywhere(t *testing.T) {
 
 	// The finding sits on a package only the expected SBOM carries.
 	seedFinding(t, pool, "CVE-2026-40001", "CRITICAL", "headline-vulnerable")
-	_, err := pool.Exec(ctx, `INSERT INTO sbom_vuln_match (sbom_id, db_built_at) VALUES ($1, now())`, wantID)
+	_, err := pool.Exec(ctx, `INSERT INTO sbom_vuln_match (sbom_id, db_built_at, matched_at) VALUES ($1, now(), now() - interval '1 hour')`, wantID)
 	is.NoErr(err)
 	refreshRollups(t, pool)
 
@@ -91,8 +91,8 @@ func TestHeadlineSBOMIsOneSBOMEverywhere(t *testing.T) {
 
 	summary, err := q.GetArtifactVulnSummary(ctx, repository.GetArtifactVulnSummaryParams{ArtifactID: artifactID, UserID: anon, IsAdmin: noAdmin})
 	is.NoErr(err)
-	is.Equal(len(summary), 1)
-	is.Equal(summary[0].Count, int64(1)) // GetArtifactVulnSummary
+	is.Equal(summary.Critical, int64(1))
+	is.Equal(summary.SubjectVersion, "1.27.4") // GetArtifactVulnSummary
 
 	packages, err := q.CountLatestVersionPackages(ctx, repository.CountLatestVersionPackagesParams{ArtifactID: artifactID, UserID: anon, IsAdmin: noAdmin})
 	is.NoErr(err)

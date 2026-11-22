@@ -25,6 +25,10 @@ Each finding shows its severity, CVSS score and, where one exists, the **fixed v
 advisory published under several ids (a `GHSA-`, a `GO-` and a `CVE-`) is shown once, under one
 canonical id, with the others as aliases.
 
+The counts on artifact rows, artifact pages and the home page are refreshed every 15 minutes, all
+at once, so they always agree with each other. A new scan can take that long to show there; an
+SBOM's own Vulnerabilities tab shows it immediately.
+
 ## Triage
 
 A practical order:

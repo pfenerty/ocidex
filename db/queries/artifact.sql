@@ -507,13 +507,12 @@ SELECT
     -- above has caught up: two refresh intervals (RollupRefreshInterval is 15
     -- minutes). A fresher match may not be in the rollup yet, so it still reads
     -- "not scanned" rather than risk calling a version with findings clean.
-    (m.matched_at IS NOT NULL AND m.matched_at < now() - interval '30 minutes')::boolean AS vuln_matched,
+    sbom_vuln_settled(n.id) AS vuln_matched,
     COUNT(*) OVER() AS total_count
 FROM newest_per_version n
 JOIN architectures_per_version a ON a.version_key = n.version_key
 JOIN sbom_count_per_version c ON c.version_key = n.version_key
 LEFT JOIN sbom_vuln_rollup r ON r.sbom_id = n.id
-LEFT JOIN sbom_vuln_match m ON m.sbom_id = n.id
 -- The version line's order (the service's compareVersionLine), ingest time
 -- only as a tiebreak: ordering by created_at listed a version backfilled
 -- later above its successor. The service re-sorts in Go; this order decides

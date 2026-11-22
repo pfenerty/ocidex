@@ -75,7 +75,7 @@ func TestSourcePurlFindingCountsEverywhere(t *testing.T) {
 
 	artifactSummary, err := q.GetArtifactVulnSummary(ctx, repository.GetArtifactVulnSummaryParams{ArtifactID: artifactID, IsAdmin: admin})
 	is.NoErr(err)
-	is.Equal(len(artifactSummary), 1) // artifact
+	is.Equal(artifactSummary.High, int64(1)) // artifact
 
 	running, err := q.ListClusterRunningVulns(ctx, repository.ListClusterRunningVulnsParams{
 		ClusterID: cid, IsAdmin: admin, SortBy: "severity", SortDir: "desc",

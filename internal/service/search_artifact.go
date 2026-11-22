@@ -588,39 +588,26 @@ func (s *searchService) GetArtifactVulnSummary(ctx context.Context, artifactIDSt
 		return ArtifactVulnSummary{}, fmt.Errorf("checking vuln match: %w", err)
 	}
 	counted := countedSBOM(match.SbomID, match.SubjectVersion, match.Architecture)
-	rows, err := q.GetArtifactVulnSummary(ctx, repository.GetArtifactVulnSummaryParams{
+	row, err := q.GetArtifactVulnSummary(ctx, repository.GetArtifactVulnSummaryParams{
 		ArtifactID: artifactID,
 		UserID:     uuidOrNull(vis.UserID),
 		IsAdmin:    visAdminBool(vis),
 	})
+	if errors.Is(err, pgx.ErrNoRows) {
+		// No SBOM the viewer can see: nothing was counted.
+		return ArtifactVulnSummary{}, nil
+	}
 	if err != nil {
 		return ArtifactVulnSummary{}, fmt.Errorf("querying artifact vuln summary: %w", err)
 	}
-	if len(rows) == 0 {
-		return ArtifactVulnSummary{SubjectVersion: match.SubjectVersion, Counted: counted, Matched: match.Matched}, nil
-	}
-
-	var vs VulnSummary
-	for _, r := range rows {
-		n := int(r.Count)
-		vs.Total += n
-		switch r.Severity.String {
-		case sevCritical:
-			vs.Critical += n
-		case sevHigh:
-			vs.High += n
-		case sevMedium:
-			vs.Medium += n
-		case sevLow:
-			vs.Low += n
-		default:
-			vs.Unknown += n
-		}
-	}
-	if vs.Total == 0 {
-		return ArtifactVulnSummary{SubjectVersion: match.SubjectVersion, Counted: counted, Matched: match.Matched}, nil
-	}
-	return ArtifactVulnSummary{Summary: &vs, SubjectVersion: rows[0].SubjectVersion, Counted: counted, Matched: match.Matched}, nil
+	// All zeros is no rollup row, which is "no findings" or "not scanned";
+	// Matched tells the caller which (ADR-044).
+	return ArtifactVulnSummary{
+		Summary:        vulnSummaryOrNil(row.Critical, row.High, row.Medium, row.Low, row.Unknown),
+		SubjectVersion: row.SubjectVersion,
+		Counted:        counted,
+		Matched:        match.Matched,
+	}, nil
 }
 
 // ListArtifactVulns returns one page of the artifact's vulnerability list.

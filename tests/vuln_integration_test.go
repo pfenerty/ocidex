@@ -171,6 +171,8 @@ func TestVulnSBOMSummaryJoin(t *testing.T) {
 
 	// --- Assert GET /api/v1/artifacts/{id}/vuln-summary ---
 	// Resolve the artifact ID from the SBOM detail.
+	// The artifact summary reads sbom_vuln_rollup, so the pass runs first.
+	refreshRollups(t, pool)
 	artifactID := sbomDetail["artifactId"].(string)
 	resp, err = doGet(t, fmt.Sprintf("%s/api/v1/artifacts/%s/vuln-summary", srv.URL, artifactID))
 	is.NoErr(err)
@@ -253,7 +255,9 @@ func TestVulnAliasDedup(t *testing.T) {
 	is.Equal(vs["total"], float64(1))
 	artifactID := sbomDetail["artifactId"].(string)
 
-	// Artifact vuln summary must also show critical=1.
+	// Artifact vuln summary must also show critical=1. It reads
+	// sbom_vuln_rollup, like every artifact-level count, so the pass runs first.
+	refreshRollups(t, pool)
 	resp, err = doGet(t, fmt.Sprintf("%s/api/v1/artifacts/%s/vuln-summary", srv.URL, artifactID))
 	is.NoErr(err)
 	is.Equal(resp.StatusCode, http.StatusOK)
@@ -264,10 +268,8 @@ func TestVulnAliasDedup(t *testing.T) {
 	is.Equal(artSummary["critical"], float64(1))
 	is.Equal(artSummary["total"], float64(1))
 
-	// The remaining assertions read precomputed state: /api/v1/vulns reads
-	// vuln_rollup and /api/v1/stats reads the stats cache, both of which are
-	// filled out of band in the running server.
-	refreshRollups(t, pool)
+	// The remaining assertions read precomputed state too: /api/v1/vulns reads
+	// vuln_rollup (refreshed above) and /api/v1/stats reads the stats cache.
 	warmStats(t, searchSvc)
 
 	// Top-vulns list must show exactly 1 row for this canonical_id (not 2 alias rows).
@@ -517,6 +519,8 @@ func TestVulnDuplicatePurlSummaryParity(t *testing.T) {
 	is.Equal(sbomSummary["total"], float64(1))
 
 	// --- Artifact summary (GetArtifactVulnSummary) ---
+	// The artifact summary reads sbom_vuln_rollup, so the pass runs first.
+	refreshRollups(t, pool)
 	artifactID := sbomDetail["artifactId"].(string)
 	resp, err = doWithAuth(t, http.MethodGet, fmt.Sprintf("%s/api/v1/artifacts/%s/vuln-summary", srv.URL, artifactID), "", memberKey)
 	is.NoErr(err)
@@ -808,6 +812,8 @@ func TestSBOMVulnsMatchSourcePurl(t *testing.T) {
 
 	// The artifact summary reads the same scope over its newest SBOM and must
 	// not disagree with the SBOM tile.
+	// The artifact summary reads sbom_vuln_rollup, so the pass runs first.
+	refreshRollups(t, pool)
 	artifactID := sbomDetail()["artifactId"].(string)
 	resp, err = doGet(t, fmt.Sprintf("%s/api/v1/artifacts/%s/vuln-summary", srv.URL, artifactID))
 	is.NoErr(err)
