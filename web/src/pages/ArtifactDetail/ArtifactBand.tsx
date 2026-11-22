@@ -3,7 +3,6 @@ import { countedLabel } from "~/utils/vuln";
 import type { CriticalChange } from "~/utils/versionDelta";
 import { StatBand, type StatTile } from "~/components/ui";
 import { vulnTile } from "~/components/VulnTile";
-import { trustStatus, trustBadgeClass } from "~/utils/trust";
 import { relativeDate } from "~/utils/format";
 
 export type ArtifactTab = "versions" | "changelog" | "licenses" | "vulns" | "relationships" | "running";
@@ -22,7 +21,6 @@ export type ArtifactTab = "versions" | "changelog" | "licenses" | "vulns" | "rel
  */
 export function ArtifactBand(props: {
     artifact: ArtifactDetail;
-    isContainer: boolean;
     vulns: VulnSummary | undefined;
     /** The version the vulnerability summary counts, named in the tile's scope:
      *  the highest by version parts, which need not be the newest build. */
@@ -40,7 +38,6 @@ export function ArtifactBand(props: {
 }) {
     const a = () => props.artifact;
 
-    const trust = () => trustStatus(a().signingStatus);
 
     // How many of this artifact's SBOMs carry enough enrichment to be trusted for
     // provenance and image metadata. The API has reported it since the artifact
@@ -87,33 +84,6 @@ export function ArtifactBand(props: {
                 props.vulnsChange,
             ),
         ];
-
-        // Signing is image-only. On an uploaded binary or library it would be a
-        // permanent "unsigned" that no amount of enrichment can change, which is
-        // why the rest of the page's image chrome is gated the same way.
-        if (props.isContainer) {
-            t.push({
-                // Worst rung across every SBOM, not the latest version's
-                // (ocidex-7gf7.3), so it says which — the vulnerability tile
-                // beside it is scoped the other way.
-                head: (
-                    <>
-                        Signing
-                        <span class="tile-scope">any SBOM</span>
-                    </>
-                ),
-                // trustStatus returns null, not undefined, for an unenriched artifact.
-                value: trust()?.label ?? "Not enriched",
-                valueClass: (() => {
-                    const s = trust();
-                    return s !== null ? trustBadgeClass(s.variant) : "text-muted";
-                })(),
-                // No sub-line. The label already is the whole signal, and the
-                // one-line gloss that would distinguish "Verified" from
-                // "Signed" is a third phrasing of what utils/trust.ts already
-                // owns as `description` — which is how vocabularies drift apart.
-            });
-        }
 
         t.push({
             head: "Tracked",

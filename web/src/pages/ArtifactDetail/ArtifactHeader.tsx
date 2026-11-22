@@ -13,6 +13,7 @@ import { purlToRegistryUrl, purlTypeLabel } from "~/utils/purl";
 import { artifactDisplayName, formatDateTime } from "~/utils/format";
 import { containerRegistryUrl, detectRegistry } from "~/utils/oci";
 import { safeHref } from "~/utils/links";
+import { SigningBadge } from "~/components/ui/SigningBadge";
 
 /**
  * ArtifactHeader is the title row: entry line, name, actions (ocidex-iz0r.6).
@@ -38,6 +39,8 @@ export function ArtifactHeader(props: {
     shiny?: boolean;
     /** The change the vulnerabilities tile states; Compare opens it as a diff. */
     change?: CriticalChange;
+    /** Signing is image-only, so the chip shows for containers alone. */
+    isContainer?: boolean;
 }) {
     const a = () => props.artifact;
     const registryPurl = () => {
@@ -54,6 +57,19 @@ export function ArtifactHeader(props: {
                 <>
                     <EntryLine kind="Artifact" id={a().id} number={a().entryNumber} />
                     <TypeBadge type={a().type} />
+                    {/* Signing as a chip beside the type: one word needs no
+                        tile. Its scope is every SBOM, unlike the band's
+                        latest-version counts, so the chip says so. An
+                        unenriched artifact has no status to show. */}
+                    <Show when={props.isContainer === true && a().signingStatus !== ""}>
+                        <SigningBadge
+                            status={a().signingStatus}
+                            scope={{
+                                label: "any SBOM",
+                                description: "Worst status across every SBOM of this artifact.",
+                            }}
+                        />
+                    </Show>
                     <Show when={props.shiny === true}>
                         <Shiny />
                     </Show>

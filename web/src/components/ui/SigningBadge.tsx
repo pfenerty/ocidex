@@ -20,8 +20,15 @@ const iconClass = "mr-[3px] align-middle";
 // An unrecognized status renders as its raw value rather than being relabelled,
 // so a new server-side status is visibly unhandled instead of silently
 // misreported.
-export function SigningBadge(props: { status: string }) {
+//
+// `scope` names what set of SBOMs the status covers, where that differs from
+// the figures around it: on the artifact header it is the worst status across
+// every SBOM, beside counts that describe the latest version only. It shows as
+// a muted label after the badge and leads the tooltip.
+export function SigningBadge(props: { status: string; scope?: { label: string; description: string } }) {
     const trust = () => trustStatus(props.status);
+    const tip = (description: string) =>
+        props.scope === undefined ? description : `${props.scope.description} ${description}`;
 
     return (
         <Show
@@ -29,12 +36,17 @@ export function SigningBadge(props: { status: string }) {
             fallback={<Badge><Shield size={12} class={iconClass} />{props.status}</Badge>}
         >
             {(t) => (
-                <Tooltip content={t().description}>
-                    <Badge variant={trustBadgeVariant(t().variant)}>
-                        <Dynamic component={t().icon} size={12} class={iconClass} />
-                        {t().label}
-                    </Badge>
-                </Tooltip>
+                <>
+                    <Tooltip content={tip(t().description)}>
+                        <Badge variant={trustBadgeVariant(t().variant)}>
+                            <Dynamic component={t().icon} size={12} class={iconClass} />
+                            {t().label}
+                        </Badge>
+                    </Tooltip>
+                    <Show when={props.scope}>
+                        {(s) => <span class="text-xs text-muted ml-[4px]">{s().label}</span>}
+                    </Show>
+                </>
             )}
         </Show>
     );

@@ -30,7 +30,6 @@ type BandProps = Parameters<typeof ArtifactBand>[0];
 function renderBand(over: Partial<BandProps> = {}) {
     const props: BandProps = {
         artifact: ARTIFACT,
-        isContainer: true,
         vulns: VULNS,
         ordering: "semver",
         active: "versions",
@@ -69,22 +68,11 @@ function sub(container: HTMLElement, head: string): string {
     return tile(container, head).querySelector(".tile-sub")?.textContent.trim() ?? "";
 }
 
-describe("ArtifactBand signing tile", () => {
-    it("shows signing for a container", () => {
+describe("ArtifactBand signing", () => {
+    // Signing is a header chip now; one word does not need a tile.
+    it("has no signing tile", () => {
         const { container } = renderBand();
-        expect(tile(container, "Signing").textContent).toContain("Signed");
-    });
-
-    it("omits signing entirely for a non-container", () => {
-        // On an uploaded binary this would be a permanent "unsigned" that no
-        // amount of enrichment can change, so it is absent rather than bad news.
-        const { container } = renderBand({ isContainer: false });
         expect(() => tile(container, "Signing")).toThrow();
-    });
-
-    it("says not enriched rather than unsigned when the status is unknown", () => {
-        const { container } = renderBand({ artifact: { ...ARTIFACT, signingStatus: "" } });
-        expect(tile(container, "Signing").textContent).toContain("Not enriched");
     });
 });
 
@@ -190,11 +178,6 @@ describe("ArtifactBand tile scopes", () => {
     it("scopes the vulnerability tile to the latest version", () => {
         const { container } = renderBand();
         expect(tileScope(tile(container, "Vulnerabilities"))).toBe("latest version");
-    });
-
-    it("scopes the signing tile to any SBOM", () => {
-        const { container } = renderBand();
-        expect(tileScope(tile(container, "Signing"))).toBe("any SBOM");
     });
 });
 
