@@ -53,6 +53,10 @@ type Client interface {
 	DeleteCluster(ctx context.Context, id string) error
 	PutInventory(ctx context.Context, clusterID string, workloads []InventoryWorkload, agent *InventoryAgent) (PutInventoryOutputBody, error)
 	ListClusterWorkloads(ctx context.Context, clusterID string) ([]ClusterWorkloadResponse, WorkloadCoverageResponse, error)
+	ListClusterWorkloadsPage(ctx context.Context, clusterID string, params ListClusterWorkloadsParams) (ListClusterWorkloadsOutputBody, error)
+	ListClusterImages(ctx context.Context, clusterID string, params ListClusterImagesParams) (ListClusterImagesOutputBody, error)
+	ListClusterVulns(ctx context.Context, clusterID string, params ListClusterVulnsParams) (ListClusterVulnsOutputBody, error)
+	ListClusterUnknownImages(ctx context.Context, clusterID string, params ListClusterUnknownImagesParams) (ListClusterUnknownImagesOutputBody, error)
 
 	// SBOM + artifact
 
@@ -62,6 +66,7 @@ type Client interface {
 	DeleteSBOM(ctx context.Context, id string) error
 	DiffSBOMs(ctx context.Context, fromID, toID string) (ChangelogEntry, error)
 	GetDiffTree(ctx context.Context, fromID, toID string) (DiffTree, error)
+	ListSBOMDriftHistory(ctx context.Context, sbomID string, params ListSbomDriftHistoryParams) (CursorPage[ProvenanceDriftSummary], error)
 
 	ListArtifacts(ctx context.Context, filter ArtifactFilter, opts PageOpts) (CursorPage[ArtifactSummary], error)
 	GetArtifact(ctx context.Context, id string) (ArtifactDetail, error)
@@ -69,6 +74,8 @@ type Client interface {
 	GetArtifactLicenseSummary(ctx context.Context, id string) (GetArtifactLicenseSummaryOutputBody, error)
 	ListArtifactSBOMs(ctx context.Context, id string, opts PageOpts) (CursorPage[SBOMSummary], error)
 	ListArtifactVersions(ctx context.Context, id string, opts PageOpts) (Page[ArtifactVersionSummary], error)
+	GetArtifactContains(ctx context.Context, id string) ([]ArtifactRelation, error)
+	GetArtifactUsages(ctx context.Context, id string) ([]ArtifactRelation, error)
 
 	// Name-keyed resolvers (ADR-042). Each returns the same body as its UUID
 	// counterpart, ErrNotFound when nothing visible matches, and — for the two
@@ -78,11 +85,17 @@ type Client interface {
 	LookupSBOM(ctx context.Context, params LookupSbomParams) (SBOMDetail, error)
 	LookupLicense(ctx context.Context, spdxID string) (LicenseCount, error)
 
-	// Vulnerabilities. Resolved by artifact (severity histogram), by component
-	// occurrence (the advisories hitting it), or by advisory id.
+	// Vulnerabilities. Resolved by artifact (severity histogram, or findings
+	// across versions), by SBOM (findings with fixed versions), by component
+	// occurrence, or by advisory id; ranked catalog-wide or per owner.
 	GetArtifactVulnSummary(ctx context.Context, artifactID string) (VulnSummary, error)
 	GetComponentVulns(ctx context.Context, componentID string) ([]ComponentVulnEntry, error)
 	GetVulnerability(ctx context.Context, vulnID string, opts PageOpts) (GetVulnerabilityOutputBody, error)
+	ListArtifactVulns(ctx context.Context, artifactID string, params ListArtifactVulnsParams) (ListArtifactVulnsOutputBody, error)
+	ListSBOMVulns(ctx context.Context, sbomID string, params ListSbomVulnsParams) (Page[SBOMVulnEntry], error)
+	ListTopVulnerabilities(ctx context.Context, params ListTopVulnerabilitiesParams) (Page[TopVulnEntry], error)
+	ListMyVulnerabilities(ctx context.Context, params ListMyVulnerabilitiesParams) (Page[TopVulnEntry], error)
+	ListVulnerabilityWorkloads(ctx context.Context, vulnID string, params ListVulnerabilityWorkloadsParams) ([]RunningWorkloadResponse, error)
 
 	// Component + job + stats
 

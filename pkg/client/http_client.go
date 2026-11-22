@@ -104,5 +104,20 @@ func pageParams(opts PageOpts) url.Values {
 	return p
 }
 
+// setEnum and setInt32 are setOptional's counterparts for the enum and numeric
+// fields of a generated *Params struct: absent fields stay off the query so the
+// server applies its own default.
+func setEnum[T ~string](p url.Values, name string, v *T) {
+	if v != nil && *v != "" {
+		p.Set(name, string(*v))
+	}
+}
+
+func setInt32(p url.Values, name string, v *int32) {
+	if v != nil && *v > 0 {
+		p.Set(name, strconv.Itoa(int(*v)))
+	}
+}
+
 // Compile-time assertion that *httpClient satisfies the full Client interface.
 var _ Client = (*httpClient)(nil)

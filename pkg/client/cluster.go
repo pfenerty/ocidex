@@ -69,3 +69,63 @@ func (c *httpClient) ListClusterWorkloads(ctx context.Context, clusterID string)
 	}
 	return derefSlice(out.Data), out.Coverage, nil
 }
+
+// ListClusterWorkloadsPage is ListClusterWorkloads with the endpoint's filters,
+// sorting and paging. The body is returned whole because the coverage counts and
+// the pagination both qualify the rows.
+func (c *httpClient) ListClusterWorkloadsPage(ctx context.Context, clusterID string, params ListClusterWorkloadsParams) (ListClusterWorkloadsOutputBody, error) {
+	p := url.Values{}
+	setOptional(p, "k8sNamespace", params.K8sNamespace)
+	setEnum(p, "matchState", params.MatchState)
+	setOptional(p, "q", params.Q)
+	setEnum(p, "sort", params.Sort)
+	setEnum(p, "dir", params.Dir)
+	setInt32(p, "limit", params.Limit)
+	setInt32(p, "offset", params.Offset)
+	var out ListClusterWorkloadsOutputBody
+	err := c.request(ctx, http.MethodGet, "/api/v1/clusters/"+clusterID+"/workloads", p, nil, &out)
+	return out, err
+}
+
+// ListClusterImages returns the cluster's inventory grouped by image, each
+// joined to its matched artifact and SBOM and carrying that SBOM's severity
+// counts.
+func (c *httpClient) ListClusterImages(ctx context.Context, clusterID string, params ListClusterImagesParams) (ListClusterImagesOutputBody, error) {
+	p := url.Values{}
+	setOptional(p, "k8sNamespace", params.K8sNamespace)
+	setEnum(p, "matchState", params.MatchState)
+	setOptional(p, "q", params.Q)
+	setEnum(p, "sort", params.Sort)
+	setEnum(p, "dir", params.Dir)
+	setInt32(p, "limit", params.Limit)
+	setInt32(p, "offset", params.Offset)
+	var out ListClusterImagesOutputBody
+	err := c.request(ctx, http.MethodGet, "/api/v1/clusters/"+clusterID+"/images", p, nil, &out)
+	return out, err
+}
+
+// ListClusterVulns returns the advisories carried by images the cluster is
+// running, worst first, each with the number of workloads exposed.
+func (c *httpClient) ListClusterVulns(ctx context.Context, clusterID string, params ListClusterVulnsParams) (ListClusterVulnsOutputBody, error) {
+	p := url.Values{}
+	setEnum(p, "severity", params.Severity)
+	setEnum(p, "sort", params.Sort)
+	setEnum(p, "dir", params.Dir)
+	setInt32(p, "limit", params.Limit)
+	setInt32(p, "offset", params.Offset)
+	var out ListClusterVulnsOutputBody
+	err := c.request(ctx, http.MethodGet, "/api/v1/clusters/"+clusterID+"/vulns", p, nil, &out)
+	return out, err
+}
+
+// ListClusterUnknownImages returns the cluster's coverage gap: running images
+// with no SBOM, grouped by image and resolved against the configured
+// registries, with the reason each one is unmatched.
+func (c *httpClient) ListClusterUnknownImages(ctx context.Context, clusterID string, params ListClusterUnknownImagesParams) (ListClusterUnknownImagesOutputBody, error) {
+	p := url.Values{}
+	setInt32(p, "limit", params.Limit)
+	setInt32(p, "offset", params.Offset)
+	var out ListClusterUnknownImagesOutputBody
+	err := c.request(ctx, http.MethodGet, "/api/v1/clusters/"+clusterID+"/unknown-images", p, nil, &out)
+	return out, err
+}
