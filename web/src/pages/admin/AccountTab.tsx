@@ -12,6 +12,7 @@ import {
 } from "~/api/queries";
 import { TimestampCell } from "~/components/cells";
 import { useConfirm } from "~/context/confirm";
+import { AccountIdCard } from "./AccountIdCard";
 
 /** One issuer this account can sign in with. */
 interface Identity {
@@ -130,6 +131,7 @@ export function AccountTab() {
 
     return (
         <>
+            <AccountIdCard />
             <Card class="mb-4">
                 <CardHeader title="Link another sign-in method" />
                 <Show
