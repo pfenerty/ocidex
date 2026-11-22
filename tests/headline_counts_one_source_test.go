@@ -75,6 +75,24 @@ func TestHeadlineCountsChangeTogether(t *testing.T) {
 	tile, row, card, _, _ = critical()
 	is.Equal([]int64{tile, row, card}, []int64{1, 1, 1})
 
+	// No fixed version recorded: nothing fixable. Once the advisory names one,
+	// the next pass counts it on the tile and the row alike.
+	fixable := func() (tile, row int64) {
+		t.Helper()
+		sum, err := q.GetArtifactVulnSummary(ctx, repository.GetArtifactVulnSummaryParams{ArtifactID: artifactID, IsAdmin: anon})
+		is.NoErr(err)
+		list, err := q.ListArtifacts(ctx, repository.ListArtifactsParams{IsAdmin: anon, HasCursor: pgtype.Bool{Valid: true}, SortDir: 1, RowLimit: 10})
+		is.NoErr(err)
+		return sum.Fixable, list[0].VulnFixable
+	}
+	tf, rf := fixable()
+	is.Equal([]int64{tf, rf}, []int64{0, 0})
+	_, err = pool.Exec(ctx, `UPDATE package_vulnerability SET fixed_version = '1.0.1' WHERE vulnerability_id = 'CVE-2026-70001'`)
+	is.NoErr(err)
+	refreshRollups(t, pool)
+	tf, rf = fixable()
+	is.Equal([]int64{tf, rf}, []int64{1, 1})
+
 	// Once the match is two refresh intervals old, it counts as settled.
 	_, err = pool.Exec(ctx, `UPDATE sbom_vuln_match SET matched_at = now() - interval '1 hour' WHERE sbom_id = $1`, sbomID)
 	is.NoErr(err)

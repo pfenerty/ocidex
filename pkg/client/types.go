@@ -4321,10 +4321,13 @@ type VulnReference struct {
 // VulnSeverityCounts defines model for VulnSeverityCounts.
 type VulnSeverityCounts struct {
 	Critical int64 `json:"critical"`
-	High     int64 `json:"high"`
-	Low      int64 `json:"low"`
-	Medium   int64 `json:"medium"`
-	Unknown  int64 `json:"unknown"`
+
+	// Fixable Findings with a fixed version available
+	Fixable int64 `json:"fixable"`
+	High    int64 `json:"high"`
+	Low     int64 `json:"low"`
+	Medium  int64 `json:"medium"`
+	Unknown int64 `json:"unknown"`
 }
 
 // VulnSeverityEntry defines model for VulnSeverityEntry.
@@ -4339,11 +4342,14 @@ type VulnSeverityEntry struct {
 // VulnSummary defines model for VulnSummary.
 type VulnSummary struct {
 	Critical int64 `json:"critical"`
-	High     int64 `json:"high"`
-	Low      int64 `json:"low"`
-	Medium   int64 `json:"medium"`
-	Total    int64 `json:"total"`
-	Unknown  int64 `json:"unknown"`
+
+	// Fixable Findings with a fixed version available; absent when not counted
+	Fixable *int64 `json:"fixable,omitempty"`
+	High    int64  `json:"high"`
+	Low     int64  `json:"low"`
+	Medium  int64  `json:"medium"`
+	Total   int64  `json:"total"`
+	Unknown int64  `json:"unknown"`
 }
 
 // WalkStats defines model for WalkStats.

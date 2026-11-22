@@ -198,6 +198,10 @@ GROUP BY m.canonical_id, s.namespace_id`
 // buckets mirror buildVulnSummary's switch including its default arm, so a NULL
 // or unrecognised label lands in unknown rather than vanishing.
 //
+// fixable counts the findings some matching package record gives a fixed
+// version for, on the same rows as the severity buckets, so total minus
+// fixable is the findings with no fix available (won't fix, or none yet).
+//
 // Only SBOMs with at least one finding get a row. A missing row means "no
 // findings" *or* "never scanned" and this table cannot distinguish them; a
 // reader that renders absence as a clean zero is the ADR-044 bug.
@@ -209,10 +213,12 @@ WITH scope AS (
     SELECT DISTINCT c2.sbom_id, c2.source_purl::text AS match_purl, 0::bigint AS go_symbol_set_id
     FROM component c2 WHERE c2.source_purl IS NOT NULL
 ), findings AS (
-    SELECT DISTINCT sc.sbom_id, v.canonical_id, v.severity
+    SELECT sc.sbom_id, v.canonical_id, v.severity,
+           bool_or(COALESCE(pv.fixed_version, '') <> '') AS fixed
     FROM scope sc
     JOIN package_vulnerability pv ON pv.purl = sc.match_purl AND pv.go_symbol_set_id = sc.go_symbol_set_id
     JOIN vulnerability v ON v.id = pv.vulnerability_id
+    GROUP BY sc.sbom_id, v.canonical_id, v.severity
 )
 SELECT f.sbom_id, s.namespace_id,
        count(*) FILTER (WHERE f.severity = 'CRITICAL')::bigint AS critical,
@@ -220,7 +226,8 @@ SELECT f.sbom_id, s.namespace_id,
        count(*) FILTER (WHERE f.severity = 'MEDIUM')::bigint   AS medium,
        count(*) FILTER (WHERE f.severity = 'LOW')::bigint      AS low,
        count(*) FILTER (WHERE f.severity IS NULL
-                           OR f.severity NOT IN ('CRITICAL', 'HIGH', 'MEDIUM', 'LOW'))::bigint AS unknown
+                           OR f.severity NOT IN ('CRITICAL', 'HIGH', 'MEDIUM', 'LOW'))::bigint AS unknown,
+       count(*) FILTER (WHERE f.fixed)::bigint AS fixable
 FROM findings f
 JOIN sbom s ON s.id = f.sbom_id
 GROUP BY f.sbom_id, s.namespace_id`

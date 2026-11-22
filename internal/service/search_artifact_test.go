@@ -149,9 +149,10 @@ func TestArtifactVersionFromRow_ZeroCountsMeanNoSummary(t *testing.T) {
 	is.Equal(artifactVersionFromRow(repository.ListArtifactVersionsRow{}).Vulns, (*VulnSummary)(nil))
 
 	withFindings := artifactVersionFromRow(repository.ListArtifactVersionsRow{
-		VulnCritical: 1, VulnLow: 2,
+		VulnCritical: 1, VulnLow: 2, VulnFixable: 1,
 	})
-	is.Equal(withFindings.Vulns, &VulnSummary{Critical: 1, Low: 2, Total: 3})
+	fixable := 1
+	is.Equal(withFindings.Vulns, &VulnSummary{Critical: 1, Low: 2, Total: 3, Fixable: &fixable})
 }
 
 // sbom_vuln_rollup holds a row only for an SBOM with at least one finding, so

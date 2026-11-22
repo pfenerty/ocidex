@@ -177,6 +177,7 @@ SELECT a.id, a.type, a.name, a.group_name, a.purl, a.cpe, a.created_at, a.entry_
        COALESCE(vr.medium,   0)::bigint AS vuln_medium,
        COALESCE(vr.low,      0)::bigint AS vuln_low,
        COALESCE(vr.unknown,  0)::bigint AS vuln_unknown,
+       COALESCE(vr.fixable,  0)::bigint AS vuln_fixable,
        -- Which SBOM those counts are from, so the row can say so.
        vr.sbom_id AS counted_sbom_id,
        vr.subject_version AS counted_version,
@@ -197,7 +198,7 @@ LEFT JOIN sbom s ON s.artifact_id = a.id
 -- back to an older SBOM that has one.
 LEFT JOIN LATERAL (
     SELECT h.id AS sbom_id, hs.subject_version, sbom_architecture(h.id) AS architecture,
-           r.critical, r.high, r.medium, r.low, r.unknown,
+           r.critical, r.high, r.medium, r.low, r.unknown, r.fixable,
            (r.critical + r.high + r.medium + r.low + r.unknown)::bigint AS total
     FROM (SELECT artifact_headline_sbom(a.id, sqlc.narg('user_id')::uuid, sqlc.narg('is_admin')::boolean) AS id) h
     JOIN sbom hs ON hs.id = h.id
@@ -226,7 +227,7 @@ WHERE (sqlc.narg('type')::text IS NULL OR a.type = sqlc.narg('type'))
     OR (a.name, a.type, a.id) > (sqlc.narg('cursor_name')::text, sqlc.narg('cursor_type')::text, sqlc.narg('cursor_id')::uuid)
   )
 GROUP BY a.id, vr.sbom_id, vr.subject_version, vr.architecture,
-         vr.critical, vr.high, vr.medium, vr.low, vr.unknown, vr.total
+         vr.critical, vr.high, vr.medium, vr.low, vr.unknown, vr.fixable, vr.total
 -- Two orderings in one query. The severity keys are wrapped in a CASE that
 -- collapses to NULL when @sort_severity is false, which makes every row tie on
 -- them and hands the decision to the trailing (name, type, id) — the default
@@ -503,6 +504,7 @@ SELECT
     COALESCE(r.medium,   0)::bigint AS vuln_medium,
     COALESCE(r.low,      0)::bigint AS vuln_low,
     COALESCE(r.unknown,  0)::bigint AS vuln_unknown,
+    COALESCE(r.fixable,  0)::bigint AS vuln_fixable,
     -- Matched against the vulnerability store long enough ago that the rollup
     -- above has caught up: two refresh intervals (RollupRefreshInterval is 15
     -- minutes). A fresher match may not be in the rollup yet, so it still reads

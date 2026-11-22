@@ -7604,6 +7604,11 @@
             "format": "int64",
             "type": "integer"
           },
+          "fixable": {
+            "description": "Findings with a fixed version available",
+            "format": "int64",
+            "type": "integer"
+          },
           "high": {
             "format": "int64",
             "type": "integer"
@@ -7626,7 +7631,8 @@
           "high",
           "medium",
           "low",
-          "unknown"
+          "unknown",
+          "fixable"
         ],
         "type": "object"
       },
@@ -7667,6 +7673,11 @@
         "additionalProperties": false,
         "properties": {
           "critical": {
+            "format": "int64",
+            "type": "integer"
+          },
+          "fixable": {
+            "description": "Findings with a fixed version available; absent when not counted",
             "format": "int64",
             "type": "integer"
           },

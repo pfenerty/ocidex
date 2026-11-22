@@ -410,6 +410,7 @@ type SbomVulnRollup struct {
 	Medium      int64       `json:"medium"`
 	Low         int64       `json:"low"`
 	Unknown     int64       `json:"unknown"`
+	Fixable     int64       `json:"fixable"`
 }
 
 type ScanJob struct {

@@ -213,7 +213,7 @@ func artifactVersionFromRow(row repository.ListArtifactVersionsRow) ArtifactVers
 	// vulnerabilities" or "never scanned" indistinguishably, so it maps to a nil
 	// summary rather than an all-zero one: the UI has to say "not scanned"
 	// (ADR-044), and an all-zero summary would license it to say "clean".
-	v.Vulns = vulnSummaryOrNil(row.VulnCritical, row.VulnHigh, row.VulnMedium, row.VulnLow, row.VulnUnknown)
+	v.Vulns = withFixable(vulnSummaryOrNil(row.VulnCritical, row.VulnHigh, row.VulnMedium, row.VulnLow, row.VulnUnknown), row.VulnFixable)
 	v.VulnMatched = row.VulnMatched
 	v.CountedSBOM = countedSBOM(row.NewestSbomID, row.VersionKey.String, row.CountedArchitecture)
 	if arches, ok := row.Architectures.([]interface{}); ok {
@@ -399,7 +399,7 @@ func (s *searchService) ListArtifacts(ctx context.Context, filter ArtifactFilter
 			// indistinguishably, so it maps to a nil summary rather than an
 			// all-zero one: the UI has to say "not scanned" (ADR-044), and an
 			// all-zero summary would license it to say "clean".
-			Vulns:       vulnSummaryOrNil(row.VulnCritical, row.VulnHigh, row.VulnMedium, row.VulnLow, row.VulnUnknown),
+			Vulns:       withFixable(vulnSummaryOrNil(row.VulnCritical, row.VulnHigh, row.VulnMedium, row.VulnLow, row.VulnUnknown), row.VulnFixable),
 			CountedSBOM: countedSBOM(row.CountedSbomID, row.CountedVersion.String, row.CountedArchitecture),
 		})
 	}
@@ -462,6 +462,17 @@ func sortDirSign(desc bool) int32 {
 // vulnSummaryOrNil folds rollup counts into a summary, or nil when they are all
 // zero. See the ADR-044 note at the call sites: zero is absence of a rollup
 // row, which is unknown rather than clean, and a non-nil all-zero summary would
+// withFixable records the fixable count on a summary read from
+// sbom_vuln_rollup. A nil summary stays nil: no findings to divide.
+func withFixable(v *VulnSummary, fixable int64) *VulnSummary {
+	if v == nil {
+		return nil
+	}
+	n := int(fixable)
+	v.Fixable = &n
+	return v
+}
+
 // let a renderer claim otherwise.
 func vulnSummaryOrNil(critical, high, medium, low, unknown int64) *VulnSummary {
 	total := critical + high + medium + low + unknown
@@ -603,7 +614,7 @@ func (s *searchService) GetArtifactVulnSummary(ctx context.Context, artifactIDSt
 	// All zeros is no rollup row, which is "no findings" or "not scanned";
 	// Matched tells the caller which (ADR-044).
 	return ArtifactVulnSummary{
-		Summary:        vulnSummaryOrNil(row.Critical, row.High, row.Medium, row.Low, row.Unknown),
+		Summary:        withFixable(vulnSummaryOrNil(row.Critical, row.High, row.Medium, row.Low, row.Unknown), row.Fixable),
 		SubjectVersion: row.SubjectVersion,
 		Counted:        counted,
 		Matched:        match.Matched,

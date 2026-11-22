@@ -57,6 +57,7 @@ SELECT p.id                                   AS artifact_id,
        COALESCE(vc.medium, 0)::bigint AS medium_count,
        COALESCE(vc.low, 0)::bigint AS low_count,
        COALESCE(vc.unknown, 0)::bigint AS unknown_count,
+       COALESCE(vc.fixable, 0)::bigint AS fixable_count,
        lc.permissive_count,
        lc.weak_copyleft_count,
        lc.copyleft_count,
@@ -107,6 +108,7 @@ type GetDiscoverFeaturedArtifactsRow struct {
 	MediumCount        int64              `json:"medium_count"`
 	LowCount           int64              `json:"low_count"`
 	UnknownCount       int64              `json:"unknown_count"`
+	FixableCount       int64              `json:"fixable_count"`
 	PermissiveCount    int64              `json:"permissive_count"`
 	WeakCopyleftCount  int64              `json:"weak_copyleft_count"`
 	CopyleftCount      int64              `json:"copyleft_count"`
@@ -153,6 +155,7 @@ func (q *Queries) GetDiscoverFeaturedArtifacts(ctx context.Context, arg GetDisco
 			&i.MediumCount,
 			&i.LowCount,
 			&i.UnknownCount,
+			&i.FixableCount,
 			&i.PermissiveCount,
 			&i.WeakCopyleftCount,
 			&i.CopyleftCount,

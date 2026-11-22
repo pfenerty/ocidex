@@ -761,6 +761,10 @@ type VulnSummary struct {
 	Low      int `json:"low"`
 	Unknown  int `json:"unknown"`
 	Total    int `json:"total"`
+	// Fixable is how many of Total have a fixed version available; the rest
+	// are won't-fix or have no fix yet. Absent where it was not counted,
+	// which is not the same as none.
+	Fixable *int `json:"fixable,omitempty" doc:"Findings with a fixed version available; absent when not counted"`
 }
 
 // ChangeCounts is a per-direction breakdown of component changes.

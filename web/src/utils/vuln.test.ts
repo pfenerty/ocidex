@@ -1,5 +1,5 @@
 import { describe, it, expect } from "vitest";
-import { parseCvssVector, cvssVersion, noFixLabel, countedLabel } from "./vuln";
+import { parseCvssVector, cvssVersion, noFixLabel, countedLabel, fixSplitLabel } from "./vuln";
 
 describe("cvssVersion", () => {
     it("extracts v3 prefix", () => {
@@ -91,5 +91,15 @@ describe("countedLabel", () => {
     it("is undefined with nothing to say", () => {
         expect(countedLabel(undefined)).toBeUndefined();
         expect(countedLabel({ id })).toBeUndefined();
+    });
+});
+
+describe("fixSplitLabel", () => {
+    it("splits the total into fixable and the rest", () => {
+        expect(fixSplitLabel({ total: 853, fixable: 12 })).toBe("12 fixable · 841 no fix available");
+    });
+    it("says nothing when the split was not counted", () => {
+        expect(fixSplitLabel({ total: 5 })).toBeUndefined();
+        expect(fixSplitLabel(undefined)).toBeUndefined();
     });
 });

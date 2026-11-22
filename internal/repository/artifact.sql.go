@@ -560,6 +560,7 @@ SELECT
     COALESCE(r.medium,   0)::bigint AS vuln_medium,
     COALESCE(r.low,      0)::bigint AS vuln_low,
     COALESCE(r.unknown,  0)::bigint AS vuln_unknown,
+    COALESCE(r.fixable,  0)::bigint AS vuln_fixable,
     -- Matched against the vulnerability store long enough ago that the rollup
     -- above has caught up: two refresh intervals (RollupRefreshInterval is 15
     -- minutes). A fresher match may not be in the rollup yet, so it still reads
@@ -606,6 +607,7 @@ type ListArtifactVersionsRow struct {
 	VulnMedium           int64              `json:"vuln_medium"`
 	VulnLow              int64              `json:"vuln_low"`
 	VulnUnknown          int64              `json:"vuln_unknown"`
+	VulnFixable          int64              `json:"vuln_fixable"`
 	VulnMatched          bool               `json:"vuln_matched"`
 	TotalCount           int64              `json:"total_count"`
 }
@@ -651,6 +653,7 @@ func (q *Queries) ListArtifactVersions(ctx context.Context, arg ListArtifactVers
 			&i.VulnMedium,
 			&i.VulnLow,
 			&i.VulnUnknown,
+			&i.VulnFixable,
 			&i.VulnMatched,
 			&i.TotalCount,
 		); err != nil {
@@ -718,6 +721,7 @@ SELECT a.id, a.type, a.name, a.group_name, a.purl, a.cpe, a.created_at, a.entry_
        COALESCE(vr.medium,   0)::bigint AS vuln_medium,
        COALESCE(vr.low,      0)::bigint AS vuln_low,
        COALESCE(vr.unknown,  0)::bigint AS vuln_unknown,
+       COALESCE(vr.fixable,  0)::bigint AS vuln_fixable,
        -- Which SBOM those counts are from, so the row can say so.
        vr.sbom_id AS counted_sbom_id,
        vr.subject_version AS counted_version,
@@ -727,7 +731,7 @@ LEFT JOIN sbom s ON s.artifact_id = a.id
     AND s.namespace_id IN (SELECT visible_namespace_ids($1::uuid, $2::boolean))
 LEFT JOIN LATERAL (
     SELECT h.id AS sbom_id, hs.subject_version, sbom_architecture(h.id) AS architecture,
-           r.critical, r.high, r.medium, r.low, r.unknown,
+           r.critical, r.high, r.medium, r.low, r.unknown, r.fixable,
            (r.critical + r.high + r.medium + r.low + r.unknown)::bigint AS total
     FROM (SELECT artifact_headline_sbom(a.id, $1::uuid, $2::boolean) AS id) h
     JOIN sbom hs ON hs.id = h.id
@@ -756,7 +760,7 @@ WHERE ($3::text IS NULL OR a.type = $3)
     OR (a.name, a.type, a.id) > ($8::text, $9::text, $10::uuid)
   )
 GROUP BY a.id, vr.sbom_id, vr.subject_version, vr.architecture,
-         vr.critical, vr.high, vr.medium, vr.low, vr.unknown, vr.total
+         vr.critical, vr.high, vr.medium, vr.low, vr.unknown, vr.fixable, vr.total
 ORDER BY
     CASE WHEN $11::boolean THEN COALESCE(vr.total, 0) = 0 END,
     CASE WHEN $11::boolean THEN COALESCE(vr.critical, 0) * $12::int END DESC,
@@ -802,6 +806,7 @@ type ListArtifactsRow struct {
 	VulnMedium          int64              `json:"vuln_medium"`
 	VulnLow             int64              `json:"vuln_low"`
 	VulnUnknown         int64              `json:"vuln_unknown"`
+	VulnFixable         int64              `json:"vuln_fixable"`
 	CountedSbomID       pgtype.UUID        `json:"counted_sbom_id"`
 	CountedVersion      pgtype.Text        `json:"counted_version"`
 	CountedArchitecture string             `json:"counted_architecture"`
@@ -882,6 +887,7 @@ func (q *Queries) ListArtifacts(ctx context.Context, arg ListArtifactsParams) ([
 			&i.VulnMedium,
 			&i.VulnLow,
 			&i.VulnUnknown,
+			&i.VulnFixable,
 			&i.CountedSbomID,
 			&i.CountedVersion,
 			&i.CountedArchitecture,

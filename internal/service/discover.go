@@ -83,6 +83,8 @@ type VulnSeverityCounts struct {
 	Medium   int64 `json:"medium"`
 	Low      int64 `json:"low"`
 	Unknown  int64 `json:"unknown"`
+	// Fixable is how many of the findings have a fixed version available.
+	Fixable int64 `json:"fixable" doc:"Findings with a fixed version available"`
 }
 
 // LicenseCategoryMix is a per-category component count (license_category()).
@@ -290,6 +292,7 @@ func buildDiscovery(
 				Medium:   r.MediumCount,
 				Low:      r.LowCount,
 				Unknown:  r.UnknownCount,
+				Fixable:  r.FixableCount,
 			},
 			Licenses: LicenseCategoryMix{
 				Permissive:    r.PermissiveCount,

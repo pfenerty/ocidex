@@ -151,13 +151,22 @@ const columns: Column<ArtifactSummary>[] = [
                         fallback={<StatusChip status={VULN_DATA_STATUS.unscanned} />}
                     >
                         {(v) => (
-                            <VulnCountBadges
-                                criticalCount={v().critical}
-                                highCount={v().high}
-                                mediumCount={v().medium}
-                                lowCount={v().low}
-                                unknownCount={v().unknown}
-                            />
+                            <>
+                                <VulnCountBadges
+                                    criticalCount={v().critical}
+                                    highCount={v().high}
+                                    mediumCount={v().medium}
+                                    lowCount={v().low}
+                                    unknownCount={v().unknown}
+                                />
+                                {/* Zero fixable is worth saying: nothing here can be
+                                    fixed by upgrading. Absent means not counted. */}
+                                <Show when={v().fixable !== undefined}>
+                                    <span class="block text-xs text-muted">
+                                        {(v().fixable ?? 0).toLocaleString()} fixable
+                                    </span>
+                                </Show>
+                            </>
                         )}
                     </Show>
                 </span>

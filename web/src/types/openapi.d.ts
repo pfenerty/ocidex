@@ -4864,6 +4864,11 @@ export interface components {
         VulnSeverityCounts: {
             /** Format: int64 */
             critical: number;
+            /**
+             * Format: int64
+             * @description Findings with a fixed version available
+             */
+            fixable: number;
             /** Format: int64 */
             high: number;
             /** Format: int64 */
@@ -4888,6 +4893,11 @@ export interface components {
         VulnSummary: {
             /** Format: int64 */
             critical: number;
+            /**
+             * Format: int64
+             * @description Findings with a fixed version available; absent when not counted
+             */
+            fixable?: number;
             /** Format: int64 */
             high: number;
             /** Format: int64 */

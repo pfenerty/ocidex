@@ -136,3 +136,15 @@ export function countedLabel(c: CountedSBOM | undefined): string | undefined {
     const parts = [c.version, c.architecture].filter((p): p is string => p !== undefined && p !== "");
     return parts.length > 0 ? parts.join(" · ") : undefined;
 }
+
+/**
+ * "12 fixable · 841 no fix available": how much of a finding count can be
+ * acted on. Most of a large image's findings are often won't-fix or no-fix-yet
+ * distro packages, and a total that counts them alike hides that. Undefined
+ * when the split was not counted or there is nothing to split.
+ */
+export function fixSplitLabel(v: { total: number; fixable?: number } | undefined): string | undefined {
+    if (v?.fixable === undefined || v.total === 0) return undefined;
+    const none = v.total - v.fixable;
+    return `${v.fixable.toLocaleString()} fixable · ${none.toLocaleString()} no fix available`;
+}
