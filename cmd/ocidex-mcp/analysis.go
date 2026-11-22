@@ -344,7 +344,7 @@ type artifactVulnsOutput struct {
 	Medium     int64  `json:"medium"`
 	Low        int64  `json:"low"`
 	Unknown    int64  `json:"unknown"`
-	Total      int64  `json:"total" jsonschema:"Total vulnerabilities across the artifact's SBOMs"`
+	Total      int64  `json:"total" jsonschema:"Total vulnerabilities in the latest version's newest SBOM"`
 }
 
 type componentVulnsInput struct {
@@ -356,6 +356,7 @@ type vulnEntryOutput struct {
 	Severity     string  `json:"severity" jsonschema:"critical, high, medium, low or unknown"`
 	CvssScore    float64 `json:"cvss_score,omitempty" jsonschema:"CVSS base score, where the advisory has one"`
 	FixedVersion string  `json:"fixed_version,omitempty" jsonschema:"Version that fixes it; absent means no fix is published"`
+	FixState     string  `json:"fix_state,omitempty" jsonschema:"fixed, not-fixed, wont-fix or unknown; wont-fix means the distro will not ship a fix"`
 	Summary      string  `json:"summary,omitempty" jsonschema:"One-line description of the vulnerability"`
 }
 
@@ -378,6 +379,11 @@ type affectedArtifactOutput struct {
 	AffectedSBOMCount int64  `json:"affected_sbom_count" jsonschema:"How many of its SBOMs are affected"`
 }
 
+type vulnReferenceOutput struct {
+	Type string `json:"type" jsonschema:"Reference kind, e.g. ADVISORY, FIX or WEB"`
+	URL  string `json:"url"`
+}
+
 type getVulnerabilityOutput struct {
 	ID                string                   `json:"id" jsonschema:"Canonical advisory id"`
 	Severity          string                   `json:"severity" jsonschema:"critical, high, medium, low or unknown"`
@@ -385,6 +391,9 @@ type getVulnerabilityOutput struct {
 	Summary           string                   `json:"summary,omitempty" jsonschema:"One-line description"`
 	Details           string                   `json:"details,omitempty" jsonschema:"Full advisory text"`
 	Aliases           []string                 `json:"aliases,omitempty" jsonschema:"Other identifiers for the same advisory"`
+	CvssVector        string                   `json:"cvss_vector,omitempty" jsonschema:"CVSS vector string; its attack vector and privileges say how reachable the flaw is"`
+	PublishedAt       string                   `json:"published_at,omitempty" jsonschema:"When the advisory was published"`
+	References        []vulnReferenceOutput    `json:"references,omitempty" jsonschema:"Advisory, patch and fix links"`
 	AffectedArtifacts []affectedArtifactOutput `json:"affected_artifacts" jsonschema:"Visible artifacts this advisory affects"`
 	TotalAffected     int64                    `json:"total_affected_artifacts" jsonschema:"Affected artifacts across all pages"`
 }
@@ -392,10 +401,11 @@ type getVulnerabilityOutput struct {
 func registerVulnTools(srv *mcp.Server, api client.Client) {
 	mcp.AddTool(srv, &mcp.Tool{
 		Name: "ocidex_artifact_vulnerabilities",
-		Description: "Report the severity histogram for one artifact across all of its SBOMs. This is " +
-			"the cheap first question: it says how bad things are without listing anything. To find " +
-			"which package is responsible, search its components and call " +
-			"ocidex_component_vulnerabilities on the ones you suspect.",
+		Description: "Report the severity histogram for an artifact's latest version (its newest SBOM). " +
+			"This is the cheap first question: it says how bad the current release is without listing " +
+			"anything. A zero summary can also mean the artifact was never scanned. For the advisories " +
+			"themselves use ocidex_artifact_findings, and for the packages and fixed versions behind " +
+			"them use ocidex_sbom_findings.",
 		Annotations: &mcp.ToolAnnotations{ReadOnlyHint: true, IdempotentHint: true},
 	}, func(ctx context.Context, _ *mcp.CallToolRequest, in artifactVulnsInput) (*mcp.CallToolResult, artifactVulnsOutput, error) {
 		summary, err := api.GetArtifactVulnSummary(ctx, in.ArtifactID)
@@ -437,6 +447,7 @@ func registerVulnTools(srv *mcp.Server, api client.Client) {
 				ID:           v.CanonicalId,
 				Severity:     v.Severity,
 				FixedVersion: deref(v.FixedVersion),
+				FixState:     deref(v.FixState),
 				Summary:      deref(v.Summary),
 			}
 			if v.CvssScore != nil {
@@ -450,7 +461,9 @@ func registerVulnTools(srv *mcp.Server, api client.Client) {
 	mcp.AddTool(srv, &mcp.Tool{
 		Name: "ocidex_get_vulnerability",
 		Description: "Fetch one advisory by CVE or GHSA id and list the visible artifacts it affects. " +
-			"Use it to turn an id from the other vulnerability tools into blast radius across the catalog.",
+			"Use it to turn an id from the other vulnerability tools into blast radius across the catalog, " +
+			"and read its references for the upstream patch. For running exposure, follow with " +
+			"ocidex_vulnerability_workloads.",
 		Annotations: &mcp.ToolAnnotations{ReadOnlyHint: true, IdempotentHint: true},
 	}, func(ctx context.Context, _ *mcp.CallToolRequest, in getVulnerabilityInput) (*mcp.CallToolResult, getVulnerabilityOutput, error) {
 		limit := in.Limit
@@ -469,11 +482,18 @@ func registerVulnTools(srv *mcp.Server, api client.Client) {
 			Summary:           deref(v.Summary),
 			Details:           deref(v.Details),
 			Aliases:           derefSlice(v.Aliases),
+			CvssVector:        deref(v.CvssVector),
 			AffectedArtifacts: make([]affectedArtifactOutput, 0),
 			TotalAffected:     res.Pagination.Total,
 		}
 		if v.CvssScore != nil {
 			out.CvssScore = float64(*v.CvssScore)
+		}
+		if v.PublishedAt != nil {
+			out.PublishedAt = v.PublishedAt.UTC().Format("2006-01-02T15:04:05Z")
+		}
+		for _, r := range derefSlice(v.References) {
+			out.References = append(out.References, vulnReferenceOutput{Type: r.Type, URL: r.Url})
 		}
 		for _, a := range derefSlice(res.AffectedArtifacts) {
 			out.AffectedArtifacts = append(out.AffectedArtifacts, affectedArtifactOutput{
