@@ -438,7 +438,7 @@ WITH sboms_meta AS (
         s.version_prerelease, s.version_variant,
         COALESCE(s.subject_version,
             COALESCE(e.data->>'imageVersion', u.data->>'imageVersion'),
-            s.id::text)                                                  AS version_key,
+            '(untagged)')                                                  AS version_key,
         COALESCE(e.data->>'architecture', u.data->>'architecture')       AS architecture,
         COALESCE(e.data->>'imageVersion',  u.data->>'imageVersion')      AS image_version,
         COALESCE(e.data->>'revision',      u.data->>'revision')          AS revision,
@@ -532,7 +532,7 @@ LIMIT @row_limit OFFSET @row_offset;
 SELECT COUNT(DISTINCT
     COALESCE(s.subject_version,
         COALESCE(e.data->>'imageVersion', u.data->>'imageVersion'),
-        s.id::text)
+        '(untagged)')
 )::bigint AS version_count
 FROM sbom s
 LEFT JOIN enrichment e ON e.sbom_id = s.id AND e.enricher_name = 'oci-metadata' AND e.status = 'success'

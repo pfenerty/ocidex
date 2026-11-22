@@ -24,7 +24,7 @@ latest AS (
 per_artifact AS (
     SELECT l.artifact_id,
            (SELECT COUNT(*) FROM component c WHERE c.sbom_id = l.sbom_id) AS packages,
-           (SELECT COUNT(DISTINCT COALESCE(s.subject_version, s.id::text)) FROM sbom s
+           (SELECT COUNT(DISTINCT sbom_version_key(s.id, s.subject_version)) FROM sbom s
               WHERE s.artifact_id = l.artifact_id
                 AND s.namespace_id IN (SELECT visible_namespace_ids($1::uuid, $2::boolean))) AS versions,
            (SELECT COUNT(*) FROM sbom s

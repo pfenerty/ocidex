@@ -123,13 +123,13 @@ func TestHeadlineSBOMIsOneSBOMEverywhere(t *testing.T) {
 	// was ingested last of these).
 	order := make([]string, 0, len(versions))
 	for _, v := range versions {
-		order = append(order, v.VersionKey.String)
+		order = append(order, v.VersionKey)
 	}
 	is.Equal(order, []string{"1.28.0-rc.1", "1.27.4", "1.27.4-trixie", "1.27.3"})
 
 	var versionRow string
 	for _, v := range versions {
-		if v.VersionKey.String == "1.27.4" {
+		if v.VersionKey == "1.27.4" {
 			versionRow = v.NewestSbomID.String()
 			is.Equal(v.CountedArchitecture, "amd64")
 		}

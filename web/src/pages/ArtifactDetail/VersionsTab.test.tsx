@@ -143,4 +143,11 @@ describe("VersionsTab build history", () => {
         const { container } = renderTab(true, [version]);
         expect(hasButton(container)).toBe(false);
     });
+
+    // Every digest-only SBOM shares the untagged row, so it often has many;
+    // the history page looks versions up by name and this one has none.
+    it("offers no history for the untagged row", () => {
+        const { container } = renderTab(true, [{ ...version, versionKey: "(untagged)", sbomCount: 5, architectures: ["amd64"] }]);
+        expect(hasButton(container)).toBe(false);
+    });
 });

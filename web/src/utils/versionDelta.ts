@@ -1,3 +1,10 @@
+/**
+ * The version key the server gives every SBOM with no version of its own (a
+ * digest-only scan), so they share one row instead of one each. Parentheses
+ * cannot appear in an OCI tag, so no real version collides with it.
+ */
+export const UNTAGGED_VERSION = "(untagged)";
+
 /** Critical and high counts for one version; undefined when it was never scanned. */
 export interface SeverityPoint {
     versionKey: string;

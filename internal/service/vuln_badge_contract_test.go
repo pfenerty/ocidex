@@ -222,7 +222,7 @@ func vulnBadgeFixtureDB() *fakeDB {
 				return &scanFnRows{fns: []func(...any) error{
 					func(dest ...any) error {
 						*(dest[0].(*string)) = fixtureVulnID
-						*(dest[1].(*pgtype.Text)) = pgtype.Text{String: "1.0.0", Valid: true}
+						*(dest[1].(*string)) = "1.0.0"
 						*(dest[2].(*pgtype.UUID)) = fixtureSbomID
 						*(dest[3].(*int64)) = 1
 						return nil

@@ -188,7 +188,7 @@ const maxVersionsFetch = 10000
 // artifactVersionFromRow maps a ListArtifactVersions row to an ArtifactVersion.
 func artifactVersionFromRow(row repository.ListArtifactVersionsRow) ArtifactVersion {
 	v := ArtifactVersion{
-		VersionKey:    row.VersionKey.String,
+		VersionKey:    row.VersionKey,
 		SbomID:        row.NewestSbomID.String(),
 		SBOMCount:     row.SbomCount,
 		Sufficient:    row.EnrichmentSufficient,
@@ -215,7 +215,7 @@ func artifactVersionFromRow(row repository.ListArtifactVersionsRow) ArtifactVers
 	// (ADR-044), and an all-zero summary would license it to say "clean".
 	v.Vulns = withFixable(vulnSummaryOrNil(row.VulnCritical, row.VulnHigh, row.VulnMedium, row.VulnLow, row.VulnUnknown), row.VulnFixable)
 	v.VulnMatched = row.VulnMatched
-	v.CountedSBOM = countedSBOM(row.NewestSbomID, row.VersionKey.String, row.CountedArchitecture)
+	v.CountedSBOM = countedSBOM(row.NewestSbomID, row.VersionKey, row.CountedArchitecture)
 	if arches, ok := row.Architectures.([]interface{}); ok {
 		strs := make([]string, 0, len(arches))
 		for _, a := range arches {
@@ -755,7 +755,7 @@ func attachArtifactVulnVersions(ctx context.Context, q *repository.Queries, arti
 	byCanonical := make(map[string][]ArtifactVulnVersion, len(canonicalIDs))
 	for _, r := range rows {
 		v := ArtifactVulnVersion{
-			Version:              r.VersionKey.String,
+			Version:              r.VersionKey,
 			SbomID:               r.SbomID.String(),
 			AffectedPackageCount: r.AffectedPackageCount,
 			PackageNames:         []string{},
