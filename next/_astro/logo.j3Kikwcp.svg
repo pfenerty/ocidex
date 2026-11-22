@@ -1,0 +1,15 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 32 32" role="img" aria-label="OCIDex">
+  <!-- Canonical OCIDex mark. Three bars stepping down: each version's critical
+       count, with the part the release fixed drawn as an open outline above
+       the bar. Outlined paths only, never live text, and outline rather than
+       hatching so it holds at 16px. favicon.svg (web, site) and
+       site/src/assets/logo.svg are byte-identical copies; brandAssets.test.ts
+       enforces that. One colour, which follows the theme. -->
+  <style>
+    .body { fill: #1C1512 }
+    @media (prefers-color-scheme: dark) {
+      .body { fill: #EFE8E2 }
+    }
+  </style>
+  <path class="body" fill-rule="evenodd" d="M3 4h7v24H3zM12.5 16h7v12h-7zM22 22h7v6h-7zM12.5 8h7v8h-7zM14.5 10v6h3v-6zM22 14h7v8h-7zM24 16v6h3v-6z"/>
+</svg>
