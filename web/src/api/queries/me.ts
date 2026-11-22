@@ -1,3 +1,4 @@
+import type { Accessor } from "solid-js";
 import { createQuery } from "@tanstack/solid-query";
 import { client, unwrap } from "~/api/client";
 import { selfScopedEnabled, type SelfScopedOptions } from "./selfScoped";
@@ -81,5 +82,44 @@ export function useMyVulnerabilities(limit = 5, opts?: SelfScopedOptions) {
         queryFn: () =>
             unwrap(client.GET("/api/v1/users/me/vulns", { params: { query: { limit } } })),
         select: (resp) => ({ ...resp, data: resp.data ?? [] }),
+    }));
+}
+
+/** A running image with no SBOM in one of the caller's clusters. */
+export interface SeenOnlyImage {
+    clusterId: string;
+    imageRef: string;
+    imageDigest: string;
+}
+
+/**
+ * useMySeenOnlyImages — running images with no SBOM across the caller's own
+ * clusters, for the silhouettes in the Artifacts grid. One request per
+ * cluster, issued together; deduplicated by digest, since one image commonly
+ * runs on several clusters.
+ */
+export function useMySeenOnlyImages(clusterIds: Accessor<string[]>, opts?: SelfScopedOptions) {
+    return createQuery(() => ({
+        queryKey: ["me", "seen-only-images", clusterIds()] as const,
+        enabled: selfScopedEnabled(opts) && clusterIds().length > 0,
+        queryFn: async (): Promise<SeenOnlyImage[]> => {
+            const pages = await Promise.all(
+                clusterIds().map(async (id) => {
+                    const resp = await unwrap(
+                        client.GET("/api/v1/clusters/{id}/unknown-images", {
+                            params: { path: { id }, query: { limit: 100 } },
+                        }),
+                    );
+                    return (resp.data ?? []).map((u) => ({
+                        clusterId: id,
+                        imageRef: u.imageRef,
+                        imageDigest: u.imageDigest,
+                    }));
+                }),
+            );
+            const seen = new Map<string, SeenOnlyImage>();
+            for (const img of pages.flat()) if (!seen.has(img.imageDigest)) seen.set(img.imageDigest, img);
+            return [...seen.values()];
+        },
     }));
 }

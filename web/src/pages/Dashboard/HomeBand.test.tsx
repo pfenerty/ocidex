@@ -2,7 +2,7 @@
 import { describe, it, expect, vi, beforeEach } from "vitest";
 import { render } from "@solidjs/testing-library";
 import type { JSX } from "solid-js";
-import { useMyNamespaces, useMyDriftFeed, useWatches } from "~/api/queries";
+import { useMyClusters, useMyNamespaces, useMyDriftFeed, useWatches } from "~/api/queries";
 import { useAuth } from "~/context/auth";
 import { HomeBand } from "./HomeBand";
 
@@ -10,6 +10,7 @@ vi.mock("~/api/queries", () => ({
     useMyNamespaces: vi.fn(),
     useMyDriftFeed: vi.fn(),
     useWatches: vi.fn(),
+    useMyClusters: vi.fn(),
 }));
 
 vi.mock("~/context/auth", () => ({ useAuth: vi.fn() }));
@@ -45,6 +46,13 @@ function setCounts(namespaces: number, watches: number, drift: number) {
     vi.mocked(useMyDriftFeed).mockReturnValue(
         rows(drift) as unknown as ReturnType<typeof useMyDriftFeed>,
     );
+    setClusters([]);
+}
+
+function setClusters(coverages: { total: number; matched: number; unknown: number }[]) {
+    vi.mocked(useMyClusters).mockReturnValue({
+        data: { data: coverages.map((coverage, i) => ({ id: `c${i}`, summary: { coverage } })) },
+    } as unknown as ReturnType<typeof useMyClusters>);
 }
 
 beforeEach(() => {
@@ -62,7 +70,7 @@ describe("HomeBand", () => {
         setUser(undefined);
         render(() => <HomeBand />);
 
-        for (const hook of [useMyNamespaces, useWatches, useMyDriftFeed]) {
+        for (const hook of [useMyNamespaces, useWatches, useMyDriftFeed, useMyClusters]) {
             expect(vi.mocked(hook).mock.calls[0]?.[0]?.enabled?.()).toBe(false);
         }
     });
@@ -71,7 +79,7 @@ describe("HomeBand", () => {
         setUser("octocat");
         render(() => <HomeBand />);
 
-        for (const hook of [useMyNamespaces, useWatches, useMyDriftFeed]) {
+        for (const hook of [useMyNamespaces, useWatches, useMyDriftFeed, useMyClusters]) {
             expect(vi.mocked(hook).mock.calls[0]?.[0]?.enabled?.()).toBe(true);
         }
     });
@@ -113,5 +121,22 @@ describe("HomeBand", () => {
         expect(queryByText("0 namespaces")).toBeNull();
         // The band still renders — one pending query must not blank the rest.
         expect(getByText("Welcome back, octocat")).toBeDefined();
+    });
+
+    // Seen is everything running on the caller's clusters; caught is what has an SBOM.
+    it("sums seen and caught across the caller's clusters", () => {
+        setClusters([
+            { total: 10, matched: 8, unknown: 2 },
+            { total: 6, matched: 5, unknown: 1 },
+        ]);
+        const { container } = render(() => <HomeBand />);
+        expect(container.textContent).toContain("16 seen running, 13 caught (81%)");
+        expect(container.querySelector('a[href="/artifacts?view=grid"]')?.textContent).toBe("3 with no SBOM");
+    });
+
+    it("says nothing about coverage without clusters", () => {
+        setClusters([]);
+        const { container } = render(() => <HomeBand />);
+        expect(container.textContent).not.toContain("seen running");
     });
 });

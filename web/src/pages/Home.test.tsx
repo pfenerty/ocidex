@@ -14,6 +14,7 @@ vi.mock("~/api/queries", () => ({
     useMyNamespaces: () => ({ data: undefined }),
     useMyDriftFeed: () => ({ data: undefined }),
     useWatches: () => ({ data: undefined }),
+    useMyClusters: () => ({ data: undefined }),
 }));
 
 vi.mock("~/context/auth", () => ({

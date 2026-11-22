@@ -2,7 +2,8 @@ import { createMemo, Show } from "solid-js";
 import { Sprite } from "~/components/Sprite";
 import { ArtifactGrid } from "~/components/ArtifactGrid";
 import { A, useSearchParams } from "@solidjs/router";
-import { useArtifactsInfinite } from "~/api/queries";
+import { useArtifactsInfinite, useMyClusters, useMySeenOnlyImages } from "~/api/queries";
+import { useAuth } from "~/context/auth";
 import DataTable from "~/components/DataTable";
 import type { Column, SortDir } from "~/components/DataTable";
 import { VulnCountBadges } from "~/components/VulnBadge";
@@ -269,6 +270,13 @@ export default function Artifacts() {
     // Table or the numbered grid, kept in the URL so a link opens the same view.
     const view = (): "table" | "grid" => (param("view") === "grid" ? "grid" : "table");
 
+    // For a signed-in caller, the grid also shows what runs on their clusters
+    // with no SBOM. Only fetched while the grid is on screen.
+    const { user } = useAuth();
+    const gridSignedIn = () => user() !== undefined && view() === "grid";
+    const myClusters = useMyClusters({ enabled: gridSignedIn });
+    const seenOnly = useMySeenOnlyImages(() => (myClusters.data?.data ?? []).map((c) => c.id), { enabled: gridSignedIn });
+
     const sortArtifacts = (key: string, dir: SortDir) => {
         setSearchParams({
             sort: key === "severity" ? "severity" : undefined,
@@ -294,7 +302,7 @@ export default function Artifacts() {
             </div>
 
             <Show when={view() === "grid"}>
-                <ArtifactGrid artifacts={rawArtifacts()} />
+                <ArtifactGrid artifacts={rawArtifacts()} seenOnly={seenOnly.data} />
                 <Show when={query.hasNextPage}>
                     <LoadMore
                         loaded={rawArtifacts().length}
