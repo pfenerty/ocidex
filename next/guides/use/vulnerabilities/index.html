@@ -94,6 +94,9 @@ when the database updates, which is daily. How that works is in
 <p>Each finding shows its severity, CVSS score and, where one exists, the <strong>fixed version</strong>. An
 advisory published under several ids (a <code dir="auto">GHSA-</code>, a <code dir="auto">GO-</code> and a <code dir="auto">CVE-</code>) is shown once, under one
 canonical id, with the others as aliases.</p>
+<p>The counts on artifact rows, artifact pages and the home page are refreshed every 15 minutes, all
+at once, so they always agree with each other. A new scan can take that long to show there; an
+SBOM’s own Vulnerabilities tab shows it immediately.</p>
 <div class="sl-heading-wrapper level-h2"><h2 id="triage">Triage</h2><a class="sl-anchor-link" href="#triage"><span aria-hidden="true" class="sl-anchor-icon"><svg width="16" height="16" viewBox="0 0 24 24" fill="currentColor"><path d="m12.11 15.39-3.88 3.88a2.52 2.52 0 0 1-3.5 0 2.47 2.47 0 0 1 0-3.5l3.88-3.88a1 1 0 1 0-1.42-1.42l-3.88 3.89a4.48 4.48 0 0 0 6.33 6.33l3.89-3.88a1 1 0 0 0-1.42-1.42m8.58-12.08a4.49 4.49 0 0 0-6.33 0l-3.89 3.88a1 1 0 1 0 1.42 1.42l3.88-3.88a2.52 2.52 0 0 1 3.5 0 2.47 2.47 0 0 1 0 3.5l-3.88 3.88a1 1 0 0 0 0 1.42 1 1 0 0 0 1.42 0l3.88-3.89a4.49 4.49 0 0 0 0-6.33M8.83 15.17a1 1 0 0 0 .71.29 1 1 0 0 0 .71-.29l4.92-4.92a1 1 0 1 0-1.42-1.42l-4.92 4.92a1 1 0 0 0 0 1.42"></path></svg></span><span class="sr-only" data-pagefind-ignore>Section titled “Triage”</span></a></div>
 <p>A practical order:</p>
 <ol>

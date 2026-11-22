@@ -65,8 +65,9 @@ an artifact, a package, a vulnerability or a page by name.</p>
 <ul>
 <li>The header shows its versions, SBOM count, vulnerability count, whether its images are signed,
 and when it was first seen.</li>
-<li><strong>Versions</strong> lists every SBOM, one per version and architecture. <strong>Semver</strong> orders them by
-version number; <strong>All</strong> by build time.</li>
+<li><strong>Versions</strong> lists every version, highest first. <strong>Semver</strong> shows only semantic versions;
+<strong>All</strong> shows every tag, with a release above its prereleases and tags that aren’t version
+numbers last. Each row’s counts come from one SBOM of that version, amd64 first.</li>
 <li><strong>Changelog</strong> compares each version with the one before it. See <a href="/next/guides/use/compare/">Compare SBOMs</a>.</li>
 <li><strong>Licenses</strong> counts the latest version’s components by license category.</li>
 <li><strong>Vulnerabilities</strong> lists the advisories affecting the latest version.</li>
