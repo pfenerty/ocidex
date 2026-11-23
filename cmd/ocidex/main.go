@@ -168,6 +168,7 @@ type apiServices struct {
 	watches    service.WatchService
 	clusters   service.ClusterService
 	approvals  service.ApprovalService
+	activity   service.KeyActivityService
 }
 
 func newServices(cfg *config.Config, pool, bgPool *pgxpool.Pool, bus *event.Bus, providers []auth.Provider) apiServices {
@@ -193,6 +194,7 @@ func newServices(cfg *config.Config, pool, bgPool *pgxpool.Pool, bus *event.Bus,
 		namespaces: namespaceSvc, sources: sourceSvc, jobs: jobSvc, enrichJobs: enrichJobSvc,
 		watches: watchSvc, clusters: clusterSvc,
 		approvals: service.NewApprovalService(pool, bus),
+		activity:  service.NewKeyActivityService(pool),
 	}
 }
 
@@ -222,6 +224,7 @@ func newAPIHandler(cfg *config.Config, pool *pgxpool.Pool, scans api.ScanSubmitt
 		Scans:            scans,
 		Config:           cfg,
 		Approvals:        svcs.approvals,
+		KeyActivity:      svcs.activity,
 	})
 }
 

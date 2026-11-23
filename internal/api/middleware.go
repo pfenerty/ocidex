@@ -5,6 +5,7 @@ import (
 	"errors"
 	"log/slog"
 	"net/http"
+	"regexp"
 	"strings"
 	"time"
 
@@ -129,7 +130,7 @@ func OptionalAuthenticate(authSvc Authenticator) func(http.Handler) http.Handler
 			user.Grants = grants
 
 			ctx := context.WithValue(r.Context(), ctxKeyUser{}, user)
-			ctx = event.WithActor(ctx, actorFor(user))
+			ctx = event.WithActor(ctx, actorFor(user, r))
 			next.ServeHTTP(w, r.WithContext(ctx))
 		})
 	}
@@ -137,8 +138,28 @@ func OptionalAuthenticate(authSvc Authenticator) func(http.Handler) http.Handler
 
 // actorFor is the audit actor for an authenticated caller: the user, and the
 // key when the request came in on one.
-func actorFor(user service.AuthUser) event.Actor {
-	return event.Actor{Kind: event.ActorUser, ID: user.ID, APIKeyID: user.APIKeyID}
+func actorFor(user service.AuthUser, r *http.Request) event.Actor {
+	a := event.Actor{Kind: event.ActorUser, ID: user.ID, APIKeyID: user.APIKeyID, KeyKind: user.APIKeyKind}
+	if user.APIKeyKind == service.KeyKindAgent {
+		a.AgentLabel = user.APIKeyAgentLabel
+		a.Tool = agentTool(r)
+	}
+	return a
+}
+
+// agentToolHeader names the MCP tool behind an agent key's request. Only agent
+// keys may set it, and only a tool-shaped name is kept: it is display and
+// audit data, never trusted for a decision.
+const agentToolHeader = "X-OCIDex-Agent-Tool"
+
+var agentToolPattern = regexp.MustCompile(`^[a-z][a-z0-9_]{0,63}$`)
+
+func agentTool(r *http.Request) string {
+	t := r.Header.Get(agentToolHeader)
+	if !agentToolPattern.MatchString(t) {
+		return ""
+	}
+	return t
 }
 
 // clusterCredentialRoute reports whether r is the one request a credential

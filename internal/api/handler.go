@@ -59,6 +59,7 @@ type Handler struct {
 	meterProvider    metric.MeterProvider
 	tracerProvider   trace.TracerProvider
 	approvals        service.ApprovalService
+	keyActivity      service.KeyActivityService
 	// router is the built router, which an approved action's stored request
 	// is replayed through. Set by NewRouter.
 	router http.Handler
@@ -92,6 +93,7 @@ type Deps struct {
 	Scans            ScanSubmitter
 	Config           *config.Config
 	Approvals        service.ApprovalService
+	KeyActivity      service.KeyActivityService
 }
 
 // NewHandler creates a new Handler from its dependencies.
@@ -128,6 +130,7 @@ func NewHandler(d Deps) *Handler {
 		db:               d.DB,
 		scanSubmitter:    d.Scans,
 		approvals:        d.Approvals,
+		keyActivity:      d.KeyActivity,
 		cfg:              d.Config,
 		stateCookie:      sc2,
 		clientIPs:        NewClientIPResolver(clientIPs),

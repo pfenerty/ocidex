@@ -246,6 +246,20 @@ type GoSymbolSetMember struct {
 	SymbolID interface{} `json:"symbol_id"`
 }
 
+type KeyActivity struct {
+	ID              int64              `json:"id"`
+	OccurredAt      pgtype.Timestamptz `json:"occurred_at"`
+	ApiKeyID        pgtype.UUID        `json:"api_key_id"`
+	UserID          pgtype.UUID        `json:"user_id"`
+	AgentLabel      pgtype.Text        `json:"agent_label"`
+	Tool            pgtype.Text        `json:"tool"`
+	Method          string             `json:"method"`
+	Route           string             `json:"route"`
+	Path            string             `json:"path"`
+	Status          int32              `json:"status"`
+	PendingActionID pgtype.UUID        `json:"pending_action_id"`
+}
+
 type License struct {
 	ID     pgtype.UUID `json:"id"`
 	SpdxID pgtype.Text `json:"spdx_id"`

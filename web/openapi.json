@@ -3726,6 +3726,80 @@
         ],
         "type": "object"
       },
+      "KeyActivityEntry": {
+        "additionalProperties": false,
+        "properties": {
+          "agentLabel": {
+            "type": "string"
+          },
+          "id": {
+            "format": "int64",
+            "type": "integer"
+          },
+          "method": {
+            "type": "string"
+          },
+          "occurredAt": {
+            "format": "date-time",
+            "type": "string"
+          },
+          "path": {
+            "type": "string"
+          },
+          "pendingActionId": {
+            "description": "Set when the request was held for approval",
+            "type": "string"
+          },
+          "route": {
+            "description": "The route pattern the request matched",
+            "type": "string"
+          },
+          "status": {
+            "format": "int64",
+            "type": "integer"
+          },
+          "tool": {
+            "description": "The MCP tool the request came from, as the agent's MCP server reported it",
+            "type": "string"
+          }
+        },
+        "required": [
+          "id",
+          "occurredAt",
+          "method",
+          "route",
+          "path",
+          "status"
+        ],
+        "type": "object"
+      },
+      "KeyActivityOutputBody": {
+        "additionalProperties": false,
+        "properties": {
+          "$schema": {
+            "description": "A URL to the JSON Schema for this object.",
+            "examples": [
+              "https://example.com/api/schemas/KeyActivityOutputBody.json"
+            ],
+            "format": "uri",
+            "readOnly": true,
+            "type": "string"
+          },
+          "data": {
+            "items": {
+              "$ref": "#/components/schemas/KeyActivityEntry"
+            },
+            "type": [
+              "array",
+              "null"
+            ]
+          }
+        },
+        "required": [
+          "data"
+        ],
+        "type": "object"
+      },
       "KeyMetaResponse": {
         "additionalProperties": false,
         "properties": {
@@ -9813,6 +9887,74 @@
           }
         },
         "summary": "Delete API key",
+        "tags": [
+          "Auth"
+        ]
+      }
+    },
+    "/api/v1/auth/keys/{id}/activity": {
+      "get": {
+        "description": "Writes, held requests and refusals made with one of your agent keys, newest first.",
+        "operationId": "list-key-activity",
+        "parameters": [
+          {
+            "description": "Key UUID",
+            "in": "path",
+            "name": "id",
+            "required": true,
+            "schema": {
+              "description": "Key UUID",
+              "format": "uuid",
+              "type": "string"
+            }
+          },
+          {
+            "description": "Return entries older than this entry id (the last id of the previous page)",
+            "explode": false,
+            "in": "query",
+            "name": "before",
+            "schema": {
+              "description": "Return entries older than this entry id (the last id of the previous page)",
+              "format": "int64",
+              "type": "integer"
+            }
+          },
+          {
+            "explode": false,
+            "in": "query",
+            "name": "limit",
+            "schema": {
+              "default": 50,
+              "format": "int32",
+              "maximum": 200,
+              "minimum": 1,
+              "type": "integer"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/KeyActivityOutputBody"
+                }
+              }
+            },
+            "description": "OK"
+          },
+          "default": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorModel"
+                }
+              }
+            },
+            "description": "Error"
+          }
+        },
+        "summary": "List what an agent key did",
         "tags": [
           "Auth"
         ]

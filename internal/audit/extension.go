@@ -147,5 +147,14 @@ func actorAttr(ctx context.Context) slog.Attr {
 	if a.APIKeyID != "" {
 		attrs = append(attrs, slog.String("api_key_id", a.APIKeyID))
 	}
+	if a.KeyKind != "" {
+		attrs = append(attrs, slog.String("key_kind", a.KeyKind))
+	}
+	if a.AgentLabel != "" {
+		attrs = append(attrs, slog.String("agent_label", a.AgentLabel))
+	}
+	if a.Tool != "" {
+		attrs = append(attrs, slog.String("tool", a.Tool))
+	}
 	return slog.Attr{Key: "actor", Value: slog.GroupValue(attrs...)}
 }

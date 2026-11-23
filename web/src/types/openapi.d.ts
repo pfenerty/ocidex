@@ -537,6 +537,26 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/v1/auth/keys/{id}/activity": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * List what an agent key did
+         * @description Writes, held requests and refusals made with one of your agent keys, newest first.
+         */
+        get: operations["list-key-activity"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/v1/auth/providers": {
         parameters: {
             query?: never;
@@ -3460,6 +3480,32 @@ export interface components {
             workloadKind: string;
             workloadName: string;
         };
+        KeyActivityEntry: {
+            agentLabel?: string;
+            /** Format: int64 */
+            id: number;
+            method: string;
+            /** Format: date-time */
+            occurredAt: string;
+            path: string;
+            /** @description Set when the request was held for approval */
+            pendingActionId?: string;
+            /** @description The route pattern the request matched */
+            route: string;
+            /** Format: int64 */
+            status: number;
+            /** @description The MCP tool the request came from, as the agent's MCP server reported it */
+            tool?: string;
+        };
+        KeyActivityOutputBody: {
+            /**
+             * Format: uri
+             * @description A URL to the JSON Schema for this object.
+             * @example https://example.com/api/schemas/KeyActivityOutputBody.json
+             */
+            readonly $schema?: string;
+            data: components["schemas"]["KeyActivityEntry"][] | null;
+        };
         KeyMetaResponse: {
             /** @description An agent key's client name */
             agentLabel?: string;
@@ -6189,6 +6235,42 @@ export interface operations {
                     [name: string]: unknown;
                 };
                 content?: never;
+            };
+            /** @description Error */
+            default: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["ErrorModel"];
+                };
+            };
+        };
+    };
+    "list-key-activity": {
+        parameters: {
+            query?: {
+                /** @description Return entries older than this entry id (the last id of the previous page) */
+                before?: number;
+                limit?: number;
+            };
+            header?: never;
+            path: {
+                /** @description Key UUID */
+                id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description OK */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["KeyActivityOutputBody"];
+                };
             };
             /** @description Error */
             default: {

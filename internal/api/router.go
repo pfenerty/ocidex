@@ -189,6 +189,11 @@ func NewRouter(h *Handler, corsOrigins, frontendURL, apiBaseURL string) chi.Rout
 	r.Use(middleware.Timeout(30 * time.Second))
 	r.Use(OptionalAuthenticate(h.authenticator))
 	r.Use(CaptureForApproval(h))
+	var activity keyActivityRecorder
+	if h.keyActivity != nil {
+		activity = h.keyActivity
+	}
+	r.Use(RecordAgentActivity(activity))
 
 	config := huma.DefaultConfig("OCIDex API", ContractVersion)
 	config.Info.Description = apiIntro
@@ -258,6 +263,15 @@ func NewRouter(h *Handler, corsOrigins, frontendURL, apiBaseURL string) chi.Rout
 	registerAuthOps(r, api, h)
 	registerDevOps(api, h)
 	registerApprovalOps(api, h)
+	huma.Register(api, huma.Operation{
+		OperationID: "list-key-activity",
+		Method:      http.MethodGet,
+		Path:        "/api/v1/auth/keys/{id}/activity",
+		Summary:     "List what an agent key did",
+		Description: "Writes, held requests and refusals made with one of your agent keys, newest first.",
+		Tags:        []string{tagAuth},
+		Middlewares: huma.Middlewares{RequireAuthenticated(api)},
+	}, h.ListKeyActivity)
 	r.Get(legacySchemasPath+"/{schema}", redirectLegacySchema)
 
 	registerAPIReference(r, api, apiBaseURL)

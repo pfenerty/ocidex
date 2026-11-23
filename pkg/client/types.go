@@ -3070,6 +3070,32 @@ type InventoryWorkload struct {
 	WorkloadName string `json:"workloadName"`
 }
 
+// KeyActivityEntry defines model for KeyActivityEntry.
+type KeyActivityEntry struct {
+	AgentLabel *string   `json:"agentLabel,omitempty"`
+	Id         int64     `json:"id"`
+	Method     string    `json:"method"`
+	OccurredAt time.Time `json:"occurredAt"`
+	Path       string    `json:"path"`
+
+	// PendingActionId Set when the request was held for approval
+	PendingActionId *string `json:"pendingActionId,omitempty"`
+
+	// Route The route pattern the request matched
+	Route  string `json:"route"`
+	Status int64  `json:"status"`
+
+	// Tool The MCP tool the request came from, as the agent's MCP server reported it
+	Tool *string `json:"tool,omitempty"`
+}
+
+// KeyActivityOutputBody defines model for KeyActivityOutputBody.
+type KeyActivityOutputBody struct {
+	// Schema A URL to the JSON Schema for this object.
+	Schema *string             `json:"$schema,omitempty"`
+	Data   *[]KeyActivityEntry `json:"data"`
+}
+
 // KeyMetaResponse defines model for KeyMetaResponse.
 type KeyMetaResponse struct {
 	// AgentLabel An agent key's client name
@@ -4773,6 +4799,13 @@ type ListArtifactVulnsParamsDir string
 // ListArtifactWorkloadsParams defines parameters for ListArtifactWorkloads.
 type ListArtifactWorkloadsParams struct {
 	Limit *int32 `form:"limit,omitempty" json:"limit,omitempty"`
+}
+
+// ListKeyActivityParams defines parameters for ListKeyActivity.
+type ListKeyActivityParams struct {
+	// Before Return entries older than this entry id (the last id of the previous page)
+	Before *int64 `form:"before,omitempty" json:"before,omitempty"`
+	Limit  *int32 `form:"limit,omitempty" json:"limit,omitempty"`
 }
 
 // ListClustersParams defines parameters for ListClusters.
