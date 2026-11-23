@@ -148,3 +148,5 @@ resolves it — including the world-readable-key refusal.
   lookup tools surface.
 * ADR-025 defines the visibility model that bounds every tool's results: an empty result
   means "nothing visible to this key", not "nothing exists".
+* Amended by [ADR-0058](0058-agent-authorization.md) (A8): write tools are registered only for an
+  agent key whose effective permissions allow them; a personal key keeps the read-only surface.
