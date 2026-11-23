@@ -169,6 +169,7 @@ type clusterVulnsOutput struct {
 	Total           int64               `json:"total"`
 	Limit           int32               `json:"limit"`
 	Offset          int32               `json:"offset"`
+	NextOffset      int32               `json:"next_offset,omitempty" jsonschema:"Pass as offset to get the next page; absent on the last page"`
 	Coverage        coverageOutput      `json:"coverage" jsonschema:"How much of the cluster these counts cover; unknown workloads carry vulnerabilities that are not listed"`
 }
 
@@ -262,12 +263,13 @@ type clusterImageOutput struct {
 }
 
 type clusterImagesOutput struct {
-	ClusterID string               `json:"cluster_id"`
-	Images    []clusterImageOutput `json:"images" jsonschema:"Running images, most vulnerable first"`
-	Total     int64                `json:"total"`
-	Limit     int32                `json:"limit"`
-	Offset    int32                `json:"offset"`
-	Coverage  coverageOutput       `json:"coverage"`
+	ClusterID  string               `json:"cluster_id"`
+	Images     []clusterImageOutput `json:"images" jsonschema:"Running images, most vulnerable first"`
+	Total      int64                `json:"total"`
+	Limit      int32                `json:"limit"`
+	Offset     int32                `json:"offset"`
+	NextOffset int32                `json:"next_offset,omitempty" jsonschema:"Pass as offset to get the next page; absent on the last page"`
+	Coverage   coverageOutput       `json:"coverage"`
 }
 
 func registerClusterImages(srv *mcp.Server, api client.Client) {
@@ -355,12 +357,13 @@ type workloadOutput struct {
 }
 
 type clusterWorkloadsOutput struct {
-	ClusterID string           `json:"cluster_id"`
-	Workloads []workloadOutput `json:"workloads" jsonschema:"Workload-containers, most vulnerable first"`
-	Total     int64            `json:"total"`
-	Limit     int32            `json:"limit"`
-	Offset    int32            `json:"offset"`
-	Coverage  coverageOutput   `json:"coverage"`
+	ClusterID  string           `json:"cluster_id"`
+	Workloads  []workloadOutput `json:"workloads" jsonschema:"Workload-containers, most vulnerable first"`
+	Total      int64            `json:"total"`
+	Limit      int32            `json:"limit"`
+	Offset     int32            `json:"offset"`
+	NextOffset int32            `json:"next_offset,omitempty" jsonschema:"Pass as offset to get the next page; absent on the last page"`
+	Coverage   coverageOutput   `json:"coverage"`
 }
 
 func registerClusterWorkloads(srv *mcp.Server, api client.Client) {
@@ -462,6 +465,7 @@ type coverageGapsOutput struct {
 	Total           int64                `json:"total"`
 	Limit           int32                `json:"limit"`
 	Offset          int32                `json:"offset"`
+	NextOffset      int32                `json:"next_offset,omitempty" jsonschema:"Pass as offset to get the next page; absent on the last page"`
 }
 
 func registerClusterCoverageGaps(srv *mcp.Server, api client.Client) {

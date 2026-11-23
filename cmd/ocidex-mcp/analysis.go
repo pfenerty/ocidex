@@ -61,12 +61,13 @@ type sbomRefOutput struct {
 }
 
 type diffOutput struct {
-	From      sbomRefOutput       `json:"from" jsonschema:"The SBOM diffed from"`
-	To        sbomRefOutput       `json:"to" jsonschema:"The SBOM diffed to"`
-	Summary   changeSummaryOutput `json:"summary" jsonschema:"Counts by direction across the whole diff, not just the returned page"`
-	Changes   []changeOutput      `json:"changes" jsonschema:"The requested page of changes"`
-	Total     int64               `json:"total" jsonschema:"Changes matching the direction filter, across all pages"`
-	Truncated bool                `json:"truncated" jsonschema:"Whether more changes matched than were returned"`
+	From       sbomRefOutput       `json:"from" jsonschema:"The SBOM diffed from"`
+	To         sbomRefOutput       `json:"to" jsonschema:"The SBOM diffed to"`
+	Summary    changeSummaryOutput `json:"summary" jsonschema:"Counts by direction across the whole diff, not just the returned page"`
+	Changes    []changeOutput      `json:"changes" jsonschema:"The requested page of changes"`
+	Total      int64               `json:"total" jsonschema:"Changes matching the direction filter, across all pages"`
+	Truncated  bool                `json:"truncated" jsonschema:"Whether more changes matched than were returned"`
+	NextOffset int32               `json:"next_offset,omitempty" jsonschema:"Pass as offset to get the next page; absent on the last page"`
 }
 
 type diffSBOMsInput struct {
@@ -158,12 +159,13 @@ func registerDiffTools(srv *mcp.Server, api client.Client) {
 		}
 		changes, total := selectChanges(derefSlice(entry.Changes), in.Direction, limit, in.Offset)
 		return nil, diffOutput{
-			From:      toSBOMRefOutput(entry.From),
-			To:        toSBOMRefOutput(entry.To),
-			Summary:   toChangeSummaryOutput(entry.Summary),
-			Changes:   changes,
-			Total:     total,
-			Truncated: int64(in.Offset+len(changes)) < total,
+			From:       toSBOMRefOutput(entry.From),
+			To:         toSBOMRefOutput(entry.To),
+			Summary:    toChangeSummaryOutput(entry.Summary),
+			Changes:    changes,
+			Total:      total,
+			Truncated:  int64(in.Offset+len(changes)) < total,
+			NextOffset: nextOffset(int64(in.Offset), int64(len(changes)), total),
 		}, nil
 	})
 
@@ -396,6 +398,7 @@ type getVulnerabilityOutput struct {
 	References        []vulnReferenceOutput    `json:"references,omitempty" jsonschema:"Advisory, patch and fix links"`
 	AffectedArtifacts []affectedArtifactOutput `json:"affected_artifacts" jsonschema:"Visible artifacts this advisory affects"`
 	TotalAffected     int64                    `json:"total_affected_artifacts" jsonschema:"Affected artifacts across all pages"`
+	NextOffset        int32                    `json:"next_offset,omitempty" jsonschema:"Pass as offset to get the next page of affected artifacts; absent on the last page"`
 }
 
 func registerVulnTools(srv *mcp.Server, api client.Client) {
@@ -485,6 +488,7 @@ func registerVulnTools(srv *mcp.Server, api client.Client) {
 			CvssVector:        deref(v.CvssVector),
 			AffectedArtifacts: make([]affectedArtifactOutput, 0),
 			TotalAffected:     res.Pagination.Total,
+			NextOffset:        nextOffset(int64(res.Pagination.Offset), int64(res.Pagination.Limit), res.Pagination.Total),
 		}
 		if v.CvssScore != nil {
 			out.CvssScore = float64(*v.CvssScore)

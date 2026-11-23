@@ -28,7 +28,7 @@ func registerResources(srv *mcp.Server, api client.Client, server string) {
 		URI:      openAPIResourceURI,
 		Name:     "openapi",
 		Title:    "OCIDex OpenAPI specification",
-		MIMEType: "application/json",
+		MIMEType: mimeJSON,
 		Description: fmt.Sprintf(
 			"The complete OpenAPI 3.1 description of the OCIDex API at %s, fetched from that "+
 				"server. Read it when you need an endpoint the tools do not cover; prefer the tools "+
@@ -41,7 +41,7 @@ func registerResources(srv *mcp.Server, api client.Client, server string) {
 		return &mcp.ReadResourceResult{
 			Contents: []*mcp.ResourceContents{{
 				URI:      req.Params.URI,
-				MIMEType: "application/json",
+				MIMEType: mimeJSON,
 				Text:     string(spec),
 			}},
 		}, nil

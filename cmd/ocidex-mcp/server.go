@@ -72,7 +72,8 @@ func newServer(api client.Client, server string) *mcp.Server {
 		Version: version.Version,
 		Title:   "OCIDex software catalog",
 	}, &mcp.ServerOptions{
-		Instructions: instructions,
+		Instructions:      instructions,
+		CompletionHandler: completer(api),
 	})
 
 	surface := loadSurface(api)
@@ -86,6 +87,7 @@ func newServer(api client.Client, server string) *mcp.Server {
 	registerInsightTools(srv, api)
 	registerPrompts(srv)
 	registerResources(srv, api, server)
+	registerResourceTemplates(srv, api)
 	return srv
 }
 

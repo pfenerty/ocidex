@@ -114,6 +114,7 @@ type artifactFindingsOutput struct {
 	Total         int64                   `json:"total" jsonschema:"Findings across all pages"`
 	Limit         int32                   `json:"limit"`
 	Offset        int32                   `json:"offset"`
+	NextOffset    int32                   `json:"next_offset,omitempty" jsonschema:"Pass as offset to get the next page; absent on the last page"`
 	VersionScope  int32                   `json:"version_scope" jsonschema:"Versions that were scanned"`
 	TotalVersions int64                   `json:"total_versions" jsonschema:"Versions the artifact has; more than version_scope means older ones were not considered"`
 }
@@ -162,14 +163,15 @@ type sbomFindingsInput struct {
 }
 
 type sbomFindingsOutput struct {
-	SBOMID    string                `json:"sbom_id"`
-	GroupBy   string                `json:"group_by"`
-	Findings  []sbomFindingOutput   `json:"findings,omitempty" jsonschema:"Present when group_by is finding: advisories, worst first"`
-	Packages  []packageRollupOutput `json:"packages,omitempty" jsonschema:"Present when group_by is package: vulnerable packages, worst first, then by advisory count"`
-	Total     int64                 `json:"total" jsonschema:"Rows across all pages, in the chosen grouping"`
-	Limit     int32                 `json:"limit"`
-	Offset    int32                 `json:"offset"`
-	Truncated bool                  `json:"truncated,omitempty" jsonschema:"The package rollup stopped at its cap and covers only the worst findings"`
+	SBOMID     string                `json:"sbom_id"`
+	GroupBy    string                `json:"group_by"`
+	Findings   []sbomFindingOutput   `json:"findings,omitempty" jsonschema:"Present when group_by is finding: advisories, worst first"`
+	Packages   []packageRollupOutput `json:"packages,omitempty" jsonschema:"Present when group_by is package: vulnerable packages, worst first, then by advisory count"`
+	Total      int64                 `json:"total" jsonschema:"Rows across all pages, in the chosen grouping"`
+	Limit      int32                 `json:"limit"`
+	Offset     int32                 `json:"offset"`
+	NextOffset int32                 `json:"next_offset,omitempty" jsonschema:"Pass as offset to get the next page; absent on the last page"`
+	Truncated  bool                  `json:"truncated,omitempty" jsonschema:"The package rollup stopped at its cap and covers only the worst findings"`
 }
 
 func toFixPackages(pkgs []client.SBOMVulnPackage) []fixPackageOutput {
@@ -445,6 +447,7 @@ type listArtifactVersionsOutput struct {
 	Total      int64                   `json:"total"`
 	Limit      int32                   `json:"limit"`
 	Offset     int32                   `json:"offset"`
+	NextOffset int32                   `json:"next_offset,omitempty" jsonschema:"Pass as offset to get the next page; absent on the last page"`
 }
 
 func registerArtifactHistoryTools(srv *mcp.Server, api client.Client) {
@@ -513,6 +516,7 @@ type listSBOMComponentsOutput struct {
 	Total      int64             `json:"total" jsonschema:"Components matching the filters, across all pages"`
 	Limit      int32             `json:"limit"`
 	Offset     int32             `json:"offset"`
+	NextOffset int32             `json:"next_offset,omitempty" jsonschema:"Pass as offset to get the next page; absent on the last page"`
 }
 
 func registerSBOMComponentsTool(srv *mcp.Server, api client.Client) {

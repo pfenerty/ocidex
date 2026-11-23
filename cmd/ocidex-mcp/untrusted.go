@@ -132,6 +132,7 @@ func addTool[In, Out any](srv *mcp.Server, t *mcp.Tool, h mcp.ToolHandlerFor[In,
 			return res, out, errors.New(sanitizeString(err.Error()))
 		}
 		sanitizeValue(&out)
+		fillNextOffset(&out)
 		if res != nil {
 			for _, c := range res.Content {
 				if tc, ok := c.(*mcp.TextContent); ok {

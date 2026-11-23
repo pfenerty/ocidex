@@ -151,6 +151,13 @@ the same tool sequence.
 The server also offers the API's OpenAPI document as the resource `ocidex://openapi.json`, fetched
 from the running server, for anything the tools don't cover.
 
+Clients that attach resources can also read an artifact or an SBOM by id, as
+`ocidex://artifact/{id}` and `ocidex://sbom/{id}`. Clients that support argument completion get
+artifact, cluster and namespace names as you type a prompt's arguments.
+
+Paged tools take `offset` and `limit` and return `total` and, when there is another page,
+`next_offset` to pass on. Every tool declares its output schema.
+
 ## Troubleshooting
 
 | Symptom | Cause | Fix |

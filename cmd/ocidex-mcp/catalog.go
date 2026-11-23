@@ -310,6 +310,7 @@ type searchComponentsOutput struct {
 	Total      int64             `json:"total" jsonschema:"Total matching occurrences across all pages"`
 	Limit      int32             `json:"limit" jsonschema:"Page size that was applied"`
 	Offset     int32             `json:"offset" jsonschema:"Offset that was applied"`
+	NextOffset int32             `json:"next_offset,omitempty" jsonschema:"Pass as offset to get the next page; absent on the last page"`
 }
 
 type searchComponentsInput struct {

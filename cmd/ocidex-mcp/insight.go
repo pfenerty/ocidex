@@ -48,6 +48,7 @@ type topVulnsOutput struct {
 	Total           int64           `json:"total"`
 	Limit           int32           `json:"limit"`
 	Offset          int32           `json:"offset"`
+	NextOffset      int32           `json:"next_offset,omitempty" jsonschema:"Pass as offset to get the next page; absent on the last page"`
 }
 
 // topVulnSorts maps the tool's sort names onto the API's columns.
