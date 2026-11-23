@@ -18,7 +18,8 @@ function bucket(name: string, paths: string[]) {
 // Gating is applied ONLY on the PR pipeline (via `gated()` in pipelines.ts). On a
 // PR the diff is "this branch vs main" — exactly the changed-file set we want. On
 // push-to-main HEAD *is* main, so the diff would be empty (everything skipped);
-// the push pipeline therefore runs ungated so the publish path always builds.
+// the push pipeline therefore skips these gates (it gates only on isTip, see
+// supersede.ts) so the publish path always builds.
 //
 // Detection needs a reachable merge-base, so the PR pipeline sets
 // `cloneDepth: 'full'`. On a shallow clone `onChanges` fails **open** (the gated
