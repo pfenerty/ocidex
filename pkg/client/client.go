@@ -53,6 +53,9 @@ type Client interface {
 	RequestRegistryScan(ctx context.Context, registryID string, force bool, w WriteOpts) (WriteResult, error)
 	RequestClusterIngest(ctx context.Context, clusterID string, digests []string, w WriteOpts) (WriteResult, error)
 	GetPendingAction(ctx context.Context, id string) (PendingActionView, error)
+	// ListApprovals lists held requests the caller may see, optionally only
+	// those in status.
+	ListApprovals(ctx context.Context, status string) ([]PendingActionView, error)
 
 	// Cluster inventory (ADR-044). PutInventory replaces the cluster's whole
 	// workload set, so the caller must send everything it observed.

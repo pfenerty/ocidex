@@ -24,6 +24,65 @@ Every command accepts these.
 | `-o`, `--output` |  | output format: table, json, or yaml (config output, default table) |
 | `--server` |  | OCIDex base URL (env OCIDEX_URL, config server, default `http://localhost:8080`) |
 
+## ocidex-cli agent
+
+Create keys for agents such as ocidex-mcp.
+
+An agent key belongs to you but is limited to a preset, to named namespaces and
+to an expiry, and the writes it may make can wait for your approval in the web
+UI. To connect an MCP client in one step, use `ocidex-cli mcp install`.
+
+### ocidex-cli agent create
+
+Create an agent key.
+
+Presets:
+  analyst      reads everything in its namespaces, private data included; changes nothing
+  remediation  as analyst, and may manage your watchlist
+  coverage     as analyst, and may ask for scans; each scan waits for your approval
+
+The key is printed once, on stdout, and never again.
+
+```
+ocidex-cli agent create [flags]
+```
+
+| Flag | Default | Description |
+| --- | --- | --- |
+| `--expires-in` | `720h0m0s` | stop the key working after this long; at most 2160h (90 days) |
+| `--label` |  | the client using the key, shown in the audit log and approvals (e.g. "Claude Code on laptop") |
+| `--name` |  | human-readable label for the key (required) |
+| `--namespace` |  | namespace the agent may work in, by name or id, repeatable (default: your only namespace) |
+| `--preset` | `analyst` | what the agent may do: analyst, remediation, coverage |
+
+## ocidex-cli approval
+
+See agent requests waiting for approval.
+
+Approving and denying happen only in the web UI, signed in: no key can approve,
+or an agent holding one could approve itself. These commands list the requests
+and take you to the page that decides them.
+
+### ocidex-cli approval list
+
+List agent requests
+
+```
+ocidex-cli approval list [flags]
+```
+
+| Flag | Default | Description |
+| --- | --- | --- |
+| `--status` | `pending` | only requests in this status: pending, approved, denied, expired, executed, failed (empty for all) |
+
+### ocidex-cli approval open
+
+Open a request's approval page in the browser
+
+```
+ocidex-cli approval open <id>
+```
+
 ## ocidex-cli artifact
 
 Work with tracked artifacts
@@ -318,6 +377,38 @@ This does not revoke the key server-side — use `key delete &lt;id&gt;` for tha
 ```
 ocidex-cli logout
 ```
+
+## ocidex-cli mcp
+
+Connect MCP clients to OCIDex
+
+### ocidex-cli mcp install
+
+Register ocidex-mcp with an MCP client (Claude Code, Claude Desktop or Cursor).
+
+This creates an agent key for the client (see `ocidex-cli agent create`) and
+writes it into the client's user-wide MCP configuration, so the client never runs
+with your personal login key. The key is written only to that file, which is
+kept readable by you alone; it is never printed.
+
+Running it again changes nothing while OCIDex is already registered for this
+server. --rotate creates a fresh key and replaces the old one in the file;
+revoke the old key afterwards under Admin → Agents.
+
+```
+ocidex-cli mcp install [flags]
+```
+
+| Flag | Default | Description |
+| --- | --- | --- |
+| `--client` | `claude-code` | the MCP client: claude-code, claude-desktop, cursor |
+| `--config` |  | the client's config file (default: the client's user-wide file) |
+| `--expires-in` | `720h0m0s` | stop the key working after this long; at most 2160h (90 days) |
+| `--label` |  | the client using the key, shown in the audit log and approvals (e.g. "Claude Code on laptop") |
+| `--name` |  | the key's name (default "mcp: &lt;client&gt;") |
+| `--namespace` |  | namespace the agent may work in, by name or id, repeatable (default: your only namespace) |
+| `--preset` | `analyst` | what the agent may do: analyst, remediation, coverage |
+| `--rotate` |  | create a new key even if OCIDex is already registered |
 
 ## ocidex-cli namespace
 

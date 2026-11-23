@@ -46,6 +46,7 @@ type FakeClient struct {
 	RequestRegistryScanFn  func(ctx context.Context, registryID string, force bool, w WriteOpts) (WriteResult, error)
 	RequestClusterIngestFn func(ctx context.Context, clusterID string, digests []string, w WriteOpts) (WriteResult, error)
 	GetPendingActionFn     func(ctx context.Context, id string) (PendingActionView, error)
+	ListApprovalsFn        func(ctx context.Context, status string) ([]PendingActionView, error)
 
 	// Cluster inventory
 	ListClustersFn         func(ctx context.Context, namespaceID string) ([]ClusterResponse, error)
@@ -689,4 +690,11 @@ func (f *FakeClient) GetPendingAction(ctx context.Context, id string) (PendingAc
 		return f.GetPendingActionFn(ctx, id)
 	}
 	return PendingActionView{}, nil
+}
+
+func (f *FakeClient) ListApprovals(ctx context.Context, status string) ([]PendingActionView, error) {
+	if f.ListApprovalsFn != nil {
+		return f.ListApprovalsFn(ctx, status)
+	}
+	return nil, nil
 }

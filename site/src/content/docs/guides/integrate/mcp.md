@@ -22,7 +22,20 @@ what the homelab cluster is running".
    go install github.com/pfenerty/ocidex/cmd/ocidex-mcp@latest
    ```
 
-2. **Give it a key.** It reads the same credentials as `ocidex-cli`, so:
+2. **Register it with an agent key** (recommended). Signed in with `ocidex-cli login`, run:
+
+   ```sh
+   ocidex-cli mcp install --client claude-code --namespace acme --preset analyst
+   ```
+
+   This creates an agent key limited to the namespaces you name and expiring in 30 days, and writes
+   it into the client's user-wide config (`--client claude-desktop` or `cursor` for those). The key
+   is never printed, and running the command again changes nothing (`--rotate` replaces the key).
+   Presets: `analyst` reads, `remediation` also manages your watchlist, and `coverage` may also ask
+   for scans, each one held for your approval. Only agent keys get the write tools below. Restart
+   the client, then skip to step 4.
+
+   **Or give it your personal key**, read-only. It reads the same credentials as `ocidex-cli`, so:
 
    ```sh
    ocidex-cli login          # writes ~/.config/ocidex/config.yaml
@@ -31,7 +44,7 @@ what the homelab cluster is running".
    Every tool except ingest works with a read-only key. Ingesting needs the `ingest` capability.
    There's deliberately no key flag: use the config file or `OCIDEX_API_KEY`.
 
-3. **Register it with your client.** For Claude Code:
+3. **Register it with your client** (personal-key setup only). For Claude Code:
 
    ```sh
    claude mcp add ocidex -- ocidex-mcp

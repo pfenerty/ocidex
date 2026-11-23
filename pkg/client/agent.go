@@ -82,3 +82,17 @@ type WriteOpts struct {
 	// Reason is the agent's note for an approver; shown as untrusted text.
 	Reason string
 }
+
+func (c *httpClient) ListApprovals(ctx context.Context, status string) ([]PendingActionView, error) {
+	var p url.Values
+	if status != "" {
+		p = url.Values{"status": {status}}
+	}
+	var out struct {
+		Data []PendingActionView `json:"data"`
+	}
+	if err := c.request(ctx, http.MethodGet, "/api/v1/approvals", p, nil, &out); err != nil {
+		return nil, err
+	}
+	return out.Data, nil
+}
