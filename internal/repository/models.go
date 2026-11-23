@@ -25,6 +25,8 @@ type ApiKey struct {
 	NamespaceIds     []pgtype.UUID      `json:"namespace_ids"`
 	AgentLabel       pgtype.Text        `json:"agent_label"`
 	ApprovalRequired []string           `json:"approval_required"`
+	ScansPerHour     pgtype.Int4        `json:"scans_per_hour"`
+	WritesPerHour    pgtype.Int4        `json:"writes_per_hour"`
 }
 
 type Artifact struct {
@@ -258,6 +260,13 @@ type KeyActivity struct {
 	Path            string             `json:"path"`
 	Status          int32              `json:"status"`
 	PendingActionID pgtype.UUID        `json:"pending_action_id"`
+}
+
+type KeyQuotaWindow struct {
+	ApiKeyID    pgtype.UUID        `json:"api_key_id"`
+	Class       string             `json:"class"`
+	WindowStart pgtype.Timestamptz `json:"window_start"`
+	Used        int32              `json:"used"`
 }
 
 type License struct {

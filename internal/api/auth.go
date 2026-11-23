@@ -758,6 +758,8 @@ func (h *Handler) CreateAPIKey(ctx context.Context, in *CreateAPIKeyInput) (*Cre
 		IsAdmin:          user.Role == roleAdmin,
 		ApprovalRequired: approval,
 		Preset:           in.Body.Preset,
+		ScansPerHour:     in.Body.ScansPerHour,
+		WritesPerHour:    in.Body.WritesPerHour,
 	})
 	if err != nil {
 		return nil, mapServiceError(err)
@@ -795,6 +797,8 @@ func (h *Handler) ListAPIKeys(ctx context.Context, _ *struct{}) (*ListAPIKeysOut
 			Namespaces:       k.Namespaces,
 			AgentLabel:       k.AgentLabel,
 			ApprovalRequired: authz.Strings(k.ApprovalRequired),
+			ScansPerHour:     k.ScansPerHour,
+			WritesPerHour:    k.WritesPerHour,
 		}
 	}
 	return out, nil
@@ -893,6 +897,10 @@ func (h *Handler) GetKeySelf(ctx context.Context, _ *struct{}) (*KeySelfOutput, 
 	out.Body.Capabilities = append([]string{}, authz.Strings(effective)...)
 	out.Body.ApprovalRequired = authz.Strings(user.APIKeyApprovalRequired)
 	out.Body.Namespaces = user.APIKeyNamespaces
+	if user.APIKeyKind == service.KeyKindAgent {
+		out.Body.ScansPerHour = user.APIKeyScansPerHour
+		out.Body.WritesPerHour = user.APIKeyWritesPerHour
+	}
 	if h.accounts != nil {
 		if keys, err := h.accounts.ListAPIKeys(ctx, user.ID); err == nil {
 			for _, k := range keys {

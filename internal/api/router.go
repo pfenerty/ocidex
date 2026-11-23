@@ -194,6 +194,11 @@ func NewRouter(h *Handler, corsOrigins, frontendURL, apiBaseURL string) chi.Rout
 		activity = h.keyActivity
 	}
 	r.Use(RecordAgentActivity(activity))
+	var quotas quotaConsumer
+	if h.quotas != nil {
+		quotas = h.quotas
+	}
+	r.Use(EnforceAgentQuotas(quotas))
 
 	config := huma.DefaultConfig("OCIDex API", ContractVersion)
 	config.Info.Description = apiIntro

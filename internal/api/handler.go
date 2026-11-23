@@ -60,6 +60,7 @@ type Handler struct {
 	tracerProvider   trace.TracerProvider
 	approvals        service.ApprovalService
 	keyActivity      service.KeyActivityService
+	quotas           service.QuotaService
 	// router is the built router, which an approved action's stored request
 	// is replayed through. Set by NewRouter.
 	router http.Handler
@@ -94,6 +95,7 @@ type Deps struct {
 	Config           *config.Config
 	Approvals        service.ApprovalService
 	KeyActivity      service.KeyActivityService
+	Quotas           service.QuotaService
 }
 
 // NewHandler creates a new Handler from its dependencies.
@@ -131,6 +133,7 @@ func NewHandler(d Deps) *Handler {
 		scanSubmitter:    d.Scans,
 		approvals:        d.Approvals,
 		keyActivity:      d.KeyActivity,
+		quotas:           d.Quotas,
 		cfg:              d.Config,
 		stateCookie:      sc2,
 		clientIPs:        NewClientIPResolver(clientIPs),

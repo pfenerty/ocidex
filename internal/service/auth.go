@@ -62,6 +62,11 @@ type AuthUser struct {
 	// APIKeyApprovalRequired lists the capabilities this key may use only
 	// once a person approves the request (ADR-0058 A4).
 	APIKeyApprovalRequired []authz.Capability
+	// APIKeyScansPerHour and APIKeyWritesPerHour are an agent key's hourly
+	// budgets (ADR-0058 A6), resolved from its overrides and the defaults.
+	// Zero for every other credential, which has none.
+	APIKeyScansPerHour  int
+	APIKeyWritesPerHour int
 	// Grants is the caller's namespace membership, keyed by namespace ID
 	// string. A namespace absent from the map is one the caller is not a member
 	// of, which grants nothing — a public namespace is readable through the SQL
@@ -95,6 +100,10 @@ type APIKeyMeta struct {
 	AgentLabel string
 	// ApprovalRequired lists capabilities held for approval.
 	ApprovalRequired []authz.Capability
+	// ScansPerHour and WritesPerHour are an agent key's budgets; nil means
+	// the default.
+	ScansPerHour  *int
+	WritesPerHour *int
 }
 
 // uuidStrings renders a nullable UUID array: nil stays nil, the "unscoped"
@@ -628,6 +637,10 @@ type KeySpec struct {
 	// Preset names an authz.Preset for an agent key; it sets Capabilities and
 	// adds its approval-required set to ApprovalRequired.
 	Preset string
+	// ScansPerHour and WritesPerHour override an agent key's default budgets,
+	// up to MaxAgentScansPerHour and MaxAgentWritesPerHour.
+	ScansPerHour  *int
+	WritesPerHour *int
 	// IsAdmin is the holder's installation role, which decides which
 	// namespaces they may name.
 	IsAdmin bool
@@ -710,6 +723,12 @@ func normalizeAgentSpec(spec KeySpec) (KeySpec, error) {
 			return spec, &ValidationError{Message: fmt.Sprintf("an agent key may not carry %q", c)}
 		}
 	}
+	if err := validateBudget("scansPerHour", spec.ScansPerHour, MaxAgentScansPerHour); err != nil {
+		return spec, err
+	}
+	if err := validateBudget("writesPerHour", spec.WritesPerHour, MaxAgentWritesPerHour); err != nil {
+		return spec, err
+	}
 	now := time.Now()
 	if spec.ExpiresAt.IsZero() {
 		spec.ExpiresAt = now.Add(AgentKeyDefaultTTL)
@@ -753,6 +772,8 @@ func (s *authService) CreateKey(ctx context.Context, userIDStr string, spec KeyS
 		AgentLabel:   pgtype.Text{String: spec.AgentLabel, Valid: spec.AgentLabel != ""},
 		// Never NULL: the column is NOT NULL and "none" is an empty array.
 		ApprovalRequired: append([]string{}, authz.Strings(spec.ApprovalRequired)...),
+		ScansPerHour:     int4Of(spec.ScansPerHour),
+		WritesPerHour:    int4Of(spec.WritesPerHour),
 	})
 	if err != nil {
 		return "", fmt.Errorf("creating api key: %w", err)
@@ -837,6 +858,8 @@ func (s *authService) ValidateAPIKey(ctx context.Context, rawKey string) (AuthUs
 		APIKeyAgentLabel: row.AgentLabel.String,
 		// Same narrowing rule as the ceiling: unknown names are dropped.
 		APIKeyApprovalRequired: validCapabilities(row.ApprovalRequired),
+		APIKeyScansPerHour:     agentLimit(int4Ptr(row.ScansPerHour), DefaultAgentScansPerHour),
+		APIKeyWritesPerHour:    agentLimit(int4Ptr(row.WritesPerHour), DefaultAgentWritesPerHour),
 	}, nil
 }
 
@@ -909,6 +932,8 @@ func (s *authService) ListAPIKeys(ctx context.Context, userIDStr string) ([]APIK
 			Namespaces:       uuidStrings(r.NamespaceIds),
 			AgentLabel:       r.AgentLabel.String,
 			ApprovalRequired: validCapabilities(r.ApprovalRequired),
+			ScansPerHour:     int4Ptr(r.ScansPerHour),
+			WritesPerHour:    int4Ptr(r.WritesPerHour),
 		}
 		if r.LastUsedAt.Valid {
 			t := r.LastUsedAt.Time
@@ -1044,4 +1069,27 @@ func (s *authService) LoadGrants(ctx context.Context, userIDStr string) (map[str
 func sha256hex(s string) string {
 	h := sha256.Sum256([]byte(s))
 	return hex.EncodeToString(h[:])
+}
+
+func int4Ptr(v pgtype.Int4) *int {
+	if !v.Valid {
+		return nil
+	}
+	n := int(v.Int32)
+	return &n
+}
+
+func int4Of(p *int) pgtype.Int4 {
+	if p == nil {
+		return pgtype.Int4{}
+	}
+	return pgtype.Int4{Int32: int32(*p), Valid: true} //nolint:gosec // bounded by validation
+}
+
+// validateBudget checks an optional budget override against its maximum.
+func validateBudget(name string, v *int, maxValue int) error {
+	if v != nil && (*v < 0 || *v > maxValue) {
+		return &ValidationError{Message: fmt.Sprintf("%s must be 0..%d", name, maxValue)}
+	}
+	return nil
 }

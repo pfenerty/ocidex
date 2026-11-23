@@ -2368,6 +2368,12 @@ type CreateAPIKeyInputBody struct {
 
 	// Preset Agent keys only: a named capability set (see GET /api/v1/auth/key-presets). Instead of capabilities.
 	Preset *CreateAPIKeyInputBodyPreset `json:"preset,omitempty"`
+
+	// ScansPerHour Agent keys only: requests that queue scans per hour. Default 20.
+	ScansPerHour *int64 `json:"scansPerHour,omitempty"`
+
+	// WritesPerHour Agent keys only: requests that change anything per hour. Default 120.
+	WritesPerHour *int64 `json:"writesPerHour,omitempty"`
 }
 
 // CreateAPIKeyInputBodyCapabilities defines model for CreateAPIKeyInputBody.Capabilities.
@@ -3178,6 +3184,12 @@ type KeyMetaResponse struct {
 
 	// Prefix First 8 characters of the key
 	Prefix string `json:"prefix"`
+
+	// ScansPerHour Agent keys: overridden scan budget per hour; absent means the default
+	ScansPerHour *int64 `json:"scansPerHour,omitempty"`
+
+	// WritesPerHour Agent keys: overridden write budget per hour; absent means the default
+	WritesPerHour *int64 `json:"writesPerHour,omitempty"`
 }
 
 // KeyMetaResponseKind personal, agent, or cluster
@@ -3214,6 +3226,12 @@ type KeySelfOutputBody struct {
 
 	// Namespaces Namespace ids the key is limited to; absent means every namespace its holder belongs to
 	Namespaces *[]string `json:"namespaces,omitempty"`
+
+	// ScansPerHour Agent keys: scan requests allowed per hour
+	ScansPerHour *int64 `json:"scansPerHour,omitempty"`
+
+	// WritesPerHour Agent keys: write requests allowed per hour
+	WritesPerHour *int64 `json:"writesPerHour,omitempty"`
 }
 
 // KeySelfOutputBodyKind session for a browser session; otherwise the API key's kind

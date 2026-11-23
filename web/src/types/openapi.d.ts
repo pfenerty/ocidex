@@ -2745,6 +2745,16 @@ export interface components {
              * @enum {string}
              */
             preset?: "analyst" | "remediation" | "coverage";
+            /**
+             * Format: int64
+             * @description Agent keys only: requests that queue scans per hour. Default 20.
+             */
+            scansPerHour?: number;
+            /**
+             * Format: int64
+             * @description Agent keys only: requests that change anything per hour. Default 120.
+             */
+            writesPerHour?: number;
         };
         CreateAPIKeyOutputBody: {
             /**
@@ -3581,6 +3591,16 @@ export interface components {
             namespaces?: string[] | null;
             /** @description First 8 characters of the key */
             prefix: string;
+            /**
+             * Format: int64
+             * @description Agent keys: overridden scan budget per hour; absent means the default
+             */
+            scansPerHour?: number;
+            /**
+             * Format: int64
+             * @description Agent keys: overridden write budget per hour; absent means the default
+             */
+            writesPerHour?: number;
         };
         KeyPreset: {
             /** @description Capabilities a person must approve on every request */
@@ -3613,6 +3633,16 @@ export interface components {
             kind: "session" | "personal" | "agent" | "cluster";
             /** @description Namespace ids the key is limited to; absent means every namespace its holder belongs to */
             namespaces?: string[] | null;
+            /**
+             * Format: int64
+             * @description Agent keys: scan requests allowed per hour
+             */
+            scansPerHour?: number;
+            /**
+             * Format: int64
+             * @description Agent keys: write requests allowed per hour
+             */
+            writesPerHour?: number;
         };
         LicenseCategoryMix: {
             /** Format: int64 */

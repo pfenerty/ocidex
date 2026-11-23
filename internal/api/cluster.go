@@ -3,6 +3,7 @@ package api
 import (
 	"context"
 	"errors"
+	"fmt"
 	"log/slog"
 	"time"
 
@@ -322,6 +323,15 @@ func (h *Handler) autoIngestAfterSnapshot(ctx context.Context, clusterID string)
 // Ownership rather than visibility is required — this spends registry
 // credentials and enqueues work, which reading a cluster does not.
 func (h *Handler) IngestUnknown(ctx context.Context, in *IngestUnknownInput) (*IngestUnknownOutput, error) {
+	// An agent names the images it wants scanned, a bounded number of them:
+	// "the whole gap" is a person's call (ADR-0058 A6). Checked before the
+	// capability check so an unbounded request is refused, not held.
+	if user, ok := UserFromContext(ctx); ok && user.APIKeyKind == service.KeyKindAgent {
+		if n := len(in.Body.ImageDigests); n == 0 || n > service.MaxAgentIngestImages {
+			return nil, huma.Error422UnprocessableEntity(fmt.Sprintf(
+				"an agent key must name the images to scan in imageDigests, at most %d", service.MaxAgentIngestImages))
+		}
+	}
 	if err := h.clusterCapabilityCheck(ctx, in.ID, authz.CapTriggerScan); err != nil {
 		return nil, err
 	}

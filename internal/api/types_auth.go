@@ -98,9 +98,12 @@ type CreateAPIKeyInput struct {
 		// program acting for you and must be limited to named namespaces.
 		Kind string `json:"kind,omitempty" enum:"personal,agent" doc:"personal (default) or agent: a key a program uses on your behalf"`
 		// Preset is how an agent key is normally made (ADR-0058 A3).
-		Preset     string   `json:"preset,omitempty" enum:"analyst,remediation,coverage" doc:"Agent keys only: a named capability set (see GET /api/v1/auth/key-presets). Instead of capabilities."`
-		Namespaces []string `json:"namespaces,omitempty" doc:"Limit the key to these namespace ids: it may act and read private data only in them. Omit for every namespace you belong to (personal keys only)."`
-		AgentLabel string   `json:"agentLabel,omitempty" maxLength:"100" doc:"What you call the agent's client, shown in the key list and the audit log"`
+		Preset string `json:"preset,omitempty" enum:"analyst,remediation,coverage" doc:"Agent keys only: a named capability set (see GET /api/v1/auth/key-presets). Instead of capabilities."`
+		// Budgets bound what an agent key can do per hour (ADR-0058 A6).
+		ScansPerHour  *int     `json:"scansPerHour,omitempty" minimum:"0" maximum:"200" doc:"Agent keys only: requests that queue scans per hour. Default 20."`
+		WritesPerHour *int     `json:"writesPerHour,omitempty" minimum:"0" maximum:"1000" doc:"Agent keys only: requests that change anything per hour. Default 120."`
+		Namespaces    []string `json:"namespaces,omitempty" doc:"Limit the key to these namespace ids: it may act and read private data only in them. Omit for every namespace you belong to (personal keys only)."`
+		AgentLabel    string   `json:"agentLabel,omitempty" maxLength:"100" doc:"What you call the agent's client, shown in the key list and the audit log"`
 		// ApprovalRequired holds each request needing one of these for a
 		// person to approve in a browser session (ADR-0058 A4).
 		ApprovalRequired []string `json:"approvalRequired,omitempty" doc:"Mutating capabilities this key may use only after a person approves each request. Each must be one the key carries; read_private, read_secret and installation_admin cannot be held."`
@@ -128,6 +131,8 @@ type KeyMetaResponse struct {
 	Namespaces       []string   `json:"namespaces,omitempty" doc:"The namespaces the key is limited to; absent means every namespace its owner belongs to"`
 	AgentLabel       string     `json:"agentLabel,omitempty" doc:"An agent key's client name"`
 	ApprovalRequired []string   `json:"approvalRequired,omitempty" doc:"Capabilities held for a person's approval on every request"`
+	ScansPerHour     *int       `json:"scansPerHour,omitempty" doc:"Agent keys: overridden scan budget per hour; absent means the default"`
+	WritesPerHour    *int       `json:"writesPerHour,omitempty" doc:"Agent keys: overridden write budget per hour; absent means the default"`
 }
 
 // ListAPIKeysOutput is the response for GET /api/v1/auth/keys.
@@ -267,5 +272,7 @@ type KeySelfOutput struct {
 		ApprovalRequired []string   `json:"approvalRequired,omitempty" doc:"Capabilities a person must approve on every request"`
 		Namespaces       []string   `json:"namespaces,omitempty" doc:"Namespace ids the key is limited to; absent means every namespace its holder belongs to"`
 		ExpiresAt        *time.Time `json:"expiresAt,omitempty"`
+		ScansPerHour     int        `json:"scansPerHour,omitempty" doc:"Agent keys: scan requests allowed per hour"`
+		WritesPerHour    int        `json:"writesPerHour,omitempty" doc:"Agent keys: write requests allowed per hour"`
 	}
 }
