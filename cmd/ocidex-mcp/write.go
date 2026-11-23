@@ -21,7 +21,7 @@ import (
 
 // writeOutcome is what every write tool returns.
 type writeOutcome struct {
-	Status string `json:"status" jsonschema:"done: it ran. held: waiting for a person's approval; nothing has run. preview: nothing was sent"`
+	Status string `json:"status" jsonschema:"done: it ran. held: waiting for a person's approval; nothing has run. preview: nothing was sent. declined or cancelled: the user refused when asked; nothing was sent"`
 	Effect string `json:"effect,omitempty" jsonschema:"What the request does, in OCIDex's words when held, otherwise the tool's"`
 	// Set when held.
 	ApprovalID  string `json:"approval_id,omitempty" jsonschema:"Pass to ocidex_approval_status to learn the outcome"`
@@ -109,10 +109,13 @@ func registerWatchTools(srv *mcp.Server, api client.Client, server string) {
 		Name:        "ocidex_watch_artifact",
 		Description: "Add an artifact to the user's watchlist, so its new versions and findings appear in their workspace feed. Use it to track what you are remediating.",
 		Annotations: writeAnnotations(),
-	}, func(ctx context.Context, _ *mcp.CallToolRequest, in watchInput) (*mcp.CallToolResult, writeOutcome, error) {
+	}, func(ctx context.Context, req *mcp.CallToolRequest, in watchInput) (*mcp.CallToolResult, writeOutcome, error) {
 		effect := "Add artifact " + in.ArtifactID + " to the user's watchlist."
 		if in.Preview {
 			return nil, previewOutcome(effect), nil
+		}
+		if c := confirmWrite(req, effect); !c.proceed() {
+			return c.ask, outcomeOrZero(c.stop), nil
 		}
 		res, err := api.WatchArtifact(ctx, in.ArtifactID, client.WriteOpts{Tool: "ocidex_watch_artifact"})
 		if err != nil {
@@ -124,10 +127,13 @@ func registerWatchTools(srv *mcp.Server, api client.Client, server string) {
 		Name:        "ocidex_unwatch_artifact",
 		Description: "Remove an artifact from the user's watchlist.",
 		Annotations: writeAnnotations(),
-	}, func(ctx context.Context, _ *mcp.CallToolRequest, in watchInput) (*mcp.CallToolResult, writeOutcome, error) {
+	}, func(ctx context.Context, req *mcp.CallToolRequest, in watchInput) (*mcp.CallToolResult, writeOutcome, error) {
 		effect := "Remove artifact " + in.ArtifactID + " from the user's watchlist."
 		if in.Preview {
 			return nil, previewOutcome(effect), nil
+		}
+		if c := confirmWrite(req, effect); !c.proceed() {
+			return c.ask, outcomeOrZero(c.stop), nil
 		}
 		res, err := api.UnwatchArtifact(ctx, in.ArtifactID, client.WriteOpts{Tool: "ocidex_unwatch_artifact"})
 		if err != nil {
@@ -139,8 +145,9 @@ func registerWatchTools(srv *mcp.Server, api client.Client, server string) {
 
 func registerScanTools(srv *mcp.Server, api client.Client, s keySurface) {
 	server := s.server
+	held := s.held("trigger_scan")
 	heldNote := ""
-	if s.held("trigger_scan") {
+	if held {
 		heldNote = " With this key it is held until a person approves it; the result says how to follow up."
 	}
 	addTool(srv, &mcp.Tool{
@@ -148,7 +155,7 @@ func registerScanTools(srv *mcp.Server, api client.Client, s keySurface) {
 		Description: "Ask OCIDex to scan a registry: walk its repositories and queue an SBOM scan for each new or changed image, " +
 			"using the registry's stored credentials. Use it when coverage gaps point at a registry." + heldNote,
 		Annotations: writeAnnotations(),
-	}, func(ctx context.Context, _ *mcp.CallToolRequest, in scanRegistryInput) (*mcp.CallToolResult, writeOutcome, error) {
+	}, func(ctx context.Context, req *mcp.CallToolRequest, in scanRegistryInput) (*mcp.CallToolResult, writeOutcome, error) {
 		scope := "new and changed images only"
 		if in.Force {
 			scope = "every image, including ones already scanned"
@@ -156,6 +163,11 @@ func registerScanTools(srv *mcp.Server, api client.Client, s keySurface) {
 		effect := fmt.Sprintf("Scan registry %s: %s.", in.RegistryID, scope)
 		if in.Preview {
 			return nil, previewOutcome(effect), nil
+		}
+		if !held {
+			if c := confirmWrite(req, effect); !c.proceed() {
+				return c.ask, outcomeOrZero(c.stop), nil
+			}
 		}
 		res, err := api.RequestRegistryScan(ctx, in.RegistryID, in.Force, client.WriteOpts{Tool: "ocidex_scan_registry", Reason: in.Reason})
 		if err != nil {
@@ -168,13 +180,18 @@ func registerScanTools(srv *mcp.Server, api client.Client, s keySurface) {
 		Description: "Ask OCIDex to scan named images a cluster runs with no SBOM, so their findings become visible. " +
 			"Take the digests from ocidex_cluster_coverage_gaps." + heldNote,
 		Annotations: writeAnnotations(),
-	}, func(ctx context.Context, _ *mcp.CallToolRequest, in ingestInput) (*mcp.CallToolResult, writeOutcome, error) {
+	}, func(ctx context.Context, req *mcp.CallToolRequest, in ingestInput) (*mcp.CallToolResult, writeOutcome, error) {
 		if len(in.ImageDigests) == 0 || len(in.ImageDigests) > 200 {
 			return nil, writeOutcome{}, fmt.Errorf("image_digests must name between 1 and 200 images")
 		}
 		effect := fmt.Sprintf("Queue scans of %d running image(s) in cluster %s.", len(in.ImageDigests), in.ClusterID)
 		if in.Preview {
 			return nil, previewOutcome(effect), nil
+		}
+		if !held {
+			if c := confirmWrite(req, effect); !c.proceed() {
+				return c.ask, outcomeOrZero(c.stop), nil
+			}
 		}
 		res, err := api.RequestClusterIngest(ctx, in.ClusterID, in.ImageDigests, client.WriteOpts{Tool: "ocidex_ingest_unknown_images", Reason: in.Reason})
 		if err != nil {
@@ -208,4 +225,11 @@ func registerApprovalStatus(srv *mcp.Server, api client.Client) {
 		}
 		return nil, out, nil
 	})
+}
+
+func outcomeOrZero(o *writeOutcome) writeOutcome {
+	if o == nil {
+		return writeOutcome{}
+	}
+	return *o
 }

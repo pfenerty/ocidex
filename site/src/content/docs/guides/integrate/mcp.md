@@ -110,6 +110,11 @@ and an `approval_url`. Nothing runs until a person approves it in the browser. T
 pass on the link and poll `ocidex_approval_status`, not to resend. Agent keys also have hourly
 budgets; a spent budget is refused until the next hour.
 
+If your client supports MCP elicitation, a write that would run straight away is first shown to you
+with a request to allow it. Declining sends nothing. Held writes skip that prompt, since you approve
+them in OCIDex instead. Clients without elicitation run the write without asking, within the key's
+limits.
+
 When a name matches several artifacts, a lookup returns the candidates and what tells them apart,
 rather than guessing, so the agent can ask again more precisely.
 
