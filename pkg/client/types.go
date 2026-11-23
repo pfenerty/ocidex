@@ -174,6 +174,27 @@ func (e CreateAPIKeyInputBodyKind) Valid() bool {
 	}
 }
 
+// Defines values for CreateAPIKeyInputBodyPreset.
+const (
+	Analyst     CreateAPIKeyInputBodyPreset = "analyst"
+	Coverage    CreateAPIKeyInputBodyPreset = "coverage"
+	Remediation CreateAPIKeyInputBodyPreset = "remediation"
+)
+
+// Valid indicates whether the value is a known member of the CreateAPIKeyInputBodyPreset enum.
+func (e CreateAPIKeyInputBodyPreset) Valid() bool {
+	switch e {
+	case Analyst:
+		return true
+	case Coverage:
+		return true
+	case Remediation:
+		return true
+	default:
+		return false
+	}
+}
+
 // Defines values for CreateNamespaceInputBodyVisibility.
 const (
 	CreateNamespaceInputBodyVisibilityPrivate CreateNamespaceInputBodyVisibility = "private"
@@ -2320,6 +2341,9 @@ type CreateAPIKeyInputBody struct {
 
 	// Namespaces Limit the key to these namespace ids: it may act and read private data only in them. Omit for every namespace you belong to (personal keys only).
 	Namespaces *[]string `json:"namespaces,omitempty"`
+
+	// Preset Agent keys only: a named capability set (see GET /api/v1/auth/key-presets). Instead of capabilities.
+	Preset *CreateAPIKeyInputBodyPreset `json:"preset,omitempty"`
 }
 
 // CreateAPIKeyInputBodyCapabilities defines model for CreateAPIKeyInputBody.Capabilities.
@@ -2327,6 +2351,9 @@ type CreateAPIKeyInputBodyCapabilities string
 
 // CreateAPIKeyInputBodyKind personal (default) or agent: a key a program uses on your behalf
 type CreateAPIKeyInputBodyKind string
+
+// CreateAPIKeyInputBodyPreset Agent keys only: a named capability set (see GET /api/v1/auth/key-presets). Instead of capabilities.
+type CreateAPIKeyInputBodyPreset string
 
 // CreateAPIKeyOutputBody defines model for CreateAPIKeyOutputBody.
 type CreateAPIKeyOutputBody struct {
@@ -3132,6 +3159,16 @@ type KeyMetaResponse struct {
 // KeyMetaResponseKind personal, agent, or cluster
 type KeyMetaResponseKind string
 
+// KeyPreset defines model for KeyPreset.
+type KeyPreset struct {
+	// ApprovalRequired Capabilities a person must approve on every request
+	ApprovalRequired *[]string `json:"approvalRequired,omitempty"`
+	Capabilities     *[]string `json:"capabilities"`
+	Description      string    `json:"description"`
+	Name             string    `json:"name"`
+	Title            string    `json:"title"`
+}
+
 // LicenseCategoryMix defines model for LicenseCategoryMix.
 type LicenseCategoryMix struct {
 	Copyleft      int64 `json:"copyleft"`
@@ -3332,6 +3369,15 @@ type ListIdentitiesOutputBody struct {
 	// Schema A URL to the JSON Schema for this object.
 	Schema     *string             `json:"$schema,omitempty"`
 	Identities *[]IdentityResponse `json:"identities"`
+}
+
+// ListKeyPresetsOutputBody defines model for ListKeyPresetsOutputBody.
+type ListKeyPresetsOutputBody struct {
+	// Schema A URL to the JSON Schema for this object.
+	Schema            *string      `json:"$schema,omitempty"`
+	DefaultExpiryDays int64        `json:"defaultExpiryDays"`
+	MaxExpiryDays     int64        `json:"maxExpiryDays"`
+	Presets           *[]KeyPreset `json:"presets"`
 }
 
 // ListLicensesOutputBody defines model for ListLicensesOutputBody.

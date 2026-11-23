@@ -264,6 +264,15 @@ func NewRouter(h *Handler, corsOrigins, frontendURL, apiBaseURL string) chi.Rout
 	registerDevOps(api, h)
 	registerApprovalOps(api, h)
 	huma.Register(api, huma.Operation{
+		OperationID: "list-key-presets",
+		Method:      http.MethodGet,
+		Path:        "/api/v1/auth/key-presets",
+		Summary:     "List agent key presets",
+		Description: "The named capability sets an agent key is created from, and the lifetime bounds for agent keys.",
+		Tags:        []string{tagAuth},
+		Middlewares: huma.Middlewares{RequireAuthenticated(api)},
+	}, h.ListKeyPresets)
+	huma.Register(api, huma.Operation{
 		OperationID: "list-key-activity",
 		Method:      http.MethodGet,
 		Path:        "/api/v1/auth/keys/{id}/activity",

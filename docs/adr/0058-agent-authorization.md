@@ -135,8 +135,8 @@ runaway or prompt-injected agent independently of approvals.
 
 ### A7. What agent keys may never do
 
-Regardless of capabilities: manage keys (create, delete, list others'), approve or deny actions,
-manage members, link identities, or use `installation_admin`. These stay session-only or
+Regardless of capabilities: manage keys (create, delete or list any, their own included), approve
+or deny actions, manage members, delete a namespace, link identities, or use `installation_admin`. These stay session-only or
 personal-key-only.
 
 ### A8. The MCP server earns its writes

@@ -36,7 +36,7 @@ func TestAgentKeyActivityIsRecorded(t *testing.T) {
 	is.NoErr(pool.QueryRow(ctx, `SELECT id::text FROM artifact LIMIT 1`).Scan(&artifactID))
 
 	agent, err := authSvc.CreateKey(ctx, alice.String(), service.KeySpec{
-		Name: "agent", Kind: service.KeyKindAgent, Namespaces: []string{nsID}, AgentLabel: "laptop",
+		Name: "agent", Kind: service.KeyKindAgent, Preset: "remediation", Namespaces: []string{nsID}, AgentLabel: "laptop",
 	})
 	is.NoErr(err)
 

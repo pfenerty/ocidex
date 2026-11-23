@@ -130,6 +130,10 @@ func (u AuthUser) KeyAllows(c authz.Capability) bool {
 	if c == authz.CapInstallationAdmin && u.APIKeyNamespaces != nil {
 		return false
 	}
+	// Some decisions are never an agent's (A7), whatever the key row says.
+	if u.APIKeyKind == KeyKindAgent && !authz.AgentMayHold(c) {
+		return false
+	}
 	for _, held := range u.APIKeyCaps {
 		if held == c {
 			return true
@@ -621,6 +625,9 @@ type KeySpec struct {
 	// ApprovalRequired lists capabilities the key may use only once a person
 	// approves each request. Each must be mutating and within Capabilities.
 	ApprovalRequired []authz.Capability
+	// Preset names an authz.Preset for an agent key; it sets Capabilities and
+	// adds its approval-required set to ApprovalRequired.
+	Preset string
 	// IsAdmin is the holder's installation role, which decides which
 	// namespaces they may name.
 	IsAdmin bool
@@ -638,19 +645,77 @@ func normalizeKeySpec(spec KeySpec) (KeySpec, error) {
 	if !spec.ExpiresAt.IsZero() && !spec.ExpiresAt.After(time.Now()) {
 		return spec, &ValidationError{Message: "expiresAt must be in the future"}
 	}
+	if spec.Kind == KeyKindAgent {
+		var err error
+		if spec, err = normalizeAgentSpec(spec); err != nil {
+			return spec, err
+		}
+	} else if spec.Preset != "" {
+		return spec, &ValidationError{Message: "presets are for agent keys"}
+	}
 	if len(spec.Capabilities) == 0 {
 		spec.Capabilities = authz.AllCapabilities()
 	}
+	return spec, validateKeyCapabilities(spec)
+}
+
+// validateKeyCapabilities checks the capability names and that every
+// approval-required capability is an approvable one the key carries.
+func validateKeyCapabilities(spec KeySpec) error {
 	for _, c := range spec.Capabilities {
 		if !c.Valid() {
-			return spec, &ValidationError{Message: fmt.Sprintf("unknown capability %q", c)}
+			return &ValidationError{Message: fmt.Sprintf("unknown capability %q", c)}
 		}
 	}
 	for _, c := range spec.ApprovalRequired {
 		approvable := c.Mutating() && c != authz.CapReadSecret && c != authz.CapInstallationAdmin
 		if !c.Valid() || !approvable || !slices.Contains(spec.Capabilities, c) {
-			return spec, &ValidationError{Message: fmt.Sprintf("approvalRequired %q must be a mutating capability the key carries", c)}
+			return &ValidationError{Message: fmt.Sprintf("approvalRequired %q must be a mutating capability the key carries", c)}
 		}
+	}
+	return nil
+}
+
+// Agent key lifetimes (ADR-0058 A3): an agent key always expires.
+const (
+	AgentKeyDefaultTTL = 30 * 24 * time.Hour
+	AgentKeyMaxTTL     = 90 * 24 * time.Hour
+)
+
+// normalizeAgentSpec applies the agent-key rules: a preset or an explicit
+// capability list (never the "everything" an empty list means), none of the
+// capabilities an agent may never hold, and an expiry within AgentKeyMaxTTL,
+// defaulting to AgentKeyDefaultTTL.
+func normalizeAgentSpec(spec KeySpec) (KeySpec, error) {
+	if spec.Preset != "" {
+		p, ok := authz.PresetByName(spec.Preset)
+		if !ok {
+			return spec, &ValidationError{Message: fmt.Sprintf("unknown preset %q", spec.Preset)}
+		}
+		if len(spec.Capabilities) > 0 {
+			return spec, &ValidationError{Message: "give a preset or capabilities, not both"}
+		}
+		spec.Capabilities = p.Capabilities
+		for _, c := range p.ApprovalRequired {
+			if !slices.Contains(spec.ApprovalRequired, c) {
+				spec.ApprovalRequired = append(spec.ApprovalRequired, c)
+			}
+		}
+	}
+	if len(spec.Capabilities) == 0 {
+		return spec, &ValidationError{Message: "an agent key needs a preset or an explicit capability list"}
+	}
+	for _, c := range spec.Capabilities {
+		if !authz.AgentMayHold(c) {
+			return spec, &ValidationError{Message: fmt.Sprintf("an agent key may not carry %q", c)}
+		}
+	}
+	now := time.Now()
+	if spec.ExpiresAt.IsZero() {
+		spec.ExpiresAt = now.Add(AgentKeyDefaultTTL)
+	}
+	if spec.ExpiresAt.After(now.Add(AgentKeyMaxTTL)) {
+		return spec, &ValidationError{Message: "an agent key may last at most 90 days"}
 	}
 	return spec, nil
 }

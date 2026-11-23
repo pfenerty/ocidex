@@ -96,7 +96,9 @@ type CreateAPIKeyInput struct {
 		ExpiresAt *time.Time `json:"expiresAt,omitempty" doc:"When the key stops working. Must be in the future. Omit for a key that never expires."`
 		// Kind, Namespaces and AgentLabel follow ADR-0058: an agent key is a
 		// program acting for you and must be limited to named namespaces.
-		Kind       string   `json:"kind,omitempty" enum:"personal,agent" doc:"personal (default) or agent: a key a program uses on your behalf"`
+		Kind string `json:"kind,omitempty" enum:"personal,agent" doc:"personal (default) or agent: a key a program uses on your behalf"`
+		// Preset is how an agent key is normally made (ADR-0058 A3).
+		Preset     string   `json:"preset,omitempty" enum:"analyst,remediation,coverage" doc:"Agent keys only: a named capability set (see GET /api/v1/auth/key-presets). Instead of capabilities."`
 		Namespaces []string `json:"namespaces,omitempty" doc:"Limit the key to these namespace ids: it may act and read private data only in them. Omit for every namespace you belong to (personal keys only)."`
 		AgentLabel string   `json:"agentLabel,omitempty" maxLength:"100" doc:"What you call the agent's client, shown in the key list and the audit log"`
 		// ApprovalRequired holds each request needing one of these for a
@@ -232,4 +234,23 @@ type StartIdentityLinkOutput struct {
 // UnlinkIdentityInput is the request for DELETE /api/v1/auth/identities/{id}.
 type UnlinkIdentityInput struct {
 	ID string `path:"id" doc:"Identity UUID" format:"uuid"`
+}
+
+// KeyPreset is one agent key preset.
+type KeyPreset struct {
+	Name             string   `json:"name"`
+	Title            string   `json:"title"`
+	Description      string   `json:"description"`
+	Capabilities     []string `json:"capabilities"`
+	ApprovalRequired []string `json:"approvalRequired,omitempty" doc:"Capabilities a person must approve on every request"`
+}
+
+// ListKeyPresetsOutput is the response for GET /api/v1/auth/key-presets.
+type ListKeyPresetsOutput struct {
+	Body struct {
+		Presets []KeyPreset `json:"presets"`
+		// DefaultExpiryDays and MaxExpiryDays bound an agent key's lifetime.
+		DefaultExpiryDays int `json:"defaultExpiryDays"`
+		MaxExpiryDays     int `json:"maxExpiryDays"`
+	}
 }

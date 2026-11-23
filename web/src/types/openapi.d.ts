@@ -502,6 +502,26 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/v1/auth/key-presets": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * List agent key presets
+         * @description The named capability sets an agent key is created from, and the lifetime bounds for agent keys.
+         */
+        get: operations["list-key-presets"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/v1/auth/keys": {
         parameters: {
             query?: never;
@@ -2700,6 +2720,11 @@ export interface components {
             name: string;
             /** @description Limit the key to these namespace ids: it may act and read private data only in them. Omit for every namespace you belong to (personal keys only). */
             namespaces?: string[] | null;
+            /**
+             * @description Agent keys only: a named capability set (see GET /api/v1/auth/key-presets). Instead of capabilities.
+             * @enum {string}
+             */
+            preset?: "analyst" | "remediation" | "coverage";
         };
         CreateAPIKeyOutputBody: {
             /**
@@ -3537,6 +3562,14 @@ export interface components {
             /** @description First 8 characters of the key */
             prefix: string;
         };
+        KeyPreset: {
+            /** @description Capabilities a person must approve on every request */
+            approvalRequired?: string[] | null;
+            capabilities: string[] | null;
+            description: string;
+            name: string;
+            title: string;
+        };
         LicenseCategoryMix: {
             /** Format: int64 */
             copyleft: number;
@@ -3784,6 +3817,19 @@ export interface components {
              */
             readonly $schema?: string;
             identities: components["schemas"]["IdentityResponse"][] | null;
+        };
+        ListKeyPresetsOutputBody: {
+            /**
+             * Format: uri
+             * @description A URL to the JSON Schema for this object.
+             * @example https://example.com/api/schemas/ListKeyPresetsOutputBody.json
+             */
+            readonly $schema?: string;
+            /** Format: int64 */
+            defaultExpiryDays: number;
+            /** Format: int64 */
+            maxExpiryDays: number;
+            presets: components["schemas"]["KeyPreset"][] | null;
         };
         ListLicensesOutputBody: {
             /**
@@ -6143,6 +6189,35 @@ export interface operations {
                     [name: string]: unknown;
                 };
                 content?: never;
+            };
+            /** @description Error */
+            default: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["ErrorModel"];
+                };
+            };
+        };
+    };
+    "list-key-presets": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description OK */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ListKeyPresetsOutputBody"];
+                };
             };
             /** @description Error */
             default: {

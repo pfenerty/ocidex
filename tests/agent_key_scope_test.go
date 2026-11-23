@@ -5,9 +5,11 @@ import (
 	"sort"
 	"strings"
 	"testing"
+	"time"
 
 	"github.com/matryer/is"
 
+	"github.com/pfenerty/ocidex/internal/authz"
 	"github.com/pfenerty/ocidex/internal/service"
 )
 
@@ -46,7 +48,7 @@ func TestAgentKeyScopedToNamespaces(t *testing.T) {
 	refreshRollups(t, pool)
 
 	agent, err := authSvc.CreateKey(ctx, alice.String(), service.KeySpec{
-		Name: "agent", Kind: service.KeyKindAgent, Namespaces: []string{nsA}, AgentLabel: "test agent",
+		Name: "agent", Kind: service.KeyKindAgent, Preset: "analyst", Namespaces: []string{nsA}, AgentLabel: "test agent",
 	})
 	is.NoErr(err)
 
@@ -95,11 +97,11 @@ func TestAgentKeyCreationRules(t *testing.T) {
 	theirs := seedNamespace(t, pool, "rules-theirs", bob, "private")
 
 	// An agent key must be limited to at least one namespace.
-	_, err := authSvc.CreateKey(ctx, alice.String(), service.KeySpec{Name: "a", Kind: service.KeyKindAgent})
+	_, err := authSvc.CreateKey(ctx, alice.String(), service.KeySpec{Name: "a", Kind: service.KeyKindAgent, Preset: "analyst"})
 	is.True(err != nil)
 
 	// A key cannot be limited to a namespace its holder does not belong to.
-	_, err = authSvc.CreateKey(ctx, alice.String(), service.KeySpec{Name: "b", Kind: service.KeyKindAgent, Namespaces: []string{theirs}})
+	_, err = authSvc.CreateKey(ctx, alice.String(), service.KeySpec{Name: "b", Kind: service.KeyKindAgent, Preset: "analyst", Namespaces: []string{theirs}})
 	is.True(err != nil)
 
 	// A key cannot be a cluster key from here.
@@ -107,7 +109,7 @@ func TestAgentKeyCreationRules(t *testing.T) {
 	is.True(err != nil)
 
 	// The listing reports kind, namespaces and label.
-	_, err = authSvc.CreateKey(ctx, alice.String(), service.KeySpec{Name: "ok", Kind: service.KeyKindAgent, Namespaces: []string{mine}, AgentLabel: "laptop"})
+	_, err = authSvc.CreateKey(ctx, alice.String(), service.KeySpec{Name: "ok", Kind: service.KeyKindAgent, Preset: "analyst", Namespaces: []string{mine}, AgentLabel: "laptop"})
 	is.NoErr(err)
 	keys, err := authSvc.ListAPIKeys(ctx, alice.String())
 	is.NoErr(err)
@@ -117,10 +119,76 @@ func TestAgentKeyCreationRules(t *testing.T) {
 	is.Equal(keys[0].AgentLabel, "laptop")
 
 	// The validated identity carries the scope.
-	plain, err := authSvc.CreateKey(ctx, alice.String(), service.KeySpec{Name: "ok2", Kind: service.KeyKindAgent, Namespaces: []string{mine}})
+	plain, err := authSvc.CreateKey(ctx, alice.String(), service.KeySpec{Name: "ok2", Kind: service.KeyKindAgent, Preset: "analyst", Namespaces: []string{mine}})
 	is.NoErr(err)
 	u, err := authSvc.ValidateAPIKey(ctx, plain)
 	is.NoErr(err)
 	is.Equal(u.APIKeyKind, service.KeyKindAgent)
 	is.Equal(u.APIKeyNamespaces, []string{mine})
+}
+
+// TestAgentKeyPresetsAndLimits pins ADR-0058 A3 and A7 for key creation and
+// key management.
+func TestAgentKeyPresetsAndLimits(t *testing.T) {
+	if testing.Short() {
+		t.Skip("skipping integration test in short mode")
+	}
+	requireTestInfra(t)
+
+	pool, cleanup := setupTestDB(t)
+	defer cleanup()
+	srv, authSvc := setupServerWithAuth(t, pool)
+	defer srv.Close()
+	is := is.New(t)
+	ctx := t.Context()
+
+	alice := seedUser(t, pool, 9721, "preset-alice", "member")
+	ns := seedNamespace(t, pool, "preset-ns", alice, "private")
+	agent := func(spec service.KeySpec) (string, error) {
+		spec.Name, spec.Kind, spec.Namespaces = "a", service.KeyKindAgent, []string{ns}
+		return authSvc.CreateKey(ctx, alice.String(), spec)
+	}
+
+	// No preset and no capabilities would mean "everything": refused.
+	_, err := agent(service.KeySpec{})
+	is.True(err != nil)
+	// Never an agent's: membership management.
+	_, err = agent(service.KeySpec{Capabilities: []authz.Capability{authz.CapReadPrivate, authz.CapManageMember}})
+	is.True(err != nil)
+	// At most 90 days.
+	_, err = agent(service.KeySpec{Preset: "analyst", ExpiresAt: time.Now().Add(100 * 24 * time.Hour)})
+	is.True(err != nil)
+	// Presets are for agent keys.
+	_, err = authSvc.CreateKey(ctx, alice.String(), service.KeySpec{Name: "p", Preset: "analyst"})
+	is.True(err != nil)
+
+	// coverage: trigger_scan, held for approval, 30-day default expiry.
+	plain, err := agent(service.KeySpec{Preset: "coverage"})
+	is.NoErr(err)
+	u, err := authSvc.ValidateAPIKey(ctx, plain)
+	is.NoErr(err)
+	is.True(u.KeyAllows(authz.CapTriggerScan))
+	is.True(u.RequiresApproval(authz.CapTriggerScan))
+	var expires time.Time
+	is.NoErr(pool.QueryRow(ctx, `SELECT expires_at FROM api_key WHERE kind = 'agent'`).Scan(&expires))
+	is.True(expires.After(time.Now().Add(29*24*time.Hour)) && expires.Before(time.Now().Add(31*24*time.Hour)))
+
+	// An agent key cannot manage keys, its own included.
+	for _, m := range []string{http.MethodGet, http.MethodPost} {
+		resp, err := doWithAuth(t, m, srv.URL+"/api/v1/auth/keys", `{"name":"x"}`, plain)
+		is.NoErr(err)
+		resp.Body.Close()
+		is.Equal(resp.StatusCode, http.StatusForbidden)
+	}
+
+	// The presets are listed.
+	var presets struct {
+		Presets []struct {
+			Name string `json:"name"`
+		} `json:"presets"`
+		MaxExpiryDays int `json:"maxExpiryDays"`
+	}
+	getJSON(t, srv.URL+"/api/v1/auth/key-presets", plain, &presets)
+	is.Equal(len(presets.Presets), 3)
+	is.Equal(presets.MaxExpiryDays, 90)
 }

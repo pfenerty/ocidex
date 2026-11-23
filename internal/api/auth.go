@@ -323,6 +323,7 @@ func registerAuthOps(r chi.Router, api huma.API, h *Handler) {
 	r.Post("/auth/logout", h.HandleLogout)
 
 	authMW := RequireAuthenticated(api)
+	noAgentMW := RefuseAgentKeys(api)
 	memberMW := RequireMember(api)
 	adminMW := RequireAdmin(api)
 	writeMW := RequireWrite(api)
@@ -516,7 +517,7 @@ func registerAuthOps(r chi.Router, api huma.API, h *Handler) {
 		Summary:       "Create API key",
 		Tags:          []string{tagAuth},
 		DefaultStatus: http.StatusCreated,
-		Middlewares:   huma.Middlewares{memberMW, writeMW},
+		Middlewares:   huma.Middlewares{memberMW, noAgentMW, writeMW},
 	}, h.CreateAPIKey)
 
 	huma.Register(api, huma.Operation{
@@ -525,7 +526,7 @@ func registerAuthOps(r chi.Router, api huma.API, h *Handler) {
 		Path:        "/api/v1/auth/keys",
 		Summary:     "List API keys",
 		Tags:        []string{tagAuth},
-		Middlewares: huma.Middlewares{memberMW},
+		Middlewares: huma.Middlewares{memberMW, noAgentMW},
 	}, h.ListAPIKeys)
 
 	huma.Register(api, huma.Operation{
@@ -535,7 +536,7 @@ func registerAuthOps(r chi.Router, api huma.API, h *Handler) {
 		Summary:       "Delete API key",
 		Tags:          []string{tagAuth},
 		DefaultStatus: http.StatusNoContent,
-		Middlewares:   huma.Middlewares{memberMW, writeMW},
+		Middlewares:   huma.Middlewares{memberMW, noAgentMW, writeMW},
 	}, h.DeleteAPIKey)
 
 	huma.Register(api, huma.Operation{
@@ -724,6 +725,9 @@ func (h *Handler) CreateAPIKey(ctx context.Context, in *CreateAPIKeyInput) (*Cre
 	if !ok {
 		return nil, huma.Error401Unauthorized("not authenticated")
 	}
+	if err := refuseAgentKey(user); err != nil {
+		return nil, err
+	}
 	caps, err := authz.ParseCapabilities(in.Body.Capabilities)
 	if err != nil {
 		return nil, huma.Error422UnprocessableEntity(err.Error())
@@ -753,6 +757,7 @@ func (h *Handler) CreateAPIKey(ctx context.Context, in *CreateAPIKeyInput) (*Cre
 		AgentLabel:       in.Body.AgentLabel,
 		IsAdmin:          user.Role == roleAdmin,
 		ApprovalRequired: approval,
+		Preset:           in.Body.Preset,
 	})
 	if err != nil {
 		return nil, mapServiceError(err)
@@ -766,6 +771,9 @@ func (h *Handler) ListAPIKeys(ctx context.Context, _ *struct{}) (*ListAPIKeysOut
 	user, ok := UserFromContext(ctx)
 	if !ok {
 		return nil, huma.Error401Unauthorized("not authenticated")
+	}
+	if err := refuseAgentKey(user); err != nil {
+		return nil, err
 	}
 	keys, err := h.accounts.ListAPIKeys(ctx, user.ID)
 	if err != nil {
@@ -796,6 +804,9 @@ func (h *Handler) DeleteAPIKey(ctx context.Context, in *DeleteAPIKeyInput) (*str
 	user, ok := UserFromContext(ctx)
 	if !ok {
 		return nil, huma.Error401Unauthorized("not authenticated")
+	}
+	if err := refuseAgentKey(user); err != nil {
+		return nil, err
 	}
 	keyID, err := requireUUID(in.ID)
 	if err != nil {
@@ -835,6 +846,41 @@ func keyCovers(user service.AuthUser, caps []authz.Capability) bool {
 		}
 	}
 	return true
+}
+
+// RefuseAgentKeys is huma middleware refusing an agent key outright, before
+// body validation (ADR-0058 A7). The handlers also call refuseAgentKey.
+func RefuseAgentKeys(api huma.API) func(huma.Context, func(huma.Context)) {
+	return func(ctx huma.Context, next func(huma.Context)) {
+		if user, ok := UserFromContext(ctx.Context()); ok && user.APIKeyKind == service.KeyKindAgent {
+			_ = huma.WriteErr(api, ctx, http.StatusForbidden, "an agent key cannot manage API keys")
+			return
+		}
+		next(ctx)
+	}
+}
+
+// refuseAgentKey refuses key management to an agent key (ADR-0058 A7): a
+// program may not mint, list or revoke credentials, its own included.
+func refuseAgentKey(user service.AuthUser) error {
+	if user.APIKeyKind == service.KeyKindAgent {
+		return huma.Error403Forbidden("an agent key cannot manage API keys")
+	}
+	return nil
+}
+
+// ListKeyPresets handles GET /api/v1/auth/key-presets.
+func (h *Handler) ListKeyPresets(_ context.Context, _ *struct{}) (*ListKeyPresetsOutput, error) {
+	out := &ListKeyPresetsOutput{}
+	for _, p := range authz.Presets() {
+		out.Body.Presets = append(out.Body.Presets, KeyPreset{
+			Name: p.Name, Title: p.Title, Description: p.Description,
+			Capabilities: authz.Strings(p.Capabilities), ApprovalRequired: authz.Strings(p.ApprovalRequired),
+		})
+	}
+	out.Body.DefaultExpiryDays = int(service.AgentKeyDefaultTTL.Hours() / 24)
+	out.Body.MaxExpiryDays = int(service.AgentKeyMaxTTL.Hours() / 24)
+	return out, nil
 }
 
 // keyNamespacesCover reports whether the calling credential may mint a key
