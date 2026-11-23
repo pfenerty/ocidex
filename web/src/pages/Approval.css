@@ -1,0 +1,62 @@
+.approval-status {
+    margin: 0 0 0.5rem;
+    font-size: var(--text-xs);
+    font-weight: 700;
+    letter-spacing: 0.06em;
+    text-transform: uppercase;
+    color: var(--color-text-muted);
+}
+
+.approval-status[data-status="pending"] {
+    color: var(--color-worse);
+}
+
+/* The effect is the answer to "what am I approving", so it is the heading. */
+.approval-effect {
+    margin: 0 0 1rem;
+    font-size: 1.25rem;
+    line-height: 1.35;
+}
+
+.approval-facts {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 0.5rem 2rem;
+    margin: 0 0 1rem;
+}
+
+.approval-facts dt {
+    font-size: var(--text-xs);
+    color: var(--color-text-muted);
+}
+
+.approval-facts dd {
+    margin: 0;
+}
+
+.approval-request {
+    margin-bottom: 1rem;
+}
+
+.approval-request pre {
+    white-space: pre-wrap;
+    overflow-wrap: anywhere;
+    margin: 0.5rem 0 0;
+}
+
+/* The agent's note: visibly quoted and visibly second-class. */
+.approval-reason {
+    margin: 0 0 1rem;
+    padding: 0.5rem 0.75rem;
+    border-left: 3px solid var(--color-border);
+    background: var(--color-surface-hover);
+    color: var(--color-text-muted);
+    overflow-wrap: anywhere;
+}
+
+.approval-reason-label {
+    display: block;
+    margin-bottom: 0.25rem;
+    font-size: var(--text-xs);
+    font-style: normal;
+}

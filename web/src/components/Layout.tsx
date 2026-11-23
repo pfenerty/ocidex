@@ -56,7 +56,7 @@ export default function Layout(props: ParentProps) {
     // picker reads /users/me/namespaces, and a 401 anywhere makes the API client
     // hard-navigate to /login (see unwrap). Redirecting up front is the same
     // destination without the flash of a half-rendered page.
-    const authedPaths = ["/admin", "/dashboard", "/clusters"];
+    const authedPaths = ["/admin", "/dashboard", "/clusters", "/approvals"];
     createEffect(() => {
         if (!user.loading && user() === undefined && authedPaths.some(p => location.pathname.startsWith(p))) {
             navigate("/login", { replace: true });

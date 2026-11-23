@@ -23,6 +23,7 @@ import ClusterDetail from "~/pages/ClusterDetail";
 import ConnectCluster from "~/pages/ConnectCluster";
 import Login from "~/pages/Login";
 import Admin from "~/pages/Admin";
+import Approval from "~/pages/Approval";
 import NotFound from "~/pages/NotFound";
 import About from "~/pages/About";
 import { ArtifactByNumber, ArtifactLookup, SBOMLookup } from "~/pages/Lookup";
@@ -83,6 +84,8 @@ export default function App() {
                 <Route path="/admin/status" component={Admin} />
                 <Route path="/admin/jobs" component={Admin} />
                 <Route path="/admin/account" component={Admin} />
+                <Route path="/admin/agents" component={Admin} />
+                <Route path="/approvals/:id" component={Approval} />
                 <Route path="/login" component={Login} />
                 <Route path="/about" component={About} />
                 <Route path="*404" component={NotFound} />

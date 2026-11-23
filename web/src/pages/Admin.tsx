@@ -9,6 +9,7 @@ import { SourcesTab } from "./admin/SourcesTab";
 import { NamespacesTab } from "./admin/NamespacesTab";
 import { JobsTab } from "./admin/JobsTab";
 import { AccountTab } from "./admin/AccountTab";
+import { AgentsTab } from "./admin/AgentsTab";
 import { PageHeader, TabBar } from "~/components/ui";
 import type { TabDef } from "~/components/ui";
 
@@ -56,6 +57,9 @@ const TABS: AdminTab[] = [
             />
         ),
     },
+    // Agent keys, their activity and the writes waiting for approval
+    // (ADR-0058). Every endpoint behind it is the caller's own.
+    { label: "Agents", href: "/admin/agents", paths: ["/admin/agents"], adminOnly: false, render: () => <AgentsTab /> },
     {
         label: "Namespaces",
         href: "/admin/namespaces",
@@ -95,6 +99,7 @@ const NON_ADMIN_SUBTITLES: Record<string, string> = {
     "/admin/sources": "Registries and other ingest channels you can see; actions follow your role in each namespace",
     "/admin/keys": "Your own keys; each acts with at most your namespace roles",
     "/admin/account": "The issuers you can sign in with",
+    "/admin/agents": "Keys your agents use, what they did, and the requests waiting for your approval",
 };
 
 export default function Admin() {

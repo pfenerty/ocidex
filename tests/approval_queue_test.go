@@ -127,6 +127,10 @@ func TestApprovalQueue(t *testing.T) {
 	// From the scan handler itself, so the stored request reached the route
 	// as the key: not a refusal from the approval machinery.
 	is.True(contains(done.ResultBody, "scanner not enabled"))
+	// The run is recorded as the agent's own activity, on the scan route.
+	var route string
+	is.NoErr(pool.QueryRow(ctx, `SELECT route FROM key_activity WHERE path LIKE '%/scan' ORDER BY id DESC LIMIT 1`).Scan(&route))
+	is.Equal(route, "/api/v1/registries/{id}/scan")
 	code, _ = decide(a.ID, "approve", session, "")
 	is.Equal(code, http.StatusConflict)
 

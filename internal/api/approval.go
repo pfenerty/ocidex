@@ -15,6 +15,7 @@ import (
 	"time"
 
 	"github.com/danielgtaylor/huma/v2"
+	"github.com/go-chi/chi/v5"
 
 	"github.com/pfenerty/ocidex/internal/authz"
 	"github.com/pfenerty/ocidex/internal/service"
@@ -407,6 +408,10 @@ func (h *Handler) execute(ctx context.Context, a service.PendingAction) service.
 		}
 	}
 	runCtx := context.WithValue(context.WithoutCancel(ctx), executingKey{}, a.ID)
+	// A fresh routing context: chi treats one already on the context as a
+	// parent router's, and would match the stored path relative to the
+	// approve route rather than from the root.
+	runCtx = context.WithValue(runCtx, chi.RouteCtxKey, nil)
 	runCtx = withUser(runCtx, runAs)
 	req, err := http.NewRequestWithContext(runCtx, a.Method, a.Path, bytes.NewReader(a.Body))
 	if err != nil {

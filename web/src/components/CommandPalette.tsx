@@ -78,6 +78,7 @@ const ENTRIES: readonly Entry[] = [
     { path: "/admin/namespaces", label: "Namespaces", group: "Manage", keywords: "owners visibility tenants", visible: isAdmin },
     { path: "/admin/status", label: "Status", group: "Manage", keywords: "health workers queue", visible: isAdmin },
     { path: "/admin/jobs", label: "Jobs", group: "Manage", keywords: "scan enrichment queue failures", visible: isAdmin },
+    { path: "/admin/agents", label: "Agents", group: "Manage", keywords: "agent mcp keys approvals claude", visible: signedIn },
     // Everyone has an account, so this one is visible to any signed-in user.
     { path: "/admin/account", label: "Account", group: "Manage", keywords: "identity sign-in providers link oidc github", visible: signedIn },
 
