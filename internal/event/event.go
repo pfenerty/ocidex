@@ -16,6 +16,12 @@ const (
 	UserLoggedIn    Type = "user.logged_in"
 	UserLoggedOut   Type = "user.logged_out"
 	RetentionSwept  Type = "retention.swept"
+
+	// Approvals of held agent writes (ADR-0058 A4).
+	ApprovalRequested Type = "approval.requested"
+	ApprovalApproved  Type = "approval.approved"
+	ApprovalDenied    Type = "approval.denied"
+	ApprovalExecuted  Type = "approval.executed"
 )
 
 // Event is the envelope passed to handlers.
@@ -62,4 +68,16 @@ type RetentionSweptData struct {
 	DryRun bool
 	Window int64 // class W: registry SBOMs out of their window
 	Newest int64 // class N: past the newest N versions or max age
+}
+
+// ApprovalData is published at each step of a held agent write. The request
+// event carries the requesting agent as the actor; a decision carries the
+// person who decided, in DecidedBy as well as the actor.
+type ApprovalData struct {
+	ActionID     pgtype.UUID
+	NamespaceID  pgtype.UUID
+	Capability   string
+	Effect       string
+	DecidedBy    pgtype.UUID
+	ResultStatus int
 }

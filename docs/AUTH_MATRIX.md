@@ -60,6 +60,15 @@ cookies carry no ceiling and are unaffected.
 |---|---|---|---|---|---|---|
 | GET | `/api/v1/admin/status` | `get-system-status` | `admin` | — |  | Exposes DB and job-queue internals. |
 
+### Approvals
+
+| Method | Path | Operation | Class | Capability | Write | Notes |
+|---|---|---|---|---|---|---|
+| GET | `/api/v1/approvals` | `list-pending-actions` | `authenticated` | — |  | Actions the caller's keys asked for, and actions in namespaces where the caller holds the action's capability. |
+| GET | `/api/v1/approvals/{id}` | `get-pending-action` | `authenticated` | — |  | 404 unless the caller's key asked for it or the caller holds its capability in its namespace. |
+| POST | `/api/v1/approvals/{id}/approve` | `approve-pending-action` | `authenticated` | — | ✓ | Session only: every API key gets 403, so an agent cannot approve itself. The approver must hold the action's capability in its namespace now. Runs the stored request once, as the requesting key, re-authorized at execution. |
+| POST | `/api/v1/approvals/{id}/deny` | `deny-pending-action` | `authenticated` | — | ✓ | Session only; same approver rule as approve. |
+
 ### Artifacts
 
 | Method | Path | Operation | Class | Capability | Write | Notes |

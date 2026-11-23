@@ -728,6 +728,10 @@ func (h *Handler) CreateAPIKey(ctx context.Context, in *CreateAPIKeyInput) (*Cre
 	if err != nil {
 		return nil, huma.Error422UnprocessableEntity(err.Error())
 	}
+	approval, err := authz.ParseCapabilities(in.Body.ApprovalRequired)
+	if err != nil {
+		return nil, huma.Error422UnprocessableEntity(err.Error())
+	}
 	if !keyCovers(user, caps) {
 		return nil, huma.Error403Forbidden("an API key can only create keys whose capabilities it holds itself")
 	}
@@ -741,13 +745,14 @@ func (h *Handler) CreateAPIKey(ctx context.Context, in *CreateAPIKeyInput) (*Cre
 		expiresAt = *in.Body.ExpiresAt
 	}
 	plaintext, err := h.accounts.CreateKey(ctx, user.ID, service.KeySpec{
-		Name:         in.Body.Name,
-		Capabilities: caps,
-		ExpiresAt:    expiresAt,
-		Kind:         in.Body.Kind,
-		Namespaces:   in.Body.Namespaces,
-		AgentLabel:   in.Body.AgentLabel,
-		IsAdmin:      user.Role == roleAdmin,
+		Name:             in.Body.Name,
+		Capabilities:     caps,
+		ExpiresAt:        expiresAt,
+		Kind:             in.Body.Kind,
+		Namespaces:       in.Body.Namespaces,
+		AgentLabel:       in.Body.AgentLabel,
+		IsAdmin:          user.Role == roleAdmin,
+		ApprovalRequired: approval,
 	})
 	if err != nil {
 		return nil, mapServiceError(err)
@@ -770,17 +775,18 @@ func (h *Handler) ListAPIKeys(ctx context.Context, _ *struct{}) (*ListAPIKeysOut
 	out.Body.Keys = make([]KeyMetaResponse, len(keys))
 	for i, k := range keys {
 		out.Body.Keys[i] = KeyMetaResponse{
-			ID:           k.ID,
-			Name:         k.Name,
-			Prefix:       k.Prefix,
-			Capabilities: authz.Strings(k.Capabilities),
-			CreatedAt:    k.CreatedAt,
-			LastUsedAt:   k.LastUsedAt,
-			ExpiresAt:    k.ExpiresAt,
-			ClusterID:    k.ClusterID,
-			Kind:         k.Kind,
-			Namespaces:   k.Namespaces,
-			AgentLabel:   k.AgentLabel,
+			ID:               k.ID,
+			Name:             k.Name,
+			Prefix:           k.Prefix,
+			Capabilities:     authz.Strings(k.Capabilities),
+			CreatedAt:        k.CreatedAt,
+			LastUsedAt:       k.LastUsedAt,
+			ExpiresAt:        k.ExpiresAt,
+			ClusterID:        k.ClusterID,
+			Kind:             k.Kind,
+			Namespaces:       k.Namespaces,
+			AgentLabel:       k.AgentLabel,
+			ApprovalRequired: authz.Strings(k.ApprovalRequired),
 		}
 	}
 	return out, nil

@@ -160,6 +160,12 @@ func writeClusterCredentialForbidden(w http.ResponseWriter) {
 	_, _ = w.Write([]byte(`{"title":"Forbidden","status":403,"detail":"a cluster agent credential may only push its own cluster's inventory"}`))
 }
 
+// withUser puts user on ctx as the authenticated principal. Used to run an
+// approved action as the key that asked.
+func withUser(ctx context.Context, user service.AuthUser) context.Context {
+	return context.WithValue(ctx, ctxKeyUser{}, user)
+}
+
 // UserFromContext retrieves the authenticated user from a request context.
 func UserFromContext(ctx context.Context) (service.AuthUser, bool) {
 	u, ok := ctx.Value(ctxKeyUser{}).(service.AuthUser)
@@ -262,6 +268,11 @@ func RequireCapability(api huma.API, c authz.Capability,
 			_ = huma.WriteErr(api, ctx, http.StatusForbidden, "forbidden")
 			return
 		}
+		if mustHold(ctx.Context(), user, c) {
+			held, err := holdRequest(ctx.Context(), user, namespaceID, c)
+			writeHeld(api, ctx, held, err)
+			return
+		}
 		next(ctx)
 	}
 }
@@ -294,6 +305,11 @@ func RequireCapabilityInAny(api huma.API, c authz.Capability,
 		}
 		for _, ns := range namespaceIDs {
 			if can(user, ns, c) {
+				if mustHold(ctx.Context(), user, c) {
+					held, err := holdRequest(ctx.Context(), user, ns, c)
+					writeHeld(api, ctx, held, err)
+					return
+				}
 				next(ctx)
 				return
 			}

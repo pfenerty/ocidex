@@ -167,6 +167,7 @@ type apiServices struct {
 	enrichJobs service.EnrichJobService
 	watches    service.WatchService
 	clusters   service.ClusterService
+	approvals  service.ApprovalService
 }
 
 func newServices(cfg *config.Config, pool, bgPool *pgxpool.Pool, bus *event.Bus, providers []auth.Provider) apiServices {
@@ -191,6 +192,7 @@ func newServices(cfg *config.Config, pool, bgPool *pgxpool.Pool, bus *event.Bus,
 		sboms: sbomSvc, search: searchSvc, auth: authSvc, registries: registrySvc,
 		namespaces: namespaceSvc, sources: sourceSvc, jobs: jobSvc, enrichJobs: enrichJobSvc,
 		watches: watchSvc, clusters: clusterSvc,
+		approvals: service.NewApprovalService(pool, bus),
 	}
 }
 
@@ -219,6 +221,7 @@ func newAPIHandler(cfg *config.Config, pool *pgxpool.Pool, scans api.ScanSubmitt
 		DB:               pool,
 		Scans:            scans,
 		Config:           cfg,
+		Approvals:        svcs.approvals,
 	})
 }
 

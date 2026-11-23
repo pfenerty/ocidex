@@ -59,6 +59,9 @@ type AuthUser struct {
 	APIKeyKind string
 	// APIKeyAgentLabel is what the holder calls an agent key's client.
 	APIKeyAgentLabel string
+	// APIKeyApprovalRequired lists the capabilities this key may use only
+	// once a person approves the request (ADR-0058 A4).
+	APIKeyApprovalRequired []authz.Capability
 	// Grants is the caller's namespace membership, keyed by namespace ID
 	// string. A namespace absent from the map is one the caller is not a member
 	// of, which grants nothing — a public namespace is readable through the SQL
@@ -90,6 +93,8 @@ type APIKeyMeta struct {
 	Namespaces []string
 	// AgentLabel names an agent key's client.
 	AgentLabel string
+	// ApprovalRequired lists capabilities held for approval.
+	ApprovalRequired []authz.Capability
 }
 
 // uuidStrings renders a nullable UUID array: nil stays nil, the "unscoped"
@@ -142,6 +147,12 @@ func (u AuthUser) KeyCoversNamespace(namespaceID string) bool {
 		return true
 	}
 	return namespaceID != "" && slices.Contains(u.APIKeyNamespaces, namespaceID)
+}
+
+// RequiresApproval reports whether the credential may use c only once a person
+// approves the request. A session never does: it is the person.
+func (u AuthUser) RequiresApproval(c authz.Capability) bool {
+	return u.APIKeyAuth && slices.Contains(u.APIKeyApprovalRequired, c)
 }
 
 // KeyAllowsAnyWrite reports whether the credential permits any state-mutating
@@ -607,9 +618,41 @@ type KeySpec struct {
 	Namespaces []string
 	// AgentLabel names an agent key's client, for display and audit.
 	AgentLabel string
+	// ApprovalRequired lists capabilities the key may use only once a person
+	// approves each request. Each must be mutating and within Capabilities.
+	ApprovalRequired []authz.Capability
 	// IsAdmin is the holder's installation role, which decides which
 	// namespaces they may name.
 	IsAdmin bool
+}
+
+// normalizeKeySpec fills spec's defaults and validates everything that needs
+// no database: kind, expiry, capability names and the approval-required set.
+func normalizeKeySpec(spec KeySpec) (KeySpec, error) {
+	if spec.Kind == "" {
+		spec.Kind = KeyKindPersonal
+	}
+	if spec.Kind != KeyKindPersonal && spec.Kind != KeyKindAgent {
+		return spec, &ValidationError{Message: fmt.Sprintf("kind must be %q or %q", KeyKindPersonal, KeyKindAgent)}
+	}
+	if !spec.ExpiresAt.IsZero() && !spec.ExpiresAt.After(time.Now()) {
+		return spec, &ValidationError{Message: "expiresAt must be in the future"}
+	}
+	if len(spec.Capabilities) == 0 {
+		spec.Capabilities = authz.AllCapabilities()
+	}
+	for _, c := range spec.Capabilities {
+		if !c.Valid() {
+			return spec, &ValidationError{Message: fmt.Sprintf("unknown capability %q", c)}
+		}
+	}
+	for _, c := range spec.ApprovalRequired {
+		approvable := c.Mutating() && c != authz.CapReadSecret && c != authz.CapInstallationAdmin
+		if !c.Valid() || !approvable || !slices.Contains(spec.Capabilities, c) {
+			return spec, &ValidationError{Message: fmt.Sprintf("approvalRequired %q must be a mutating capability the key carries", c)}
+		}
+	}
+	return spec, nil
 }
 
 // CreateKey mints a key described by spec.
@@ -618,27 +661,14 @@ func (s *authService) CreateKey(ctx context.Context, userIDStr string, spec KeyS
 	if err != nil {
 		return "", err
 	}
-	name, caps, expiresAt := spec.Name, spec.Capabilities, spec.ExpiresAt
-	if spec.Kind == "" {
-		spec.Kind = KeyKindPersonal
-	}
-	if spec.Kind != KeyKindPersonal && spec.Kind != KeyKindAgent {
-		return "", &ValidationError{Message: fmt.Sprintf("kind must be %q or %q", KeyKindPersonal, KeyKindAgent)}
-	}
-	namespaceIDs, err := s.keyNamespaces(ctx, userID, spec)
+	spec, err = normalizeKeySpec(spec)
 	if err != nil {
 		return "", err
 	}
-	if !expiresAt.IsZero() && !expiresAt.After(time.Now()) {
-		return "", &ValidationError{Message: "expiresAt must be in the future"}
-	}
-	if len(caps) == 0 {
-		caps = authz.AllCapabilities()
-	}
-	for _, c := range caps {
-		if !c.Valid() {
-			return "", &ValidationError{Message: fmt.Sprintf("unknown capability %q", c)}
-		}
+	name, caps, expiresAt := spec.Name, spec.Capabilities, spec.ExpiresAt
+	namespaceIDs, err := s.keyNamespaces(ctx, userID, spec)
+	if err != nil {
+		return "", err
 	}
 	plaintext, hash, prefix, err := newAPIKeyMaterial()
 	if err != nil {
@@ -656,6 +686,8 @@ func (s *authService) CreateKey(ctx context.Context, userIDStr string, spec KeyS
 		Kind:         spec.Kind,
 		NamespaceIds: namespaceIDs,
 		AgentLabel:   pgtype.Text{String: spec.AgentLabel, Valid: spec.AgentLabel != ""},
+		// Never NULL: the column is NOT NULL and "none" is an empty array.
+		ApprovalRequired: append([]string{}, authz.Strings(spec.ApprovalRequired)...),
 	})
 	if err != nil {
 		return "", fmt.Errorf("creating api key: %w", err)
@@ -738,6 +770,8 @@ func (s *authService) ValidateAPIKey(ctx context.Context, rawKey string) (AuthUs
 		APIKeyKind:       row.Kind,
 		APIKeyNamespaces: uuidStrings(row.NamespaceIds),
 		APIKeyAgentLabel: row.AgentLabel.String,
+		// Same narrowing rule as the ceiling: unknown names are dropped.
+		APIKeyApprovalRequired: validCapabilities(row.ApprovalRequired),
 	}, nil
 }
 
@@ -800,15 +834,16 @@ func (s *authService) ListAPIKeys(ctx context.Context, userIDStr string) ([]APIK
 			}
 		}
 		m := APIKeyMeta{
-			ID:           r.ID.String(),
-			Name:         r.Name,
-			Prefix:       r.Prefix,
-			Capabilities: caps,
-			CreatedAt:    r.CreatedAt.Time,
-			ClusterID:    r.ClusterID.String(),
-			Kind:         r.Kind,
-			Namespaces:   uuidStrings(r.NamespaceIds),
-			AgentLabel:   r.AgentLabel.String,
+			ID:               r.ID.String(),
+			Name:             r.Name,
+			Prefix:           r.Prefix,
+			Capabilities:     caps,
+			CreatedAt:        r.CreatedAt.Time,
+			ClusterID:        r.ClusterID.String(),
+			Kind:             r.Kind,
+			Namespaces:       uuidStrings(r.NamespaceIds),
+			AgentLabel:       r.AgentLabel.String,
+			ApprovalRequired: validCapabilities(r.ApprovalRequired),
 		}
 		if r.LastUsedAt.Valid {
 			t := r.LastUsedAt.Time

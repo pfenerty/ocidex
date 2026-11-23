@@ -141,6 +141,83 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/v1/approvals": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * List agent writes held for approval
+         * @description Actions your keys asked for, and actions in your namespaces you may decide.
+         */
+        get: operations["list-pending-actions"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/approvals/{id}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Get a held action and its outcome */
+        get: operations["get-pending-action"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/approvals/{id}/approve": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Approve a held action and run it
+         * @description Session only. Runs the stored request once, as the key that asked.
+         */
+        post: operations["approve-pending-action"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/approvals/{id}/deny": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Deny a held action
+         * @description Session only.
+         */
+        post: operations["deny-pending-action"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/v1/artifacts": {
         parameters: {
             query?: never;
@@ -2585,6 +2662,8 @@ export interface components {
             readonly $schema?: string;
             /** @description What you call the agent's client, shown in the key list and the audit log */
             agentLabel?: string;
+            /** @description Mutating capabilities this key may use only after a person approves each request. Each must be one the key carries; read_private, read_secret and installation_admin cannot be held. */
+            approvalRequired?: string[] | null;
             /** @description Capabilities this key may exercise, intersected with the owner's live namespace roles. Empty means all of them. */
             capabilities?: ("read_private" | "ingest" | "trigger_scan" | "push_inventory" | "delete_artifact" | "manage_source" | "manage_cluster" | "read_secret" | "manage_member" | "delete_namespace" | "installation_admin")[] | null;
             /**
@@ -3384,6 +3463,8 @@ export interface components {
         KeyMetaResponse: {
             /** @description An agent key's client name */
             agentLabel?: string;
+            /** @description Capabilities held for a person's approval on every request */
+            approvalRequired?: string[] | null;
             /** @description Capabilities this key may exercise, before intersection with the owner's live namespace roles */
             capabilities: string[] | null;
             /** @description Set for a cluster agent credential, which may only push this cluster's inventory */
@@ -3449,6 +3530,15 @@ export interface components {
              */
             readonly $schema?: string;
             keys: components["schemas"]["KeyMetaResponse"][] | null;
+        };
+        ListApprovalsOutputBody: {
+            /**
+             * Format: uri
+             * @description A URL to the JSON Schema for this object.
+             * @example https://example.com/api/schemas/ListApprovalsOutputBody.json
+             */
+            readonly $schema?: string;
+            data: components["schemas"]["PendingActionView"][] | null;
         };
         ListArtifactSBOMsOutputBody: {
             /**
@@ -3972,6 +4062,48 @@ export interface components {
              * @description Total number of matching results
              */
             total: number;
+        };
+        PendingActionView: {
+            /**
+             * Format: uri
+             * @description A URL to the JSON Schema for this object.
+             * @example https://example.com/api/schemas/PendingActionView.json
+             */
+            readonly $schema?: string;
+            agentLabel?: string;
+            /** @description Where a person approves it */
+            approveUrl?: string;
+            /** @description The stored request body, which is what runs on approval */
+            body?: string;
+            /** @description Whether the caller may approve or deny it now */
+            canDecide: boolean;
+            capability: string;
+            /** Format: date-time */
+            createdAt: string;
+            /** Format: date-time */
+            decidedAt?: string;
+            /** @description What the held request will do, written by OCIDex from the request and current state */
+            effect: string;
+            /** Format: date-time */
+            executedAt?: string;
+            /** Format: date-time */
+            expiresAt: string;
+            /** Format: uuid */
+            id: string;
+            method: string;
+            /** Format: uuid */
+            namespaceId: string;
+            path: string;
+            /** @description The agent's note for the approver. Untrusted: it is not a description of what will run */
+            reason?: string;
+            resultBody?: string;
+            /**
+             * Format: int64
+             * @description HTTP status the approved request returned when it ran
+             */
+            resultStatus?: number;
+            /** @enum {string} */
+            status: "pending" | "approved" | "denied" | "expired" | "executed" | "failed";
         };
         PreviewRegistryConfigInputBody: {
             /**
@@ -5234,6 +5366,131 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["SystemStatusOutputBody"];
+                };
+            };
+            /** @description Error */
+            default: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["ErrorModel"];
+                };
+            };
+        };
+    };
+    "list-pending-actions": {
+        parameters: {
+            query?: {
+                /** @description Only actions in this status */
+                status?: "pending" | "approved" | "denied" | "expired" | "executed" | "failed";
+            };
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description OK */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ListApprovalsOutputBody"];
+                };
+            };
+            /** @description Error */
+            default: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["ErrorModel"];
+                };
+            };
+        };
+    };
+    "get-pending-action": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description OK */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["PendingActionView"];
+                };
+            };
+            /** @description Error */
+            default: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["ErrorModel"];
+                };
+            };
+        };
+    };
+    "approve-pending-action": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description OK */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["PendingActionView"];
+                };
+            };
+            /** @description Error */
+            default: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["ErrorModel"];
+                };
+            };
+        };
+    };
+    "deny-pending-action": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description OK */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["PendingActionView"];
                 };
             };
             /** @description Error */

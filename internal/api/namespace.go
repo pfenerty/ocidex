@@ -228,5 +228,14 @@ func (h *Handler) requireNamespaceCapability(
 	if !can(user, namespaceID, c) {
 		return huma.Error403Forbidden("forbidden")
 	}
+	// Allowed, but this key may use c only with a person's approval: answer
+	// 202 with the held action instead of running the handler.
+	if mustHold(ctx, user, c) {
+		held, err := holdRequest(ctx, user, namespaceID, c)
+		if err != nil {
+			return err
+		}
+		return held
+	}
 	return nil
 }

@@ -91,6 +91,7 @@ func setupServerWithPublisher(t *testing.T, pool *pgxpool.Pool, pub event.Publis
 		ClusterInventory: clusterSvc,
 		DB:               pool,
 		Config:           cfg,
+		Approvals:        service.NewApprovalService(pool, pub),
 	})
 	router := api.NewRouter(handler, "*", "", "")
 	return httptest.NewServer(router), authSvc, searchSvc

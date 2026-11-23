@@ -101,14 +101,14 @@ DELETE FROM session WHERE token_hash = $1;
 DELETE FROM session WHERE expires_at <= now();
 
 -- name: CreateAPIKey :one
-INSERT INTO api_key (user_id, name, key_hash, prefix, capabilities, expires_at, kind, namespace_ids, agent_label)
+INSERT INTO api_key (user_id, name, key_hash, prefix, capabilities, expires_at, kind, namespace_ids, agent_label, approval_required)
 VALUES (@user_id, @name, @key_hash, @prefix, @capabilities, sqlc.narg('expires_at'),
-        @kind, sqlc.narg('namespace_ids')::uuid[], sqlc.narg('agent_label'))
+        @kind, sqlc.narg('namespace_ids')::uuid[], sqlc.narg('agent_label'), @approval_required)
 RETURNING *;
 
 -- name: GetAPIKeyByHash :one
 SELECT k.id, k.user_id, k.name, k.key_hash, k.prefix, k.capabilities, k.created_at, k.last_used_at,
-       k.cluster_id, k.kind, k.namespace_ids, k.agent_label, u.display_name, u.role
+       k.cluster_id, k.kind, k.namespace_ids, k.agent_label, k.approval_required, u.display_name, u.role
 FROM api_key k
 JOIN ocidex_user u ON u.id = k.user_id
 WHERE k.key_hash = $1
@@ -124,7 +124,7 @@ WHERE id = $1
 
 -- name: ListAPIKeysByUser :many
 SELECT id, name, prefix, capabilities, created_at, last_used_at, cluster_id, expires_at,
-       kind, namespace_ids, agent_label
+       kind, namespace_ids, agent_label, approval_required
 FROM api_key
 WHERE user_id = $1
 ORDER BY created_at ASC;

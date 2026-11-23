@@ -99,6 +99,9 @@ type CreateAPIKeyInput struct {
 		Kind       string   `json:"kind,omitempty" enum:"personal,agent" doc:"personal (default) or agent: a key a program uses on your behalf"`
 		Namespaces []string `json:"namespaces,omitempty" doc:"Limit the key to these namespace ids: it may act and read private data only in them. Omit for every namespace you belong to (personal keys only)."`
 		AgentLabel string   `json:"agentLabel,omitempty" maxLength:"100" doc:"What you call the agent's client, shown in the key list and the audit log"`
+		// ApprovalRequired holds each request needing one of these for a
+		// person to approve in a browser session (ADR-0058 A4).
+		ApprovalRequired []string `json:"approvalRequired,omitempty" doc:"Mutating capabilities this key may use only after a person approves each request. Each must be one the key carries; read_private, read_secret and installation_admin cannot be held."`
 	}
 }
 
@@ -111,17 +114,18 @@ type CreateAPIKeyOutput struct {
 
 // KeyMetaResponse is the display-safe API key representation.
 type KeyMetaResponse struct {
-	ID           string     `json:"id" doc:"Key UUID"`
-	Name         string     `json:"name"`
-	Prefix       string     `json:"prefix" doc:"First 8 characters of the key"`
-	Capabilities []string   `json:"capabilities" doc:"Capabilities this key may exercise, before intersection with the owner's live namespace roles"`
-	CreatedAt    time.Time  `json:"createdAt"`
-	LastUsedAt   *time.Time `json:"lastUsedAt,omitempty"`
-	ExpiresAt    *time.Time `json:"expiresAt,omitempty" doc:"When the key stops working; absent means never"`
-	ClusterID    string     `json:"clusterId,omitempty" doc:"Set for a cluster agent credential, which may only push this cluster's inventory"`
-	Kind         string     `json:"kind" enum:"personal,agent,cluster" doc:"personal, agent, or cluster"`
-	Namespaces   []string   `json:"namespaces,omitempty" doc:"The namespaces the key is limited to; absent means every namespace its owner belongs to"`
-	AgentLabel   string     `json:"agentLabel,omitempty" doc:"An agent key's client name"`
+	ID               string     `json:"id" doc:"Key UUID"`
+	Name             string     `json:"name"`
+	Prefix           string     `json:"prefix" doc:"First 8 characters of the key"`
+	Capabilities     []string   `json:"capabilities" doc:"Capabilities this key may exercise, before intersection with the owner's live namespace roles"`
+	CreatedAt        time.Time  `json:"createdAt"`
+	LastUsedAt       *time.Time `json:"lastUsedAt,omitempty"`
+	ExpiresAt        *time.Time `json:"expiresAt,omitempty" doc:"When the key stops working; absent means never"`
+	ClusterID        string     `json:"clusterId,omitempty" doc:"Set for a cluster agent credential, which may only push this cluster's inventory"`
+	Kind             string     `json:"kind" enum:"personal,agent,cluster" doc:"personal, agent, or cluster"`
+	Namespaces       []string   `json:"namespaces,omitempty" doc:"The namespaces the key is limited to; absent means every namespace its owner belongs to"`
+	AgentLabel       string     `json:"agentLabel,omitempty" doc:"An agent key's client name"`
+	ApprovalRequired []string   `json:"approvalRequired,omitempty" doc:"Capabilities held for a person's approval on every request"`
 }
 
 // ListAPIKeysOutput is the response for GET /api/v1/auth/keys.

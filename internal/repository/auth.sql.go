@@ -47,22 +47,23 @@ func (q *Queries) CountKeyNamespacesAllowed(ctx context.Context, arg CountKeyNam
 }
 
 const createAPIKey = `-- name: CreateAPIKey :one
-INSERT INTO api_key (user_id, name, key_hash, prefix, capabilities, expires_at, kind, namespace_ids, agent_label)
+INSERT INTO api_key (user_id, name, key_hash, prefix, capabilities, expires_at, kind, namespace_ids, agent_label, approval_required)
 VALUES ($1, $2, $3, $4, $5, $6,
-        $7, $8::uuid[], $9)
-RETURNING id, user_id, name, key_hash, prefix, created_at, last_used_at, capabilities, cluster_id, expires_at, kind, namespace_ids, agent_label
+        $7, $8::uuid[], $9, $10)
+RETURNING id, user_id, name, key_hash, prefix, created_at, last_used_at, capabilities, cluster_id, expires_at, kind, namespace_ids, agent_label, approval_required
 `
 
 type CreateAPIKeyParams struct {
-	UserID       pgtype.UUID        `json:"user_id"`
-	Name         string             `json:"name"`
-	KeyHash      string             `json:"key_hash"`
-	Prefix       string             `json:"prefix"`
-	Capabilities []string           `json:"capabilities"`
-	ExpiresAt    pgtype.Timestamptz `json:"expires_at"`
-	Kind         string             `json:"kind"`
-	NamespaceIds []pgtype.UUID      `json:"namespace_ids"`
-	AgentLabel   pgtype.Text        `json:"agent_label"`
+	UserID           pgtype.UUID        `json:"user_id"`
+	Name             string             `json:"name"`
+	KeyHash          string             `json:"key_hash"`
+	Prefix           string             `json:"prefix"`
+	Capabilities     []string           `json:"capabilities"`
+	ExpiresAt        pgtype.Timestamptz `json:"expires_at"`
+	Kind             string             `json:"kind"`
+	NamespaceIds     []pgtype.UUID      `json:"namespace_ids"`
+	AgentLabel       pgtype.Text        `json:"agent_label"`
+	ApprovalRequired []string           `json:"approval_required"`
 }
 
 func (q *Queries) CreateAPIKey(ctx context.Context, arg CreateAPIKeyParams) (ApiKey, error) {
@@ -76,6 +77,7 @@ func (q *Queries) CreateAPIKey(ctx context.Context, arg CreateAPIKeyParams) (Api
 		arg.Kind,
 		arg.NamespaceIds,
 		arg.AgentLabel,
+		arg.ApprovalRequired,
 	)
 	var i ApiKey
 	err := row.Scan(
@@ -92,6 +94,7 @@ func (q *Queries) CreateAPIKey(ctx context.Context, arg CreateAPIKeyParams) (Api
 		&i.Kind,
 		&i.NamespaceIds,
 		&i.AgentLabel,
+		&i.ApprovalRequired,
 	)
 	return i, err
 }
@@ -263,7 +266,7 @@ func (q *Queries) DeleteSession(ctx context.Context, tokenHash string) error {
 
 const getAPIKeyByHash = `-- name: GetAPIKeyByHash :one
 SELECT k.id, k.user_id, k.name, k.key_hash, k.prefix, k.capabilities, k.created_at, k.last_used_at,
-       k.cluster_id, k.kind, k.namespace_ids, k.agent_label, u.display_name, u.role
+       k.cluster_id, k.kind, k.namespace_ids, k.agent_label, k.approval_required, u.display_name, u.role
 FROM api_key k
 JOIN ocidex_user u ON u.id = k.user_id
 WHERE k.key_hash = $1
@@ -271,20 +274,21 @@ WHERE k.key_hash = $1
 `
 
 type GetAPIKeyByHashRow struct {
-	ID           pgtype.UUID        `json:"id"`
-	UserID       pgtype.UUID        `json:"user_id"`
-	Name         string             `json:"name"`
-	KeyHash      string             `json:"key_hash"`
-	Prefix       string             `json:"prefix"`
-	Capabilities []string           `json:"capabilities"`
-	CreatedAt    pgtype.Timestamptz `json:"created_at"`
-	LastUsedAt   pgtype.Timestamptz `json:"last_used_at"`
-	ClusterID    pgtype.UUID        `json:"cluster_id"`
-	Kind         string             `json:"kind"`
-	NamespaceIds []pgtype.UUID      `json:"namespace_ids"`
-	AgentLabel   pgtype.Text        `json:"agent_label"`
-	DisplayName  pgtype.Text        `json:"display_name"`
-	Role         string             `json:"role"`
+	ID               pgtype.UUID        `json:"id"`
+	UserID           pgtype.UUID        `json:"user_id"`
+	Name             string             `json:"name"`
+	KeyHash          string             `json:"key_hash"`
+	Prefix           string             `json:"prefix"`
+	Capabilities     []string           `json:"capabilities"`
+	CreatedAt        pgtype.Timestamptz `json:"created_at"`
+	LastUsedAt       pgtype.Timestamptz `json:"last_used_at"`
+	ClusterID        pgtype.UUID        `json:"cluster_id"`
+	Kind             string             `json:"kind"`
+	NamespaceIds     []pgtype.UUID      `json:"namespace_ids"`
+	AgentLabel       pgtype.Text        `json:"agent_label"`
+	ApprovalRequired []string           `json:"approval_required"`
+	DisplayName      pgtype.Text        `json:"display_name"`
+	Role             string             `json:"role"`
 }
 
 func (q *Queries) GetAPIKeyByHash(ctx context.Context, keyHash string) (GetAPIKeyByHashRow, error) {
@@ -303,6 +307,7 @@ func (q *Queries) GetAPIKeyByHash(ctx context.Context, keyHash string) (GetAPIKe
 		&i.Kind,
 		&i.NamespaceIds,
 		&i.AgentLabel,
+		&i.ApprovalRequired,
 		&i.DisplayName,
 		&i.Role,
 	)
@@ -413,24 +418,25 @@ func (q *Queries) GetUserByIdentity(ctx context.Context, arg GetUserByIdentityPa
 
 const listAPIKeysByUser = `-- name: ListAPIKeysByUser :many
 SELECT id, name, prefix, capabilities, created_at, last_used_at, cluster_id, expires_at,
-       kind, namespace_ids, agent_label
+       kind, namespace_ids, agent_label, approval_required
 FROM api_key
 WHERE user_id = $1
 ORDER BY created_at ASC
 `
 
 type ListAPIKeysByUserRow struct {
-	ID           pgtype.UUID        `json:"id"`
-	Name         string             `json:"name"`
-	Prefix       string             `json:"prefix"`
-	Capabilities []string           `json:"capabilities"`
-	CreatedAt    pgtype.Timestamptz `json:"created_at"`
-	LastUsedAt   pgtype.Timestamptz `json:"last_used_at"`
-	ClusterID    pgtype.UUID        `json:"cluster_id"`
-	ExpiresAt    pgtype.Timestamptz `json:"expires_at"`
-	Kind         string             `json:"kind"`
-	NamespaceIds []pgtype.UUID      `json:"namespace_ids"`
-	AgentLabel   pgtype.Text        `json:"agent_label"`
+	ID               pgtype.UUID        `json:"id"`
+	Name             string             `json:"name"`
+	Prefix           string             `json:"prefix"`
+	Capabilities     []string           `json:"capabilities"`
+	CreatedAt        pgtype.Timestamptz `json:"created_at"`
+	LastUsedAt       pgtype.Timestamptz `json:"last_used_at"`
+	ClusterID        pgtype.UUID        `json:"cluster_id"`
+	ExpiresAt        pgtype.Timestamptz `json:"expires_at"`
+	Kind             string             `json:"kind"`
+	NamespaceIds     []pgtype.UUID      `json:"namespace_ids"`
+	AgentLabel       pgtype.Text        `json:"agent_label"`
+	ApprovalRequired []string           `json:"approval_required"`
 }
 
 func (q *Queries) ListAPIKeysByUser(ctx context.Context, userID pgtype.UUID) ([]ListAPIKeysByUserRow, error) {
@@ -454,6 +460,7 @@ func (q *Queries) ListAPIKeysByUser(ctx context.Context, userID pgtype.UUID) ([]
 			&i.Kind,
 			&i.NamespaceIds,
 			&i.AgentLabel,
+			&i.ApprovalRequired,
 		); err != nil {
 			return nil, err
 		}

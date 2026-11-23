@@ -2,6 +2,7 @@ package api
 
 import (
 	"context"
+	"net/http"
 
 	"github.com/danielgtaylor/huma/v2"
 	"github.com/gorilla/securecookie"
@@ -57,6 +58,10 @@ type Handler struct {
 	heavyLimit       *rateLimiter
 	meterProvider    metric.MeterProvider
 	tracerProvider   trace.TracerProvider
+	approvals        service.ApprovalService
+	// router is the built router, which an approved action's stored request
+	// is replayed through. Set by NewRouter.
+	router http.Handler
 }
 
 // Deps is what a Handler is built from. Fields are named, so
@@ -86,6 +91,7 @@ type Deps struct {
 	DB               DBPinger
 	Scans            ScanSubmitter
 	Config           *config.Config
+	Approvals        service.ApprovalService
 }
 
 // NewHandler creates a new Handler from its dependencies.
@@ -121,6 +127,7 @@ func NewHandler(d Deps) *Handler {
 		clusterInventory: d.ClusterInventory,
 		db:               d.DB,
 		scanSubmitter:    d.Scans,
+		approvals:        d.Approvals,
 		cfg:              d.Config,
 		stateCookie:      sc2,
 		clientIPs:        NewClientIPResolver(clientIPs),

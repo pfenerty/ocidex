@@ -95,6 +95,7 @@ const (
 	tagMeta       = "Meta"
 	tagStats      = "Stats"
 	tagDiscovery  = "Discovery"
+	tagApprovals  = "Approvals"
 )
 
 // securitySchemeBearer names the API-key security scheme; the reference page
@@ -174,7 +175,7 @@ func NewRouter(h *Handler, corsOrigins, frontendURL, apiBaseURL string) chi.Rout
 		AllowedOrigins:   allowedOrigins,
 		AllowedMethods:   []string{"GET", "POST", "PUT", "PATCH", "DELETE", "OPTIONS"},
 		AllowedHeaders:   []string{"Accept", "Authorization", "Content-Type"},
-		ExposedHeaders:   []string{"X-Request-Id"},
+		ExposedHeaders:   []string{"X-Request-Id", pendingActionHeader},
 		AllowCredentials: true,
 		MaxAge:           300,
 	}))
@@ -187,6 +188,7 @@ func NewRouter(h *Handler, corsOrigins, frontendURL, apiBaseURL string) chi.Rout
 	r.Use(CrossOriginGuard(allowedOrigins, apiBaseURL))
 	r.Use(middleware.Timeout(30 * time.Second))
 	r.Use(OptionalAuthenticate(h.authenticator))
+	r.Use(CaptureForApproval(h))
 
 	config := huma.DefaultConfig("OCIDex API", ContractVersion)
 	config.Info.Description = apiIntro
@@ -255,10 +257,12 @@ func NewRouter(h *Handler, corsOrigins, frontendURL, apiBaseURL string) chi.Rout
 	registerJobOps(api, h)
 	registerAuthOps(r, api, h)
 	registerDevOps(api, h)
+	registerApprovalOps(api, h)
 	r.Get(legacySchemasPath+"/{schema}", redirectLegacySchema)
 
 	registerAPIReference(r, api, apiBaseURL)
 
+	h.router = r
 	return r
 }
 
@@ -1383,4 +1387,45 @@ func parseCORSOrigins(raw, frontendURL string) []string {
 		return []string{frontendURL}
 	}
 	return origins
+}
+
+// registerApprovalOps registers the held-action endpoints (ADR-0058 A4).
+func registerApprovalOps(api huma.API, h *Handler) {
+	authMW := RequireAuthenticated(api)
+	writeMW := RequireWrite(api)
+	huma.Register(api, huma.Operation{
+		OperationID: "list-pending-actions",
+		Method:      http.MethodGet,
+		Path:        "/api/v1/approvals",
+		Summary:     "List agent writes held for approval",
+		Description: "Actions your keys asked for, and actions in your namespaces you may decide.",
+		Tags:        []string{tagApprovals},
+		Middlewares: huma.Middlewares{authMW},
+	}, h.ListApprovals)
+	huma.Register(api, huma.Operation{
+		OperationID: "get-pending-action",
+		Method:      http.MethodGet,
+		Path:        "/api/v1/approvals/{id}",
+		Summary:     "Get a held action and its outcome",
+		Tags:        []string{tagApprovals},
+		Middlewares: huma.Middlewares{authMW},
+	}, h.GetApproval)
+	huma.Register(api, huma.Operation{
+		OperationID: "approve-pending-action",
+		Method:      http.MethodPost,
+		Path:        "/api/v1/approvals/{id}/approve",
+		Summary:     "Approve a held action and run it",
+		Description: "Session only. Runs the stored request once, as the key that asked.",
+		Tags:        []string{tagApprovals},
+		Middlewares: huma.Middlewares{authMW, writeMW},
+	}, h.ApproveAction)
+	huma.Register(api, huma.Operation{
+		OperationID: "deny-pending-action",
+		Method:      http.MethodPost,
+		Path:        "/api/v1/approvals/{id}/deny",
+		Summary:     "Deny a held action",
+		Description: "Session only.",
+		Tags:        []string{tagApprovals},
+		Middlewares: huma.Middlewares{authMW, writeMW},
+	}, h.DenyAction)
 }
