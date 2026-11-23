@@ -31,6 +31,8 @@ function bucket(name: string, paths: string[]) {
 // per-`cmd/` granularity is unsafe — any Go/Docker/db change gates the whole Go set
 // on, go-build included.
 // tools/ pins the linter and generators; .golangci.yml configures go-lint.
+// go-integration/ defines the integration suite's sidecar images (postgres, nats): a
+// Renovate bump to one of them is only tested if it runs the suite.
 export const goChanged = bucket("detect-go", [
   "**/*.go",
   "go.mod",
@@ -39,6 +41,7 @@ export const goChanged = bucket("detect-go", [
   ".golangci.yml",
   "docker/**",
   "db/**",
+  ".tektonic/jobs/go-integration/**",
 ]);
 
 // Frontend bucket: everything under web/ (SolidJS/TS source + package-lock.json). Gates

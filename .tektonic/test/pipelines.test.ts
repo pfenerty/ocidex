@@ -127,6 +127,10 @@ describe("PR pipeline gating", () => {
     }
   });
 
+  it("runs the integration suite when its sidecar images change", () => {
+    assert.equal(runsFor(pr, [".tektonic/jobs/go-integration/spec.ts"]).has("go-integration-test"), true);
+  });
+
   it("orders go-integration-test after go-test", () => {
     assert.ok(pr.runAfter("go-integration-test").includes("go-test"));
   });
