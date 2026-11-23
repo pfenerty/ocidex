@@ -63,7 +63,7 @@ var topVulnSorts = map[string]string{
 const sortDescending = "desc"
 
 func registerTopVulnerabilities(srv *mcp.Server, api client.Client) {
-	mcp.AddTool(srv, &mcp.Tool{
+	addTool(srv, &mcp.Tool{
 		Name: "ocidex_top_vulnerabilities",
 		Description: "Rank vulnerabilities across the whole catalog (or, with mine, across your own namespaces), " +
 			"each with how many SBOMs and packages it affects. This is the starting point when no image or " +
@@ -165,7 +165,7 @@ type searchArtifactsOutput struct {
 }
 
 func registerSearchArtifacts(srv *mcp.Server, api client.Client) {
-	mcp.AddTool(srv, &mcp.Tool{
+	addTool(srv, &mcp.Tool{
 		Name: "ocidex_search_artifacts",
 		Description: "Find artifacts whose name contains some text, with their latest severity counts. Use it " +
 			"when you do not know an artifact's exact name (ocidex_lookup_artifact needs it exact), or to " +
@@ -212,7 +212,7 @@ type licenseSummaryOutput struct {
 }
 
 func registerLicenseSummary(srv *mcp.Server, api client.Client) {
-	mcp.AddTool(srv, &mcp.Tool{
+	addTool(srv, &mcp.Tool{
 		Name: "ocidex_artifact_license_summary",
 		Description: "Count the licenses carried by an artifact's most recent SBOM, with each license's category " +
 			"(permissive, copyleft, ...). Use it for license compliance questions, and to check that a " +
@@ -265,7 +265,7 @@ type sbomDriftOutput struct {
 }
 
 func registerSBOMDrift(srv *mcp.Server, api client.Client) {
-	mcp.AddTool(srv, &mcp.Tool{
+	addTool(srv, &mcp.Tool{
 		Name: "ocidex_sbom_drift",
 		Description: "List the provenance drift recorded for one SBOM: each time its signature or attestation " +
 			"status changed, and why. Use it when signing_status looks wrong, or before trusting an " +
@@ -311,7 +311,7 @@ type dataFreshnessOutput struct {
 }
 
 func registerDataFreshness(srv *mcp.Server, api client.Client) {
-	mcp.AddTool(srv, &mcp.Tool{
+	addTool(srv, &mcp.Tool{
 		Name: "ocidex_data_freshness",
 		Description: "Report whether OCIDex's enrichment (vulnerability matching, provenance checks) has caught up " +
 			"with every ingested SBOM. Call it before stating that something is clean or fixed: a backlog " +

@@ -113,7 +113,7 @@ type listClustersOutput struct {
 }
 
 func registerListClusters(srv *mcp.Server, api client.Client) {
-	mcp.AddTool(srv, &mcp.Tool{
+	addTool(srv, &mcp.Tool{
 		Name: "ocidex_list_clusters",
 		Description: "List the Kubernetes clusters reporting their running workloads to OCIDex, with health, " +
 			"running critical count and SBOM coverage. This is the entry point for any question about what " +
@@ -173,7 +173,7 @@ type clusterVulnsOutput struct {
 }
 
 func registerClusterVulns(srv *mcp.Server, api client.Client) {
-	mcp.AddTool(srv, &mcp.Tool{
+	addTool(srv, &mcp.Tool{
 		Name: "ocidex_cluster_vulnerabilities",
 		Description: "List the vulnerabilities in images a cluster is running right now, each with the number of " +
 			"workloads exposed. This is the first call for cluster remediation. Sort by workloads to find " +
@@ -271,7 +271,7 @@ type clusterImagesOutput struct {
 }
 
 func registerClusterImages(srv *mcp.Server, api client.Client) {
-	mcp.AddTool(srv, &mcp.Tool{
+	addTool(srv, &mcp.Tool{
 		Name: "ocidex_cluster_images",
 		Description: "List the distinct images a cluster is running, most vulnerable first, each with its matched " +
 			"artifact, running version, sbom_id, severity counts and how many workloads run it. This is how " +
@@ -364,7 +364,7 @@ type clusterWorkloadsOutput struct {
 }
 
 func registerClusterWorkloads(srv *mcp.Server, api client.Client) {
-	mcp.AddTool(srv, &mcp.Tool{
+	addTool(srv, &mcp.Tool{
 		Name: "ocidex_cluster_workloads",
 		Description: "List a cluster's workloads (one row per workload container), most vulnerable first, with the " +
 			"image, matched artifact and severity counts of each. Use it when the plan has to name the " +
@@ -465,7 +465,7 @@ type coverageGapsOutput struct {
 }
 
 func registerClusterCoverageGaps(srv *mcp.Server, api client.Client) {
-	mcp.AddTool(srv, &mcp.Tool{
+	addTool(srv, &mcp.Tool{
 		Name: "ocidex_cluster_coverage_gaps",
 		Description: "List the images a cluster runs that have no SBOM, so OCIDex cannot see their " +
 			"vulnerabilities, each with the reason and the registry change that would close the gap. " +
@@ -541,7 +541,7 @@ type vulnWorkloadsOutput struct {
 }
 
 func registerVulnerabilityWorkloads(srv *mcp.Server, api client.Client) {
-	mcp.AddTool(srv, &mcp.Tool{
+	addTool(srv, &mcp.Tool{
 		Name: "ocidex_vulnerability_workloads",
 		Description: "List the Kubernetes workloads currently running an image that carries one advisory, across " +
 			"every visible cluster or one. Use it to answer \"are we exposed to CVE-X in production, and " +

@@ -134,7 +134,7 @@ type getArtifactInput struct {
 }
 
 func registerArtifactTools(srv *mcp.Server, api client.Client) {
-	mcp.AddTool(srv, &mcp.Tool{
+	addTool(srv, &mcp.Tool{
 		Name: "ocidex_lookup_artifact",
 		Description: "Find one artifact by its exact name and return its id, counts and signing status. " +
 			"This is the usual entry point: start from the name you have, and use the id it returns " +
@@ -153,7 +153,7 @@ func registerArtifactTools(srv *mcp.Server, api client.Client) {
 		return nil, toArtifactOutput(artifact), nil
 	})
 
-	mcp.AddTool(srv, &mcp.Tool{
+	addTool(srv, &mcp.Tool{
 		Name: "ocidex_get_artifact",
 		Description: "Fetch an artifact by its UUID. Use this only when you already hold an id — " +
 			"if you have a name, call ocidex_lookup_artifact instead.",
@@ -210,7 +210,7 @@ type lookupSBOMInput struct {
 }
 
 func registerSBOMTools(srv *mcp.Server, api client.Client) {
-	mcp.AddTool(srv, &mcp.Tool{
+	addTool(srv, &mcp.Tool{
 		Name: "ocidex_lookup_sbom",
 		Description: "Find one SBOM, either by digest or by artifact name plus version. " +
 			"A digest identifies an SBOM outright and never needs narrowing. By name the qualifier " +
@@ -265,7 +265,7 @@ type lookupLicenseInput struct {
 }
 
 func registerLicenseTools(srv *mcp.Server, api client.Client) {
-	mcp.AddTool(srv, &mcp.Tool{
+	addTool(srv, &mcp.Tool{
 		Name: "ocidex_lookup_license",
 		Description: "Find a license by SPDX identifier and report how many visible components carry it. " +
 			"The SPDX id is a natural key, so this lookup is never ambiguous and takes no qualifiers: " +
@@ -322,7 +322,7 @@ type searchComponentsInput struct {
 }
 
 func registerComponentTools(srv *mcp.Server, api client.Client) {
-	mcp.AddTool(srv, &mcp.Tool{
+	addTool(srv, &mcp.Tool{
 		Name: "ocidex_search_components",
 		Description: "Find where a component appears across the catalog, one row per SBOM it is in. " +
 			"Supply name or purl — purl matches exactly and is the reliable key across SBOMs, while " +
@@ -392,7 +392,7 @@ type listNamespacesOutput struct {
 type listNamespacesInput struct{}
 
 func registerNamespaceTools(srv *mcp.Server, api client.Client) {
-	mcp.AddTool(srv, &mcp.Tool{
+	addTool(srv, &mcp.Tool{
 		Name: "ocidex_list_namespaces",
 		Description: "List the namespaces the configured API key can see. Every other tool is filtered " +
 			"to these, so this is how to tell an empty result caused by visibility from one caused by " +

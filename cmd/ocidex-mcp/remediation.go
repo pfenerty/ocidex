@@ -189,7 +189,7 @@ func toFixPackages(pkgs []client.SBOMVulnPackage) []fixPackageOutput {
 }
 
 func registerFindingsTools(srv *mcp.Server, api client.Client) {
-	mcp.AddTool(srv, &mcp.Tool{
+	addTool(srv, &mcp.Tool{
 		Name: "ocidex_artifact_findings",
 		Description: "List an artifact's vulnerabilities across its recent versions, worst first, each with " +
 			"the versions it affects and the SBOM id of each. Use it to see which advisories persist into " +
@@ -246,7 +246,7 @@ func registerFindingsTools(srv *mcp.Server, api client.Client) {
 		return nil, out, nil
 	})
 
-	mcp.AddTool(srv, &mcp.Tool{
+	addTool(srv, &mcp.Tool{
 		Name: "ocidex_sbom_findings",
 		Description: "List one SBOM's vulnerabilities with the affected packages, their fixed versions and " +
 			"fix state. This is the tool for writing a remediation plan for one image build. Set " +
@@ -448,7 +448,7 @@ type listArtifactVersionsOutput struct {
 }
 
 func registerArtifactHistoryTools(srv *mcp.Server, api client.Client) {
-	mcp.AddTool(srv, &mcp.Tool{
+	addTool(srv, &mcp.Tool{
 		Name: "ocidex_list_artifact_versions",
 		Description: "List an artifact's versions, newest first, each with its newest SBOM id, severity " +
 			"counts, build date and source revision. Use it to find the latest version (the one a " +
@@ -516,7 +516,7 @@ type listSBOMComponentsOutput struct {
 }
 
 func registerSBOMComponentsTool(srv *mcp.Server, api client.Client) {
-	mcp.AddTool(srv, &mcp.Tool{
+	addTool(srv, &mcp.Tool{
 		Name: "ocidex_list_sbom_components",
 		Description: "List the components inside one SBOM, optionally only the vulnerable or direct ones. " +
 			"Each row's id goes to ocidex_component_vulnerabilities. Use it to inventory an image, or " +
@@ -616,7 +616,7 @@ func toRelations(rs []client.ArtifactRelation) []relationOutput {
 }
 
 func registerLineageTool(srv *mcp.Server, api client.Client) {
-	mcp.AddTool(srv, &mcp.Tool{
+	addTool(srv, &mcp.Tool{
 		Name: "ocidex_artifact_lineage",
 		Description: "Report which catalogued artifacts this one is built from (contains: usually its base " +
 			"image) and which are built on it (used_by). In remediation this decides between bumping " +
@@ -670,7 +670,7 @@ type componentVersionsOutput struct {
 }
 
 func registerComponentVersionsTool(srv *mcp.Server, api client.Client) {
-	mcp.AddTool(srv, &mcp.Tool{
+	addTool(srv, &mcp.Tool{
 		Name: "ocidex_component_versions",
 		Description: "Show every version of one component across the catalog and which artifacts ship each, " +
 			"with vulnerability counts. Use it to check that a fixed version is already in production " +

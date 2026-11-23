@@ -138,7 +138,7 @@ func selectChanges(all []client.ComponentDiff, direction string, limit, offset i
 }
 
 func registerDiffTools(srv *mcp.Server, api client.Client) {
-	mcp.AddTool(srv, &mcp.Tool{
+	addTool(srv, &mcp.Tool{
 		Name: "ocidex_diff_sboms",
 		Description: "Compare two SBOMs and report what changed between them, as counts by direction " +
 			"plus a page of individual component changes. Get the two ids from ocidex_lookup_sbom. " +
@@ -167,7 +167,7 @@ func registerDiffTools(srv *mcp.Server, api client.Client) {
 		}, nil
 	})
 
-	mcp.AddTool(srv, &mcp.Tool{
+	addTool(srv, &mcp.Tool{
 		Name: "ocidex_diff_tree",
 		Description: "Explain where the changes between two SBOMs come from, by walking the dependency " +
 			"tree instead of listing components flat. Called without node it returns the direct " +
@@ -399,7 +399,7 @@ type getVulnerabilityOutput struct {
 }
 
 func registerVulnTools(srv *mcp.Server, api client.Client) {
-	mcp.AddTool(srv, &mcp.Tool{
+	addTool(srv, &mcp.Tool{
 		Name: "ocidex_artifact_vulnerabilities",
 		Description: "Report the severity histogram for an artifact's latest version (its newest SBOM). " +
 			"This is the cheap first question: it says how bad the current release is without listing " +
@@ -424,7 +424,7 @@ func registerVulnTools(srv *mcp.Server, api client.Client) {
 		}, nil
 	})
 
-	mcp.AddTool(srv, &mcp.Tool{
+	addTool(srv, &mcp.Tool{
 		Name: "ocidex_component_vulnerabilities",
 		Description: "List the advisories affecting one component occurrence, with the fixed version " +
 			"where one exists. Get the component id from ocidex_search_components. An entry without a " +
@@ -458,7 +458,7 @@ func registerVulnTools(srv *mcp.Server, api client.Client) {
 		return nil, out, nil
 	})
 
-	mcp.AddTool(srv, &mcp.Tool{
+	addTool(srv, &mcp.Tool{
 		Name: "ocidex_get_vulnerability",
 		Description: "Fetch one advisory by CVE or GHSA id and list the visible artifacts it affects. " +
 			"Use it to turn an id from the other vulnerability tools into blast radius across the catalog, " +
@@ -534,7 +534,7 @@ type ingestSBOMOutput struct {
 // agent holding a read-only key should learn that from the description rather
 // than from a 403 after uploading a megabyte of JSON.
 func registerIngestTool(srv *mcp.Server, api client.Client) {
-	mcp.AddTool(srv, &mcp.Tool{
+	addTool(srv, &mcp.Tool{
 		Name: "ocidex_ingest_sbom",
 		Description: "Upload a CycloneDX SBOM. This is the only tool that writes, and it needs an API " +
 			"key with the read-write scope — a read-only key is rejected. Source is required and " +
@@ -604,7 +604,7 @@ type artifactChangelogOutput struct {
 }
 
 func registerChangelogTool(srv *mcp.Server, api client.Client) {
-	mcp.AddTool(srv, &mcp.Tool{
+	addTool(srv, &mcp.Tool{
 		Name: "ocidex_artifact_changelog",
 		Description: "Walk an artifact's history as a series of version-to-version steps, each with its " +
 			"change counts. Use it to find which release introduced or removed something, then call " +
