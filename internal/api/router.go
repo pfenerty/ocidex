@@ -264,6 +264,15 @@ func NewRouter(h *Handler, corsOrigins, frontendURL, apiBaseURL string) chi.Rout
 	registerDevOps(api, h)
 	registerApprovalOps(api, h)
 	huma.Register(api, huma.Operation{
+		OperationID: "get-key-self",
+		Method:      http.MethodGet,
+		Path:        "/api/v1/auth/keys/self",
+		Summary:     "Describe the calling key",
+		Description: "The calling credential's kind, capability ceiling, approval-required capabilities, namespaces and expiry. Agent keys may call it.",
+		Tags:        []string{tagAuth},
+		Middlewares: huma.Middlewares{RequireAuthenticated(api)},
+	}, h.GetKeySelf)
+	huma.Register(api, huma.Operation{
 		OperationID: "list-key-presets",
 		Method:      http.MethodGet,
 		Path:        "/api/v1/auth/key-presets",

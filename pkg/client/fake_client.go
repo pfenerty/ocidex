@@ -39,6 +39,7 @@ type FakeClient struct {
 	ListAPIKeysFn    func(ctx context.Context) ([]KeyMetaResponse, error)
 	DeleteAPIKeyFn   func(ctx context.Context, id string) error
 	GetCurrentUserFn func(ctx context.Context) (MeOutputBody, error)
+	GetKeySelfFn     func(ctx context.Context) (KeySelfOutputBody, error)
 
 	// Cluster inventory
 	ListClustersFn         func(ctx context.Context, namespaceID string) ([]ClusterResponse, error)
@@ -201,6 +202,15 @@ func (f *FakeClient) DeleteAPIKey(ctx context.Context, id string) error {
 		return f.DeleteAPIKeyFn(ctx, id)
 	}
 	return nil
+}
+
+// GetKeySelf defaults to a personal key with read_private only, so a test that
+// does not set it sees the read-only tool surface.
+func (f *FakeClient) GetKeySelf(ctx context.Context) (KeySelfOutputBody, error) {
+	if f.GetKeySelfFn != nil {
+		return f.GetKeySelfFn(ctx)
+	}
+	return KeySelfOutputBody{Kind: "personal", Capabilities: &[]string{"read_private"}}, nil
 }
 
 func (f *FakeClient) GetCurrentUser(ctx context.Context) (MeOutputBody, error) {

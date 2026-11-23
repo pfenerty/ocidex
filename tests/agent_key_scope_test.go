@@ -181,6 +181,21 @@ func TestAgentKeyPresetsAndLimits(t *testing.T) {
 		is.Equal(resp.StatusCode, http.StatusForbidden)
 	}
 
+	// The key can describe itself, which is how ocidex-mcp decides its tools.
+	var self struct {
+		Kind             string   `json:"kind"`
+		Capabilities     []string `json:"capabilities"`
+		ApprovalRequired []string `json:"approvalRequired"`
+		Namespaces       []string `json:"namespaces"`
+		ExpiresAt        string   `json:"expiresAt"`
+	}
+	getJSON(t, srv.URL+"/api/v1/auth/keys/self", plain, &self)
+	is.Equal(self.Kind, "agent")
+	is.Equal(self.Capabilities, []string{"read_private", "trigger_scan"})
+	is.Equal(self.ApprovalRequired, []string{"trigger_scan"})
+	is.Equal(self.Namespaces, []string{ns})
+	is.True(self.ExpiresAt != "")
+
 	// The presets are listed.
 	var presets struct {
 		Presets []struct {

@@ -254,3 +254,18 @@ type ListKeyPresetsOutput struct {
 		MaxExpiryDays     int `json:"maxExpiryDays"`
 	}
 }
+
+// KeySelfOutput is the response for GET /api/v1/auth/keys/self: what the
+// credential that made the request may do, so an agent can plan before it
+// acts (ADR-0058 A8).
+type KeySelfOutput struct {
+	Body struct {
+		Kind             string     `json:"kind" enum:"session,personal,agent,cluster" doc:"session for a browser session; otherwise the API key's kind"`
+		KeyID            string     `json:"keyId,omitempty" doc:"The key's id; absent for a session"`
+		AgentLabel       string     `json:"agentLabel,omitempty"`
+		Capabilities     []string   `json:"capabilities" doc:"The key's capability ceiling, after the rules agent keys can never exceed. What it may do in a namespace is this intersected with the holder's role there."`
+		ApprovalRequired []string   `json:"approvalRequired,omitempty" doc:"Capabilities a person must approve on every request"`
+		Namespaces       []string   `json:"namespaces,omitempty" doc:"Namespace ids the key is limited to; absent means every namespace its holder belongs to"`
+		ExpiresAt        *time.Time `json:"expiresAt,omitempty"`
+	}
+}

@@ -2,6 +2,7 @@ package main
 
 import (
 	"context"
+	"time"
 
 	"github.com/modelcontextprotocol/go-sdk/mcp"
 
@@ -68,7 +69,9 @@ func newServer(api client.Client, server string) *mcp.Server {
 		Instructions: instructions,
 	})
 
-	registerIdentityTools(srv, api, server)
+	surface := loadSurface(api)
+	registerIdentityTools(srv, api, server, surface)
+	registerWriteTools(srv, api, surface)
 	registerCatalogTools(srv, api)
 	registerAnalysisTools(srv, api)
 	registerRemediationTools(srv, api)
@@ -91,6 +94,14 @@ type whoamiOutput struct {
 	Username string `json:"username" jsonschema:"Display name of the authenticated user, as released by their identity provider"`
 	Role     string `json:"role" jsonschema:"Role of the authenticated user: admin, member, or viewer"`
 	Server   string `json:"server" jsonschema:"Base URL of the OCIDex server these tools talk to"`
+
+	KeyKind          string     `json:"key_kind" jsonschema:"personal or agent: agent keys act for the user and may be limited, held for approval and time-boxed"`
+	Capabilities     []string   `json:"capabilities" jsonschema:"What the key may do at most; in a namespace it is also limited to the user's role there"`
+	ApprovalRequired []string   `json:"approval_required,omitempty" jsonschema:"Capabilities a person must approve on every request: such a write returns a pending action, not a result"`
+	Namespaces       []string   `json:"namespaces,omitempty" jsonschema:"Namespace ids the key is limited to; absent means every namespace the user belongs to"`
+	ExpiresAt        *time.Time `json:"expires_at,omitempty" jsonschema:"When the key stops working"`
+	WriteTools       bool       `json:"write_tools" jsonschema:"Whether this server offers write tools. Only agent keys get them"`
+	Hint             string     `json:"hint,omitempty" jsonschema:"What to do to get write tools, when they are off"`
 }
 
 // registerIdentityTools adds the tools that describe the session itself.
@@ -98,7 +109,7 @@ type whoamiOutput struct {
 // whoami doubles as the connectivity check: it is the cheapest authenticated
 // call in the API, so an agent that cannot tell a bad key from an unreachable
 // server can ask once and get a mapped error either way.
-func registerIdentityTools(srv *mcp.Server, api client.Client, server string) {
+func registerIdentityTools(srv *mcp.Server, api client.Client, server string, surface keySurface) {
 	addTool(srv, &mcp.Tool{
 		Name: "ocidex_whoami",
 		Description: "Report which OCIDex server these tools are talking to and which user the " +
@@ -110,11 +121,27 @@ func registerIdentityTools(srv *mcp.Server, api client.Client, server string) {
 		if err != nil {
 			return nil, whoamiOutput{}, toolError("identifying the configured API key", err)
 		}
-		return nil, whoamiOutput{
-			UserID:   me.Id,
-			Username: me.DisplayName,
-			Role:     me.Role,
-			Server:   server,
-		}, nil
+		// Re-read: the key may have been narrowed, rotated or revoked since
+		// the server started, and this is where an agent looks.
+		self := surface
+		if fresh, ok := fetchSurface(ctx, api); ok {
+			self = fresh
+		}
+		out := whoamiOutput{
+			UserID:           me.Id,
+			Username:         me.DisplayName,
+			Role:             me.Role,
+			Server:           server,
+			KeyKind:          self.kind,
+			Capabilities:     self.capabilities,
+			ApprovalRequired: self.approvalRequired,
+			Namespaces:       self.namespaces,
+			ExpiresAt:        self.expiresAt,
+			WriteTools:       surface.writes(),
+		}
+		if !out.WriteTools {
+			out.Hint = personalKeyHint
+		}
+		return nil, out, nil
 	})
 }

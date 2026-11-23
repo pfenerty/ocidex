@@ -3934,6 +3934,76 @@
         ],
         "type": "object"
       },
+      "KeySelfOutputBody": {
+        "additionalProperties": false,
+        "properties": {
+          "$schema": {
+            "description": "A URL to the JSON Schema for this object.",
+            "examples": [
+              "https://example.com/api/schemas/KeySelfOutputBody.json"
+            ],
+            "format": "uri",
+            "readOnly": true,
+            "type": "string"
+          },
+          "agentLabel": {
+            "type": "string"
+          },
+          "approvalRequired": {
+            "description": "Capabilities a person must approve on every request",
+            "items": {
+              "type": "string"
+            },
+            "type": [
+              "array",
+              "null"
+            ]
+          },
+          "capabilities": {
+            "description": "The key's capability ceiling, after the rules agent keys can never exceed. What it may do in a namespace is this intersected with the holder's role there.",
+            "items": {
+              "type": "string"
+            },
+            "type": [
+              "array",
+              "null"
+            ]
+          },
+          "expiresAt": {
+            "format": "date-time",
+            "type": "string"
+          },
+          "keyId": {
+            "description": "The key's id; absent for a session",
+            "type": "string"
+          },
+          "kind": {
+            "description": "session for a browser session; otherwise the API key's kind",
+            "enum": [
+              "session",
+              "personal",
+              "agent",
+              "cluster"
+            ],
+            "type": "string"
+          },
+          "namespaces": {
+            "description": "Namespace ids the key is limited to; absent means every namespace its holder belongs to",
+            "items": {
+              "type": "string"
+            },
+            "type": [
+              "array",
+              "null"
+            ]
+          }
+        },
+        "required": [
+          "kind",
+          "capabilities"
+        ],
+        "type": "object"
+      },
       "LicenseCategoryMix": {
         "additionalProperties": false,
         "properties": {
@@ -9968,6 +10038,38 @@
           }
         },
         "summary": "Create API key",
+        "tags": [
+          "Auth"
+        ]
+      }
+    },
+    "/api/v1/auth/keys/self": {
+      "get": {
+        "description": "The calling credential's kind, capability ceiling, approval-required capabilities, namespaces and expiry. Agent keys may call it.",
+        "operationId": "get-key-self",
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/KeySelfOutputBody"
+                }
+              }
+            },
+            "description": "OK"
+          },
+          "default": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorModel"
+                }
+              }
+            },
+            "description": "Error"
+          }
+        },
+        "summary": "Describe the calling key",
         "tags": [
           "Auth"
         ]

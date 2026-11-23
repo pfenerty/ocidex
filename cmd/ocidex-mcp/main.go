@@ -91,6 +91,9 @@ func run(ctx context.Context, args []string, stderr io.Writer) int {
 	// Announced on stderr, not stdout: stdout carries the JSON-RPC framing and
 	// any stray byte there desynchronises the client.
 	fmt.Fprintf(stderr, "ocidex-mcp %s serving %s over stdio\n", version.String(), settings.Server)
+	if s := loadSurface(api); !s.writes() {
+		fmt.Fprintf(stderr, "ocidex-mcp: read-only. %s\n", personalKeyHint)
+	}
 
 	// IOTransport over a watched stdin rather than StdioTransport, which reads
 	// os.Stdin directly: the watcher is what lets the error handling below tell

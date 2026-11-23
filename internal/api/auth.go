@@ -869,6 +869,42 @@ func refuseAgentKey(user service.AuthUser) error {
 	return nil
 }
 
+// GetKeySelf handles GET /api/v1/auth/keys/self.
+func (h *Handler) GetKeySelf(ctx context.Context, _ *struct{}) (*KeySelfOutput, error) {
+	user, ok := UserFromContext(ctx)
+	if !ok {
+		return nil, huma.Error401Unauthorized("not authenticated")
+	}
+	out := &KeySelfOutput{}
+	if !user.APIKeyAuth {
+		out.Body.Kind = "session"
+		out.Body.Capabilities = authz.Strings(authz.AllCapabilities())
+		return out, nil
+	}
+	var effective []authz.Capability
+	for _, c := range user.APIKeyCaps {
+		if user.KeyAllows(c) {
+			effective = append(effective, c)
+		}
+	}
+	out.Body.Kind = user.APIKeyKind
+	out.Body.KeyID = user.APIKeyID
+	out.Body.AgentLabel = user.APIKeyAgentLabel
+	out.Body.Capabilities = append([]string{}, authz.Strings(effective)...)
+	out.Body.ApprovalRequired = authz.Strings(user.APIKeyApprovalRequired)
+	out.Body.Namespaces = user.APIKeyNamespaces
+	if h.accounts != nil {
+		if keys, err := h.accounts.ListAPIKeys(ctx, user.ID); err == nil {
+			for _, k := range keys {
+				if k.ID == user.APIKeyID {
+					out.Body.ExpiresAt = k.ExpiresAt
+				}
+			}
+		}
+	}
+	return out, nil
+}
+
 // ListKeyPresets handles GET /api/v1/auth/key-presets.
 func (h *Handler) ListKeyPresets(_ context.Context, _ *struct{}) (*ListKeyPresetsOutput, error) {
 	out := &ListKeyPresetsOutput{}

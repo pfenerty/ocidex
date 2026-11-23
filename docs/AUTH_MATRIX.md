@@ -97,6 +97,7 @@ cookies carry no ceiling and are unaffected.
 | GET | `/api/v1/auth/key-presets` | `list-key-presets` | `authenticated` | — |  | Static reference data: the presets compiled into this build. |
 | GET | `/api/v1/auth/keys` | `list-api-keys` | `member` | — |  | Own keys only. Agent keys get 403. |
 | POST | `/api/v1/auth/keys` | `create-api-key` | `member` | — | ✓ | Key is scoped to the calling user. An API-key caller may only request capabilities its own key holds (403 otherwise). Agent keys get 403 (ADR-0058 A7). |
+| GET | `/api/v1/auth/keys/self` | `get-key-self` | `authenticated` | — |  | Describes only the calling credential. |
 | DELETE | `/api/v1/auth/keys/{id}` | `delete-api-key` | `member` | — | ✓ | Own keys only. An API-key caller may only delete keys whose capabilities its own key holds. Agent keys get 403. |
 | GET | `/api/v1/auth/keys/{id}/activity` | `list-key-activity` | `authenticated` | — |  | The caller's own keys only (404 otherwise); an admin session or installation_admin key sees any. |
 | GET | `/api/v1/auth/providers` | `list-auth-providers` | `public` | — |  | Names the operator gave their own issuers; the login page renders these before anyone is signed in. |

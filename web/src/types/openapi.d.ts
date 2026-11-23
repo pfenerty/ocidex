@@ -540,6 +540,26 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/v1/auth/keys/self": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Describe the calling key
+         * @description The calling credential's kind, capability ceiling, approval-required capabilities, namespaces and expiry. Agent keys may call it.
+         */
+        get: operations["get-key-self"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/v1/auth/keys/{id}": {
         parameters: {
             query?: never;
@@ -3570,6 +3590,30 @@ export interface components {
             name: string;
             title: string;
         };
+        KeySelfOutputBody: {
+            /**
+             * Format: uri
+             * @description A URL to the JSON Schema for this object.
+             * @example https://example.com/api/schemas/KeySelfOutputBody.json
+             */
+            readonly $schema?: string;
+            agentLabel?: string;
+            /** @description Capabilities a person must approve on every request */
+            approvalRequired?: string[] | null;
+            /** @description The key's capability ceiling, after the rules agent keys can never exceed. What it may do in a namespace is this intersected with the holder's role there. */
+            capabilities: string[] | null;
+            /** Format: date-time */
+            expiresAt?: string;
+            /** @description The key's id; absent for a session */
+            keyId?: string;
+            /**
+             * @description session for a browser session; otherwise the API key's kind
+             * @enum {string}
+             */
+            kind: "session" | "personal" | "agent" | "cluster";
+            /** @description Namespace ids the key is limited to; absent means every namespace its holder belongs to */
+            namespaces?: string[] | null;
+        };
         LicenseCategoryMix: {
             /** Format: int64 */
             copyleft: number;
@@ -6279,6 +6323,35 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["CreateAPIKeyOutputBody"];
+                };
+            };
+            /** @description Error */
+            default: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["ErrorModel"];
+                };
+            };
+        };
+    };
+    "get-key-self": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description OK */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["KeySelfOutputBody"];
                 };
             };
             /** @description Error */

@@ -331,5 +331,5 @@ func TestListNamespacesSurfacesForbidden(t *testing.T) {
 
 	res := callTool(t, connect(t, api), "ocidex_list_namespaces", nil)
 	i.True(res.IsError)
-	i.True(strings.Contains(resultText(res), "read-write"))
+	i.True(strings.Contains(resultText(res), "ocidex_whoami"))
 }

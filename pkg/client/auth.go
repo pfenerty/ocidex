@@ -23,6 +23,12 @@ func (c *httpClient) DeleteAPIKey(ctx context.Context, id string) error {
 	return c.request(ctx, http.MethodDelete, "/api/v1/auth/keys/"+id, nil, nil, nil)
 }
 
+func (c *httpClient) GetKeySelf(ctx context.Context) (KeySelfOutputBody, error) {
+	var out KeySelfOutputBody
+	err := c.request(ctx, http.MethodGet, "/api/v1/auth/keys/self", nil, nil, &out)
+	return out, err
+}
+
 func (c *httpClient) GetCurrentUser(ctx context.Context) (MeOutputBody, error) {
 	var out MeOutputBody
 	err := c.request(ctx, http.MethodGet, "/api/v1/users/me", nil, nil, &out)

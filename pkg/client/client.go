@@ -42,6 +42,9 @@ type Client interface {
 	ListAPIKeys(ctx context.Context) ([]KeyMetaResponse, error)
 	DeleteAPIKey(ctx context.Context, id string) error
 	GetCurrentUser(ctx context.Context) (MeOutputBody, error)
+	// GetKeySelf describes the calling credential: kind, capabilities,
+	// approval-required capabilities, namespaces and expiry.
+	GetKeySelf(ctx context.Context) (KeySelfOutputBody, error)
 
 	// Cluster inventory (ADR-044). PutInventory replaces the cluster's whole
 	// workload set, so the caller must send everything it observed.

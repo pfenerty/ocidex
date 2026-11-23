@@ -160,6 +160,7 @@ var authRules = map[string]AuthRule{
 	"unwatch-artifact":        {Class: ClassAuthenticated, Write: true, Notes: "Removes the caller's own watch; idempotent."},
 	"list-auth-providers": {Class: ClassPublic,
 		Notes: "Names the operator gave their own issuers; the login page renders these before anyone is signed in."},
+	"get-key-self":           {Class: ClassAuthenticated, Notes: "Describes only the calling credential."},
 	"list-key-presets":       {Class: ClassAuthenticated, Notes: "Static reference data: the presets compiled into this build."},
 	"list-key-activity":      {Class: ClassAuthenticated, Notes: "The caller's own keys only (404 otherwise); an admin session or installation_admin key sees any."},
 	"list-pending-actions":   {Class: ClassAuthenticated, Notes: "Actions the caller's keys asked for, and actions in namespaces where the caller holds the action's capability."},

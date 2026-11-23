@@ -435,6 +435,30 @@ func (e KeyMetaResponseKind) Valid() bool {
 	}
 }
 
+// Defines values for KeySelfOutputBodyKind.
+const (
+	KeySelfOutputBodyKindAgent    KeySelfOutputBodyKind = "agent"
+	KeySelfOutputBodyKindCluster  KeySelfOutputBodyKind = "cluster"
+	KeySelfOutputBodyKindPersonal KeySelfOutputBodyKind = "personal"
+	KeySelfOutputBodyKindSession  KeySelfOutputBodyKind = "session"
+)
+
+// Valid indicates whether the value is a known member of the KeySelfOutputBodyKind enum.
+func (e KeySelfOutputBodyKind) Valid() bool {
+	switch e {
+	case KeySelfOutputBodyKindAgent:
+		return true
+	case KeySelfOutputBodyKindCluster:
+		return true
+	case KeySelfOutputBodyKindPersonal:
+		return true
+	case KeySelfOutputBodyKindSession:
+		return true
+	default:
+		return false
+	}
+}
+
 // Defines values for ListArtifactVersionsOutputBodyResolvedMode.
 const (
 	ListArtifactVersionsOutputBodyResolvedModeAll    ListArtifactVersionsOutputBodyResolvedMode = "all"
@@ -3168,6 +3192,32 @@ type KeyPreset struct {
 	Name             string    `json:"name"`
 	Title            string    `json:"title"`
 }
+
+// KeySelfOutputBody defines model for KeySelfOutputBody.
+type KeySelfOutputBody struct {
+	// Schema A URL to the JSON Schema for this object.
+	Schema     *string `json:"$schema,omitempty"`
+	AgentLabel *string `json:"agentLabel,omitempty"`
+
+	// ApprovalRequired Capabilities a person must approve on every request
+	ApprovalRequired *[]string `json:"approvalRequired,omitempty"`
+
+	// Capabilities The key's capability ceiling, after the rules agent keys can never exceed. What it may do in a namespace is this intersected with the holder's role there.
+	Capabilities *[]string  `json:"capabilities"`
+	ExpiresAt    *time.Time `json:"expiresAt,omitempty"`
+
+	// KeyId The key's id; absent for a session
+	KeyId *string `json:"keyId,omitempty"`
+
+	// Kind session for a browser session; otherwise the API key's kind
+	Kind KeySelfOutputBodyKind `json:"kind"`
+
+	// Namespaces Namespace ids the key is limited to; absent means every namespace its holder belongs to
+	Namespaces *[]string `json:"namespaces,omitempty"`
+}
+
+// KeySelfOutputBodyKind session for a browser session; otherwise the API key's kind
+type KeySelfOutputBodyKind string
 
 // LicenseCategoryMix defines model for LicenseCategoryMix.
 type LicenseCategoryMix struct {
