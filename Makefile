@@ -7,7 +7,7 @@ ifneq (,$(wildcard .env))
   export
 endif
 
-.PHONY: demo demo-down all build run fmt lint license-check vulncheck test test-coverage test-integration check init clean generate generate-check generate-client generate-client-check generate-operator generate-operator-check migrate-up migrate-down seed frontend frontend-dev frontend-dev-live frontend-dev-auth dev-auth-up dev-auth-down dev-auth-fixtures dev-auth-status dev-auth-reset dev-mock-idp frontend-init frontend-lint frontend-lint-fix frontend-typecheck frontend-test openapi openapi-check auth-matrix auth-matrix-check helm-check docs docs-dev docs-check docs-generate docs-generate-check docs-screenshots tekton-synth tekton-check dev-docker-check dev-registry dev-cluster-up dev-cluster-down dev-up dev-down release version help
+.PHONY: demo demo-down all build run fmt lint license-check vulncheck test test-coverage test-integration check init clean generate generate-check generate-client generate-client-check generate-operator generate-operator-check migrate-up migrate-down seed frontend frontend-dev frontend-dev-live frontend-dev-auth dev-auth-up dev-auth-down dev-auth-fixtures dev-auth-status dev-auth-reset dev-mock-idp frontend-init frontend-lint frontend-lint-fix frontend-typecheck frontend-test openapi openapi-check auth-matrix auth-matrix-check helm-check docs docs-dev docs-check docs-generate docs-generate-check docs-screenshots agent-eval tekton-synth tekton-check dev-docker-check dev-registry dev-cluster-up dev-cluster-down dev-up dev-down release version help
 
 all: check build ## Run all checks and build
 
@@ -241,6 +241,10 @@ docs-generate-check: ## Verify the docs site's generated reference pages are up 
 		diff $(DOCS_REFERENCE)/$$f /tmp/docs-reference-check/$$f || \
 		{ echo "ERROR: $(DOCS_REFERENCE)/$$f is stale. Run 'make docs-generate'."; exit 1; }; \
 	done
+
+agent-eval: ## Score a model on OCIDex tasks through ocidex-mcp (needs the dev rig, OCIDEX_EVAL_KEY and Claude API credentials; see docs/AGENT_EVAL.md)
+	go build -o $(BUILD_DIR)/ocidex-mcp ./cmd/ocidex-mcp
+	cd tools/agent-eval && go run . -mcp $(abspath $(BUILD_DIR))/ocidex-mcp -out $(abspath $(BUILD_DIR))/agent-eval.json $(if $(BASELINE),-baseline $(abspath $(BASELINE))) $(EVAL_ARGS)
 
 tekton-synth: ## Synthesize Tekton pipeline YAML from TypeScript
 	cd .tektonic && npm ci && npx tektonic synth
