@@ -138,9 +138,10 @@ func (s *sourceService) ListByNamespace(ctx context.Context, namespaceID string)
 
 func (s *sourceService) List(ctx context.Context, filter VisibilityFilter) ([]Source, error) {
 	rows, err := s.repo.ListSources(ctx, repository.ListSourcesParams{
-		IsAdmin:   filter.adminFlag(),
-		UserID:    uuidOrNull(filter.UserID),
-		OwnedOnly: filter.ownedFlag(),
+		IsAdmin:       filter.adminFlag(),
+		KeyNamespaces: filter.keyNamespaces(),
+		UserID:        uuidOrNull(filter.UserID),
+		OwnedOnly:     filter.ownedFlag(),
 	})
 	if err != nil {
 		return nil, fmt.Errorf("listing sources: %w", err)

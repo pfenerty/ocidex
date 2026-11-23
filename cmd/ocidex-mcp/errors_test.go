@@ -28,7 +28,7 @@ func TestToolErrorMessages(t *testing.T) {
 		{
 			name:     "forbidden names the scope needed",
 			err:      client.ErrForbidden,
-			contains: []string{"forbidden", "read-write"},
+			contains: []string{"forbidden", "ocidex_whoami"},
 		},
 		{
 			name:     "bare conflict is distinct from a resolver conflict",

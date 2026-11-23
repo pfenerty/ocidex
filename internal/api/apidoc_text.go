@@ -56,6 +56,7 @@ The specification is served by every OCIDex server at ` + "`/api/openapi.json`" 
 // apiTags gives each operation group in the reference its heading text. Every
 // tag an operation uses must appear here (TestOpenAPITagsAreDescribed).
 var apiTags = []*huma.Tag{
+	{Name: tagApprovals, Description: "Agent writes held for a person's approval. A key can require approval for chosen capabilities; its requests then return 202 with a pending action, which a person approves or denies from a signed-in session."},
 	{Name: tagArtifacts, Description: "An artifact is a named thing OCIDex has SBOMs for, usually a container image repository. Look artifacts up by name, and read their versions, changelog, licenses, vulnerabilities, and the artifacts they ship or are shipped in."},
 	{Name: tagSBOMs, Description: "Upload, look up and read SBOMs, with the image metadata, provenance and signing status derived from them. Diff two SBOMs to see the components and vulnerabilities that changed between them."},
 	{Name: tagComponents, Description: "Packages found inside SBOMs, identified by purl, with the versions and artifacts each appears in."},

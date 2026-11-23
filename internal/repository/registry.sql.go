@@ -436,13 +436,14 @@ SELECT r.id, r.type, r.url, r.insecure, r.webhook_secret, r.enabled, r.created_a
 FROM registry r
 JOIN source src ON src.id = r.id
 JOIN namespace n ON n.id = src.namespace_id
-WHERE n.id IN (SELECT visible_namespace_ids($1::uuid, $2::boolean))
+WHERE n.id IN (SELECT visible_namespace_ids($1::uuid, $2::boolean, $3::uuid[]))
 ORDER BY r.created_at ASC
 `
 
 type ListRegistriesParams struct {
-	UserID  pgtype.UUID `json:"user_id"`
-	IsAdmin pgtype.Bool `json:"is_admin"`
+	UserID        pgtype.UUID   `json:"user_id"`
+	IsAdmin       pgtype.Bool   `json:"is_admin"`
+	KeyNamespaces []pgtype.UUID `json:"key_namespaces"`
 }
 
 type ListRegistriesRow struct {
@@ -453,7 +454,7 @@ type ListRegistriesRow struct {
 }
 
 func (q *Queries) ListRegistries(ctx context.Context, arg ListRegistriesParams) ([]ListRegistriesRow, error) {
-	rows, err := q.db.Query(ctx, listRegistries, arg.UserID, arg.IsAdmin)
+	rows, err := q.db.Query(ctx, listRegistries, arg.UserID, arg.IsAdmin, arg.KeyNamespaces)
 	if err != nil {
 		return nil, err
 	}
@@ -581,20 +582,21 @@ JOIN source src ON src.id = r.id
 JOIN namespace n ON n.id = src.namespace_id
 WHERE (
     CASE WHEN COALESCE($1::boolean, false)
-         THEN n.id IN (SELECT owned_namespace_ids($2::uuid))
-         ELSE n.id IN (SELECT visible_namespace_ids($2::uuid, $3::boolean))
+         THEN n.id IN (SELECT owned_namespace_ids($2::uuid, $3::uuid[]))
+         ELSE n.id IN (SELECT visible_namespace_ids($2::uuid, $4::boolean, $3::uuid[]))
     END
 )
 ORDER BY r.created_at ASC, r.id
-LIMIT $5 OFFSET $4
+LIMIT $6 OFFSET $5
 `
 
 type ListRegistriesPagedParams struct {
-	OwnedOnly pgtype.Bool `json:"owned_only"`
-	UserID    pgtype.UUID `json:"user_id"`
-	IsAdmin   pgtype.Bool `json:"is_admin"`
-	RowOffset int32       `json:"row_offset"`
-	RowLimit  int32       `json:"row_limit"`
+	OwnedOnly     pgtype.Bool   `json:"owned_only"`
+	UserID        pgtype.UUID   `json:"user_id"`
+	KeyNamespaces []pgtype.UUID `json:"key_namespaces"`
+	IsAdmin       pgtype.Bool   `json:"is_admin"`
+	RowOffset     int32         `json:"row_offset"`
+	RowLimit      int32         `json:"row_limit"`
 }
 
 type ListRegistriesPagedRow struct {
@@ -611,6 +613,7 @@ func (q *Queries) ListRegistriesPaged(ctx context.Context, arg ListRegistriesPag
 	rows, err := q.db.Query(ctx, listRegistriesPaged,
 		arg.OwnedOnly,
 		arg.UserID,
+		arg.KeyNamespaces,
 		arg.IsAdmin,
 		arg.RowOffset,
 		arg.RowLimit,
@@ -717,7 +720,7 @@ WITH latest_provenance AS (
     LEFT JOIN enrichment p ON p.sbom_id = s.id AND p.enricher_name = 'provenance' AND p.status = 'success'
     WHERE s.artifact_id IS NOT NULL
       AND s.namespace_id IN (
-          SELECT visible_namespace_ids($1::uuid, $2::boolean))
+          SELECT visible_namespace_ids($1::uuid, $2::boolean, $3::uuid[]))
     ORDER BY s.source_id, s.artifact_id, s.created_at DESC
 )
 SELECT source_id AS registry_id, signing_status, COUNT(*) AS artifact_count
@@ -727,8 +730,9 @@ ORDER BY source_id, signing_status
 `
 
 type ListRegistryTrustSummaryParams struct {
-	UserID  pgtype.UUID `json:"user_id"`
-	IsAdmin pgtype.Bool `json:"is_admin"`
+	UserID        pgtype.UUID   `json:"user_id"`
+	IsAdmin       pgtype.Bool   `json:"is_admin"`
+	KeyNamespaces []pgtype.UUID `json:"key_namespaces"`
 }
 
 type ListRegistryTrustSummaryRow struct {
@@ -745,7 +749,7 @@ type ListRegistryTrustSummaryRow struct {
 // config to summarise. Scoped to the caller's visible namespaces so a namespace
 // owner can read their own signing posture without the admin role.
 func (q *Queries) ListRegistryTrustSummary(ctx context.Context, arg ListRegistryTrustSummaryParams) ([]ListRegistryTrustSummaryRow, error) {
-	rows, err := q.db.Query(ctx, listRegistryTrustSummary, arg.UserID, arg.IsAdmin)
+	rows, err := q.db.Query(ctx, listRegistryTrustSummary, arg.UserID, arg.IsAdmin, arg.KeyNamespaces)
 	if err != nil {
 		return nil, err
 	}

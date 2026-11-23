@@ -19,8 +19,14 @@ type ApiKey struct {
 	// Ceiling on what this key may do, intersected at validation time with the owner's live namespace roles. Mirrors the Capability constants in internal/authz.
 	Capabilities []string `json:"capabilities"`
 	// Set for a cluster agent credential: the key may only push this cluster's inventory. NULL for an ordinary key.
-	ClusterID pgtype.UUID        `json:"cluster_id"`
-	ExpiresAt pgtype.Timestamptz `json:"expires_at"`
+	ClusterID        pgtype.UUID        `json:"cluster_id"`
+	ExpiresAt        pgtype.Timestamptz `json:"expires_at"`
+	Kind             string             `json:"kind"`
+	NamespaceIds     []pgtype.UUID      `json:"namespace_ids"`
+	AgentLabel       pgtype.Text        `json:"agent_label"`
+	ApprovalRequired []string           `json:"approval_required"`
+	ScansPerHour     pgtype.Int4        `json:"scans_per_hour"`
+	WritesPerHour    pgtype.Int4        `json:"writes_per_hour"`
 }
 
 type Artifact struct {
@@ -242,6 +248,27 @@ type GoSymbolSetMember struct {
 	SymbolID interface{} `json:"symbol_id"`
 }
 
+type KeyActivity struct {
+	ID              int64              `json:"id"`
+	OccurredAt      pgtype.Timestamptz `json:"occurred_at"`
+	ApiKeyID        pgtype.UUID        `json:"api_key_id"`
+	UserID          pgtype.UUID        `json:"user_id"`
+	AgentLabel      pgtype.Text        `json:"agent_label"`
+	Tool            pgtype.Text        `json:"tool"`
+	Method          string             `json:"method"`
+	Route           string             `json:"route"`
+	Path            string             `json:"path"`
+	Status          int32              `json:"status"`
+	PendingActionID pgtype.UUID        `json:"pending_action_id"`
+}
+
+type KeyQuotaWindow struct {
+	ApiKeyID    pgtype.UUID        `json:"api_key_id"`
+	Class       string             `json:"class"`
+	WindowStart pgtype.Timestamptz `json:"window_start"`
+	Used        int32              `json:"used"`
+}
+
 type License struct {
 	ID     pgtype.UUID `json:"id"`
 	SpdxID pgtype.Text `json:"spdx_id"`
@@ -306,6 +333,28 @@ type PackageVulnerability struct {
 	FixState        pgtype.Text        `json:"fix_state"`
 	GoSymbolSetID   int64              `json:"go_symbol_set_id"`
 	DbBuiltAt       pgtype.Timestamptz `json:"db_built_at"`
+}
+
+type PendingAction struct {
+	ID           pgtype.UUID        `json:"id"`
+	ApiKeyID     pgtype.UUID        `json:"api_key_id"`
+	UserID       pgtype.UUID        `json:"user_id"`
+	NamespaceID  pgtype.UUID        `json:"namespace_id"`
+	Capability   string             `json:"capability"`
+	Method       string             `json:"method"`
+	Path         string             `json:"path"`
+	Body         []byte             `json:"body"`
+	Effect       string             `json:"effect"`
+	Reason       pgtype.Text        `json:"reason"`
+	AgentLabel   pgtype.Text        `json:"agent_label"`
+	Status       string             `json:"status"`
+	CreatedAt    pgtype.Timestamptz `json:"created_at"`
+	ExpiresAt    pgtype.Timestamptz `json:"expires_at"`
+	DecidedBy    pgtype.UUID        `json:"decided_by"`
+	DecidedAt    pgtype.Timestamptz `json:"decided_at"`
+	ExecutedAt   pgtype.Timestamptz `json:"executed_at"`
+	ResultStatus pgtype.Int4        `json:"result_status"`
+	ResultBody   pgtype.Text        `json:"result_body"`
 }
 
 type ProvenanceDriftEvent struct {

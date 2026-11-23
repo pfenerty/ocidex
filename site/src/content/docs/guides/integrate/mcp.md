@@ -22,7 +22,20 @@ what the homelab cluster is running".
    go install github.com/pfenerty/ocidex/cmd/ocidex-mcp@latest
    ```
 
-2. **Give it a key.** It reads the same credentials as `ocidex-cli`, so:
+2. **Register it with an agent key** (recommended). Signed in with `ocidex-cli login`, run:
+
+   ```sh
+   ocidex-cli mcp install --client claude-code --namespace acme --preset analyst
+   ```
+
+   This creates an agent key limited to the namespaces you name and expiring in 30 days, and writes
+   it into the client's user-wide config (`--client claude-desktop` or `cursor` for those). The key
+   is never printed, and running the command again changes nothing (`--rotate` replaces the key).
+   Presets: `analyst` reads, `remediation` also manages your watchlist, and `coverage` may also ask
+   for scans, each one held for your approval. Only agent keys get the write tools below. Restart
+   the client, then skip to step 4.
+
+   **Or give it your personal key**, read-only. It reads the same credentials as `ocidex-cli`, so:
 
    ```sh
    ocidex-cli login          # writes ~/.config/ocidex/config.yaml
@@ -31,7 +44,7 @@ what the homelab cluster is running".
    Every tool except ingest works with a read-only key. Ingesting needs the `ingest` capability.
    There's deliberately no key flag: use the config file or `OCIDEX_API_KEY`.
 
-3. **Register it with your client.** For Claude Code:
+3. **Register it with your client** (personal-key setup only). For Claude Code:
 
    ```sh
    claude mcp add ocidex -- ocidex-mcp
@@ -92,6 +105,29 @@ The server is resolved like the CLI's: `--server`, then `OCIDEX_URL`, then the c
 | `ocidex_vulnerability_workloads` | Workloads running an image that carries one advisory. |
 | `ocidex_ingest_sbom` | Upload a CycloneDX document. Needs `ingest`. |
 
+### Write tools
+
+Only an agent key gets these (see [Agents](/guides/integrate/agents/)). Each one is listed only when the
+key may use it, takes `preview: true` to describe the request without sending it, and is safe to
+retry.
+
+| Tool | What it does | Needs |
+| --- | --- | --- |
+| `ocidex_watch_artifact` / `ocidex_unwatch_artifact` | Add an artifact to the user's watchlist, or remove it. | nothing beyond the key |
+| `ocidex_scan_registry` | Queue scans of a registry's new and changed images. | `trigger_scan` |
+| `ocidex_ingest_unknown_images` | Queue scans of named images a cluster runs with no SBOM (at most 200 per call). | `trigger_scan` |
+| `ocidex_approval_status` | Whether a held request was approved, and what happened when it ran. | nothing beyond the key |
+
+A write the key must have approved comes back `held`, with OCIDex's own description of the effect
+and an `approval_url`. Nothing runs until a person approves it in the browser. The agent is told to
+pass on the link and poll `ocidex_approval_status`, not to resend. Agent keys also have hourly
+budgets; a spent budget is refused until the next hour.
+
+If your client supports MCP elicitation, a write that would run straight away is first shown to you
+with a request to allow it. Declining sends nothing. Held writes skip that prompt, since you approve
+them in OCIDex instead. Clients without elicitation run the write without asking, within the key's
+limits.
+
 When a name matches several artifacts, a lookup returns the candidates and what tells them apart,
 rather than guessing, so the agent can ask again more precisely.
 
@@ -114,6 +150,13 @@ the same tool sequence.
 
 The server also offers the API's OpenAPI document as the resource `ocidex://openapi.json`, fetched
 from the running server, for anything the tools don't cover.
+
+Clients that attach resources can also read an artifact or an SBOM by id, as
+`ocidex://artifact/{id}` and `ocidex://sbom/{id}`. Clients that support argument completion get
+artifact, cluster and namespace names as you type a prompt's arguments.
+
+Paged tools take `offset` and `limit` and return `total` and, when there is another page,
+`next_offset` to pass on. Every tool declares its output schema.
 
 ## Troubleshooting
 

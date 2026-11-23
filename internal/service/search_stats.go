@@ -28,7 +28,10 @@ func (s *searchService) normalizeStatsScope(ctx context.Context, vis VisibilityF
 	if vis.IsAdmin || vis.UserID == "" {
 		return vis
 	}
-	n, err := repository.New(s.db).CountOwnedPrivateNamespaces(ctx, uuidOrNull(vis.UserID))
+	n, err := repository.New(s.db).CountOwnedPrivateNamespaces(ctx, repository.CountOwnedPrivateNamespacesParams{
+		ViewerID:      uuidOrNull(vis.UserID),
+		KeyNamespaces: vis.keyNamespaces(),
+	})
 	if err != nil || n > 0 {
 		// On error keep the viewer's own scope: over-narrowing the cache key is
 		// a performance loss, but widening it on a failed check could serve
@@ -64,16 +67,17 @@ func (s *searchService) GetDashboardStats(ctx context.Context, vis VisibilityFil
 func (s *searchService) WarmDashboardStats(ctx context.Context, vis VisibilityFilter) (*DashboardStats, error) {
 	q := repository.New(s.warmHandle())
 	isAdmin := visAdminBool(vis)
+	keyNS := vis.keyNamespaces()
 
-	summaryP := repository.GetSummaryCountsParams{UserID: uuidOrNull(vis.UserID), IsAdmin: isAdmin}
-	typeP := repository.GetArtifactTypeCountsParams{UserID: uuidOrNull(vis.UserID), IsAdmin: isAdmin}
-	catP := repository.GetLicenseCategoryCountsParams{UserID: uuidOrNull(vis.UserID), IsAdmin: isAdmin}
-	timelineP := repository.GetSBOMIngestionTimelineParams{NumDays: 30, UserID: uuidOrNull(vis.UserID), IsAdmin: isAdmin}
-	pkgP := repository.GetPackageGrowthTimelineParams{UserID: uuidOrNull(vis.UserID), IsAdmin: isAdmin}
-	verP := repository.GetVersionGrowthTimelineParams{UserID: uuidOrNull(vis.UserID), IsAdmin: isAdmin}
-	topP := repository.GetTopPackagesByVersionCountParams{TopN: 10, UserID: uuidOrNull(vis.UserID), IsAdmin: isAdmin}
-	vulnP := repository.GetVulnStatsParams{UserID: uuidOrNull(vis.UserID), IsAdmin: isAdmin}
-	maxP := repository.GetArtifactMaximaParams{UserID: uuidOrNull(vis.UserID), IsAdmin: isAdmin}
+	summaryP := repository.GetSummaryCountsParams{UserID: uuidOrNull(vis.UserID), IsAdmin: isAdmin, KeyNamespaces: keyNS}
+	typeP := repository.GetArtifactTypeCountsParams{UserID: uuidOrNull(vis.UserID), IsAdmin: isAdmin, KeyNamespaces: keyNS}
+	catP := repository.GetLicenseCategoryCountsParams{UserID: uuidOrNull(vis.UserID), IsAdmin: isAdmin, KeyNamespaces: keyNS}
+	timelineP := repository.GetSBOMIngestionTimelineParams{NumDays: 30, UserID: uuidOrNull(vis.UserID), IsAdmin: isAdmin, KeyNamespaces: keyNS}
+	pkgP := repository.GetPackageGrowthTimelineParams{UserID: uuidOrNull(vis.UserID), IsAdmin: isAdmin, KeyNamespaces: keyNS}
+	verP := repository.GetVersionGrowthTimelineParams{UserID: uuidOrNull(vis.UserID), IsAdmin: isAdmin, KeyNamespaces: keyNS}
+	topP := repository.GetTopPackagesByVersionCountParams{TopN: 10, UserID: uuidOrNull(vis.UserID), IsAdmin: isAdmin, KeyNamespaces: keyNS}
+	vulnP := repository.GetVulnStatsParams{UserID: uuidOrNull(vis.UserID), IsAdmin: isAdmin, KeyNamespaces: keyNS}
+	maxP := repository.GetArtifactMaximaParams{UserID: uuidOrNull(vis.UserID), IsAdmin: isAdmin, KeyNamespaces: keyNS}
 
 	var (
 		counts    repository.GetSummaryCountsRow

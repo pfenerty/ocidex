@@ -22,9 +22,10 @@ func (s *searchService) GetArtifact(ctx context.Context, idStr string, vis Visib
 
 	// Access check.
 	visible, err := q.IsArtifactVisible(ctx, repository.IsArtifactVisibleParams{
-		AID:     id,
-		UserID:  uuidOrNull(vis.UserID),
-		IsAdmin: visAdminBool(vis),
+		AID:           id,
+		UserID:        uuidOrNull(vis.UserID),
+		IsAdmin:       visAdminBool(vis),
+		KeyNamespaces: vis.keyNamespaces(),
 	})
 	if err != nil {
 		return ArtifactDetail{}, fmt.Errorf("checking artifact visibility: %w", err)
@@ -34,9 +35,10 @@ func (s *searchService) GetArtifact(ctx context.Context, idStr string, vis Visib
 	}
 
 	row, err := q.GetArtifact(ctx, repository.GetArtifactParams{
-		ID:      id,
-		UserID:  uuidOrNull(vis.UserID),
-		IsAdmin: visAdminBool(vis),
+		ID:            id,
+		UserID:        uuidOrNull(vis.UserID),
+		IsAdmin:       visAdminBool(vis),
+		KeyNamespaces: vis.keyNamespaces(),
 	})
 	if err != nil {
 		if errors.Is(err, pgx.ErrNoRows) {
@@ -47,9 +49,10 @@ func (s *searchService) GetArtifact(ctx context.Context, idStr string, vis Visib
 
 	// Count visible SBOMs for this artifact.
 	sbomCount, err := q.CountSBOMsByArtifact(ctx, repository.CountSBOMsByArtifactParams{
-		ArtifactID: id,
-		UserID:     uuidOrNull(vis.UserID),
-		IsAdmin:    visAdminBool(vis),
+		ArtifactID:    id,
+		UserID:        uuidOrNull(vis.UserID),
+		IsAdmin:       visAdminBool(vis),
+		KeyNamespaces: vis.keyNamespaces(),
 	})
 	if err != nil {
 		return ArtifactDetail{}, fmt.Errorf("counting sboms: %w", err)
@@ -59,18 +62,20 @@ func (s *searchService) GetArtifact(ctx context.Context, idStr string, vis Visib
 	// the band shows enrichment coverage, so it is counted here too; left unset
 	// it would serialize as 0 while the list endpoint reports the real figure.
 	sufficientCount, err := q.CountSufficientSBOMsByArtifact(ctx, repository.CountSufficientSBOMsByArtifactParams{
-		ArtifactID: id,
-		UserID:     uuidOrNull(vis.UserID),
-		IsAdmin:    visAdminBool(vis),
+		ArtifactID:    id,
+		UserID:        uuidOrNull(vis.UserID),
+		IsAdmin:       visAdminBool(vis),
+		KeyNamespaces: vis.keyNamespaces(),
 	})
 	if err != nil {
 		return ArtifactDetail{}, fmt.Errorf("counting sufficiently enriched sboms: %w", err)
 	}
 
 	versionCount, err := q.CountArtifactVersions(ctx, repository.CountArtifactVersionsParams{
-		ArtifactID: id,
-		UserID:     uuidOrNull(vis.UserID),
-		IsAdmin:    visAdminBool(vis),
+		ArtifactID:    id,
+		UserID:        uuidOrNull(vis.UserID),
+		IsAdmin:       visAdminBool(vis),
+		KeyNamespaces: vis.keyNamespaces(),
 	})
 	if err != nil {
 		return ArtifactDetail{}, fmt.Errorf("counting versions: %w", err)
@@ -128,11 +133,12 @@ func (s *searchService) ListVersionsByArtifact(ctx context.Context, artifactIDSt
 	// Semver ordering can't be expressed in SQL, so fetch every distinct version
 	// (one row each via the newest_per_version CTE) and sort/paginate in Go.
 	rows, err := q.ListArtifactVersions(ctx, repository.ListArtifactVersionsParams{
-		ArtifactID: artifactID,
-		UserID:     uuidOrNull(vis.UserID),
-		IsAdmin:    visAdminBool(vis),
-		RowLimit:   maxVersionsFetch,
-		RowOffset:  0,
+		ArtifactID:    artifactID,
+		UserID:        uuidOrNull(vis.UserID),
+		IsAdmin:       visAdminBool(vis),
+		KeyNamespaces: vis.keyNamespaces(),
+		RowLimit:      maxVersionsFetch,
+		RowOffset:     0,
 	})
 	if err != nil {
 		return ArtifactVersionsPage{}, fmt.Errorf("listing artifact versions: %w", err)
@@ -344,6 +350,7 @@ func (s *searchService) CountArtifacts(ctx context.Context, filter ArtifactFilte
 		Name:              textOrNull(filter.Name),
 		RequireSufficient: boolOrNull(filter.RequireSufficient),
 		IsAdmin:           visAdminBool(filter.Visibility),
+		KeyNamespaces:     filter.Visibility.keyNamespaces(),
 		UserID:            uuidOrNull(filter.Visibility.UserID),
 		OwnedOnly:         filter.Visibility.ownedFlag(),
 	})
@@ -362,6 +369,7 @@ func (s *searchService) ListArtifacts(ctx context.Context, filter ArtifactFilter
 		Name:              textOrNull(filter.Name),
 		RequireSufficient: boolOrNull(filter.RequireSufficient),
 		IsAdmin:           visAdminBool(filter.Visibility),
+		KeyNamespaces:     filter.Visibility.keyNamespaces(),
 		UserID:            uuidOrNull(filter.Visibility.UserID),
 		OwnedOnly:         filter.Visibility.ownedFlag(),
 		HasCursor:         pgtype.Bool{Bool: filter.HasCursor, Valid: true},
@@ -428,9 +436,10 @@ func (s *searchService) attachCriticalHistory(ctx context.Context, q *repository
 		index[it.ID] = i
 	}
 	rows, err := q.ListArtifactCriticalHistory(ctx, repository.ListArtifactCriticalHistoryParams{
-		ArtifactIds: ids,
-		UserID:      uuidOrNull(vis.UserID),
-		IsAdmin:     visAdminBool(vis),
+		ArtifactIds:   ids,
+		UserID:        uuidOrNull(vis.UserID),
+		IsAdmin:       visAdminBool(vis),
+		KeyNamespaces: vis.keyNamespaces(),
 	})
 	if err != nil {
 		return fmt.Errorf("listing artifact critical history: %w", err)
@@ -509,9 +518,10 @@ func (s *searchService) GetArtifactLicenseSummary(ctx context.Context, artifactI
 
 	// Access check.
 	visible, err := q.IsArtifactVisible(ctx, repository.IsArtifactVisibleParams{
-		AID:     artifactID,
-		UserID:  uuidOrNull(vis.UserID),
-		IsAdmin: visAdminBool(vis),
+		AID:           artifactID,
+		UserID:        uuidOrNull(vis.UserID),
+		IsAdmin:       visAdminBool(vis),
+		KeyNamespaces: vis.keyNamespaces(),
 	})
 	if err != nil {
 		return ArtifactLicenseSummary{}, fmt.Errorf("checking artifact visibility: %w", err)
@@ -579,9 +589,10 @@ func (s *searchService) GetArtifactVulnSummary(ctx context.Context, artifactIDSt
 	q := repository.New(s.db)
 
 	visible, err := q.IsArtifactVisible(ctx, repository.IsArtifactVisibleParams{
-		AID:     artifactID,
-		UserID:  uuidOrNull(vis.UserID),
-		IsAdmin: visAdminBool(vis),
+		AID:           artifactID,
+		UserID:        uuidOrNull(vis.UserID),
+		IsAdmin:       visAdminBool(vis),
+		KeyNamespaces: vis.keyNamespaces(),
 	})
 	if err != nil {
 		return ArtifactVulnSummary{}, fmt.Errorf("checking artifact visibility: %w", err)
@@ -643,9 +654,10 @@ func (s *searchService) ListArtifactVulns(ctx context.Context, artifactIDStr str
 	q := repository.New(s.db)
 
 	visible, err := q.IsArtifactVisible(ctx, repository.IsArtifactVisibleParams{
-		AID:     artifactID,
-		UserID:  uuidOrNull(vis.UserID),
-		IsAdmin: visAdminBool(vis),
+		AID:           artifactID,
+		UserID:        uuidOrNull(vis.UserID),
+		IsAdmin:       visAdminBool(vis),
+		KeyNamespaces: vis.keyNamespaces(),
 	})
 	if err != nil {
 		if errors.Is(err, pgx.ErrNoRows) {
@@ -667,21 +679,23 @@ func (s *searchService) ListArtifactVulns(ctx context.Context, artifactIDStr str
 	// component join — so reporting how much history the scope leaves out costs
 	// nothing next to the query it is describing.
 	totalVersions, err := q.CountArtifactVersions(ctx, repository.CountArtifactVersionsParams{
-		ArtifactID: artifactID,
-		UserID:     uuidOrNull(vis.UserID),
-		IsAdmin:    visAdminBool(vis),
+		ArtifactID:    artifactID,
+		UserID:        uuidOrNull(vis.UserID),
+		IsAdmin:       visAdminBool(vis),
+		KeyNamespaces: vis.keyNamespaces(),
 	})
 	if err != nil {
 		return ArtifactVulnPage{}, fmt.Errorf("counting artifact versions: %w", err)
 	}
 
 	total, err := q.CountArtifactVulns(ctx, repository.CountArtifactVulnsParams{
-		ArtifactID:   artifactID,
-		UserID:       uuidOrNull(vis.UserID),
-		IsAdmin:      visAdminBool(vis),
-		Severity:     severity,
-		Vuln:         vuln,
-		VersionScope: scopeArg,
+		ArtifactID:    artifactID,
+		UserID:        uuidOrNull(vis.UserID),
+		IsAdmin:       visAdminBool(vis),
+		KeyNamespaces: vis.keyNamespaces(),
+		Severity:      severity,
+		Vuln:          vuln,
+		VersionScope:  scopeArg,
 	})
 	if err != nil {
 		return ArtifactVulnPage{}, fmt.Errorf("counting artifact vulns: %w", err)
@@ -690,16 +704,17 @@ func (s *searchService) ListArtifactVulns(ctx context.Context, artifactIDStr str
 	sortBy, sortDir := clampSort(params.SortBy, params.SortDir, ArtifactVulnSortKeys)
 
 	rows, err := q.ListArtifactVulns(ctx, repository.ListArtifactVulnsParams{
-		ArtifactID:   artifactID,
-		UserID:       uuidOrNull(vis.UserID),
-		IsAdmin:      visAdminBool(vis),
-		Severity:     severity,
-		Vuln:         vuln,
-		SortBy:       sortBy,
-		SortDir:      sortDir,
-		Limit:        pgtype.Int4{Int32: limit, Valid: true},
-		Offset:       pgtype.Int4{Int32: offset, Valid: true},
-		VersionScope: scopeArg,
+		ArtifactID:    artifactID,
+		UserID:        uuidOrNull(vis.UserID),
+		IsAdmin:       visAdminBool(vis),
+		KeyNamespaces: vis.keyNamespaces(),
+		Severity:      severity,
+		Vuln:          vuln,
+		SortBy:        sortBy,
+		SortDir:       sortDir,
+		Limit:         pgtype.Int4{Int32: limit, Valid: true},
+		Offset:        pgtype.Int4{Int32: offset, Valid: true},
+		VersionScope:  scopeArg,
 	})
 	if err != nil {
 		return ArtifactVulnPage{}, fmt.Errorf("listing artifact vulns: %w", err)
@@ -742,11 +757,12 @@ func (s *searchService) ListArtifactVulns(ctx context.Context, artifactIDStr str
 // affectedVersionCount and its listed versions would disagree.
 func attachArtifactVulnVersions(ctx context.Context, q *repository.Queries, artifactID pgtype.UUID, vis VisibilityFilter, scope pgtype.Int4, canonicalIDs []string, items []ArtifactVulnEntry) error {
 	rows, err := q.ListArtifactVulnAffectedVersions(ctx, repository.ListArtifactVulnAffectedVersionsParams{
-		ArtifactID:   artifactID,
-		UserID:       uuidOrNull(vis.UserID),
-		IsAdmin:      visAdminBool(vis),
-		CanonicalIds: canonicalIDs,
-		VersionScope: scope,
+		ArtifactID:    artifactID,
+		UserID:        uuidOrNull(vis.UserID),
+		IsAdmin:       visAdminBool(vis),
+		KeyNamespaces: vis.keyNamespaces(),
+		CanonicalIds:  canonicalIDs,
+		VersionScope:  scope,
 	})
 	if err != nil {
 		return fmt.Errorf("listing affected versions: %w", err)
@@ -786,9 +802,10 @@ func attachArtifactVulnVersions(ctx context.Context, q *repository.Queries, arti
 // a number does not reveal a private artifact.
 func (s *searchService) ResolveArtifactEntryNumber(ctx context.Context, entryNumber int64, vis VisibilityFilter) (string, error) {
 	id, err := repository.New(s.db).GetArtifactIDByEntryNumber(ctx, repository.GetArtifactIDByEntryNumberParams{
-		EntryNumber: entryNumber,
-		UserID:      uuidOrNull(vis.UserID),
-		IsAdmin:     visAdminBool(vis),
+		EntryNumber:   entryNumber,
+		UserID:        uuidOrNull(vis.UserID),
+		IsAdmin:       visAdminBool(vis),
+		KeyNamespaces: vis.keyNamespaces(),
 	})
 	if err != nil {
 		if errors.Is(err, pgx.ErrNoRows) {

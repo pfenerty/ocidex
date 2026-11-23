@@ -196,6 +196,10 @@ func (f *fakeAuthService) CreateAPIKey(_ context.Context, _ string, _ string, _ 
 	return "", errors.New("not implemented")
 }
 
+func (f *fakeAuthService) CreateKey(_ context.Context, _ string, _ service.KeySpec) (string, error) {
+	return "", errors.New("not implemented")
+}
+
 func (f *fakeAuthService) CreateExpiringAPIKey(_ context.Context, _ string, _ string, _ []authz.Capability, _ time.Time) (string, error) {
 	return "", errors.New("not implemented")
 }

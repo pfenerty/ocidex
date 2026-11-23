@@ -652,19 +652,20 @@ WHERE ($1::text IS NULL OR s.digest = $1)
   AND ($4::text IS NULL
        OR COALESCE(e.data->>'architecture', u.data->>'architecture') = $4)
   AND ($5::text IS NULL OR s.flavor = $5)
-  AND s.namespace_id IN (SELECT visible_namespace_ids($6::uuid, $7::boolean))
+  AND s.namespace_id IN (SELECT visible_namespace_ids($6::uuid, $7::boolean, $8::uuid[]))
 ORDER BY s.created_at DESC, s.id DESC
 LIMIT 50
 `
 
 type LookupSBOMsParams struct {
-	Digest   pgtype.Text `json:"digest"`
-	Artifact pgtype.Text `json:"artifact"`
-	Version  pgtype.Text `json:"version"`
-	Arch     pgtype.Text `json:"arch"`
-	Flavor   pgtype.Text `json:"flavor"`
-	UserID   pgtype.UUID `json:"user_id"`
-	IsAdmin  pgtype.Bool `json:"is_admin"`
+	Digest        pgtype.Text   `json:"digest"`
+	Artifact      pgtype.Text   `json:"artifact"`
+	Version       pgtype.Text   `json:"version"`
+	Arch          pgtype.Text   `json:"arch"`
+	Flavor        pgtype.Text   `json:"flavor"`
+	UserID        pgtype.UUID   `json:"user_id"`
+	IsAdmin       pgtype.Bool   `json:"is_admin"`
+	KeyNamespaces []pgtype.UUID `json:"key_namespaces"`
 }
 
 type LookupSBOMsRow struct {
@@ -701,6 +702,7 @@ func (q *Queries) LookupSBOMs(ctx context.Context, arg LookupSBOMsParams) ([]Loo
 		arg.Flavor,
 		arg.UserID,
 		arg.IsAdmin,
+		arg.KeyNamespaces,
 	)
 	if err != nil {
 		return nil, err

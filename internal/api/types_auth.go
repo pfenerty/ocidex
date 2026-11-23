@@ -94,6 +94,19 @@ type CreateAPIKeyInput struct {
 		Capabilities []string `json:"capabilities,omitempty" enum:"read_private,ingest,trigger_scan,push_inventory,delete_artifact,manage_source,manage_cluster,read_secret,manage_member,delete_namespace,installation_admin" doc:"Capabilities this key may exercise, intersected with the owner's live namespace roles. Empty means all of them."`
 		// ExpiresAt is optional; a key without one never expires.
 		ExpiresAt *time.Time `json:"expiresAt,omitempty" doc:"When the key stops working. Must be in the future. Omit for a key that never expires."`
+		// Kind, Namespaces and AgentLabel follow ADR-0058: an agent key is a
+		// program acting for you and must be limited to named namespaces.
+		Kind string `json:"kind,omitempty" enum:"personal,agent" doc:"personal (default) or agent: a key a program uses on your behalf"`
+		// Preset is how an agent key is normally made (ADR-0058 A3).
+		Preset string `json:"preset,omitempty" enum:"analyst,remediation,coverage" doc:"Agent keys only: a named capability set (see GET /api/v1/auth/key-presets). Instead of capabilities."`
+		// Budgets bound what an agent key can do per hour (ADR-0058 A6).
+		ScansPerHour  *int     `json:"scansPerHour,omitempty" minimum:"0" maximum:"200" doc:"Agent keys only: requests that queue scans per hour. Default 20."`
+		WritesPerHour *int     `json:"writesPerHour,omitempty" minimum:"0" maximum:"1000" doc:"Agent keys only: requests that change anything per hour. Default 120."`
+		Namespaces    []string `json:"namespaces,omitempty" doc:"Limit the key to these namespace ids: it may act and read private data only in them. Omit for every namespace you belong to (personal keys only)."`
+		AgentLabel    string   `json:"agentLabel,omitempty" maxLength:"100" doc:"What you call the agent's client, shown in the key list and the audit log"`
+		// ApprovalRequired holds each request needing one of these for a
+		// person to approve in a browser session (ADR-0058 A4).
+		ApprovalRequired []string `json:"approvalRequired,omitempty" doc:"Mutating capabilities this key may use only after a person approves each request. Each must be one the key carries; read_private, read_secret and installation_admin cannot be held."`
 	}
 }
 
@@ -106,14 +119,20 @@ type CreateAPIKeyOutput struct {
 
 // KeyMetaResponse is the display-safe API key representation.
 type KeyMetaResponse struct {
-	ID           string     `json:"id" doc:"Key UUID"`
-	Name         string     `json:"name"`
-	Prefix       string     `json:"prefix" doc:"First 8 characters of the key"`
-	Capabilities []string   `json:"capabilities" doc:"Capabilities this key may exercise, before intersection with the owner's live namespace roles"`
-	CreatedAt    time.Time  `json:"createdAt"`
-	LastUsedAt   *time.Time `json:"lastUsedAt,omitempty"`
-	ExpiresAt    *time.Time `json:"expiresAt,omitempty" doc:"When the key stops working; absent means never"`
-	ClusterID    string     `json:"clusterId,omitempty" doc:"Set for a cluster agent credential, which may only push this cluster's inventory"`
+	ID               string     `json:"id" doc:"Key UUID"`
+	Name             string     `json:"name"`
+	Prefix           string     `json:"prefix" doc:"First 8 characters of the key"`
+	Capabilities     []string   `json:"capabilities" doc:"Capabilities this key may exercise, before intersection with the owner's live namespace roles"`
+	CreatedAt        time.Time  `json:"createdAt"`
+	LastUsedAt       *time.Time `json:"lastUsedAt,omitempty"`
+	ExpiresAt        *time.Time `json:"expiresAt,omitempty" doc:"When the key stops working; absent means never"`
+	ClusterID        string     `json:"clusterId,omitempty" doc:"Set for a cluster agent credential, which may only push this cluster's inventory"`
+	Kind             string     `json:"kind" enum:"personal,agent,cluster" doc:"personal, agent, or cluster"`
+	Namespaces       []string   `json:"namespaces,omitempty" doc:"The namespaces the key is limited to; absent means every namespace its owner belongs to"`
+	AgentLabel       string     `json:"agentLabel,omitempty" doc:"An agent key's client name"`
+	ApprovalRequired []string   `json:"approvalRequired,omitempty" doc:"Capabilities held for a person's approval on every request"`
+	ScansPerHour     *int       `json:"scansPerHour,omitempty" doc:"Agent keys: overridden scan budget per hour; absent means the default"`
+	WritesPerHour    *int       `json:"writesPerHour,omitempty" doc:"Agent keys: overridden write budget per hour; absent means the default"`
 }
 
 // ListAPIKeysOutput is the response for GET /api/v1/auth/keys.
@@ -220,4 +239,40 @@ type StartIdentityLinkOutput struct {
 // UnlinkIdentityInput is the request for DELETE /api/v1/auth/identities/{id}.
 type UnlinkIdentityInput struct {
 	ID string `path:"id" doc:"Identity UUID" format:"uuid"`
+}
+
+// KeyPreset is one agent key preset.
+type KeyPreset struct {
+	Name             string   `json:"name"`
+	Title            string   `json:"title"`
+	Description      string   `json:"description"`
+	Capabilities     []string `json:"capabilities"`
+	ApprovalRequired []string `json:"approvalRequired,omitempty" doc:"Capabilities a person must approve on every request"`
+}
+
+// ListKeyPresetsOutput is the response for GET /api/v1/auth/key-presets.
+type ListKeyPresetsOutput struct {
+	Body struct {
+		Presets []KeyPreset `json:"presets"`
+		// DefaultExpiryDays and MaxExpiryDays bound an agent key's lifetime.
+		DefaultExpiryDays int `json:"defaultExpiryDays"`
+		MaxExpiryDays     int `json:"maxExpiryDays"`
+	}
+}
+
+// KeySelfOutput is the response for GET /api/v1/auth/keys/self: what the
+// credential that made the request may do, so an agent can plan before it
+// acts (ADR-0058 A8).
+type KeySelfOutput struct {
+	Body struct {
+		Kind             string     `json:"kind" enum:"session,personal,agent,cluster" doc:"session for a browser session; otherwise the API key's kind"`
+		KeyID            string     `json:"keyId,omitempty" doc:"The key's id; absent for a session"`
+		AgentLabel       string     `json:"agentLabel,omitempty"`
+		Capabilities     []string   `json:"capabilities" doc:"The key's capability ceiling, after the rules agent keys can never exceed. What it may do in a namespace is this intersected with the holder's role there."`
+		ApprovalRequired []string   `json:"approvalRequired,omitempty" doc:"Capabilities a person must approve on every request"`
+		Namespaces       []string   `json:"namespaces,omitempty" doc:"Namespace ids the key is limited to; absent means every namespace its holder belongs to"`
+		ExpiresAt        *time.Time `json:"expiresAt,omitempty"`
+		ScansPerHour     int        `json:"scansPerHour,omitempty" doc:"Agent keys: scan requests allowed per hour"`
+		WritesPerHour    int        `json:"writesPerHour,omitempty" doc:"Agent keys: write requests allowed per hour"`
+	}
 }

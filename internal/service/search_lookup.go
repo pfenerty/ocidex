@@ -49,11 +49,12 @@ func (s *searchService) LookupArtifact(ctx context.Context, query ArtifactLookup
 	q := repository.New(s.db)
 
 	rows, err := q.LookupArtifacts(ctx, repository.LookupArtifactsParams{
-		Name:      query.Name,
-		Type:      textOrNull(query.Type),
-		GroupName: textOrNull(query.Group),
-		UserID:    uuidOrNull(vis.UserID),
-		IsAdmin:   visAdminBool(vis),
+		Name:          query.Name,
+		Type:          textOrNull(query.Type),
+		GroupName:     textOrNull(query.Group),
+		UserID:        uuidOrNull(vis.UserID),
+		IsAdmin:       visAdminBool(vis),
+		KeyNamespaces: vis.keyNamespaces(),
 	})
 	if err != nil {
 		return nil, fmt.Errorf("looking up artifact: %w", err)
@@ -110,13 +111,14 @@ func (s *searchService) LookupSBOM(ctx context.Context, query SBOMLookupQuery, v
 	q := repository.New(s.db)
 
 	rows, err := q.LookupSBOMs(ctx, repository.LookupSBOMsParams{
-		Digest:   textOrNull(query.Digest),
-		Artifact: textOrNull(query.Artifact),
-		Version:  textOrNull(query.Version),
-		Arch:     textOrNull(query.Arch),
-		Flavor:   textOrNull(query.Flavor),
-		UserID:   uuidOrNull(vis.UserID),
-		IsAdmin:  visAdminBool(vis),
+		Digest:        textOrNull(query.Digest),
+		Artifact:      textOrNull(query.Artifact),
+		Version:       textOrNull(query.Version),
+		Arch:          textOrNull(query.Arch),
+		Flavor:        textOrNull(query.Flavor),
+		UserID:        uuidOrNull(vis.UserID),
+		IsAdmin:       visAdminBool(vis),
+		KeyNamespaces: vis.keyNamespaces(),
 	})
 	if err != nil {
 		return nil, fmt.Errorf("looking up sbom: %w", err)

@@ -114,9 +114,10 @@ func (s *watchService) Watch(ctx context.Context, userIDStr string, artifactID s
 	// and may this caller see it" in one query, so an invisible artifact and a
 	// missing one are indistinguishable from outside — which is the point.
 	visible, err := s.repo.IsArtifactVisible(ctx, repository.IsArtifactVisibleParams{
-		AID:     id,
-		UserID:  uuidOrNull(vis.UserID),
-		IsAdmin: visAdminBool(vis),
+		AID:           id,
+		UserID:        uuidOrNull(vis.UserID),
+		IsAdmin:       visAdminBool(vis),
+		KeyNamespaces: vis.keyNamespaces(),
 	})
 	if err != nil {
 		return fmt.Errorf("checking artifact visibility: %w", err)
@@ -209,6 +210,7 @@ func (s *watchService) Feed(ctx context.Context, userIDStr string, vis Visibilit
 		WatcherID:        userID,
 		UserID:           uuidOrNull(vis.UserID),
 		IsAdmin:          visAdminBool(vis),
+		KeyNamespaces:    vis.keyNamespaces(),
 		HasCursor:        pgtype.Bool{Bool: page.HasCursor, Valid: true},
 		CursorOccurredAt: pgtype.Timestamptz{Time: page.CursorCreatedAt, Valid: page.HasCursor},
 		CursorID:         uuidOrNull(page.CursorID),

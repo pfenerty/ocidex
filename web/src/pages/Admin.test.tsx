@@ -126,6 +126,7 @@ describe("Admin", () => {
         expect(links.map((a) => a.getAttribute("href"))).toEqual([
             "/admin",
             "/admin/keys",
+            "/admin/agents",
             "/admin/namespaces",
             "/admin/sources",
             "/admin/status",
@@ -159,7 +160,7 @@ describe("Admin", () => {
         const { container } = render(() => <Admin />);
         expect(container.textContent).toContain("panel:keys");
         const links = [...container.querySelectorAll(".tab-bar a")].map((a) => a.getAttribute("href"));
-        expect(links).toEqual(["/admin/keys", "/admin/sources", "/admin/account"]);
+        expect(links).toEqual(["/admin/keys", "/admin/agents", "/admin/sources", "/admin/account"]);
     });
 
     it("prefills the key form from the link's query string", () => {

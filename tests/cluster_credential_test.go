@@ -82,8 +82,8 @@ func TestClusterCredentialLifecycle(t *testing.T) {
 
 	// The schema refuses a bound key with any other ceiling.
 	other := seedCluster(t, pool, nsID, "other")
-	_, err = pool.Exec(ctx, `INSERT INTO api_key (user_id, name, key_hash, prefix, capabilities, cluster_id)
-		VALUES ($1, 'x', 'h2', 'p', ARRAY['ingest'], $2)`, owner, mustUUID(t, other))
+	_, err = pool.Exec(ctx, `INSERT INTO api_key (user_id, name, key_hash, prefix, capabilities, cluster_id, kind)
+		VALUES ($1, 'x', 'h2', 'p', ARRAY['ingest'], $2, 'cluster')`, owner, mustUUID(t, other))
 	is.True(err != nil)
 }
 

@@ -114,6 +114,7 @@ type artifactFindingsOutput struct {
 	Total         int64                   `json:"total" jsonschema:"Findings across all pages"`
 	Limit         int32                   `json:"limit"`
 	Offset        int32                   `json:"offset"`
+	NextOffset    int32                   `json:"next_offset,omitempty" jsonschema:"Pass as offset to get the next page; absent on the last page"`
 	VersionScope  int32                   `json:"version_scope" jsonschema:"Versions that were scanned"`
 	TotalVersions int64                   `json:"total_versions" jsonschema:"Versions the artifact has; more than version_scope means older ones were not considered"`
 }
@@ -162,14 +163,15 @@ type sbomFindingsInput struct {
 }
 
 type sbomFindingsOutput struct {
-	SBOMID    string                `json:"sbom_id"`
-	GroupBy   string                `json:"group_by"`
-	Findings  []sbomFindingOutput   `json:"findings,omitempty" jsonschema:"Present when group_by is finding: advisories, worst first"`
-	Packages  []packageRollupOutput `json:"packages,omitempty" jsonschema:"Present when group_by is package: vulnerable packages, worst first, then by advisory count"`
-	Total     int64                 `json:"total" jsonschema:"Rows across all pages, in the chosen grouping"`
-	Limit     int32                 `json:"limit"`
-	Offset    int32                 `json:"offset"`
-	Truncated bool                  `json:"truncated,omitempty" jsonschema:"The package rollup stopped at its cap and covers only the worst findings"`
+	SBOMID     string                `json:"sbom_id"`
+	GroupBy    string                `json:"group_by"`
+	Findings   []sbomFindingOutput   `json:"findings,omitempty" jsonschema:"Present when group_by is finding: advisories, worst first"`
+	Packages   []packageRollupOutput `json:"packages,omitempty" jsonschema:"Present when group_by is package: vulnerable packages, worst first, then by advisory count"`
+	Total      int64                 `json:"total" jsonschema:"Rows across all pages, in the chosen grouping"`
+	Limit      int32                 `json:"limit"`
+	Offset     int32                 `json:"offset"`
+	NextOffset int32                 `json:"next_offset,omitempty" jsonschema:"Pass as offset to get the next page; absent on the last page"`
+	Truncated  bool                  `json:"truncated,omitempty" jsonschema:"The package rollup stopped at its cap and covers only the worst findings"`
 }
 
 func toFixPackages(pkgs []client.SBOMVulnPackage) []fixPackageOutput {
@@ -189,7 +191,7 @@ func toFixPackages(pkgs []client.SBOMVulnPackage) []fixPackageOutput {
 }
 
 func registerFindingsTools(srv *mcp.Server, api client.Client) {
-	mcp.AddTool(srv, &mcp.Tool{
+	addTool(srv, &mcp.Tool{
 		Name: "ocidex_artifact_findings",
 		Description: "List an artifact's vulnerabilities across its recent versions, worst first, each with " +
 			"the versions it affects and the SBOM id of each. Use it to see which advisories persist into " +
@@ -246,7 +248,7 @@ func registerFindingsTools(srv *mcp.Server, api client.Client) {
 		return nil, out, nil
 	})
 
-	mcp.AddTool(srv, &mcp.Tool{
+	addTool(srv, &mcp.Tool{
 		Name: "ocidex_sbom_findings",
 		Description: "List one SBOM's vulnerabilities with the affected packages, their fixed versions and " +
 			"fix state. This is the tool for writing a remediation plan for one image build. Set " +
@@ -445,10 +447,11 @@ type listArtifactVersionsOutput struct {
 	Total      int64                   `json:"total"`
 	Limit      int32                   `json:"limit"`
 	Offset     int32                   `json:"offset"`
+	NextOffset int32                   `json:"next_offset,omitempty" jsonschema:"Pass as offset to get the next page; absent on the last page"`
 }
 
 func registerArtifactHistoryTools(srv *mcp.Server, api client.Client) {
-	mcp.AddTool(srv, &mcp.Tool{
+	addTool(srv, &mcp.Tool{
 		Name: "ocidex_list_artifact_versions",
 		Description: "List an artifact's versions, newest first, each with its newest SBOM id, severity " +
 			"counts, build date and source revision. Use it to find the latest version (the one a " +
@@ -513,10 +516,11 @@ type listSBOMComponentsOutput struct {
 	Total      int64             `json:"total" jsonschema:"Components matching the filters, across all pages"`
 	Limit      int32             `json:"limit"`
 	Offset     int32             `json:"offset"`
+	NextOffset int32             `json:"next_offset,omitempty" jsonschema:"Pass as offset to get the next page; absent on the last page"`
 }
 
 func registerSBOMComponentsTool(srv *mcp.Server, api client.Client) {
-	mcp.AddTool(srv, &mcp.Tool{
+	addTool(srv, &mcp.Tool{
 		Name: "ocidex_list_sbom_components",
 		Description: "List the components inside one SBOM, optionally only the vulnerable or direct ones. " +
 			"Each row's id goes to ocidex_component_vulnerabilities. Use it to inventory an image, or " +
@@ -616,7 +620,7 @@ func toRelations(rs []client.ArtifactRelation) []relationOutput {
 }
 
 func registerLineageTool(srv *mcp.Server, api client.Client) {
-	mcp.AddTool(srv, &mcp.Tool{
+	addTool(srv, &mcp.Tool{
 		Name: "ocidex_artifact_lineage",
 		Description: "Report which catalogued artifacts this one is built from (contains: usually its base " +
 			"image) and which are built on it (used_by). In remediation this decides between bumping " +
@@ -670,7 +674,7 @@ type componentVersionsOutput struct {
 }
 
 func registerComponentVersionsTool(srv *mcp.Server, api client.Client) {
-	mcp.AddTool(srv, &mcp.Tool{
+	addTool(srv, &mcp.Tool{
 		Name: "ocidex_component_versions",
 		Description: "Show every version of one component across the catalog and which artifacts ship each, " +
 			"with vulnerability counts. Use it to check that a fixed version is already in production " +

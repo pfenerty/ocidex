@@ -9,6 +9,7 @@ import (
 	"net"
 	"net/http"
 	"net/url"
+	"slices"
 	"sort"
 	"time"
 
@@ -322,6 +323,7 @@ func registerAuthOps(r chi.Router, api huma.API, h *Handler) {
 	r.Post("/auth/logout", h.HandleLogout)
 
 	authMW := RequireAuthenticated(api)
+	noAgentMW := RefuseAgentKeys(api)
 	memberMW := RequireMember(api)
 	adminMW := RequireAdmin(api)
 	writeMW := RequireWrite(api)
@@ -515,7 +517,7 @@ func registerAuthOps(r chi.Router, api huma.API, h *Handler) {
 		Summary:       "Create API key",
 		Tags:          []string{tagAuth},
 		DefaultStatus: http.StatusCreated,
-		Middlewares:   huma.Middlewares{memberMW, writeMW},
+		Middlewares:   huma.Middlewares{memberMW, noAgentMW, writeMW},
 	}, h.CreateAPIKey)
 
 	huma.Register(api, huma.Operation{
@@ -524,7 +526,7 @@ func registerAuthOps(r chi.Router, api huma.API, h *Handler) {
 		Path:        "/api/v1/auth/keys",
 		Summary:     "List API keys",
 		Tags:        []string{tagAuth},
-		Middlewares: huma.Middlewares{memberMW},
+		Middlewares: huma.Middlewares{memberMW, noAgentMW},
 	}, h.ListAPIKeys)
 
 	huma.Register(api, huma.Operation{
@@ -534,7 +536,7 @@ func registerAuthOps(r chi.Router, api huma.API, h *Handler) {
 		Summary:       "Delete API key",
 		Tags:          []string{tagAuth},
 		DefaultStatus: http.StatusNoContent,
-		Middlewares:   huma.Middlewares{memberMW, writeMW},
+		Middlewares:   huma.Middlewares{memberMW, noAgentMW, writeMW},
 	}, h.DeleteAPIKey)
 
 	huma.Register(api, huma.Operation{
@@ -640,7 +642,7 @@ func meCursorList[T any](
 func (h *Handler) ListMyActivity(ctx context.Context, in *ListMyActivityInput) (*ListMyActivityOutput, error) {
 	data, meta, err := meCursorList(ctx, in.CursorParams,
 		func(u service.AuthUser, page service.FeedPage) (service.CursorPage[service.ActivityEntry], error) {
-			return h.insights.ListOwnedActivity(ctx, u.ID, page)
+			return h.insights.ListOwnedActivity(ctx, u.ID, u.APIKeyNamespaces, page)
 		},
 		func(a service.ActivityEntry) string { return encodeTimeIDCursor(a.CreatedAt, a.SBOMID) },
 	)
@@ -723,18 +725,42 @@ func (h *Handler) CreateAPIKey(ctx context.Context, in *CreateAPIKeyInput) (*Cre
 	if !ok {
 		return nil, huma.Error401Unauthorized("not authenticated")
 	}
+	if err := refuseAgentKey(user); err != nil {
+		return nil, err
+	}
 	caps, err := authz.ParseCapabilities(in.Body.Capabilities)
+	if err != nil {
+		return nil, huma.Error422UnprocessableEntity(err.Error())
+	}
+	approval, err := authz.ParseCapabilities(in.Body.ApprovalRequired)
 	if err != nil {
 		return nil, huma.Error422UnprocessableEntity(err.Error())
 	}
 	if !keyCovers(user, caps) {
 		return nil, huma.Error403Forbidden("an API key can only create keys whose capabilities it holds itself")
 	}
+	// A key minting a key cannot widen its namespace set (ADR-0058 A2): a
+	// scoped key may only mint keys limited to a subset of its namespaces.
+	if !keyNamespacesCover(user, in.Body.Namespaces) {
+		return nil, huma.Error403Forbidden("an API key limited to namespaces can only create keys limited to those namespaces")
+	}
 	var expiresAt time.Time
 	if in.Body.ExpiresAt != nil {
 		expiresAt = *in.Body.ExpiresAt
 	}
-	plaintext, err := h.accounts.CreateExpiringAPIKey(ctx, user.ID, in.Body.Name, caps, expiresAt)
+	plaintext, err := h.accounts.CreateKey(ctx, user.ID, service.KeySpec{
+		Name:             in.Body.Name,
+		Capabilities:     caps,
+		ExpiresAt:        expiresAt,
+		Kind:             in.Body.Kind,
+		Namespaces:       in.Body.Namespaces,
+		AgentLabel:       in.Body.AgentLabel,
+		IsAdmin:          user.Role == roleAdmin,
+		ApprovalRequired: approval,
+		Preset:           in.Body.Preset,
+		ScansPerHour:     in.Body.ScansPerHour,
+		WritesPerHour:    in.Body.WritesPerHour,
+	})
 	if err != nil {
 		return nil, mapServiceError(err)
 	}
@@ -748,6 +774,9 @@ func (h *Handler) ListAPIKeys(ctx context.Context, _ *struct{}) (*ListAPIKeysOut
 	if !ok {
 		return nil, huma.Error401Unauthorized("not authenticated")
 	}
+	if err := refuseAgentKey(user); err != nil {
+		return nil, err
+	}
 	keys, err := h.accounts.ListAPIKeys(ctx, user.ID)
 	if err != nil {
 		return nil, huma.Error500InternalServerError(fmt.Sprintf("listing keys: %v", err))
@@ -756,14 +785,20 @@ func (h *Handler) ListAPIKeys(ctx context.Context, _ *struct{}) (*ListAPIKeysOut
 	out.Body.Keys = make([]KeyMetaResponse, len(keys))
 	for i, k := range keys {
 		out.Body.Keys[i] = KeyMetaResponse{
-			ID:           k.ID,
-			Name:         k.Name,
-			Prefix:       k.Prefix,
-			Capabilities: authz.Strings(k.Capabilities),
-			CreatedAt:    k.CreatedAt,
-			LastUsedAt:   k.LastUsedAt,
-			ExpiresAt:    k.ExpiresAt,
-			ClusterID:    k.ClusterID,
+			ID:               k.ID,
+			Name:             k.Name,
+			Prefix:           k.Prefix,
+			Capabilities:     authz.Strings(k.Capabilities),
+			CreatedAt:        k.CreatedAt,
+			LastUsedAt:       k.LastUsedAt,
+			ExpiresAt:        k.ExpiresAt,
+			ClusterID:        k.ClusterID,
+			Kind:             k.Kind,
+			Namespaces:       k.Namespaces,
+			AgentLabel:       k.AgentLabel,
+			ApprovalRequired: authz.Strings(k.ApprovalRequired),
+			ScansPerHour:     k.ScansPerHour,
+			WritesPerHour:    k.WritesPerHour,
 		}
 	}
 	return out, nil
@@ -773,6 +808,9 @@ func (h *Handler) DeleteAPIKey(ctx context.Context, in *DeleteAPIKeyInput) (*str
 	user, ok := UserFromContext(ctx)
 	if !ok {
 		return nil, huma.Error401Unauthorized("not authenticated")
+	}
+	if err := refuseAgentKey(user); err != nil {
+		return nil, err
 	}
 	keyID, err := requireUUID(in.ID)
 	if err != nil {
@@ -808,6 +846,99 @@ func keyCovers(user service.AuthUser, caps []authz.Capability) bool {
 	}
 	for _, c := range caps {
 		if !user.KeyAllows(c) {
+			return false
+		}
+	}
+	return true
+}
+
+// RefuseAgentKeys is huma middleware refusing an agent key outright, before
+// body validation (ADR-0058 A7). The handlers also call refuseAgentKey.
+func RefuseAgentKeys(api huma.API) func(huma.Context, func(huma.Context)) {
+	return func(ctx huma.Context, next func(huma.Context)) {
+		if user, ok := UserFromContext(ctx.Context()); ok && user.APIKeyKind == service.KeyKindAgent {
+			_ = huma.WriteErr(api, ctx, http.StatusForbidden, "an agent key cannot manage API keys")
+			return
+		}
+		next(ctx)
+	}
+}
+
+// refuseAgentKey refuses key management to an agent key (ADR-0058 A7): a
+// program may not mint, list or revoke credentials, its own included.
+func refuseAgentKey(user service.AuthUser) error {
+	if user.APIKeyKind == service.KeyKindAgent {
+		return huma.Error403Forbidden("an agent key cannot manage API keys")
+	}
+	return nil
+}
+
+// GetKeySelf handles GET /api/v1/auth/keys/self.
+func (h *Handler) GetKeySelf(ctx context.Context, _ *struct{}) (*KeySelfOutput, error) {
+	user, ok := UserFromContext(ctx)
+	if !ok {
+		return nil, huma.Error401Unauthorized("not authenticated")
+	}
+	out := &KeySelfOutput{}
+	if !user.APIKeyAuth {
+		out.Body.Kind = "session"
+		out.Body.Capabilities = authz.Strings(authz.AllCapabilities())
+		return out, nil
+	}
+	var effective []authz.Capability
+	for _, c := range user.APIKeyCaps {
+		if user.KeyAllows(c) {
+			effective = append(effective, c)
+		}
+	}
+	out.Body.Kind = user.APIKeyKind
+	out.Body.KeyID = user.APIKeyID
+	out.Body.AgentLabel = user.APIKeyAgentLabel
+	out.Body.Capabilities = append([]string{}, authz.Strings(effective)...)
+	out.Body.ApprovalRequired = authz.Strings(user.APIKeyApprovalRequired)
+	out.Body.Namespaces = user.APIKeyNamespaces
+	if user.APIKeyKind == service.KeyKindAgent {
+		out.Body.ScansPerHour = user.APIKeyScansPerHour
+		out.Body.WritesPerHour = user.APIKeyWritesPerHour
+	}
+	if h.accounts != nil {
+		if keys, err := h.accounts.ListAPIKeys(ctx, user.ID); err == nil {
+			for _, k := range keys {
+				if k.ID == user.APIKeyID {
+					out.Body.ExpiresAt = k.ExpiresAt
+				}
+			}
+		}
+	}
+	return out, nil
+}
+
+// ListKeyPresets handles GET /api/v1/auth/key-presets.
+func (h *Handler) ListKeyPresets(_ context.Context, _ *struct{}) (*ListKeyPresetsOutput, error) {
+	out := &ListKeyPresetsOutput{}
+	for _, p := range authz.Presets() {
+		out.Body.Presets = append(out.Body.Presets, KeyPreset{
+			Name: p.Name, Title: p.Title, Description: p.Description,
+			Capabilities: authz.Strings(p.Capabilities), ApprovalRequired: authz.Strings(p.ApprovalRequired),
+		})
+	}
+	out.Body.DefaultExpiryDays = int(service.AgentKeyDefaultTTL.Hours() / 24)
+	out.Body.MaxExpiryDays = int(service.AgentKeyMaxTTL.Hours() / 24)
+	return out, nil
+}
+
+// keyNamespacesCover reports whether the calling credential may mint a key
+// limited to want. A session or unscoped key may mint any; a scoped key may
+// mint only keys scoped to a non-empty subset of its own namespaces.
+func keyNamespacesCover(user service.AuthUser, want []string) bool {
+	if !user.APIKeyAuth || user.APIKeyNamespaces == nil {
+		return true
+	}
+	if len(want) == 0 {
+		return false
+	}
+	for _, n := range want {
+		if !slices.Contains(user.APIKeyNamespaces, n) {
 			return false
 		}
 	}

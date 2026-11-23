@@ -174,13 +174,13 @@ WHERE (
   AND (
     CASE WHEN COALESCE($4::boolean, false)
          THEN s.namespace_id IN (
-              SELECT owned_namespace_ids($5::uuid))
+              SELECT owned_namespace_ids($5::uuid, $6::uuid[]))
          ELSE s.namespace_id IN (
-              SELECT visible_namespace_ids($5::uuid, $6::boolean))
+              SELECT visible_namespace_ids($5::uuid, $7::boolean, $6::uuid[]))
     END
   )
 ORDER BY d.detected_at DESC, d.id DESC
-LIMIT $7
+LIMIT $8
 `
 
 type ListRecentProvenanceDriftParams struct {
@@ -189,6 +189,7 @@ type ListRecentProvenanceDriftParams struct {
 	CursorID         pgtype.UUID        `json:"cursor_id"`
 	OwnedOnly        pgtype.Bool        `json:"owned_only"`
 	UserID           pgtype.UUID        `json:"user_id"`
+	KeyNamespaces    []pgtype.UUID      `json:"key_namespaces"`
 	IsAdmin          pgtype.Bool        `json:"is_admin"`
 	RowLimit         int32              `json:"row_limit"`
 }
@@ -223,6 +224,7 @@ func (q *Queries) ListRecentProvenanceDrift(ctx context.Context, arg ListRecentP
 		arg.CursorID,
 		arg.OwnedOnly,
 		arg.UserID,
+		arg.KeyNamespaces,
 		arg.IsAdmin,
 		arg.RowLimit,
 	)

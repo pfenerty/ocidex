@@ -33,6 +33,9 @@ func (e *Extension) Init(bus *event.Bus) error {
 	bus.Subscribe(event.UserLoggedIn, e.handleUserLoggedIn)
 	bus.Subscribe(event.UserLoggedOut, e.handleUserLoggedOut)
 	bus.Subscribe(event.RetentionSwept, e.handleRetentionSwept)
+	for _, t := range []event.Type{event.ApprovalRequested, event.ApprovalApproved, event.ApprovalDenied, event.ApprovalExecuted} {
+		bus.Subscribe(t, e.handleApproval)
+	}
 	return nil
 }
 
@@ -84,6 +87,18 @@ func (e *Extension) handleRetentionSwept(ctx context.Context, ev event.Event) {
 	e.record(ctx, string(event.RetentionSwept), "sbom", pgtype.UUID{}, data)
 }
 
+// handleApproval records each step of a held agent write (ADR-0058 A4). The
+// actor is whoever caused the step: the agent's key for the request, the
+// approver's session for a decision, the requesting key for the execution.
+func (e *Extension) handleApproval(ctx context.Context, ev event.Event) {
+	data, ok := ev.Data.(event.ApprovalData)
+	if !ok {
+		e.logger.Error("audit: unexpected data type for " + string(ev.Type))
+		return
+	}
+	e.record(ctx, string(ev.Type), "pending_action", data.ActionID, data)
+}
+
 func (e *Extension) handleUserLoggedIn(ctx context.Context, ev event.Event) {
 	data, ok := ev.Data.(event.UserLoggedInData)
 	if !ok {
@@ -131,6 +146,15 @@ func actorAttr(ctx context.Context) slog.Attr {
 	}
 	if a.APIKeyID != "" {
 		attrs = append(attrs, slog.String("api_key_id", a.APIKeyID))
+	}
+	if a.KeyKind != "" {
+		attrs = append(attrs, slog.String("key_kind", a.KeyKind))
+	}
+	if a.AgentLabel != "" {
+		attrs = append(attrs, slog.String("agent_label", a.AgentLabel))
+	}
+	if a.Tool != "" {
+		attrs = append(attrs, slog.String("tool", a.Tool))
 	}
 	return slog.Attr{Key: "actor", Value: slog.GroupValue(attrs...)}
 }

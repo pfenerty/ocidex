@@ -52,9 +52,9 @@ SELECT sqlc.embed(n), namespace_owner(n.id) AS owner_id FROM namespace n WHERE n
 SELECT sqlc.embed(n), namespace_owner(n.id) AS owner_id FROM namespace n
 WHERE (
     CASE WHEN COALESCE(sqlc.narg('owned_only')::boolean, false)
-         THEN n.id IN (SELECT owned_namespace_ids(sqlc.narg('user_id')::uuid))
+         THEN n.id IN (SELECT owned_namespace_ids(sqlc.narg('user_id')::uuid, sqlc.narg('key_namespaces')::uuid[]))
          ELSE n.id IN (SELECT visible_namespace_ids(
-                       sqlc.narg('user_id')::uuid, sqlc.narg('is_admin')::boolean))
+                       sqlc.narg('user_id')::uuid, sqlc.narg('is_admin')::boolean, sqlc.narg('key_namespaces')::uuid[]))
     END
 )
 ORDER BY n.created_at ASC;
@@ -80,7 +80,7 @@ DELETE FROM namespace WHERE id = $1;
 -- collapse such viewers onto the shared anonymous scope instead of minting a
 -- per-user scope that the background warmer can never enumerate.
 SELECT COUNT(*) FROM namespace
-WHERE id IN (SELECT owned_namespace_ids(@viewer_id)) AND visibility <> 'public';
+WHERE id IN (SELECT owned_namespace_ids(@viewer_id, sqlc.narg('key_namespaces')::uuid[])) AND visibility <> 'public';
 
 -- Membership. Direct reads and writes of the membership table.
 -- The read *paths* deliberately do not use these: visibility goes through the

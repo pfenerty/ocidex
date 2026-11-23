@@ -1,10 +1,14 @@
 ---
-status: "accepted"
+status: "accepted (amended by ADR-0058)"
 date: 2026-08-17
 decision-makers: Patrick Fenerty
 ---
 
 # MCP server as a standalone binary over the generated client SDK
+
+> **Amended by [ADR-0058](0058-agent-authorization.md) (2026-11-22).** The server is no longer
+> read-only: agent keys get write tools (A8), and SBOM-derived text is returned as sanitized,
+> untrusted data. See "More Information" below.
 
 ## Context and Problem Statement
 
@@ -148,3 +152,5 @@ resolves it — including the world-readable-key refusal.
   lookup tools surface.
 * ADR-025 defines the visibility model that bounds every tool's results: an empty result
   means "nothing visible to this key", not "nothing exists".
+* Amended by [ADR-0058](0058-agent-authorization.md) (A8): write tools are registered only for an
+  agent key whose effective permissions allow them; a personal key keeps the read-only surface.

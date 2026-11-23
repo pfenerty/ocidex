@@ -16,15 +16,16 @@ const getArtifactCurrentVersion = `-- name: GetArtifactCurrentVersion :one
 SELECT s.subject_version
 FROM sbom s
 WHERE s.artifact_id = $1
-  AND s.namespace_id IN (SELECT visible_namespace_ids($2::uuid, $3::boolean))
+  AND s.namespace_id IN (SELECT visible_namespace_ids($2::uuid, $3::boolean, $4::uuid[]))
 ORDER BY s.created_at DESC, s.id DESC
 LIMIT 1
 `
 
 type GetArtifactCurrentVersionParams struct {
-	ArtifactID pgtype.UUID `json:"artifact_id"`
-	UserID     pgtype.UUID `json:"user_id"`
-	IsAdmin    pgtype.Bool `json:"is_admin"`
+	ArtifactID    pgtype.UUID   `json:"artifact_id"`
+	UserID        pgtype.UUID   `json:"user_id"`
+	IsAdmin       pgtype.Bool   `json:"is_admin"`
+	KeyNamespaces []pgtype.UUID `json:"key_namespaces"`
 }
 
 // Artifact relationship queries (ADR-041).
@@ -58,7 +59,12 @@ type GetArtifactCurrentVersionParams struct {
 // subject_version of the artifact's latest visible SBOM. Used to answer "is the
 // version shipped here the current one?" without a second round-trip per usage.
 func (q *Queries) GetArtifactCurrentVersion(ctx context.Context, arg GetArtifactCurrentVersionParams) (pgtype.Text, error) {
-	row := q.db.QueryRow(ctx, getArtifactCurrentVersion, arg.ArtifactID, arg.UserID, arg.IsAdmin)
+	row := q.db.QueryRow(ctx, getArtifactCurrentVersion,
+		arg.ArtifactID,
+		arg.UserID,
+		arg.IsAdmin,
+		arg.KeyNamespaces,
+	)
 	var subject_version pgtype.Text
 	err := row.Scan(&subject_version)
 	return subject_version, err
@@ -68,8 +74,8 @@ const listArtifactContains = `-- name: ListArtifactContains :many
 WITH subject_latest AS (
     SELECT s.id
     FROM sbom s
-    WHERE s.artifact_id = $3
-      AND s.namespace_id IN (SELECT visible_namespace_ids($1::uuid, $2::boolean))
+    WHERE s.artifact_id = $4
+      AND s.namespace_id IN (SELECT visible_namespace_ids($1::uuid, $2::boolean, $3::uuid[]))
     ORDER BY s.created_at DESC, s.id DESC
     LIMIT 1
 )
@@ -106,22 +112,23 @@ LEFT JOIN LATERAL (
     SELECT s2.id, s2.subject_version, s2.digest, s2.flavor
     FROM sbom s2
     WHERE s2.artifact_id = a.id
-      AND s2.namespace_id IN (SELECT visible_namespace_ids($1::uuid, $2::boolean))
+      AND s2.namespace_id IN (SELECT visible_namespace_ids($1::uuid, $2::boolean, $3::uuid[]))
     ORDER BY s2.created_at DESC, s2.id DESC
     LIMIT 1
 ) ls ON true
 WHERE c.sbom_id = (SELECT id FROM subject_latest)
-  AND a.id <> $3
-  AND artifact_visible(a.id, $1::uuid, $2::boolean)
+  AND a.id <> $4
+  AND artifact_visible(a.id, $1::uuid, $2::boolean, $3::uuid[])
 ORDER BY a.name, a.type, a.id
-LIMIT $4
+LIMIT $5
 `
 
 type ListArtifactContainsParams struct {
-	UserID     pgtype.UUID `json:"user_id"`
-	IsAdmin    pgtype.Bool `json:"is_admin"`
-	ArtifactID pgtype.UUID `json:"artifact_id"`
-	RowLimit   int32       `json:"row_limit"`
+	UserID        pgtype.UUID   `json:"user_id"`
+	IsAdmin       pgtype.Bool   `json:"is_admin"`
+	KeyNamespaces []pgtype.UUID `json:"key_namespaces"`
+	ArtifactID    pgtype.UUID   `json:"artifact_id"`
+	RowLimit      int32         `json:"row_limit"`
 }
 
 type ListArtifactContainsRow struct {
@@ -156,6 +163,7 @@ func (q *Queries) ListArtifactContains(ctx context.Context, arg ListArtifactCont
 	rows, err := q.db.Query(ctx, listArtifactContains,
 		arg.UserID,
 		arg.IsAdmin,
+		arg.KeyNamespaces,
 		arg.ArtifactID,
 		arg.RowLimit,
 	)
@@ -228,28 +236,29 @@ WHERE (
          AND split_part(split_part(c.purl, '?', 1), '@', 1) = ANY($5::text[]))
       )
   AND s.artifact_id <> $6
-  AND s.namespace_id IN (SELECT visible_namespace_ids($7::uuid, $8::boolean))
+  AND s.namespace_id IN (SELECT visible_namespace_ids($7::uuid, $8::boolean, $9::uuid[]))
   AND s.id = (
       SELECT s2.id FROM sbom s2
       WHERE s2.artifact_id = s.artifact_id
-        AND s2.namespace_id IN (SELECT visible_namespace_ids($7::uuid, $8::boolean))
+        AND s2.namespace_id IN (SELECT visible_namespace_ids($7::uuid, $8::boolean, $9::uuid[]))
       ORDER BY s2.created_at DESC, s2.id DESC
       LIMIT 1
   )
 ORDER BY a.name, a.type, a.id
-LIMIT $9
+LIMIT $10
 `
 
 type ListArtifactUsagesParams struct {
-	PurlBase        pgtype.Text `json:"purl_base"`
-	SubjectType     string      `json:"subject_type"`
-	SubjectName     string      `json:"subject_name"`
-	SubjectGroup    pgtype.Text `json:"subject_group"`
-	ModulePurlBases []string    `json:"module_purl_bases"`
-	ArtifactID      pgtype.UUID `json:"artifact_id"`
-	UserID          pgtype.UUID `json:"user_id"`
-	IsAdmin         pgtype.Bool `json:"is_admin"`
-	RowLimit        int32       `json:"row_limit"`
+	PurlBase        pgtype.Text   `json:"purl_base"`
+	SubjectType     string        `json:"subject_type"`
+	SubjectName     string        `json:"subject_name"`
+	SubjectGroup    pgtype.Text   `json:"subject_group"`
+	ModulePurlBases []string      `json:"module_purl_bases"`
+	ArtifactID      pgtype.UUID   `json:"artifact_id"`
+	UserID          pgtype.UUID   `json:"user_id"`
+	IsAdmin         pgtype.Bool   `json:"is_admin"`
+	KeyNamespaces   []pgtype.UUID `json:"key_namespaces"`
+	RowLimit        int32         `json:"row_limit"`
 }
 
 type ListArtifactUsagesRow struct {
@@ -294,6 +303,7 @@ func (q *Queries) ListArtifactUsages(ctx context.Context, arg ListArtifactUsages
 		arg.ArtifactID,
 		arg.UserID,
 		arg.IsAdmin,
+		arg.KeyNamespaces,
 		arg.RowLimit,
 	)
 	if err != nil {

@@ -69,7 +69,7 @@ type InsightReader interface {
 	GetVulnerabilityDetail(ctx context.Context, id string, limit, offset int32, allVersions bool, vis service.VisibilityFilter) (service.VulnerabilityDetailResult, error)
 	VulnDBBuiltAt(ctx context.Context) (*time.Time, error)
 	ListRecentProvenanceDrift(ctx context.Context, page service.DriftPage, vis service.VisibilityFilter) (service.CursorPage[service.RecentDriftEntry], error)
-	ListOwnedActivity(ctx context.Context, ownerID string, page service.FeedPage) (service.CursorPage[service.ActivityEntry], error)
+	ListOwnedActivity(ctx context.Context, ownerID string, keyNamespaces []string, page service.FeedPage) (service.CursorPage[service.ActivityEntry], error)
 }
 
 // Authenticator checks the credential a request presents.
@@ -93,6 +93,7 @@ type LoginFlow interface {
 
 // AccountAdmin manages users and their API keys.
 type AccountAdmin interface {
+	CreateKey(ctx context.Context, userID string, spec service.KeySpec) (plaintext string, err error)
 	CreateExpiringAPIKey(ctx context.Context, userID string, name string, caps []authz.Capability, expiresAt time.Time) (plaintext string, err error)
 	ListAPIKeys(ctx context.Context, userID string) ([]service.APIKeyMeta, error)
 	DeleteAPIKey(ctx context.Context, userID string, keyID string) error

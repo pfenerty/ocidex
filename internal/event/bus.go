@@ -16,6 +16,12 @@ type Publisher interface {
 	Publish(ctx context.Context, t Type, data any)
 }
 
+// NopPublisher drops every event, for a service built without a bus.
+type NopPublisher struct{}
+
+// Publish does nothing.
+func (NopPublisher) Publish(context.Context, Type, any) {}
+
 // Bus is a synchronous, in-process publish/subscribe event bus.
 // Handlers are called in subscription order on the publisher's goroutine.
 type Bus struct {

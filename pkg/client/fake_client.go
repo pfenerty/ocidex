@@ -39,6 +39,14 @@ type FakeClient struct {
 	ListAPIKeysFn    func(ctx context.Context) ([]KeyMetaResponse, error)
 	DeleteAPIKeyFn   func(ctx context.Context, id string) error
 	GetCurrentUserFn func(ctx context.Context) (MeOutputBody, error)
+	GetKeySelfFn     func(ctx context.Context) (KeySelfOutputBody, error)
+
+	WatchArtifactFn        func(ctx context.Context, artifactID string, w WriteOpts) (WriteResult, error)
+	UnwatchArtifactFn      func(ctx context.Context, artifactID string, w WriteOpts) (WriteResult, error)
+	RequestRegistryScanFn  func(ctx context.Context, registryID string, force bool, w WriteOpts) (WriteResult, error)
+	RequestClusterIngestFn func(ctx context.Context, clusterID string, digests []string, w WriteOpts) (WriteResult, error)
+	GetPendingActionFn     func(ctx context.Context, id string) (PendingActionView, error)
+	ListApprovalsFn        func(ctx context.Context, status string) ([]PendingActionView, error)
 
 	// Cluster inventory
 	ListClustersFn         func(ctx context.Context, namespaceID string) ([]ClusterResponse, error)
@@ -201,6 +209,15 @@ func (f *FakeClient) DeleteAPIKey(ctx context.Context, id string) error {
 		return f.DeleteAPIKeyFn(ctx, id)
 	}
 	return nil
+}
+
+// GetKeySelf defaults to a personal key with read_private only, so a test that
+// does not set it sees the read-only tool surface.
+func (f *FakeClient) GetKeySelf(ctx context.Context) (KeySelfOutputBody, error) {
+	if f.GetKeySelfFn != nil {
+		return f.GetKeySelfFn(ctx)
+	}
+	return KeySelfOutputBody{Kind: "personal", Capabilities: &[]string{"read_private"}}, nil
 }
 
 func (f *FakeClient) GetCurrentUser(ctx context.Context) (MeOutputBody, error) {
@@ -636,6 +653,48 @@ func (f *FakeClient) ListVulnerabilityWorkloads(ctx context.Context, vulnID stri
 func (f *FakeClient) GetEnrichmentJobsSummary(ctx context.Context) ([]EnrichmentJobSummaryRow, error) {
 	if f.GetEnrichmentJobsSummaryFn != nil {
 		return f.GetEnrichmentJobsSummaryFn(ctx)
+	}
+	return nil, nil
+}
+
+func (f *FakeClient) WatchArtifact(ctx context.Context, artifactID string, w WriteOpts) (WriteResult, error) {
+	if f.WatchArtifactFn != nil {
+		return f.WatchArtifactFn(ctx, artifactID, w)
+	}
+	return WriteResult{}, nil
+}
+
+func (f *FakeClient) UnwatchArtifact(ctx context.Context, artifactID string, w WriteOpts) (WriteResult, error) {
+	if f.UnwatchArtifactFn != nil {
+		return f.UnwatchArtifactFn(ctx, artifactID, w)
+	}
+	return WriteResult{}, nil
+}
+
+func (f *FakeClient) RequestRegistryScan(ctx context.Context, registryID string, force bool, w WriteOpts) (WriteResult, error) {
+	if f.RequestRegistryScanFn != nil {
+		return f.RequestRegistryScanFn(ctx, registryID, force, w)
+	}
+	return WriteResult{}, nil
+}
+
+func (f *FakeClient) RequestClusterIngest(ctx context.Context, clusterID string, digests []string, w WriteOpts) (WriteResult, error) {
+	if f.RequestClusterIngestFn != nil {
+		return f.RequestClusterIngestFn(ctx, clusterID, digests, w)
+	}
+	return WriteResult{}, nil
+}
+
+func (f *FakeClient) GetPendingAction(ctx context.Context, id string) (PendingActionView, error) {
+	if f.GetPendingActionFn != nil {
+		return f.GetPendingActionFn(ctx, id)
+	}
+	return PendingActionView{}, nil
+}
+
+func (f *FakeClient) ListApprovals(ctx context.Context, status string) ([]PendingActionView, error) {
+	if f.ListApprovalsFn != nil {
+		return f.ListApprovalsFn(ctx, status)
 	}
 	return nil, nil
 }

@@ -421,3 +421,77 @@ func TestAdminRoutesRequireTheKeysInstallationAdminCapability(t *testing.T) {
 		t.Fatal("no admin-class operations found")
 	}
 }
+
+// TestNamespaceScopedKeyActsOnlyInItsNamespaces is ADR-0058 A2 driven through
+// every route. The principal is devadmin, whom no class refuses, holding every
+// capability: so a 403 on a capability or admin route can only come from the
+// key's namespace set. Scoped to a namespace the fixture never routes to, every
+// enforced capability and every admin route must refuse it; scoped to the
+// fixture's namespaces, every enforced capability must still admit it, which is
+// what shows the narrowing is by namespace and not a blanket deny.
+func TestNamespaceScopedKeyActsOnlyInItsNamespaces(t *testing.T) {
+	const elsewhereToken, hereToken = "tok-admin-elsewhere", "tok-admin-here"
+	svc := personaAuthService()
+	svc.users[elsewhereToken] = service.AuthUser{ID: personaID(0xa1).String(), DisplayName: "devadmin", Role: "admin",
+		APIKeyAuth: true, APIKeyCaps: authz.AllCapabilities(), APIKeyNamespaces: []string{personaID(0xee).String()}}
+	svc.users[hereToken] = service.AuthUser{ID: personaID(0xa1).String(), DisplayName: "devadmin", Role: "admin",
+		APIKeyAuth: true, APIKeyCaps: authz.AllCapabilities(), APIKeyNamespaces: []string{testNamespaceID, mwNamespaceID}}
+	router := newConformanceRouter(svc)
+
+	enforced, admin := 0, 0
+	for _, r := range conformanceSpec() {
+		if !r.Declared {
+			continue
+		}
+		switch {
+		case r.Rule.Class == api.ClassAdmin:
+			admin++
+			if got := probe(router, r, hereToken); got != forbidden {
+				t.Errorf("%s %s (%s): namespace-scoped admin key got %s, want 403 (admin routes are not about a namespace)",
+					r.Method, r.Path, r.OperationID, got)
+			}
+		case r.Rule.Class == api.ClassCapability && capProbes[r.OperationID] == capEnforced:
+			enforced++
+			if got := probe(router, r, elsewhereToken); got != forbidden {
+				t.Errorf("%s %s (%s): key scoped elsewhere got %s, want 403", r.Method, r.Path, r.OperationID, got)
+			}
+			if got := probe(router, r, hereToken); got != admitted {
+				t.Errorf("%s %s (%s): key scoped to the target namespace got %s, want admitted", r.Method, r.Path, r.OperationID, got)
+			}
+		}
+	}
+	if enforced == 0 || admin == 0 {
+		t.Fatalf("probed %d enforced capability and %d admin operations; the harness found nothing to check", enforced, admin)
+	}
+}
+
+// TestAgentKeyNeverManagesMembersOrKeys is ADR-0058 A7 through every route:
+// devowner holds manage_member in the fixture namespaces, and an agent key of
+// theirs whose row (wrongly) carries every capability is still refused every
+// membership operation and every key-management operation.
+func TestAgentKeyNeverManagesMembersOrKeys(t *testing.T) {
+	const agentToken = "tok-owner-agent"
+	svc := personaAuthService()
+	svc.users[agentToken] = service.AuthUser{ID: ownerUUID.String(), DisplayName: "devowner", Role: "member",
+		APIKeyAuth: true, APIKeyCaps: authz.AllCapabilities(), APIKeyKind: service.KeyKindAgent}
+	router := newConformanceRouter(svc)
+
+	n := 0
+	for _, r := range conformanceSpec() {
+		if !r.Declared {
+			continue
+		}
+		member := r.Rule.Class == api.ClassCapability && r.Rule.Cap == authz.CapManageMember && capProbes[r.OperationID] == capEnforced
+		keys := r.OperationID == "create-api-key" || r.OperationID == "list-api-keys" || r.OperationID == "delete-api-key"
+		if !member && !keys {
+			continue
+		}
+		n++
+		if got := probe(router, r, agentToken); got != forbidden {
+			t.Errorf("%s %s (%s): agent key got %s, want 403", r.Method, r.Path, r.OperationID, got)
+		}
+	}
+	if n < 4 {
+		t.Fatalf("probed only %d operations; expected the membership and key-management routes", n)
+	}
+}

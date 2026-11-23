@@ -55,3 +55,5 @@ export { useListNamespaces, useNamespace, useCreateNamespace, useUpdateNamespace
 export { useListRegistries, useCreateRegistry, useUpdateRegistry, useDeleteRegistry, useTestRegistryConnection, useScanRegistry, useRegenerateWebhookSecret, useRegistryTrustSummary, useRecentDrift, usePreviewRegistryConfig, useRegistryPreview, type RegistryPreviewBody } from "./registries";
 export { useListScanJobs, useGetScanJob, useRetryScanJob, useRetryAllFailedScanJobs, useCancelScanJob, useListEnrichmentJobs, useEnrichmentJobsSummary, useRetryEnrichmentJob, useRetryAllFailedEnrichmentJobs } from "./jobs";
 export { useServerVersion } from "./meta";
+export { useKeyPresets, useCreateAgentKey, useApprovals, useApproval, useDecideApproval, useKeyActivity } from "./agents";
+export type { PendingAction, KeyPreset, KeyActivityEntry, AgentKeyInput } from "./agents";

@@ -46,8 +46,8 @@ func toolError(action string, err error) error {
 	case errors.Is(err, client.ErrNotFound):
 		return fmt.Errorf("%s: %w — no such resource, or it is in a namespace this API key cannot see", action, err)
 	case errors.Is(err, client.ErrForbidden):
-		return fmt.Errorf("%s: %w — the API key lacks the scope for this call "+
-			"(read endpoints need `read`, writes need `read-write`)", action, err)
+		return fmt.Errorf("%s: %w — the API key may not do this here: it lacks the capability, "+
+			"or the namespace is outside the key's limits. Call ocidex_whoami to see what it can do", action, err)
 	case errors.Is(err, client.ErrConflict):
 		return fmt.Errorf("%s: %w — the resource already exists or is in a state that forbids this call", action, err)
 	default:
@@ -63,7 +63,8 @@ func toolError(action string, err error) error {
 func hintForStatus(status int) string {
 	switch {
 	case status == 401:
-		return " — the API key was rejected; re-run `ocidex-cli login`"
+		return " — the API key was rejected: it expired, was revoked or changed. Tell the user to re-run " +
+			"`ocidex-cli login`, or `ocidex-cli mcp install` for an agent key"
 	case status == 400 || status == 422:
 		return " — the arguments were rejected; re-read the tool's schema"
 	case status == 429:

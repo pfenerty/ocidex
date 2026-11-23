@@ -103,7 +103,11 @@ func registerPrompts(srv *mcp.Server) {
 4. ocidex_cluster_workloads: name the Deployments, StatefulSets and DaemonSets
    each action has to roll.
 5. ocidex_cluster_coverage_gaps: running images with no SBOM are unassessed
-   risk; list them with the registry change that closes each gap.
+   risk; list them with the registry change that closes each gap. If this
+   server offers ocidex_ingest_unknown_images or ocidex_scan_registry (see
+   ocidex_whoami), offer to request those scans; run with preview=true first,
+   give a one-sentence reason, and if a request comes back held, give the
+   user its approval_url instead of retrying.
 6. ocidex_data_freshness: say so if matching is behind.
 
 %[3]s`, cluster, scope, remediationPlanFormat)), nil

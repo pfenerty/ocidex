@@ -107,6 +107,10 @@ func (f *fakeAuthRepo) DeleteSession(ctx context.Context, hash string) error {
 	return nil
 }
 
+func (f *fakeAuthRepo) CountKeyNamespacesAllowed(_ context.Context, arg repository.CountKeyNamespacesAllowedParams) (int64, error) {
+	return int64(len(arg.NamespaceIds)), nil
+}
+
 func (f *fakeAuthRepo) CreateAPIKey(ctx context.Context, arg repository.CreateAPIKeyParams) (repository.ApiKey, error) {
 	if f.createAPIKeyFn != nil {
 		return f.createAPIKeyFn(ctx, arg)

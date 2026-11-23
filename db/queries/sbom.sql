@@ -186,7 +186,7 @@ WHERE (sqlc.narg('digest')::text IS NULL OR s.digest = sqlc.narg('digest'))
   AND (sqlc.narg('arch')::text IS NULL
        OR COALESCE(e.data->>'architecture', u.data->>'architecture') = sqlc.narg('arch'))
   AND (sqlc.narg('flavor')::text IS NULL OR s.flavor = sqlc.narg('flavor'))
-  AND s.namespace_id IN (SELECT visible_namespace_ids(sqlc.narg('user_id')::uuid, sqlc.narg('is_admin')::boolean))
+  AND s.namespace_id IN (SELECT visible_namespace_ids(sqlc.narg('user_id')::uuid, sqlc.narg('is_admin')::boolean, sqlc.narg('key_namespaces')::uuid[]))
 ORDER BY s.created_at DESC, s.id DESC
 LIMIT 50;
 

@@ -1,6 +1,8 @@
 package service
 
 import (
+	"sort"
+	"strings"
 	"sync"
 	"time"
 )
@@ -58,6 +60,12 @@ func newStatsCache(ttl time.Duration) *ttlCache[DashboardStats] {
 // them their own key would mint a scope the warmer never fills.
 func statsCacheKey(vis VisibilityFilter) string {
 	switch {
+	case vis.KeyNamespaces != nil:
+		// A namespace-scoped key sees a slice of its holder's data, so it must
+		// not share its holder's (or the admins') entry.
+		ns := append([]string(nil), vis.KeyNamespaces...)
+		sort.Strings(ns)
+		return "k:" + vis.UserID + ":" + strings.Join(ns, ",")
 	case vis.IsAdmin:
 		return roleAdmin
 	case vis.UserID != "":

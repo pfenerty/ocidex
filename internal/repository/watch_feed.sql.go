@@ -25,7 +25,7 @@ visible_sbom AS (
     FROM sbom s
     JOIN watched w ON w.artifact_id = s.artifact_id
     WHERE s.namespace_id IN (
-        SELECT visible_namespace_ids($3::uuid, $4::boolean)
+        SELECT visible_namespace_ids($3::uuid, $4::boolean, $5::uuid[])
     )
 ),
 version_events AS (
@@ -127,20 +127,20 @@ vuln_events AS (
 ),
 merged AS (
     (SELECT kind, event_id, occurred_at, artifact_id, artifact_name, artifact_type, sbom_id, subject_version, previous_version, previous_status, new_status, reason, vuln_id, vuln_severity, vuln_cvss_score, vuln_summary FROM version_events
-     WHERE NOT $5::boolean
-        OR (occurred_at, event_id) < ($6::timestamptz, $7::uuid)
+     WHERE NOT $6::boolean
+        OR (occurred_at, event_id) < ($7::timestamptz, $8::uuid)
      ORDER BY occurred_at DESC, event_id DESC
      LIMIT $1)
     UNION ALL
     (SELECT kind, event_id, occurred_at, artifact_id, artifact_name, artifact_type, sbom_id, subject_version, previous_version, previous_status, new_status, reason, vuln_id, vuln_severity, vuln_cvss_score, vuln_summary FROM drift_events
-     WHERE NOT $5::boolean
-        OR (occurred_at, event_id) < ($6::timestamptz, $7::uuid)
+     WHERE NOT $6::boolean
+        OR (occurred_at, event_id) < ($7::timestamptz, $8::uuid)
      ORDER BY occurred_at DESC, event_id DESC
      LIMIT $1)
     UNION ALL
     (SELECT kind, event_id, occurred_at, artifact_id, artifact_name, artifact_type, sbom_id, subject_version, previous_version, previous_status, new_status, reason, vuln_id, vuln_severity, vuln_cvss_score, vuln_summary FROM vuln_events
-     WHERE NOT $5::boolean
-        OR (occurred_at, event_id) < ($6::timestamptz, $7::uuid)
+     WHERE NOT $6::boolean
+        OR (occurred_at, event_id) < ($7::timestamptz, $8::uuid)
      ORDER BY occurred_at DESC, event_id DESC
      LIMIT $1)
 )
@@ -154,6 +154,7 @@ type ListWatchedArtifactEventsParams struct {
 	WatcherID        pgtype.UUID        `json:"watcher_id"`
 	UserID           pgtype.UUID        `json:"user_id"`
 	IsAdmin          pgtype.Bool        `json:"is_admin"`
+	KeyNamespaces    []pgtype.UUID      `json:"key_namespaces"`
 	HasCursor        pgtype.Bool        `json:"has_cursor"`
 	CursorOccurredAt pgtype.Timestamptz `json:"cursor_occurred_at"`
 	CursorID         pgtype.UUID        `json:"cursor_id"`
@@ -210,6 +211,7 @@ func (q *Queries) ListWatchedArtifactEvents(ctx context.Context, arg ListWatched
 		arg.WatcherID,
 		arg.UserID,
 		arg.IsAdmin,
+		arg.KeyNamespaces,
 		arg.HasCursor,
 		arg.CursorOccurredAt,
 		arg.CursorID,

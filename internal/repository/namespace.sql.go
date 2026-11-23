@@ -48,15 +48,20 @@ func (q *Queries) AddNamespaceMember(ctx context.Context, arg AddNamespaceMember
 
 const countOwnedPrivateNamespaces = `-- name: CountOwnedPrivateNamespaces :one
 SELECT COUNT(*) FROM namespace
-WHERE id IN (SELECT owned_namespace_ids($1)) AND visibility <> 'public'
+WHERE id IN (SELECT owned_namespace_ids($1, $2::uuid[])) AND visibility <> 'public'
 `
+
+type CountOwnedPrivateNamespacesParams struct {
+	ViewerID      pgtype.UUID   `json:"viewer_id"`
+	KeyNamespaces []pgtype.UUID `json:"key_namespaces"`
+}
 
 // A viewer who owns no private namespace sees exactly the public set, i.e. the
 // same data as an anonymous viewer. The dashboard-stats cache uses this to
 // collapse such viewers onto the shared anonymous scope instead of minting a
 // per-user scope that the background warmer can never enumerate.
-func (q *Queries) CountOwnedPrivateNamespaces(ctx context.Context, viewerID pgtype.UUID) (int64, error) {
-	row := q.db.QueryRow(ctx, countOwnedPrivateNamespaces, viewerID)
+func (q *Queries) CountOwnedPrivateNamespaces(ctx context.Context, arg CountOwnedPrivateNamespacesParams) (int64, error) {
+	row := q.db.QueryRow(ctx, countOwnedPrivateNamespaces, arg.ViewerID, arg.KeyNamespaces)
 	var count int64
 	err := row.Scan(&count)
 	return count, err
@@ -268,18 +273,19 @@ const listNamespaces = `-- name: ListNamespaces :many
 SELECT n.id, n.name, n.visibility, n.created_at, n.updated_at, namespace_owner(n.id) AS owner_id FROM namespace n
 WHERE (
     CASE WHEN COALESCE($1::boolean, false)
-         THEN n.id IN (SELECT owned_namespace_ids($2::uuid))
+         THEN n.id IN (SELECT owned_namespace_ids($2::uuid, $3::uuid[]))
          ELSE n.id IN (SELECT visible_namespace_ids(
-                       $2::uuid, $3::boolean))
+                       $2::uuid, $4::boolean, $3::uuid[]))
     END
 )
 ORDER BY n.created_at ASC
 `
 
 type ListNamespacesParams struct {
-	OwnedOnly pgtype.Bool `json:"owned_only"`
-	UserID    pgtype.UUID `json:"user_id"`
-	IsAdmin   pgtype.Bool `json:"is_admin"`
+	OwnedOnly     pgtype.Bool   `json:"owned_only"`
+	UserID        pgtype.UUID   `json:"user_id"`
+	KeyNamespaces []pgtype.UUID `json:"key_namespaces"`
+	IsAdmin       pgtype.Bool   `json:"is_admin"`
 }
 
 type ListNamespacesRow struct {
@@ -306,7 +312,12 @@ type ListNamespacesRow struct {
 // to true; now owned_namespace_ids(NULL) returns the empty set and `id IN
 // (empty set)` is false. Same answer, different mechanism.
 func (q *Queries) ListNamespaces(ctx context.Context, arg ListNamespacesParams) ([]ListNamespacesRow, error) {
-	rows, err := q.db.Query(ctx, listNamespaces, arg.OwnedOnly, arg.UserID, arg.IsAdmin)
+	rows, err := q.db.Query(ctx, listNamespaces,
+		arg.OwnedOnly,
+		arg.UserID,
+		arg.KeyNamespaces,
+		arg.IsAdmin,
+	)
 	if err != nil {
 		return nil, err
 	}

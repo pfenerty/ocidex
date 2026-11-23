@@ -1659,6 +1659,21 @@
             "readOnly": true,
             "type": "string"
           },
+          "agentLabel": {
+            "description": "What you call the agent's client, shown in the key list and the audit log",
+            "maxLength": 100,
+            "type": "string"
+          },
+          "approvalRequired": {
+            "description": "Mutating capabilities this key may use only after a person approves each request. Each must be one the key carries; read_private, read_secret and installation_admin cannot be held.",
+            "items": {
+              "type": "string"
+            },
+            "type": [
+              "array",
+              "null"
+            ]
+          },
           "capabilities": {
             "description": "Capabilities this key may exercise, intersected with the owner's live namespace roles. Empty means all of them.",
             "items": {
@@ -1687,11 +1702,52 @@
             "format": "date-time",
             "type": "string"
           },
+          "kind": {
+            "description": "personal (default) or agent: a key a program uses on your behalf",
+            "enum": [
+              "personal",
+              "agent"
+            ],
+            "type": "string"
+          },
           "name": {
             "description": "Human-readable label for this key",
             "maxLength": 100,
             "minLength": 1,
             "type": "string"
+          },
+          "namespaces": {
+            "description": "Limit the key to these namespace ids: it may act and read private data only in them. Omit for every namespace you belong to (personal keys only).",
+            "items": {
+              "type": "string"
+            },
+            "type": [
+              "array",
+              "null"
+            ]
+          },
+          "preset": {
+            "description": "Agent keys only: a named capability set (see GET /api/v1/auth/key-presets). Instead of capabilities.",
+            "enum": [
+              "analyst",
+              "remediation",
+              "coverage"
+            ],
+            "type": "string"
+          },
+          "scansPerHour": {
+            "description": "Agent keys only: requests that queue scans per hour. Default 20.",
+            "format": "int64",
+            "maximum": 200,
+            "minimum": 0,
+            "type": "integer"
+          },
+          "writesPerHour": {
+            "description": "Agent keys only: requests that change anything per hour. Default 120.",
+            "format": "int64",
+            "maximum": 1000,
+            "minimum": 0,
+            "type": "integer"
           }
         },
         "required": [
@@ -3697,9 +3753,97 @@
         ],
         "type": "object"
       },
+      "KeyActivityEntry": {
+        "additionalProperties": false,
+        "properties": {
+          "agentLabel": {
+            "type": "string"
+          },
+          "id": {
+            "format": "int64",
+            "type": "integer"
+          },
+          "method": {
+            "type": "string"
+          },
+          "occurredAt": {
+            "format": "date-time",
+            "type": "string"
+          },
+          "path": {
+            "type": "string"
+          },
+          "pendingActionId": {
+            "description": "Set when the request was held for approval",
+            "type": "string"
+          },
+          "route": {
+            "description": "The route pattern the request matched",
+            "type": "string"
+          },
+          "status": {
+            "format": "int64",
+            "type": "integer"
+          },
+          "tool": {
+            "description": "The MCP tool the request came from, as the agent's MCP server reported it",
+            "type": "string"
+          }
+        },
+        "required": [
+          "id",
+          "occurredAt",
+          "method",
+          "route",
+          "path",
+          "status"
+        ],
+        "type": "object"
+      },
+      "KeyActivityOutputBody": {
+        "additionalProperties": false,
+        "properties": {
+          "$schema": {
+            "description": "A URL to the JSON Schema for this object.",
+            "examples": [
+              "https://example.com/api/schemas/KeyActivityOutputBody.json"
+            ],
+            "format": "uri",
+            "readOnly": true,
+            "type": "string"
+          },
+          "data": {
+            "items": {
+              "$ref": "#/components/schemas/KeyActivityEntry"
+            },
+            "type": [
+              "array",
+              "null"
+            ]
+          }
+        },
+        "required": [
+          "data"
+        ],
+        "type": "object"
+      },
       "KeyMetaResponse": {
         "additionalProperties": false,
         "properties": {
+          "agentLabel": {
+            "description": "An agent key's client name",
+            "type": "string"
+          },
+          "approvalRequired": {
+            "description": "Capabilities held for a person's approval on every request",
+            "items": {
+              "type": "string"
+            },
+            "type": [
+              "array",
+              "null"
+            ]
+          },
           "capabilities": {
             "description": "Capabilities this key may exercise, before intersection with the owner's live namespace roles",
             "items": {
@@ -3727,6 +3871,15 @@
             "description": "Key UUID",
             "type": "string"
           },
+          "kind": {
+            "description": "personal, agent, or cluster",
+            "enum": [
+              "personal",
+              "agent",
+              "cluster"
+            ],
+            "type": "string"
+          },
           "lastUsedAt": {
             "format": "date-time",
             "type": "string"
@@ -3734,9 +3887,29 @@
           "name": {
             "type": "string"
           },
+          "namespaces": {
+            "description": "The namespaces the key is limited to; absent means every namespace its owner belongs to",
+            "items": {
+              "type": "string"
+            },
+            "type": [
+              "array",
+              "null"
+            ]
+          },
           "prefix": {
             "description": "First 8 characters of the key",
             "type": "string"
+          },
+          "scansPerHour": {
+            "description": "Agent keys: overridden scan budget per hour; absent means the default",
+            "format": "int64",
+            "type": "integer"
+          },
+          "writesPerHour": {
+            "description": "Agent keys: overridden write budget per hour; absent means the default",
+            "format": "int64",
+            "type": "integer"
           }
         },
         "required": [
@@ -3744,7 +3917,128 @@
           "name",
           "prefix",
           "capabilities",
-          "createdAt"
+          "createdAt",
+          "kind"
+        ],
+        "type": "object"
+      },
+      "KeyPreset": {
+        "additionalProperties": false,
+        "properties": {
+          "approvalRequired": {
+            "description": "Capabilities a person must approve on every request",
+            "items": {
+              "type": "string"
+            },
+            "type": [
+              "array",
+              "null"
+            ]
+          },
+          "capabilities": {
+            "items": {
+              "type": "string"
+            },
+            "type": [
+              "array",
+              "null"
+            ]
+          },
+          "description": {
+            "type": "string"
+          },
+          "name": {
+            "type": "string"
+          },
+          "title": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "name",
+          "title",
+          "description",
+          "capabilities"
+        ],
+        "type": "object"
+      },
+      "KeySelfOutputBody": {
+        "additionalProperties": false,
+        "properties": {
+          "$schema": {
+            "description": "A URL to the JSON Schema for this object.",
+            "examples": [
+              "https://example.com/api/schemas/KeySelfOutputBody.json"
+            ],
+            "format": "uri",
+            "readOnly": true,
+            "type": "string"
+          },
+          "agentLabel": {
+            "type": "string"
+          },
+          "approvalRequired": {
+            "description": "Capabilities a person must approve on every request",
+            "items": {
+              "type": "string"
+            },
+            "type": [
+              "array",
+              "null"
+            ]
+          },
+          "capabilities": {
+            "description": "The key's capability ceiling, after the rules agent keys can never exceed. What it may do in a namespace is this intersected with the holder's role there.",
+            "items": {
+              "type": "string"
+            },
+            "type": [
+              "array",
+              "null"
+            ]
+          },
+          "expiresAt": {
+            "format": "date-time",
+            "type": "string"
+          },
+          "keyId": {
+            "description": "The key's id; absent for a session",
+            "type": "string"
+          },
+          "kind": {
+            "description": "session for a browser session; otherwise the API key's kind",
+            "enum": [
+              "session",
+              "personal",
+              "agent",
+              "cluster"
+            ],
+            "type": "string"
+          },
+          "namespaces": {
+            "description": "Namespace ids the key is limited to; absent means every namespace its holder belongs to",
+            "items": {
+              "type": "string"
+            },
+            "type": [
+              "array",
+              "null"
+            ]
+          },
+          "scansPerHour": {
+            "description": "Agent keys: scan requests allowed per hour",
+            "format": "int64",
+            "type": "integer"
+          },
+          "writesPerHour": {
+            "description": "Agent keys: write requests allowed per hour",
+            "format": "int64",
+            "type": "integer"
+          }
+        },
+        "required": [
+          "kind",
+          "capabilities"
         ],
         "type": "object"
       },
@@ -3862,6 +4156,33 @@
         },
         "required": [
           "keys"
+        ],
+        "type": "object"
+      },
+      "ListApprovalsOutputBody": {
+        "additionalProperties": false,
+        "properties": {
+          "$schema": {
+            "description": "A URL to the JSON Schema for this object.",
+            "examples": [
+              "https://example.com/api/schemas/ListApprovalsOutputBody.json"
+            ],
+            "format": "uri",
+            "readOnly": true,
+            "type": "string"
+          },
+          "data": {
+            "items": {
+              "$ref": "#/components/schemas/PendingActionView"
+            },
+            "type": [
+              "array",
+              "null"
+            ]
+          }
+        },
+        "required": [
+          "data"
         ],
         "type": "object"
       },
@@ -4439,6 +4760,43 @@
         },
         "required": [
           "identities"
+        ],
+        "type": "object"
+      },
+      "ListKeyPresetsOutputBody": {
+        "additionalProperties": false,
+        "properties": {
+          "$schema": {
+            "description": "A URL to the JSON Schema for this object.",
+            "examples": [
+              "https://example.com/api/schemas/ListKeyPresetsOutputBody.json"
+            ],
+            "format": "uri",
+            "readOnly": true,
+            "type": "string"
+          },
+          "defaultExpiryDays": {
+            "format": "int64",
+            "type": "integer"
+          },
+          "maxExpiryDays": {
+            "format": "int64",
+            "type": "integer"
+          },
+          "presets": {
+            "items": {
+              "$ref": "#/components/schemas/KeyPreset"
+            },
+            "type": [
+              "array",
+              "null"
+            ]
+          }
+        },
+        "required": [
+          "presets",
+          "defaultExpiryDays",
+          "maxExpiryDays"
         ],
         "type": "object"
       },
@@ -5359,6 +5717,108 @@
           "total",
           "limit",
           "offset"
+        ],
+        "type": "object"
+      },
+      "PendingActionView": {
+        "additionalProperties": false,
+        "properties": {
+          "$schema": {
+            "description": "A URL to the JSON Schema for this object.",
+            "examples": [
+              "https://example.com/api/schemas/PendingActionView.json"
+            ],
+            "format": "uri",
+            "readOnly": true,
+            "type": "string"
+          },
+          "agentLabel": {
+            "type": "string"
+          },
+          "approveUrl": {
+            "description": "Where a person approves it",
+            "type": "string"
+          },
+          "body": {
+            "description": "The stored request body, which is what runs on approval",
+            "type": "string"
+          },
+          "canDecide": {
+            "description": "Whether the caller may approve or deny it now",
+            "type": "boolean"
+          },
+          "capability": {
+            "type": "string"
+          },
+          "createdAt": {
+            "format": "date-time",
+            "type": "string"
+          },
+          "decidedAt": {
+            "format": "date-time",
+            "type": "string"
+          },
+          "effect": {
+            "description": "What the held request will do, written by OCIDex from the request and current state",
+            "type": "string"
+          },
+          "executedAt": {
+            "format": "date-time",
+            "type": "string"
+          },
+          "expiresAt": {
+            "format": "date-time",
+            "type": "string"
+          },
+          "id": {
+            "format": "uuid",
+            "type": "string"
+          },
+          "method": {
+            "type": "string"
+          },
+          "namespaceId": {
+            "format": "uuid",
+            "type": "string"
+          },
+          "path": {
+            "type": "string"
+          },
+          "reason": {
+            "description": "The agent's note for the approver. Untrusted: it is not a description of what will run",
+            "type": "string"
+          },
+          "resultBody": {
+            "type": "string"
+          },
+          "resultStatus": {
+            "description": "HTTP status the approved request returned when it ran",
+            "format": "int64",
+            "type": "integer"
+          },
+          "status": {
+            "enum": [
+              "pending",
+              "approved",
+              "denied",
+              "expired",
+              "executed",
+              "failed"
+            ],
+            "type": "string"
+          }
+        },
+        "required": [
+          "id",
+          "status",
+          "effect",
+          "namespaceId",
+          "capability",
+          "method",
+          "path",
+          "createdAt",
+          "expiresAt",
+          "canDecide"
         ],
         "type": "object"
       },
@@ -8228,6 +8688,186 @@
         ]
       }
     },
+    "/api/v1/approvals": {
+      "get": {
+        "description": "Actions your keys asked for, and actions in your namespaces you may decide.",
+        "operationId": "list-pending-actions",
+        "parameters": [
+          {
+            "description": "Only actions in this status",
+            "explode": false,
+            "in": "query",
+            "name": "status",
+            "schema": {
+              "description": "Only actions in this status",
+              "enum": [
+                "pending",
+                "approved",
+                "denied",
+                "expired",
+                "executed",
+                "failed"
+              ],
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ListApprovalsOutputBody"
+                }
+              }
+            },
+            "description": "OK"
+          },
+          "default": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorModel"
+                }
+              }
+            },
+            "description": "Error"
+          }
+        },
+        "summary": "List agent writes held for approval",
+        "tags": [
+          "Approvals"
+        ]
+      }
+    },
+    "/api/v1/approvals/{id}": {
+      "get": {
+        "operationId": "get-pending-action",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "id",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/PendingActionView"
+                }
+              }
+            },
+            "description": "OK"
+          },
+          "default": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorModel"
+                }
+              }
+            },
+            "description": "Error"
+          }
+        },
+        "summary": "Get a held action and its outcome",
+        "tags": [
+          "Approvals"
+        ]
+      }
+    },
+    "/api/v1/approvals/{id}/approve": {
+      "post": {
+        "description": "Session only. Runs the stored request once, as the key that asked.",
+        "operationId": "approve-pending-action",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "id",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/PendingActionView"
+                }
+              }
+            },
+            "description": "OK"
+          },
+          "default": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorModel"
+                }
+              }
+            },
+            "description": "Error"
+          }
+        },
+        "summary": "Approve a held action and run it",
+        "tags": [
+          "Approvals"
+        ]
+      }
+    },
+    "/api/v1/approvals/{id}/deny": {
+      "post": {
+        "description": "Session only.",
+        "operationId": "deny-pending-action",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "id",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/PendingActionView"
+                }
+              }
+            },
+            "description": "OK"
+          },
+          "default": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorModel"
+                }
+              }
+            },
+            "description": "Error"
+          }
+        },
+        "summary": "Deny a held action",
+        "tags": [
+          "Approvals"
+        ]
+      }
+    },
     "/api/v1/artifacts": {
       "get": {
         "operationId": "list-artifacts",
@@ -9343,6 +9983,38 @@
         ]
       }
     },
+    "/api/v1/auth/key-presets": {
+      "get": {
+        "description": "The named capability sets an agent key is created from, and the lifetime bounds for agent keys.",
+        "operationId": "list-key-presets",
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ListKeyPresetsOutputBody"
+                }
+              }
+            },
+            "description": "OK"
+          },
+          "default": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorModel"
+                }
+              }
+            },
+            "description": "Error"
+          }
+        },
+        "summary": "List agent key presets",
+        "tags": [
+          "Auth"
+        ]
+      }
+    },
     "/api/v1/auth/keys": {
       "get": {
         "operationId": "list-api-keys",
@@ -9413,6 +10085,38 @@
         ]
       }
     },
+    "/api/v1/auth/keys/self": {
+      "get": {
+        "description": "The calling credential's kind, capability ceiling, approval-required capabilities, namespaces and expiry. Agent keys may call it.",
+        "operationId": "get-key-self",
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/KeySelfOutputBody"
+                }
+              }
+            },
+            "description": "OK"
+          },
+          "default": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorModel"
+                }
+              }
+            },
+            "description": "Error"
+          }
+        },
+        "summary": "Describe the calling key",
+        "tags": [
+          "Auth"
+        ]
+      }
+    },
     "/api/v1/auth/keys/{id}": {
       "delete": {
         "operationId": "delete-api-key",
@@ -9445,6 +10149,74 @@
           }
         },
         "summary": "Delete API key",
+        "tags": [
+          "Auth"
+        ]
+      }
+    },
+    "/api/v1/auth/keys/{id}/activity": {
+      "get": {
+        "description": "Writes, held requests and refusals made with one of your agent keys, newest first.",
+        "operationId": "list-key-activity",
+        "parameters": [
+          {
+            "description": "Key UUID",
+            "in": "path",
+            "name": "id",
+            "required": true,
+            "schema": {
+              "description": "Key UUID",
+              "format": "uuid",
+              "type": "string"
+            }
+          },
+          {
+            "description": "Return entries older than this entry id (the last id of the previous page)",
+            "explode": false,
+            "in": "query",
+            "name": "before",
+            "schema": {
+              "description": "Return entries older than this entry id (the last id of the previous page)",
+              "format": "int64",
+              "type": "integer"
+            }
+          },
+          {
+            "explode": false,
+            "in": "query",
+            "name": "limit",
+            "schema": {
+              "default": 50,
+              "format": "int32",
+              "maximum": 200,
+              "minimum": 1,
+              "type": "integer"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/KeyActivityOutputBody"
+                }
+              }
+            },
+            "description": "OK"
+          },
+          "default": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorModel"
+                }
+              }
+            },
+            "description": "Error"
+          }
+        },
+        "summary": "List what an agent key did",
         "tags": [
           "Auth"
         ]
@@ -14971,6 +15743,10 @@
     }
   ],
   "tags": [
+    {
+      "description": "Agent writes held for a person's approval. A key can require approval for chosen capabilities; its requests then return 202 with a pending action, which a person approves or denies from a signed-in session.",
+      "name": "Approvals"
+    },
     {
       "description": "An artifact is a named thing OCIDex has SBOMs for, usually a container image repository. Look artifacts up by name, and read their versions, changelog, licenses, vulnerabilities, and the artifacts they ship or are shipped in.",
       "name": "Artifacts"

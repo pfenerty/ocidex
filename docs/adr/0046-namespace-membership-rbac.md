@@ -322,3 +322,6 @@ SBOM visibility functions (M4).
   00068 (key capabilities). Implementation: `internal/authz`, `internal/api/authz.go`,
   `internal/api/authclass.go`.
 * The generated operation-by-operation matrix is [docs/AUTH_MATRIX.md](../AUTH_MATRIX.md).
+* Amended by [ADR-0058](0058-agent-authorization.md): agent keys add a namespace set to the M5
+  intersection (A2, applied before `authz.Allow` and to row visibility), compile-time presets
+  beside `roleCaps` (A3), and operations agent keys may never perform (A7).

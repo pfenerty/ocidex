@@ -93,7 +93,8 @@ func TestAuditLineNamesAPIKeyActor(t *testing.T) {
 	resp.Body.Close()
 	is.Equal(resp.StatusCode, http.StatusNoContent)
 
-	want := map[string]string{"kind": "user", "id": userID.String(), "api_key_id": keyID.String()}
+	// key_kind says whether a person's own key or an agent key acted (ADR-0058 A5).
+	want := map[string]string{"kind": "user", "id": userID.String(), "api_key_id": keyID.String(), "key_kind": "personal"}
 	seen := map[string]bool{}
 	for _, l := range auditLines(t, out.String()) {
 		if l.ResourceID != sbomID {

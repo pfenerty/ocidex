@@ -22,19 +22,52 @@ func (q *Queries) CountIdentitiesByUser(ctx context.Context, userID pgtype.UUID)
 	return count, err
 }
 
+const countKeyNamespacesAllowed = `-- name: CountKeyNamespacesAllowed :one
+SELECT COUNT(*)::bigint FROM namespace n
+WHERE n.id = ANY ($1::uuid[])
+  AND ($2::boolean
+       OR EXISTS (SELECT 1 FROM namespace_member m WHERE m.namespace_id = n.id AND m.user_id = $3))
+`
+
+type CountKeyNamespacesAllowedParams struct {
+	NamespaceIds []pgtype.UUID `json:"namespace_ids"`
+	IsAdmin      bool          `json:"is_admin"`
+	UserID       pgtype.UUID   `json:"user_id"`
+}
+
+// How many of the requested namespaces exist and may appear on a key the user
+// holds: any namespace for an installation admin, otherwise only ones the user
+// is a member of. A key's namespace set narrows, so naming a namespace you
+// cannot act in grants nothing; it is refused so the key says what it can do.
+func (q *Queries) CountKeyNamespacesAllowed(ctx context.Context, arg CountKeyNamespacesAllowedParams) (int64, error) {
+	row := q.db.QueryRow(ctx, countKeyNamespacesAllowed, arg.NamespaceIds, arg.IsAdmin, arg.UserID)
+	var column_1 int64
+	err := row.Scan(&column_1)
+	return column_1, err
+}
+
 const createAPIKey = `-- name: CreateAPIKey :one
-INSERT INTO api_key (user_id, name, key_hash, prefix, capabilities, expires_at)
-VALUES ($1, $2, $3, $4, $5, $6)
-RETURNING id, user_id, name, key_hash, prefix, created_at, last_used_at, capabilities, cluster_id, expires_at
+INSERT INTO api_key (user_id, name, key_hash, prefix, capabilities, expires_at, kind, namespace_ids, agent_label, approval_required,
+                     scans_per_hour, writes_per_hour)
+VALUES ($1, $2, $3, $4, $5, $6,
+        $7, $8::uuid[], $9, $10,
+        $11, $12)
+RETURNING id, user_id, name, key_hash, prefix, created_at, last_used_at, capabilities, cluster_id, expires_at, kind, namespace_ids, agent_label, approval_required, scans_per_hour, writes_per_hour
 `
 
 type CreateAPIKeyParams struct {
-	UserID       pgtype.UUID        `json:"user_id"`
-	Name         string             `json:"name"`
-	KeyHash      string             `json:"key_hash"`
-	Prefix       string             `json:"prefix"`
-	Capabilities []string           `json:"capabilities"`
-	ExpiresAt    pgtype.Timestamptz `json:"expires_at"`
+	UserID           pgtype.UUID        `json:"user_id"`
+	Name             string             `json:"name"`
+	KeyHash          string             `json:"key_hash"`
+	Prefix           string             `json:"prefix"`
+	Capabilities     []string           `json:"capabilities"`
+	ExpiresAt        pgtype.Timestamptz `json:"expires_at"`
+	Kind             string             `json:"kind"`
+	NamespaceIds     []pgtype.UUID      `json:"namespace_ids"`
+	AgentLabel       pgtype.Text        `json:"agent_label"`
+	ApprovalRequired []string           `json:"approval_required"`
+	ScansPerHour     pgtype.Int4        `json:"scans_per_hour"`
+	WritesPerHour    pgtype.Int4        `json:"writes_per_hour"`
 }
 
 func (q *Queries) CreateAPIKey(ctx context.Context, arg CreateAPIKeyParams) (ApiKey, error) {
@@ -45,6 +78,12 @@ func (q *Queries) CreateAPIKey(ctx context.Context, arg CreateAPIKeyParams) (Api
 		arg.Prefix,
 		arg.Capabilities,
 		arg.ExpiresAt,
+		arg.Kind,
+		arg.NamespaceIds,
+		arg.AgentLabel,
+		arg.ApprovalRequired,
+		arg.ScansPerHour,
+		arg.WritesPerHour,
 	)
 	var i ApiKey
 	err := row.Scan(
@@ -58,6 +97,12 @@ func (q *Queries) CreateAPIKey(ctx context.Context, arg CreateAPIKeyParams) (Api
 		&i.Capabilities,
 		&i.ClusterID,
 		&i.ExpiresAt,
+		&i.Kind,
+		&i.NamespaceIds,
+		&i.AgentLabel,
+		&i.ApprovalRequired,
+		&i.ScansPerHour,
+		&i.WritesPerHour,
 	)
 	return i, err
 }
@@ -229,7 +274,8 @@ func (q *Queries) DeleteSession(ctx context.Context, tokenHash string) error {
 
 const getAPIKeyByHash = `-- name: GetAPIKeyByHash :one
 SELECT k.id, k.user_id, k.name, k.key_hash, k.prefix, k.capabilities, k.created_at, k.last_used_at,
-       k.cluster_id, u.display_name, u.role
+       k.cluster_id, k.kind, k.namespace_ids, k.agent_label, k.approval_required,
+       k.scans_per_hour, k.writes_per_hour, u.display_name, u.role
 FROM api_key k
 JOIN ocidex_user u ON u.id = k.user_id
 WHERE k.key_hash = $1
@@ -237,17 +283,23 @@ WHERE k.key_hash = $1
 `
 
 type GetAPIKeyByHashRow struct {
-	ID           pgtype.UUID        `json:"id"`
-	UserID       pgtype.UUID        `json:"user_id"`
-	Name         string             `json:"name"`
-	KeyHash      string             `json:"key_hash"`
-	Prefix       string             `json:"prefix"`
-	Capabilities []string           `json:"capabilities"`
-	CreatedAt    pgtype.Timestamptz `json:"created_at"`
-	LastUsedAt   pgtype.Timestamptz `json:"last_used_at"`
-	ClusterID    pgtype.UUID        `json:"cluster_id"`
-	DisplayName  pgtype.Text        `json:"display_name"`
-	Role         string             `json:"role"`
+	ID               pgtype.UUID        `json:"id"`
+	UserID           pgtype.UUID        `json:"user_id"`
+	Name             string             `json:"name"`
+	KeyHash          string             `json:"key_hash"`
+	Prefix           string             `json:"prefix"`
+	Capabilities     []string           `json:"capabilities"`
+	CreatedAt        pgtype.Timestamptz `json:"created_at"`
+	LastUsedAt       pgtype.Timestamptz `json:"last_used_at"`
+	ClusterID        pgtype.UUID        `json:"cluster_id"`
+	Kind             string             `json:"kind"`
+	NamespaceIds     []pgtype.UUID      `json:"namespace_ids"`
+	AgentLabel       pgtype.Text        `json:"agent_label"`
+	ApprovalRequired []string           `json:"approval_required"`
+	ScansPerHour     pgtype.Int4        `json:"scans_per_hour"`
+	WritesPerHour    pgtype.Int4        `json:"writes_per_hour"`
+	DisplayName      pgtype.Text        `json:"display_name"`
+	Role             string             `json:"role"`
 }
 
 func (q *Queries) GetAPIKeyByHash(ctx context.Context, keyHash string) (GetAPIKeyByHashRow, error) {
@@ -263,6 +315,12 @@ func (q *Queries) GetAPIKeyByHash(ctx context.Context, keyHash string) (GetAPIKe
 		&i.CreatedAt,
 		&i.LastUsedAt,
 		&i.ClusterID,
+		&i.Kind,
+		&i.NamespaceIds,
+		&i.AgentLabel,
+		&i.ApprovalRequired,
+		&i.ScansPerHour,
+		&i.WritesPerHour,
 		&i.DisplayName,
 		&i.Role,
 	)
@@ -372,21 +430,28 @@ func (q *Queries) GetUserByIdentity(ctx context.Context, arg GetUserByIdentityPa
 }
 
 const listAPIKeysByUser = `-- name: ListAPIKeysByUser :many
-SELECT id, name, prefix, capabilities, created_at, last_used_at, cluster_id, expires_at
+SELECT id, name, prefix, capabilities, created_at, last_used_at, cluster_id, expires_at,
+       kind, namespace_ids, agent_label, approval_required, scans_per_hour, writes_per_hour
 FROM api_key
 WHERE user_id = $1
 ORDER BY created_at ASC
 `
 
 type ListAPIKeysByUserRow struct {
-	ID           pgtype.UUID        `json:"id"`
-	Name         string             `json:"name"`
-	Prefix       string             `json:"prefix"`
-	Capabilities []string           `json:"capabilities"`
-	CreatedAt    pgtype.Timestamptz `json:"created_at"`
-	LastUsedAt   pgtype.Timestamptz `json:"last_used_at"`
-	ClusterID    pgtype.UUID        `json:"cluster_id"`
-	ExpiresAt    pgtype.Timestamptz `json:"expires_at"`
+	ID               pgtype.UUID        `json:"id"`
+	Name             string             `json:"name"`
+	Prefix           string             `json:"prefix"`
+	Capabilities     []string           `json:"capabilities"`
+	CreatedAt        pgtype.Timestamptz `json:"created_at"`
+	LastUsedAt       pgtype.Timestamptz `json:"last_used_at"`
+	ClusterID        pgtype.UUID        `json:"cluster_id"`
+	ExpiresAt        pgtype.Timestamptz `json:"expires_at"`
+	Kind             string             `json:"kind"`
+	NamespaceIds     []pgtype.UUID      `json:"namespace_ids"`
+	AgentLabel       pgtype.Text        `json:"agent_label"`
+	ApprovalRequired []string           `json:"approval_required"`
+	ScansPerHour     pgtype.Int4        `json:"scans_per_hour"`
+	WritesPerHour    pgtype.Int4        `json:"writes_per_hour"`
 }
 
 func (q *Queries) ListAPIKeysByUser(ctx context.Context, userID pgtype.UUID) ([]ListAPIKeysByUserRow, error) {
@@ -407,6 +472,12 @@ func (q *Queries) ListAPIKeysByUser(ctx context.Context, userID pgtype.UUID) ([]
 			&i.LastUsedAt,
 			&i.ClusterID,
 			&i.ExpiresAt,
+			&i.Kind,
+			&i.NamespaceIds,
+			&i.AgentLabel,
+			&i.ApprovalRequired,
+			&i.ScansPerHour,
+			&i.WritesPerHour,
 		); err != nil {
 			return nil, err
 		}

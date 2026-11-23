@@ -34,24 +34,25 @@ FROM (
                 END)::text AS state
     ) ms
     WHERE w.cluster_id = $1
-      AND c.namespace_id IN (SELECT visible_namespace_ids($2::uuid, $3::boolean))
-      AND ($4::text IS NULL OR w.k8s_namespace = $4::text)
-      AND ($5::text IS NULL OR ms.state = $5::text)
-      AND ($6::text IS NULL OR (
-            w.workload_name  ILIKE like_contains($6::text)
-         OR w.container_name ILIKE like_contains($6::text)
-         OR w.image_ref      ILIKE like_contains($6::text)))
+      AND c.namespace_id IN (SELECT visible_namespace_ids($2::uuid, $3::boolean, $4::uuid[]))
+      AND ($5::text IS NULL OR w.k8s_namespace = $5::text)
+      AND ($6::text IS NULL OR ms.state = $6::text)
+      AND ($7::text IS NULL OR (
+            w.workload_name  ILIKE like_contains($7::text)
+         OR w.container_name ILIKE like_contains($7::text)
+         OR w.image_ref      ILIKE like_contains($7::text)))
     GROUP BY w.image_ref, w.image_digest
 ) grouped
 `
 
 type CountClusterImagesParams struct {
-	ClusterID    pgtype.UUID `json:"cluster_id"`
-	UserID       pgtype.UUID `json:"user_id"`
-	IsAdmin      pgtype.Bool `json:"is_admin"`
-	K8sNamespace pgtype.Text `json:"k8s_namespace"`
-	MatchState   pgtype.Text `json:"match_state"`
-	Q            pgtype.Text `json:"q"`
+	ClusterID     pgtype.UUID   `json:"cluster_id"`
+	UserID        pgtype.UUID   `json:"user_id"`
+	IsAdmin       pgtype.Bool   `json:"is_admin"`
+	KeyNamespaces []pgtype.UUID `json:"key_namespaces"`
+	K8sNamespace  pgtype.Text   `json:"k8s_namespace"`
+	MatchState    pgtype.Text   `json:"match_state"`
+	Q             pgtype.Text   `json:"q"`
 }
 
 // The total behind ListClusterImages' page. Distinct (image_ref, image_digest)
@@ -62,6 +63,7 @@ func (q *Queries) CountClusterImages(ctx context.Context, arg CountClusterImages
 		arg.ClusterID,
 		arg.UserID,
 		arg.IsAdmin,
+		arg.KeyNamespaces,
 		arg.K8sNamespace,
 		arg.MatchState,
 		arg.Q,
@@ -92,7 +94,7 @@ WITH running AS (
     JOIN package_vulnerability pv ON pv.purl = comp.purl AND pv.go_symbol_set_id = comp.go_symbol_set_id
     JOIN vulnerability v ON v.id = pv.vulnerability_id
     WHERE w.cluster_id = $1
-      AND c.namespace_id IN (SELECT visible_namespace_ids($3::uuid, $4::boolean))
+      AND c.namespace_id IN (SELECT visible_namespace_ids($3::uuid, $4::boolean, $5::uuid[]))
 )
 SELECT COUNT(DISTINCT canonical_id)::bigint AS total
 FROM running
@@ -100,10 +102,11 @@ WHERE ($2::text IS NULL OR severity = $2::text)
 `
 
 type CountClusterRunningVulnsParams struct {
-	ClusterID pgtype.UUID `json:"cluster_id"`
-	Severity  pgtype.Text `json:"severity"`
-	UserID    pgtype.UUID `json:"user_id"`
-	IsAdmin   pgtype.Bool `json:"is_admin"`
+	ClusterID     pgtype.UUID   `json:"cluster_id"`
+	Severity      pgtype.Text   `json:"severity"`
+	UserID        pgtype.UUID   `json:"user_id"`
+	IsAdmin       pgtype.Bool   `json:"is_admin"`
+	KeyNamespaces []pgtype.UUID `json:"key_namespaces"`
 }
 
 // The total for ListClusterRunningVulns' pagination, counted over the same
@@ -114,6 +117,7 @@ func (q *Queries) CountClusterRunningVulns(ctx context.Context, arg CountCluster
 		arg.Severity,
 		arg.UserID,
 		arg.IsAdmin,
+		arg.KeyNamespaces,
 	)
 	var total int64
 	err := row.Scan(&total)
@@ -141,22 +145,23 @@ CROSS JOIN LATERAL (
             END)::text AS state
 ) ms
 WHERE w.cluster_id = $1
-  AND c.namespace_id IN (SELECT visible_namespace_ids($2::uuid, $3::boolean))
-  AND ($4::text IS NULL OR w.k8s_namespace = $4::text)
-  AND ($5::text IS NULL OR ms.state = $5::text)
-  AND ($6::text IS NULL OR (
-        w.workload_name  ILIKE like_contains($6::text)
-     OR w.container_name ILIKE like_contains($6::text)
-     OR w.image_ref      ILIKE like_contains($6::text)))
+  AND c.namespace_id IN (SELECT visible_namespace_ids($2::uuid, $3::boolean, $4::uuid[]))
+  AND ($5::text IS NULL OR w.k8s_namespace = $5::text)
+  AND ($6::text IS NULL OR ms.state = $6::text)
+  AND ($7::text IS NULL OR (
+        w.workload_name  ILIKE like_contains($7::text)
+     OR w.container_name ILIKE like_contains($7::text)
+     OR w.image_ref      ILIKE like_contains($7::text)))
 `
 
 type CountClusterWorkloadsParams struct {
-	ClusterID    pgtype.UUID `json:"cluster_id"`
-	UserID       pgtype.UUID `json:"user_id"`
-	IsAdmin      pgtype.Bool `json:"is_admin"`
-	K8sNamespace pgtype.Text `json:"k8s_namespace"`
-	MatchState   pgtype.Text `json:"match_state"`
-	Q            pgtype.Text `json:"q"`
+	ClusterID     pgtype.UUID   `json:"cluster_id"`
+	UserID        pgtype.UUID   `json:"user_id"`
+	IsAdmin       pgtype.Bool   `json:"is_admin"`
+	KeyNamespaces []pgtype.UUID `json:"key_namespaces"`
+	K8sNamespace  pgtype.Text   `json:"k8s_namespace"`
+	MatchState    pgtype.Text   `json:"match_state"`
+	Q             pgtype.Text   `json:"q"`
 }
 
 // The total for ListClusterWorkloads' pagination. It takes the same filters, and
@@ -167,6 +172,7 @@ func (q *Queries) CountClusterWorkloads(ctx context.Context, arg CountClusterWor
 		arg.ClusterID,
 		arg.UserID,
 		arg.IsAdmin,
+		arg.KeyNamespaces,
 		arg.K8sNamespace,
 		arg.MatchState,
 		arg.Q,
@@ -223,8 +229,8 @@ func (q *Queries) CreateCluster(ctx context.Context, arg CreateClusterParams) (C
 
 const createClusterCredential = `-- name: CreateClusterCredential :one
 
-INSERT INTO api_key (user_id, name, key_hash, prefix, capabilities, cluster_id)
-VALUES ($1, $2, $3, $4, ARRAY['push_inventory']::text[], $5)
+INSERT INTO api_key (user_id, name, key_hash, prefix, capabilities, cluster_id, kind)
+VALUES ($1, $2, $3, $4, ARRAY['push_inventory']::text[], $5, 'cluster')
 RETURNING id, name, prefix, created_at
 `
 
@@ -383,13 +389,14 @@ LEFT JOIN LATERAL (
     LIMIT 1
 ) s ON true
 WHERE w.cluster_id = $1
-  AND c.namespace_id IN (SELECT visible_namespace_ids($2::uuid, $3::boolean))
+  AND c.namespace_id IN (SELECT visible_namespace_ids($2::uuid, $3::boolean, $4::uuid[]))
 `
 
 type GetClusterWorkloadCoverageParams struct {
-	ClusterID pgtype.UUID `json:"cluster_id"`
-	UserID    pgtype.UUID `json:"user_id"`
-	IsAdmin   pgtype.Bool `json:"is_admin"`
+	ClusterID     pgtype.UUID   `json:"cluster_id"`
+	UserID        pgtype.UUID   `json:"user_id"`
+	IsAdmin       pgtype.Bool   `json:"is_admin"`
+	KeyNamespaces []pgtype.UUID `json:"key_namespaces"`
 }
 
 type GetClusterWorkloadCoverageRow struct {
@@ -404,7 +411,12 @@ type GetClusterWorkloadCoverageRow struct {
 // workloads (ADR-044 K5). Without these, "3 criticals running" is misleadingly
 // reassuring — it silently omits every workload OCIDex could not match.
 func (q *Queries) GetClusterWorkloadCoverage(ctx context.Context, arg GetClusterWorkloadCoverageParams) (GetClusterWorkloadCoverageRow, error) {
-	row := q.db.QueryRow(ctx, getClusterWorkloadCoverage, arg.ClusterID, arg.UserID, arg.IsAdmin)
+	row := q.db.QueryRow(ctx, getClusterWorkloadCoverage,
+		arg.ClusterID,
+		arg.UserID,
+		arg.IsAdmin,
+		arg.KeyNamespaces,
+	)
 	var i GetClusterWorkloadCoverageRow
 	err := row.Scan(
 		&i.Total,
@@ -480,12 +492,12 @@ WITH img AS (
     FROM cluster_workload w
     JOIN cluster c ON c.id = w.cluster_id
     WHERE w.cluster_id = $1
-      AND c.namespace_id IN (SELECT visible_namespace_ids($7::uuid, $8::boolean))
-      AND ($9::text IS NULL OR w.k8s_namespace = $9::text)
-      AND ($10::text IS NULL OR (
-            w.workload_name  ILIKE like_contains($10::text)
-         OR w.container_name ILIKE like_contains($10::text)
-         OR w.image_ref      ILIKE like_contains($10::text)))
+      AND c.namespace_id IN (SELECT visible_namespace_ids($7::uuid, $8::boolean, $9::uuid[]))
+      AND ($10::text IS NULL OR w.k8s_namespace = $10::text)
+      AND ($11::text IS NULL OR (
+            w.workload_name  ILIKE like_contains($11::text)
+         OR w.container_name ILIKE like_contains($11::text)
+         OR w.image_ref      ILIKE like_contains($11::text)))
     GROUP BY w.image_ref, w.image_digest, c.namespace_id
 )
 SELECT
@@ -568,16 +580,17 @@ LIMIT $6::int OFFSET $5::int
 `
 
 type ListClusterImagesParams struct {
-	ClusterID    pgtype.UUID `json:"cluster_id"`
-	MatchState   pgtype.Text `json:"match_state"`
-	SortBy       string      `json:"sort_by"`
-	SortDir      string      `json:"sort_dir"`
-	Offset       pgtype.Int4 `json:"offset"`
-	Limit        pgtype.Int4 `json:"limit"`
-	UserID       pgtype.UUID `json:"user_id"`
-	IsAdmin      pgtype.Bool `json:"is_admin"`
-	K8sNamespace pgtype.Text `json:"k8s_namespace"`
-	Q            pgtype.Text `json:"q"`
+	ClusterID     pgtype.UUID   `json:"cluster_id"`
+	MatchState    pgtype.Text   `json:"match_state"`
+	SortBy        string        `json:"sort_by"`
+	SortDir       string        `json:"sort_dir"`
+	Offset        pgtype.Int4   `json:"offset"`
+	Limit         pgtype.Int4   `json:"limit"`
+	UserID        pgtype.UUID   `json:"user_id"`
+	IsAdmin       pgtype.Bool   `json:"is_admin"`
+	KeyNamespaces []pgtype.UUID `json:"key_namespaces"`
+	K8sNamespace  pgtype.Text   `json:"k8s_namespace"`
+	Q             pgtype.Text   `json:"q"`
 }
 
 type ListClusterImagesRow struct {
@@ -632,6 +645,7 @@ func (q *Queries) ListClusterImages(ctx context.Context, arg ListClusterImagesPa
 		arg.Limit,
 		arg.UserID,
 		arg.IsAdmin,
+		arg.KeyNamespaces,
 		arg.K8sNamespace,
 		arg.Q,
 	)
@@ -679,15 +693,16 @@ SELECT
 FROM cluster_workload w
 JOIN cluster c ON c.id = w.cluster_id
 WHERE w.cluster_id = $1
-  AND c.namespace_id IN (SELECT visible_namespace_ids($2::uuid, $3::boolean))
+  AND c.namespace_id IN (SELECT visible_namespace_ids($2::uuid, $3::boolean, $4::uuid[]))
 GROUP BY w.k8s_namespace
 ORDER BY w.k8s_namespace ASC
 `
 
 type ListClusterK8sNamespacesParams struct {
-	ClusterID pgtype.UUID `json:"cluster_id"`
-	UserID    pgtype.UUID `json:"user_id"`
-	IsAdmin   pgtype.Bool `json:"is_admin"`
+	ClusterID     pgtype.UUID   `json:"cluster_id"`
+	UserID        pgtype.UUID   `json:"user_id"`
+	IsAdmin       pgtype.Bool   `json:"is_admin"`
+	KeyNamespaces []pgtype.UUID `json:"key_namespaces"`
 }
 
 type ListClusterK8sNamespacesRow struct {
@@ -700,7 +715,12 @@ type ListClusterK8sNamespacesRow struct {
 // one page of rows, and a filter that only offers the values on the current page
 // silently hides the rest of the cluster.
 func (q *Queries) ListClusterK8sNamespaces(ctx context.Context, arg ListClusterK8sNamespacesParams) ([]ListClusterK8sNamespacesRow, error) {
-	rows, err := q.db.Query(ctx, listClusterK8sNamespaces, arg.ClusterID, arg.UserID, arg.IsAdmin)
+	rows, err := q.db.Query(ctx, listClusterK8sNamespaces,
+		arg.ClusterID,
+		arg.UserID,
+		arg.IsAdmin,
+		arg.KeyNamespaces,
+	)
 	if err != nil {
 		return nil, err
 	}
@@ -782,7 +802,7 @@ WITH running AS (
     JOIN package_vulnerability pv ON pv.purl = comp.purl AND pv.go_symbol_set_id = comp.go_symbol_set_id
     JOIN vulnerability v ON v.id = pv.vulnerability_id
     WHERE w.cluster_id = $1
-      AND c.namespace_id IN (SELECT visible_namespace_ids($7::uuid, $8::boolean))
+      AND c.namespace_id IN (SELECT visible_namespace_ids($7::uuid, $8::boolean, $9::uuid[]))
 ),
 counts AS (
     SELECT canonical_id, COUNT(DISTINCT workload_id)::bigint AS workload_count
@@ -851,14 +871,15 @@ LIMIT $6::int OFFSET $5::int
 `
 
 type ListClusterRunningVulnsParams struct {
-	ClusterID pgtype.UUID `json:"cluster_id"`
-	Severity  pgtype.Text `json:"severity"`
-	SortBy    string      `json:"sort_by"`
-	SortDir   string      `json:"sort_dir"`
-	Offset    pgtype.Int4 `json:"offset"`
-	Limit     pgtype.Int4 `json:"limit"`
-	UserID    pgtype.UUID `json:"user_id"`
-	IsAdmin   pgtype.Bool `json:"is_admin"`
+	ClusterID     pgtype.UUID   `json:"cluster_id"`
+	Severity      pgtype.Text   `json:"severity"`
+	SortBy        string        `json:"sort_by"`
+	SortDir       string        `json:"sort_dir"`
+	Offset        pgtype.Int4   `json:"offset"`
+	Limit         pgtype.Int4   `json:"limit"`
+	UserID        pgtype.UUID   `json:"user_id"`
+	IsAdmin       pgtype.Bool   `json:"is_admin"`
+	KeyNamespaces []pgtype.UUID `json:"key_namespaces"`
 }
 
 type ListClusterRunningVulnsRow struct {
@@ -897,6 +918,7 @@ func (q *Queries) ListClusterRunningVulns(ctx context.Context, arg ListClusterRu
 		arg.Limit,
 		arg.UserID,
 		arg.IsAdmin,
+		arg.KeyNamespaces,
 	)
 	if err != nil {
 		return nil, err
@@ -944,15 +966,16 @@ LEFT JOIN LATERAL (
 WHERE w.cluster_id = $1
   AND w.image_digest IS NOT NULL
   AND s.id IS NULL
-  AND c.namespace_id IN (SELECT visible_namespace_ids($2::uuid, $3::boolean))
+  AND c.namespace_id IN (SELECT visible_namespace_ids($2::uuid, $3::boolean, $4::uuid[]))
 GROUP BY w.image_ref, w.image_digest
 ORDER BY COUNT(*) DESC, w.image_ref ASC
 `
 
 type ListClusterUnknownImagesParams struct {
-	ClusterID pgtype.UUID `json:"cluster_id"`
-	UserID    pgtype.UUID `json:"user_id"`
-	IsAdmin   pgtype.Bool `json:"is_admin"`
+	ClusterID     pgtype.UUID   `json:"cluster_id"`
+	UserID        pgtype.UUID   `json:"user_id"`
+	IsAdmin       pgtype.Bool   `json:"is_admin"`
+	KeyNamespaces []pgtype.UUID `json:"key_namespaces"`
 }
 
 type ListClusterUnknownImagesRow struct {
@@ -982,7 +1005,12 @@ type ListClusterUnknownImagesRow struct {
 // the page being displayed. The caller resolves everything and slices the page
 // itself; ingest already reads the gap whole.
 func (q *Queries) ListClusterUnknownImages(ctx context.Context, arg ListClusterUnknownImagesParams) ([]ListClusterUnknownImagesRow, error) {
-	rows, err := q.db.Query(ctx, listClusterUnknownImages, arg.ClusterID, arg.UserID, arg.IsAdmin)
+	rows, err := q.db.Query(ctx, listClusterUnknownImages,
+		arg.ClusterID,
+		arg.UserID,
+		arg.IsAdmin,
+		arg.KeyNamespaces,
+	)
 	if err != nil {
 		return nil, err
 	}
@@ -1056,16 +1084,16 @@ LEFT JOIN LATERAL (
     JOIN vulnerability v ON v.id = pv.vulnerability_id
 ) vs ON s.id IS NOT NULL
 WHERE w.cluster_id = $1
-  AND c.namespace_id IN (SELECT visible_namespace_ids($2::uuid, $3::boolean))
-  AND ($4::text IS NULL OR w.k8s_namespace = $4::text)
-  AND ($5::text IS NULL OR ms.state = $5::text)
-  AND ($6::text IS NULL OR (
-        w.workload_name  ILIKE like_contains($6::text)
-     OR w.container_name ILIKE like_contains($6::text)
-     OR w.image_ref      ILIKE like_contains($6::text)))
+  AND c.namespace_id IN (SELECT visible_namespace_ids($2::uuid, $3::boolean, $4::uuid[]))
+  AND ($5::text IS NULL OR w.k8s_namespace = $5::text)
+  AND ($6::text IS NULL OR ms.state = $6::text)
+  AND ($7::text IS NULL OR (
+        w.workload_name  ILIKE like_contains($7::text)
+     OR w.container_name ILIKE like_contains($7::text)
+     OR w.image_ref      ILIKE like_contains($7::text)))
 ORDER BY
     -- Numeric keys share one term; the direction flips the sign.
-    CASE $7::text
+    CASE $8::text
         WHEN 'pod_count'    THEN w.pod_count::float8
         WHEN 'last_seen_at' THEN EXTRACT(EPOCH FROM w.last_seen_at)::float8
         -- Severity counts packed into one number, most severe most
@@ -1073,11 +1101,11 @@ ORDER BY
         -- (never assessed) stays NULL and sorts last in both directions —
         -- an unassessed workload must not rank alongside a clean one.
         WHEN 'vuln_count'   THEN (vs.critical * 1000000 + vs.high * 1000 + vs.medium)::float8
-    END * CASE $8::text WHEN 'asc' THEN 1 ELSE -1 END ASC NULLS LAST,
+    END * CASE $9::text WHEN 'asc' THEN 1 ELSE -1 END ASC NULLS LAST,
     -- Text keys can't ride the sign trick, but they can share one nested CASE
     -- per direction instead of two terms per key.
-    CASE WHEN $8::text = 'asc' THEN
-        CASE $7::text
+    CASE WHEN $9::text = 'asc' THEN
+        CASE $8::text
             WHEN 'k8s_namespace'  THEN w.k8s_namespace
             WHEN 'workload_name'  THEN w.workload_name
             WHEN 'container_name' THEN w.container_name
@@ -1085,8 +1113,8 @@ ORDER BY
             WHEN 'match_state'    THEN ms.state
         END
     END ASC NULLS LAST,
-    CASE WHEN $8::text = 'desc' THEN
-        CASE $7::text
+    CASE WHEN $9::text = 'desc' THEN
+        CASE $8::text
             WHEN 'k8s_namespace'  THEN w.k8s_namespace
             WHEN 'workload_name'  THEN w.workload_name
             WHEN 'container_name' THEN w.container_name
@@ -1097,20 +1125,21 @@ ORDER BY
     -- The default ordering, and the tiebreaker under every other key: without
     -- a total order, two pages of an offset-paginated list can repeat a row.
     w.k8s_namespace ASC, w.workload_name ASC, w.container_name ASC, w.id
-LIMIT $10::int OFFSET $9::int
+LIMIT $11::int OFFSET $10::int
 `
 
 type ListClusterWorkloadsParams struct {
-	ClusterID    pgtype.UUID `json:"cluster_id"`
-	UserID       pgtype.UUID `json:"user_id"`
-	IsAdmin      pgtype.Bool `json:"is_admin"`
-	K8sNamespace pgtype.Text `json:"k8s_namespace"`
-	MatchState   pgtype.Text `json:"match_state"`
-	Q            pgtype.Text `json:"q"`
-	SortBy       string      `json:"sort_by"`
-	SortDir      string      `json:"sort_dir"`
-	Offset       pgtype.Int4 `json:"offset"`
-	Limit        pgtype.Int4 `json:"limit"`
+	ClusterID     pgtype.UUID   `json:"cluster_id"`
+	UserID        pgtype.UUID   `json:"user_id"`
+	IsAdmin       pgtype.Bool   `json:"is_admin"`
+	KeyNamespaces []pgtype.UUID `json:"key_namespaces"`
+	K8sNamespace  pgtype.Text   `json:"k8s_namespace"`
+	MatchState    pgtype.Text   `json:"match_state"`
+	Q             pgtype.Text   `json:"q"`
+	SortBy        string        `json:"sort_by"`
+	SortDir       string        `json:"sort_dir"`
+	Offset        pgtype.Int4   `json:"offset"`
+	Limit         pgtype.Int4   `json:"limit"`
 }
 
 type ListClusterWorkloadsRow struct {
@@ -1178,6 +1207,7 @@ func (q *Queries) ListClusterWorkloads(ctx context.Context, arg ListClusterWorkl
 		arg.ClusterID,
 		arg.UserID,
 		arg.IsAdmin,
+		arg.KeyNamespaces,
 		arg.K8sNamespace,
 		arg.MatchState,
 		arg.Q,
@@ -1232,17 +1262,18 @@ FROM cluster c
 JOIN namespace n ON n.id = c.namespace_id
 WHERE (
     CASE WHEN COALESCE($1::boolean, false)
-         THEN n.id IN (SELECT owned_namespace_ids($2::uuid))
-         ELSE n.id IN (SELECT visible_namespace_ids($2::uuid, $3::boolean))
+         THEN n.id IN (SELECT owned_namespace_ids($2::uuid, $3::uuid[]))
+         ELSE n.id IN (SELECT visible_namespace_ids($2::uuid, $4::boolean, $3::uuid[]))
     END
 )
 ORDER BY c.created_at ASC
 `
 
 type ListClustersParams struct {
-	OwnedOnly pgtype.Bool `json:"owned_only"`
-	UserID    pgtype.UUID `json:"user_id"`
-	IsAdmin   pgtype.Bool `json:"is_admin"`
+	OwnedOnly     pgtype.Bool   `json:"owned_only"`
+	UserID        pgtype.UUID   `json:"user_id"`
+	KeyNamespaces []pgtype.UUID `json:"key_namespaces"`
+	IsAdmin       pgtype.Bool   `json:"is_admin"`
 }
 
 type ListClustersRow struct {
@@ -1255,7 +1286,12 @@ type ListClustersRow struct {
 // ownership path. Same two-paths-one-query shape as ListSources and
 // ListNamespaces — see ListNamespaces for why they are not split.
 func (q *Queries) ListClusters(ctx context.Context, arg ListClustersParams) ([]ListClustersRow, error) {
-	rows, err := q.db.Query(ctx, listClusters, arg.OwnedOnly, arg.UserID, arg.IsAdmin)
+	rows, err := q.db.Query(ctx, listClusters,
+		arg.OwnedOnly,
+		arg.UserID,
+		arg.KeyNamespaces,
+		arg.IsAdmin,
+	)
 	if err != nil {
 		return nil, err
 	}
@@ -1361,16 +1397,17 @@ JOIN LATERAL (
 ) s ON true
 LEFT JOIN artifact a ON a.id = s.artifact_id
 WHERE s.artifact_id = $1::uuid
-  AND c.namespace_id IN (SELECT visible_namespace_ids($2::uuid, $3::boolean))
+  AND c.namespace_id IN (SELECT visible_namespace_ids($2::uuid, $3::boolean, $4::uuid[]))
 ORDER BY c.name ASC, w.k8s_namespace ASC, w.workload_name ASC
-LIMIT $4::int
+LIMIT $5::int
 `
 
 type ListWorkloadsForArtifactParams struct {
-	ArtifactID pgtype.UUID `json:"artifact_id"`
-	UserID     pgtype.UUID `json:"user_id"`
-	IsAdmin    pgtype.Bool `json:"is_admin"`
-	Limit      pgtype.Int4 `json:"limit"`
+	ArtifactID    pgtype.UUID   `json:"artifact_id"`
+	UserID        pgtype.UUID   `json:"user_id"`
+	IsAdmin       pgtype.Bool   `json:"is_admin"`
+	KeyNamespaces []pgtype.UUID `json:"key_namespaces"`
+	Limit         pgtype.Int4   `json:"limit"`
 }
 
 type ListWorkloadsForArtifactRow struct {
@@ -1393,6 +1430,7 @@ func (q *Queries) ListWorkloadsForArtifact(ctx context.Context, arg ListWorkload
 		arg.ArtifactID,
 		arg.UserID,
 		arg.IsAdmin,
+		arg.KeyNamespaces,
 		arg.Limit,
 	)
 	if err != nil {
@@ -1466,17 +1504,18 @@ WHERE EXISTS (
     WHERE COALESCE(NULLIF(v.canonical_id, ''), v.id) = $1::text
 )
   AND ($2::uuid IS NULL OR w.cluster_id = $2::uuid)
-  AND c.namespace_id IN (SELECT visible_namespace_ids($3::uuid, $4::boolean))
+  AND c.namespace_id IN (SELECT visible_namespace_ids($3::uuid, $4::boolean, $5::uuid[]))
 ORDER BY c.name ASC, w.k8s_namespace ASC, w.workload_name ASC
-LIMIT $5::int
+LIMIT $6::int
 `
 
 type ListWorkloadsForVulnerabilityParams struct {
-	CanonicalID string      `json:"canonical_id"`
-	ClusterID   pgtype.UUID `json:"cluster_id"`
-	UserID      pgtype.UUID `json:"user_id"`
-	IsAdmin     pgtype.Bool `json:"is_admin"`
-	Limit       pgtype.Int4 `json:"limit"`
+	CanonicalID   string        `json:"canonical_id"`
+	ClusterID     pgtype.UUID   `json:"cluster_id"`
+	UserID        pgtype.UUID   `json:"user_id"`
+	IsAdmin       pgtype.Bool   `json:"is_admin"`
+	KeyNamespaces []pgtype.UUID `json:"key_namespaces"`
+	Limit         pgtype.Int4   `json:"limit"`
 }
 
 type ListWorkloadsForVulnerabilityRow struct {
@@ -1506,6 +1545,7 @@ func (q *Queries) ListWorkloadsForVulnerability(ctx context.Context, arg ListWor
 		arg.ClusterID,
 		arg.UserID,
 		arg.IsAdmin,
+		arg.KeyNamespaces,
 		arg.Limit,
 	)
 	if err != nil {
@@ -1679,9 +1719,10 @@ WITH old AS (
     WHERE api_key.id = $5 AND api_key.cluster_id = $4
     RETURNING api_key.name
 )
-INSERT INTO api_key (user_id, name, key_hash, prefix, capabilities, cluster_id)
+INSERT INTO api_key (user_id, name, key_hash, prefix, capabilities, cluster_id, kind)
 SELECT $1, old.name, $2, $3,
-       ARRAY['push_inventory']::text[], $4
+       ARRAY['push_inventory']::text[], $4, 'cluster'
+
 FROM old
 RETURNING id, name, prefix, created_at
 `

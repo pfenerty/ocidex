@@ -156,6 +156,45 @@ func (e CreateAPIKeyInputBodyCapabilities) Valid() bool {
 	}
 }
 
+// Defines values for CreateAPIKeyInputBodyKind.
+const (
+	CreateAPIKeyInputBodyKindAgent    CreateAPIKeyInputBodyKind = "agent"
+	CreateAPIKeyInputBodyKindPersonal CreateAPIKeyInputBodyKind = "personal"
+)
+
+// Valid indicates whether the value is a known member of the CreateAPIKeyInputBodyKind enum.
+func (e CreateAPIKeyInputBodyKind) Valid() bool {
+	switch e {
+	case CreateAPIKeyInputBodyKindAgent:
+		return true
+	case CreateAPIKeyInputBodyKindPersonal:
+		return true
+	default:
+		return false
+	}
+}
+
+// Defines values for CreateAPIKeyInputBodyPreset.
+const (
+	Analyst     CreateAPIKeyInputBodyPreset = "analyst"
+	Coverage    CreateAPIKeyInputBodyPreset = "coverage"
+	Remediation CreateAPIKeyInputBodyPreset = "remediation"
+)
+
+// Valid indicates whether the value is a known member of the CreateAPIKeyInputBodyPreset enum.
+func (e CreateAPIKeyInputBodyPreset) Valid() bool {
+	switch e {
+	case Analyst:
+		return true
+	case Coverage:
+		return true
+	case Remediation:
+		return true
+	default:
+		return false
+	}
+}
+
 // Defines values for CreateNamespaceInputBodyVisibility.
 const (
 	CreateNamespaceInputBodyVisibilityPrivate CreateNamespaceInputBodyVisibility = "private"
@@ -375,6 +414,51 @@ func (e EnrichmentJobResponseState) Valid() bool {
 	}
 }
 
+// Defines values for KeyMetaResponseKind.
+const (
+	KeyMetaResponseKindAgent    KeyMetaResponseKind = "agent"
+	KeyMetaResponseKindCluster  KeyMetaResponseKind = "cluster"
+	KeyMetaResponseKindPersonal KeyMetaResponseKind = "personal"
+)
+
+// Valid indicates whether the value is a known member of the KeyMetaResponseKind enum.
+func (e KeyMetaResponseKind) Valid() bool {
+	switch e {
+	case KeyMetaResponseKindAgent:
+		return true
+	case KeyMetaResponseKindCluster:
+		return true
+	case KeyMetaResponseKindPersonal:
+		return true
+	default:
+		return false
+	}
+}
+
+// Defines values for KeySelfOutputBodyKind.
+const (
+	KeySelfOutputBodyKindAgent    KeySelfOutputBodyKind = "agent"
+	KeySelfOutputBodyKindCluster  KeySelfOutputBodyKind = "cluster"
+	KeySelfOutputBodyKindPersonal KeySelfOutputBodyKind = "personal"
+	KeySelfOutputBodyKindSession  KeySelfOutputBodyKind = "session"
+)
+
+// Valid indicates whether the value is a known member of the KeySelfOutputBodyKind enum.
+func (e KeySelfOutputBodyKind) Valid() bool {
+	switch e {
+	case KeySelfOutputBodyKindAgent:
+		return true
+	case KeySelfOutputBodyKindCluster:
+		return true
+	case KeySelfOutputBodyKindPersonal:
+		return true
+	case KeySelfOutputBodyKindSession:
+		return true
+	default:
+		return false
+	}
+}
+
 // Defines values for ListArtifactVersionsOutputBodyResolvedMode.
 const (
 	ListArtifactVersionsOutputBodyResolvedModeAll    ListArtifactVersionsOutputBodyResolvedMode = "all"
@@ -459,6 +543,36 @@ func (e NamespaceResponseVisibility) Valid() bool {
 	case NamespaceResponseVisibilityPrivate:
 		return true
 	case NamespaceResponseVisibilityPublic:
+		return true
+	default:
+		return false
+	}
+}
+
+// Defines values for PendingActionViewStatus.
+const (
+	PendingActionViewStatusApproved PendingActionViewStatus = "approved"
+	PendingActionViewStatusDenied   PendingActionViewStatus = "denied"
+	PendingActionViewStatusExecuted PendingActionViewStatus = "executed"
+	PendingActionViewStatusExpired  PendingActionViewStatus = "expired"
+	PendingActionViewStatusFailed   PendingActionViewStatus = "failed"
+	PendingActionViewStatusPending  PendingActionViewStatus = "pending"
+)
+
+// Valid indicates whether the value is a known member of the PendingActionViewStatus enum.
+func (e PendingActionViewStatus) Valid() bool {
+	switch e {
+	case PendingActionViewStatusApproved:
+		return true
+	case PendingActionViewStatusDenied:
+		return true
+	case PendingActionViewStatusExecuted:
+		return true
+	case PendingActionViewStatusExpired:
+		return true
+	case PendingActionViewStatusFailed:
+		return true
+	case PendingActionViewStatusPending:
 		return true
 	default:
 		return false
@@ -641,19 +755,19 @@ func (e SetNamespaceMemberInputBodyRole) Valid() bool {
 
 // Defines values for SourceResponseKind.
 const (
-	Cluster     SourceResponseKind = "cluster"
-	OciRegistry SourceResponseKind = "oci_registry"
-	Upload      SourceResponseKind = "upload"
+	SourceResponseKindCluster     SourceResponseKind = "cluster"
+	SourceResponseKindOciRegistry SourceResponseKind = "oci_registry"
+	SourceResponseKindUpload      SourceResponseKind = "upload"
 )
 
 // Valid indicates whether the value is a known member of the SourceResponseKind enum.
 func (e SourceResponseKind) Valid() bool {
 	switch e {
-	case Cluster:
+	case SourceResponseKindCluster:
 		return true
-	case OciRegistry:
+	case SourceResponseKindOciRegistry:
 		return true
-	case Upload:
+	case SourceResponseKindUpload:
 		return true
 	default:
 		return false
@@ -900,6 +1014,36 @@ func (e RetryAllFailedEnrichmentJobsParamsEnricherName) Valid() bool {
 	case RetryAllFailedEnrichmentJobsParamsEnricherNameProvenance:
 		return true
 	case RetryAllFailedEnrichmentJobsParamsEnricherNameUser:
+		return true
+	default:
+		return false
+	}
+}
+
+// Defines values for ListPendingActionsParamsStatus.
+const (
+	ListPendingActionsParamsStatusApproved ListPendingActionsParamsStatus = "approved"
+	ListPendingActionsParamsStatusDenied   ListPendingActionsParamsStatus = "denied"
+	ListPendingActionsParamsStatusExecuted ListPendingActionsParamsStatus = "executed"
+	ListPendingActionsParamsStatusExpired  ListPendingActionsParamsStatus = "expired"
+	ListPendingActionsParamsStatusFailed   ListPendingActionsParamsStatus = "failed"
+	ListPendingActionsParamsStatusPending  ListPendingActionsParamsStatus = "pending"
+)
+
+// Valid indicates whether the value is a known member of the ListPendingActionsParamsStatus enum.
+func (e ListPendingActionsParamsStatus) Valid() bool {
+	switch e {
+	case ListPendingActionsParamsStatusApproved:
+		return true
+	case ListPendingActionsParamsStatusDenied:
+		return true
+	case ListPendingActionsParamsStatusExecuted:
+		return true
+	case ListPendingActionsParamsStatusExpired:
+		return true
+	case ListPendingActionsParamsStatusFailed:
+		return true
+	case ListPendingActionsParamsStatusPending:
 		return true
 	default:
 		return false
@@ -2202,18 +2346,45 @@ type CreateAPIKeyInputBody struct {
 	// Schema A URL to the JSON Schema for this object.
 	Schema *string `json:"$schema,omitempty"`
 
+	// AgentLabel What you call the agent's client, shown in the key list and the audit log
+	AgentLabel *string `json:"agentLabel,omitempty"`
+
+	// ApprovalRequired Mutating capabilities this key may use only after a person approves each request. Each must be one the key carries; read_private, read_secret and installation_admin cannot be held.
+	ApprovalRequired *[]string `json:"approvalRequired,omitempty"`
+
 	// Capabilities Capabilities this key may exercise, intersected with the owner's live namespace roles. Empty means all of them.
 	Capabilities *[]CreateAPIKeyInputBodyCapabilities `json:"capabilities,omitempty"`
 
 	// ExpiresAt When the key stops working. Must be in the future. Omit for a key that never expires.
 	ExpiresAt *time.Time `json:"expiresAt,omitempty"`
 
+	// Kind personal (default) or agent: a key a program uses on your behalf
+	Kind *CreateAPIKeyInputBodyKind `json:"kind,omitempty"`
+
 	// Name Human-readable label for this key
 	Name string `json:"name"`
+
+	// Namespaces Limit the key to these namespace ids: it may act and read private data only in them. Omit for every namespace you belong to (personal keys only).
+	Namespaces *[]string `json:"namespaces,omitempty"`
+
+	// Preset Agent keys only: a named capability set (see GET /api/v1/auth/key-presets). Instead of capabilities.
+	Preset *CreateAPIKeyInputBodyPreset `json:"preset,omitempty"`
+
+	// ScansPerHour Agent keys only: requests that queue scans per hour. Default 20.
+	ScansPerHour *int64 `json:"scansPerHour,omitempty"`
+
+	// WritesPerHour Agent keys only: requests that change anything per hour. Default 120.
+	WritesPerHour *int64 `json:"writesPerHour,omitempty"`
 }
 
 // CreateAPIKeyInputBodyCapabilities defines model for CreateAPIKeyInputBody.Capabilities.
 type CreateAPIKeyInputBodyCapabilities string
+
+// CreateAPIKeyInputBodyKind personal (default) or agent: a key a program uses on your behalf
+type CreateAPIKeyInputBodyKind string
+
+// CreateAPIKeyInputBodyPreset Agent keys only: a named capability set (see GET /api/v1/auth/key-presets). Instead of capabilities.
+type CreateAPIKeyInputBodyPreset string
 
 // CreateAPIKeyOutputBody defines model for CreateAPIKeyOutputBody.
 type CreateAPIKeyOutputBody struct {
@@ -2957,8 +3128,40 @@ type InventoryWorkload struct {
 	WorkloadName string `json:"workloadName"`
 }
 
+// KeyActivityEntry defines model for KeyActivityEntry.
+type KeyActivityEntry struct {
+	AgentLabel *string   `json:"agentLabel,omitempty"`
+	Id         int64     `json:"id"`
+	Method     string    `json:"method"`
+	OccurredAt time.Time `json:"occurredAt"`
+	Path       string    `json:"path"`
+
+	// PendingActionId Set when the request was held for approval
+	PendingActionId *string `json:"pendingActionId,omitempty"`
+
+	// Route The route pattern the request matched
+	Route  string `json:"route"`
+	Status int64  `json:"status"`
+
+	// Tool The MCP tool the request came from, as the agent's MCP server reported it
+	Tool *string `json:"tool,omitempty"`
+}
+
+// KeyActivityOutputBody defines model for KeyActivityOutputBody.
+type KeyActivityOutputBody struct {
+	// Schema A URL to the JSON Schema for this object.
+	Schema *string             `json:"$schema,omitempty"`
+	Data   *[]KeyActivityEntry `json:"data"`
+}
+
 // KeyMetaResponse defines model for KeyMetaResponse.
 type KeyMetaResponse struct {
+	// AgentLabel An agent key's client name
+	AgentLabel *string `json:"agentLabel,omitempty"`
+
+	// ApprovalRequired Capabilities held for a person's approval on every request
+	ApprovalRequired *[]string `json:"approvalRequired,omitempty"`
+
 	// Capabilities Capabilities this key may exercise, before intersection with the owner's live namespace roles
 	Capabilities *[]string `json:"capabilities"`
 
@@ -2970,13 +3173,70 @@ type KeyMetaResponse struct {
 	ExpiresAt *time.Time `json:"expiresAt,omitempty"`
 
 	// Id Key UUID
-	Id         string     `json:"id"`
-	LastUsedAt *time.Time `json:"lastUsedAt,omitempty"`
-	Name       string     `json:"name"`
+	Id string `json:"id"`
+
+	// Kind personal, agent, or cluster
+	Kind       KeyMetaResponseKind `json:"kind"`
+	LastUsedAt *time.Time          `json:"lastUsedAt,omitempty"`
+	Name       string              `json:"name"`
+
+	// Namespaces The namespaces the key is limited to; absent means every namespace its owner belongs to
+	Namespaces *[]string `json:"namespaces,omitempty"`
 
 	// Prefix First 8 characters of the key
 	Prefix string `json:"prefix"`
+
+	// ScansPerHour Agent keys: overridden scan budget per hour; absent means the default
+	ScansPerHour *int64 `json:"scansPerHour,omitempty"`
+
+	// WritesPerHour Agent keys: overridden write budget per hour; absent means the default
+	WritesPerHour *int64 `json:"writesPerHour,omitempty"`
 }
+
+// KeyMetaResponseKind personal, agent, or cluster
+type KeyMetaResponseKind string
+
+// KeyPreset defines model for KeyPreset.
+type KeyPreset struct {
+	// ApprovalRequired Capabilities a person must approve on every request
+	ApprovalRequired *[]string `json:"approvalRequired,omitempty"`
+	Capabilities     *[]string `json:"capabilities"`
+	Description      string    `json:"description"`
+	Name             string    `json:"name"`
+	Title            string    `json:"title"`
+}
+
+// KeySelfOutputBody defines model for KeySelfOutputBody.
+type KeySelfOutputBody struct {
+	// Schema A URL to the JSON Schema for this object.
+	Schema     *string `json:"$schema,omitempty"`
+	AgentLabel *string `json:"agentLabel,omitempty"`
+
+	// ApprovalRequired Capabilities a person must approve on every request
+	ApprovalRequired *[]string `json:"approvalRequired,omitempty"`
+
+	// Capabilities The key's capability ceiling, after the rules agent keys can never exceed. What it may do in a namespace is this intersected with the holder's role there.
+	Capabilities *[]string  `json:"capabilities"`
+	ExpiresAt    *time.Time `json:"expiresAt,omitempty"`
+
+	// KeyId The key's id; absent for a session
+	KeyId *string `json:"keyId,omitempty"`
+
+	// Kind session for a browser session; otherwise the API key's kind
+	Kind KeySelfOutputBodyKind `json:"kind"`
+
+	// Namespaces Namespace ids the key is limited to; absent means every namespace its holder belongs to
+	Namespaces *[]string `json:"namespaces,omitempty"`
+
+	// ScansPerHour Agent keys: scan requests allowed per hour
+	ScansPerHour *int64 `json:"scansPerHour,omitempty"`
+
+	// WritesPerHour Agent keys: write requests allowed per hour
+	WritesPerHour *int64 `json:"writesPerHour,omitempty"`
+}
+
+// KeySelfOutputBodyKind session for a browser session; otherwise the API key's kind
+type KeySelfOutputBodyKind string
 
 // LicenseCategoryMix defines model for LicenseCategoryMix.
 type LicenseCategoryMix struct {
@@ -3011,6 +3271,13 @@ type ListAPIKeysOutputBody struct {
 	// Schema A URL to the JSON Schema for this object.
 	Schema *string            `json:"$schema,omitempty"`
 	Keys   *[]KeyMetaResponse `json:"keys"`
+}
+
+// ListApprovalsOutputBody defines model for ListApprovalsOutputBody.
+type ListApprovalsOutputBody struct {
+	// Schema A URL to the JSON Schema for this object.
+	Schema *string              `json:"$schema,omitempty"`
+	Data   *[]PendingActionView `json:"data"`
 }
 
 // ListArtifactSBOMsOutputBody defines model for ListArtifactSBOMsOutputBody.
@@ -3171,6 +3438,15 @@ type ListIdentitiesOutputBody struct {
 	// Schema A URL to the JSON Schema for this object.
 	Schema     *string             `json:"$schema,omitempty"`
 	Identities *[]IdentityResponse `json:"identities"`
+}
+
+// ListKeyPresetsOutputBody defines model for ListKeyPresetsOutputBody.
+type ListKeyPresetsOutputBody struct {
+	// Schema A URL to the JSON Schema for this object.
+	Schema            *string      `json:"$schema,omitempty"`
+	DefaultExpiryDays int64        `json:"defaultExpiryDays"`
+	MaxExpiryDays     int64        `json:"maxExpiryDays"`
+	Presets           *[]KeyPreset `json:"presets"`
 }
 
 // ListLicensesOutputBody defines model for ListLicensesOutputBody.
@@ -3463,6 +3739,45 @@ type PaginationMeta struct {
 	// Total Total number of matching results
 	Total int64 `json:"total"`
 }
+
+// PendingActionView defines model for PendingActionView.
+type PendingActionView struct {
+	// Schema A URL to the JSON Schema for this object.
+	Schema     *string `json:"$schema,omitempty"`
+	AgentLabel *string `json:"agentLabel,omitempty"`
+
+	// ApproveUrl Where a person approves it
+	ApproveUrl *string `json:"approveUrl,omitempty"`
+
+	// Body The stored request body, which is what runs on approval
+	Body *string `json:"body,omitempty"`
+
+	// CanDecide Whether the caller may approve or deny it now
+	CanDecide  bool       `json:"canDecide"`
+	Capability string     `json:"capability"`
+	CreatedAt  time.Time  `json:"createdAt"`
+	DecidedAt  *time.Time `json:"decidedAt,omitempty"`
+
+	// Effect What the held request will do, written by OCIDex from the request and current state
+	Effect      string             `json:"effect"`
+	ExecutedAt  *time.Time         `json:"executedAt,omitempty"`
+	ExpiresAt   time.Time          `json:"expiresAt"`
+	Id          openapi_types.UUID `json:"id"`
+	Method      string             `json:"method"`
+	NamespaceId openapi_types.UUID `json:"namespaceId"`
+	Path        string             `json:"path"`
+
+	// Reason The agent's note for the approver. Untrusted: it is not a description of what will run
+	Reason     *string `json:"reason,omitempty"`
+	ResultBody *string `json:"resultBody,omitempty"`
+
+	// ResultStatus HTTP status the approved request returned when it ran
+	ResultStatus *int64                  `json:"resultStatus,omitempty"`
+	Status       PendingActionViewStatus `json:"status"`
+}
+
+// PendingActionViewStatus defines model for PendingActionView.Status.
+type PendingActionViewStatus string
 
 // PreviewRegistryConfigInputBody defines model for PreviewRegistryConfigInputBody.
 type PreviewRegistryConfigInputBody struct {
@@ -4448,6 +4763,15 @@ type RetryAllFailedEnrichmentJobsParams struct {
 // RetryAllFailedEnrichmentJobsParamsEnricherName defines parameters for RetryAllFailedEnrichmentJobs.
 type RetryAllFailedEnrichmentJobsParamsEnricherName string
 
+// ListPendingActionsParams defines parameters for ListPendingActions.
+type ListPendingActionsParams struct {
+	// Status Only actions in this status
+	Status *ListPendingActionsParamsStatus `form:"status,omitempty" json:"status,omitempty"`
+}
+
+// ListPendingActionsParamsStatus defines parameters for ListPendingActions.
+type ListPendingActionsParamsStatus string
+
 // ListArtifactsParams defines parameters for ListArtifacts.
 type ListArtifactsParams struct {
 	// Limit Maximum number of results per page
@@ -4592,6 +4916,13 @@ type ListArtifactVulnsParamsDir string
 // ListArtifactWorkloadsParams defines parameters for ListArtifactWorkloads.
 type ListArtifactWorkloadsParams struct {
 	Limit *int32 `form:"limit,omitempty" json:"limit,omitempty"`
+}
+
+// ListKeyActivityParams defines parameters for ListKeyActivity.
+type ListKeyActivityParams struct {
+	// Before Return entries older than this entry id (the last id of the previous page)
+	Before *int64 `form:"before,omitempty" json:"before,omitempty"`
+	Limit  *int32 `form:"limit,omitempty" json:"limit,omitempty"`
 }
 
 // ListClustersParams defines parameters for ListClusters.

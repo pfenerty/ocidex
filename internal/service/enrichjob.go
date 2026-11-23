@@ -253,21 +253,23 @@ func (s *enrichJobService) List(ctx context.Context, state, enricherName string,
 	stateFilter := pgtype.Text{String: state, Valid: state != ""}
 	enricherFilter := pgtype.Text{String: enricherName, Valid: enricherName != ""}
 	rows, err := s.repo.ListEnrichmentJobs(ctx, repository.ListEnrichmentJobsParams{
-		State:        stateFilter,
-		EnricherName: enricherFilter,
-		IsAdmin:      vis.adminFlag(),
-		UserID:       uuidOrNull(vis.UserID),
-		Limit:        limit,
-		Offset:       offset,
+		State:         stateFilter,
+		EnricherName:  enricherFilter,
+		IsAdmin:       vis.adminFlag(),
+		KeyNamespaces: vis.keyNamespaces(),
+		UserID:        uuidOrNull(vis.UserID),
+		Limit:         limit,
+		Offset:        offset,
 	})
 	if err != nil {
 		return nil, 0, fmt.Errorf("listing enrichment jobs: %w", err)
 	}
 	total, err := s.repo.CountEnrichmentJobs(ctx, repository.CountEnrichmentJobsParams{
-		State:        stateFilter,
-		EnricherName: enricherFilter,
-		IsAdmin:      vis.adminFlag(),
-		UserID:       uuidOrNull(vis.UserID),
+		State:         stateFilter,
+		EnricherName:  enricherFilter,
+		IsAdmin:       vis.adminFlag(),
+		KeyNamespaces: vis.keyNamespaces(),
+		UserID:        uuidOrNull(vis.UserID),
 	})
 	if err != nil {
 		return nil, 0, fmt.Errorf("counting enrichment jobs: %w", err)
@@ -281,8 +283,9 @@ func (s *enrichJobService) List(ctx context.Context, state, enricherName string,
 
 func (s *enrichJobService) Summary(ctx context.Context, vis VisibilityFilter) ([]EnrichJobStateCount, error) {
 	rows, err := s.repo.SummarizeEnrichmentJobs(ctx, repository.SummarizeEnrichmentJobsParams{
-		IsAdmin: vis.adminFlag(),
-		UserID:  uuidOrNull(vis.UserID),
+		IsAdmin:       vis.adminFlag(),
+		KeyNamespaces: vis.keyNamespaces(),
+		UserID:        uuidOrNull(vis.UserID),
 	})
 	if err != nil {
 		return nil, fmt.Errorf("summarizing enrichment jobs: %w", err)

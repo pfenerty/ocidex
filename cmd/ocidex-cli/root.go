@@ -60,6 +60,9 @@ type rootConfig struct {
 	// so tests can hand back a client.FakeClient without standing up a server.
 	newClient func(client.Config) client.Client
 
+	// openURL opens a URL in the user's browser; a field so tests do not.
+	openURL func(string) error
+
 	// resolved records that PersistentPreRunE ran to completion. Cobra reports
 	// flag-parsing, required-flag, and unknown-command failures the same way it
 	// reports a command's own error, and this is the difference: anything that
@@ -76,6 +79,7 @@ type rootConfig struct {
 func newRootCmd() (*cobra.Command, *rootConfig) {
 	cfg := &rootConfig{
 		newClient: func(c client.Config) client.Client { return client.New(c) },
+		openURL:   openInBrowser,
 	}
 
 	cmd := &cobra.Command{
@@ -113,7 +117,9 @@ is deliberately not a flag — see docs/adr/0029-cli-design.md.`,
 	cmd.AddCommand(newSBOMCmd(cfg), newNamespaceCmd(cfg), newSourceCmd(cfg),
 		newRegistryCmd(cfg), newArtifactCmd(cfg),
 		newComponentCmd(cfg), newJobCmd(cfg), newKeyCmd(cfg),
-		newLoginCmd(cfg), newLogoutCmd(), newVersionCmd())
+		newLoginCmd(cfg), newLogoutCmd(), newVersionCmd(),
+		newAgentCmd(cfg), newMCPCmd(cfg),
+		newApprovalCmd(cfg, func(u string) error { return cfg.openURL(u) }))
 	cmd.AddCommand(newGenReferenceCmd(cmd))
 	return cmd, cfg
 }

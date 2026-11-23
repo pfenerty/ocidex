@@ -141,6 +141,83 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/v1/approvals": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * List agent writes held for approval
+         * @description Actions your keys asked for, and actions in your namespaces you may decide.
+         */
+        get: operations["list-pending-actions"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/approvals/{id}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Get a held action and its outcome */
+        get: operations["get-pending-action"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/approvals/{id}/approve": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Approve a held action and run it
+         * @description Session only. Runs the stored request once, as the key that asked.
+         */
+        post: operations["approve-pending-action"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/approvals/{id}/deny": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Deny a held action
+         * @description Session only.
+         */
+        post: operations["deny-pending-action"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/v1/artifacts": {
         parameters: {
             query?: never;
@@ -425,6 +502,26 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/v1/auth/key-presets": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * List agent key presets
+         * @description The named capability sets an agent key is created from, and the lifetime bounds for agent keys.
+         */
+        get: operations["list-key-presets"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/v1/auth/keys": {
         parameters: {
             query?: never;
@@ -443,6 +540,26 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/v1/auth/keys/self": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Describe the calling key
+         * @description The calling credential's kind, capability ceiling, approval-required capabilities, namespaces and expiry. Agent keys may call it.
+         */
+        get: operations["get-key-self"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/v1/auth/keys/{id}": {
         parameters: {
             query?: never;
@@ -455,6 +572,26 @@ export interface paths {
         post?: never;
         /** Delete API key */
         delete: operations["delete-api-key"];
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/auth/keys/{id}/activity": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * List what an agent key did
+         * @description Writes, held requests and refusals made with one of your agent keys, newest first.
+         */
+        get: operations["list-key-activity"];
+        put?: never;
+        post?: never;
+        delete?: never;
         options?: never;
         head?: never;
         patch?: never;
@@ -2585,6 +2722,10 @@ export interface components {
              * @example https://example.com/api/schemas/CreateAPIKeyInputBody.json
              */
             readonly $schema?: string;
+            /** @description What you call the agent's client, shown in the key list and the audit log */
+            agentLabel?: string;
+            /** @description Mutating capabilities this key may use only after a person approves each request. Each must be one the key carries; read_private, read_secret and installation_admin cannot be held. */
+            approvalRequired?: string[] | null;
             /** @description Capabilities this key may exercise, intersected with the owner's live namespace roles. Empty means all of them. */
             capabilities?: ("read_private" | "ingest" | "trigger_scan" | "push_inventory" | "delete_artifact" | "manage_source" | "manage_cluster" | "read_secret" | "manage_member" | "delete_namespace" | "installation_admin")[] | null;
             /**
@@ -2592,8 +2733,30 @@ export interface components {
              * @description When the key stops working. Must be in the future. Omit for a key that never expires.
              */
             expiresAt?: string;
+            /**
+             * @description personal (default) or agent: a key a program uses on your behalf
+             * @enum {string}
+             */
+            kind?: "personal" | "agent";
             /** @description Human-readable label for this key */
             name: string;
+            /** @description Limit the key to these namespace ids: it may act and read private data only in them. Omit for every namespace you belong to (personal keys only). */
+            namespaces?: string[] | null;
+            /**
+             * @description Agent keys only: a named capability set (see GET /api/v1/auth/key-presets). Instead of capabilities.
+             * @enum {string}
+             */
+            preset?: "analyst" | "remediation" | "coverage";
+            /**
+             * Format: int64
+             * @description Agent keys only: requests that queue scans per hour. Default 20.
+             */
+            scansPerHour?: number;
+            /**
+             * Format: int64
+             * @description Agent keys only: requests that change anything per hour. Default 120.
+             */
+            writesPerHour?: number;
         };
         CreateAPIKeyOutputBody: {
             /**
@@ -3374,7 +3537,37 @@ export interface components {
             workloadKind: string;
             workloadName: string;
         };
+        KeyActivityEntry: {
+            agentLabel?: string;
+            /** Format: int64 */
+            id: number;
+            method: string;
+            /** Format: date-time */
+            occurredAt: string;
+            path: string;
+            /** @description Set when the request was held for approval */
+            pendingActionId?: string;
+            /** @description The route pattern the request matched */
+            route: string;
+            /** Format: int64 */
+            status: number;
+            /** @description The MCP tool the request came from, as the agent's MCP server reported it */
+            tool?: string;
+        };
+        KeyActivityOutputBody: {
+            /**
+             * Format: uri
+             * @description A URL to the JSON Schema for this object.
+             * @example https://example.com/api/schemas/KeyActivityOutputBody.json
+             */
+            readonly $schema?: string;
+            data: components["schemas"]["KeyActivityEntry"][] | null;
+        };
         KeyMetaResponse: {
+            /** @description An agent key's client name */
+            agentLabel?: string;
+            /** @description Capabilities held for a person's approval on every request */
+            approvalRequired?: string[] | null;
             /** @description Capabilities this key may exercise, before intersection with the owner's live namespace roles */
             capabilities: string[] | null;
             /** @description Set for a cluster agent credential, which may only push this cluster's inventory */
@@ -3388,11 +3581,70 @@ export interface components {
             expiresAt?: string;
             /** @description Key UUID */
             id: string;
+            /**
+             * @description personal, agent, or cluster
+             * @enum {string}
+             */
+            kind: "personal" | "agent" | "cluster";
             /** Format: date-time */
             lastUsedAt?: string;
             name: string;
+            /** @description The namespaces the key is limited to; absent means every namespace its owner belongs to */
+            namespaces?: string[] | null;
             /** @description First 8 characters of the key */
             prefix: string;
+            /**
+             * Format: int64
+             * @description Agent keys: overridden scan budget per hour; absent means the default
+             */
+            scansPerHour?: number;
+            /**
+             * Format: int64
+             * @description Agent keys: overridden write budget per hour; absent means the default
+             */
+            writesPerHour?: number;
+        };
+        KeyPreset: {
+            /** @description Capabilities a person must approve on every request */
+            approvalRequired?: string[] | null;
+            capabilities: string[] | null;
+            description: string;
+            name: string;
+            title: string;
+        };
+        KeySelfOutputBody: {
+            /**
+             * Format: uri
+             * @description A URL to the JSON Schema for this object.
+             * @example https://example.com/api/schemas/KeySelfOutputBody.json
+             */
+            readonly $schema?: string;
+            agentLabel?: string;
+            /** @description Capabilities a person must approve on every request */
+            approvalRequired?: string[] | null;
+            /** @description The key's capability ceiling, after the rules agent keys can never exceed. What it may do in a namespace is this intersected with the holder's role there. */
+            capabilities: string[] | null;
+            /** Format: date-time */
+            expiresAt?: string;
+            /** @description The key's id; absent for a session */
+            keyId?: string;
+            /**
+             * @description session for a browser session; otherwise the API key's kind
+             * @enum {string}
+             */
+            kind: "session" | "personal" | "agent" | "cluster";
+            /** @description Namespace ids the key is limited to; absent means every namespace its holder belongs to */
+            namespaces?: string[] | null;
+            /**
+             * Format: int64
+             * @description Agent keys: scan requests allowed per hour
+             */
+            scansPerHour?: number;
+            /**
+             * Format: int64
+             * @description Agent keys: write requests allowed per hour
+             */
+            writesPerHour?: number;
         };
         LicenseCategoryMix: {
             /** Format: int64 */
@@ -3433,6 +3685,15 @@ export interface components {
              */
             readonly $schema?: string;
             keys: components["schemas"]["KeyMetaResponse"][] | null;
+        };
+        ListApprovalsOutputBody: {
+            /**
+             * Format: uri
+             * @description A URL to the JSON Schema for this object.
+             * @example https://example.com/api/schemas/ListApprovalsOutputBody.json
+             */
+            readonly $schema?: string;
+            data: components["schemas"]["PendingActionView"][] | null;
         };
         ListArtifactSBOMsOutputBody: {
             /**
@@ -3632,6 +3893,19 @@ export interface components {
              */
             readonly $schema?: string;
             identities: components["schemas"]["IdentityResponse"][] | null;
+        };
+        ListKeyPresetsOutputBody: {
+            /**
+             * Format: uri
+             * @description A URL to the JSON Schema for this object.
+             * @example https://example.com/api/schemas/ListKeyPresetsOutputBody.json
+             */
+            readonly $schema?: string;
+            /** Format: int64 */
+            defaultExpiryDays: number;
+            /** Format: int64 */
+            maxExpiryDays: number;
+            presets: components["schemas"]["KeyPreset"][] | null;
         };
         ListLicensesOutputBody: {
             /**
@@ -3956,6 +4230,48 @@ export interface components {
              * @description Total number of matching results
              */
             total: number;
+        };
+        PendingActionView: {
+            /**
+             * Format: uri
+             * @description A URL to the JSON Schema for this object.
+             * @example https://example.com/api/schemas/PendingActionView.json
+             */
+            readonly $schema?: string;
+            agentLabel?: string;
+            /** @description Where a person approves it */
+            approveUrl?: string;
+            /** @description The stored request body, which is what runs on approval */
+            body?: string;
+            /** @description Whether the caller may approve or deny it now */
+            canDecide: boolean;
+            capability: string;
+            /** Format: date-time */
+            createdAt: string;
+            /** Format: date-time */
+            decidedAt?: string;
+            /** @description What the held request will do, written by OCIDex from the request and current state */
+            effect: string;
+            /** Format: date-time */
+            executedAt?: string;
+            /** Format: date-time */
+            expiresAt: string;
+            /** Format: uuid */
+            id: string;
+            method: string;
+            /** Format: uuid */
+            namespaceId: string;
+            path: string;
+            /** @description The agent's note for the approver. Untrusted: it is not a description of what will run */
+            reason?: string;
+            resultBody?: string;
+            /**
+             * Format: int64
+             * @description HTTP status the approved request returned when it ran
+             */
+            resultStatus?: number;
+            /** @enum {string} */
+            status: "pending" | "approved" | "denied" | "expired" | "executed" | "failed";
         };
         PreviewRegistryConfigInputBody: {
             /**
@@ -5233,6 +5549,131 @@ export interface operations {
             };
         };
     };
+    "list-pending-actions": {
+        parameters: {
+            query?: {
+                /** @description Only actions in this status */
+                status?: "pending" | "approved" | "denied" | "expired" | "executed" | "failed";
+            };
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description OK */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ListApprovalsOutputBody"];
+                };
+            };
+            /** @description Error */
+            default: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["ErrorModel"];
+                };
+            };
+        };
+    };
+    "get-pending-action": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description OK */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["PendingActionView"];
+                };
+            };
+            /** @description Error */
+            default: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["ErrorModel"];
+                };
+            };
+        };
+    };
+    "approve-pending-action": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description OK */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["PendingActionView"];
+                };
+            };
+            /** @description Error */
+            default: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["ErrorModel"];
+                };
+            };
+        };
+    };
+    "deny-pending-action": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description OK */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["PendingActionView"];
+                };
+            };
+            /** @description Error */
+            default: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["ErrorModel"];
+                };
+            };
+        };
+    };
     "list-artifacts": {
         parameters: {
             query?: {
@@ -5838,6 +6279,35 @@ export interface operations {
             };
         };
     };
+    "list-key-presets": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description OK */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ListKeyPresetsOutputBody"];
+                };
+            };
+            /** @description Error */
+            default: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["ErrorModel"];
+                };
+            };
+        };
+    };
     "list-api-keys": {
         parameters: {
             query?: never;
@@ -5900,6 +6370,35 @@ export interface operations {
             };
         };
     };
+    "get-key-self": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description OK */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["KeySelfOutputBody"];
+                };
+            };
+            /** @description Error */
+            default: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["ErrorModel"];
+                };
+            };
+        };
+    };
     "delete-api-key": {
         parameters: {
             query?: never;
@@ -5918,6 +6417,42 @@ export interface operations {
                     [name: string]: unknown;
                 };
                 content?: never;
+            };
+            /** @description Error */
+            default: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["ErrorModel"];
+                };
+            };
+        };
+    };
+    "list-key-activity": {
+        parameters: {
+            query?: {
+                /** @description Return entries older than this entry id (the last id of the previous page) */
+                before?: number;
+                limit?: number;
+            };
+            header?: never;
+            path: {
+                /** @description Key UUID */
+                id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description OK */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["KeyActivityOutputBody"];
+                };
             };
             /** @description Error */
             default: {

@@ -145,7 +145,8 @@ func (h *Handler) DeleteArtifact(ctx context.Context, input *DeleteArtifactInput
 	// An admin removes the artifact everywhere. Anyone else removes it only from
 	// the namespaces where they hold delete_artifact: the artifact is shared by
 	// name, and other namespaces' SBOMs of it are not theirs to delete.
-	if user.Role == roleAdmin && user.KeyAllows(authz.CapDeleteArtifact) {
+	// A key limited to namespaces is never "everywhere", admin or not.
+	if user.Role == roleAdmin && user.KeyAllows(authz.CapDeleteArtifact) && user.KeyCoversNamespace("") {
 		if err := h.sbomService.DeleteArtifact(ctx, id); err != nil {
 			return nil, mapServiceError(err)
 		}

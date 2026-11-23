@@ -42,6 +42,20 @@ type Client interface {
 	ListAPIKeys(ctx context.Context) ([]KeyMetaResponse, error)
 	DeleteAPIKey(ctx context.Context, id string) error
 	GetCurrentUser(ctx context.Context) (MeOutputBody, error)
+	// GetKeySelf describes the calling credential: kind, capabilities,
+	// approval-required capabilities, namespaces and expiry.
+	GetKeySelf(ctx context.Context) (KeySelfOutputBody, error)
+
+	// Agent writes (ADR-0058). Each may come back Held for a person's
+	// approval instead of running.
+	WatchArtifact(ctx context.Context, artifactID string, w WriteOpts) (WriteResult, error)
+	UnwatchArtifact(ctx context.Context, artifactID string, w WriteOpts) (WriteResult, error)
+	RequestRegistryScan(ctx context.Context, registryID string, force bool, w WriteOpts) (WriteResult, error)
+	RequestClusterIngest(ctx context.Context, clusterID string, digests []string, w WriteOpts) (WriteResult, error)
+	GetPendingAction(ctx context.Context, id string) (PendingActionView, error)
+	// ListApprovals lists held requests the caller may see, optionally only
+	// those in status.
+	ListApprovals(ctx context.Context, status string) ([]PendingActionView, error)
 
 	// Cluster inventory (ADR-044). PutInventory replaces the cluster's whole
 	// workload set, so the caller must send everything it observed.

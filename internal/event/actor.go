@@ -28,6 +28,15 @@ type Actor struct {
 	// APIKeyID is set when a user acted through an API key rather than a
 	// session, so a leaked key's actions can be told apart.
 	APIKeyID string
+	// KeyKind is the key's kind (personal, agent, cluster); empty for a
+	// session. An agent key means a program acted on the user's behalf
+	// (ADR-0058 A5): the user is the subject, the agent key the actor.
+	KeyKind string
+	// AgentLabel is what the holder calls an agent key's client.
+	AgentLabel string
+	// Tool is the MCP tool an agent key's request came from, as ocidex-mcp
+	// reports it. Set only for agent keys.
+	Tool string
 }
 
 // SystemActor is the actor for an OCIDex component acting on its own.

@@ -36,9 +36,10 @@ func (s *searchService) getSBOM(ctx context.Context, id pgtype.UUID, includeRaw 
 
 	// Access check.
 	visible, err := q.IsSBOMVisible(ctx, repository.IsSBOMVisibleParams{
-		ID:      id,
-		UserID:  uuidOrNull(vis.UserID),
-		IsAdmin: visAdminBool(vis),
+		ID:            id,
+		UserID:        uuidOrNull(vis.UserID),
+		IsAdmin:       visAdminBool(vis),
+		KeyNamespaces: vis.keyNamespaces(),
 	})
 	if err != nil {
 		if errors.Is(err, pgx.ErrNoRows) {
@@ -188,9 +189,10 @@ func (s *searchService) ListSBOMDriftHistory(ctx context.Context, sbomIDStr stri
 	q := repository.New(s.db)
 
 	visible, err := q.IsSBOMVisible(ctx, repository.IsSBOMVisibleParams{
-		ID:      sbomID,
-		UserID:  uuidOrNull(vis.UserID),
-		IsAdmin: visAdminBool(vis),
+		ID:            sbomID,
+		UserID:        uuidOrNull(vis.UserID),
+		IsAdmin:       visAdminBool(vis),
+		KeyNamespaces: vis.keyNamespaces(),
 	})
 	if err != nil {
 		if errors.Is(err, pgx.ErrNoRows) {
@@ -245,6 +247,7 @@ func (s *searchService) ListRecentProvenanceDrift(ctx context.Context, page Drif
 		CursorDetectedAt: pgtype.Timestamptz{Time: page.CursorDetectedAt, Valid: page.HasCursor},
 		CursorID:         uuidOrNull(page.CursorID),
 		IsAdmin:          vis.adminFlag(),
+		KeyNamespaces:    vis.keyNamespaces(),
 		UserID:           uuidOrNull(vis.UserID),
 		OwnedOnly:        vis.ownedFlag(),
 		RowLimit:         page.Limit + 1,
@@ -286,7 +289,7 @@ func (s *searchService) ListRecentProvenanceDrift(ctx context.Context, page Drif
 // feed asks "what may this caller see", and answers with public rows included;
 // this one asks "what happened in my namespaces", where somebody else's public
 // namespace is not an answer. Passing a filter here would invite the wrong one.
-func (s *searchService) ListOwnedActivity(ctx context.Context, ownerIDStr string, page FeedPage) (CursorPage[ActivityEntry], error) {
+func (s *searchService) ListOwnedActivity(ctx context.Context, ownerIDStr string, keyNamespaces []string, page FeedPage) (CursorPage[ActivityEntry], error) {
 	ownerID, err := parseID(ownerIDStr)
 	if err != nil {
 		return CursorPage[ActivityEntry]{}, err
@@ -299,6 +302,7 @@ func (s *searchService) ListOwnedActivity(ctx context.Context, ownerIDStr string
 	// Fetch one extra row to detect whether a further page exists.
 	rows, err := q.ListOwnedActivity(ctx, repository.ListOwnedActivityParams{
 		ViewerID:        ownerID,
+		KeyNamespaces:   VisibilityFilter{KeyNamespaces: keyNamespaces}.keyNamespaces(),
 		HasCursor:       pgtype.Bool{Bool: page.HasCursor, Valid: true},
 		CursorCreatedAt: pgtype.Timestamptz{Time: page.CursorCreatedAt, Valid: page.HasCursor},
 		CursorID:        uuidOrNull(page.CursorID),
@@ -439,9 +443,10 @@ func (s *searchService) ListSBOMVulns(ctx context.Context, sbomIDStr string, par
 
 	// Access check.
 	visible, err := q.IsSBOMVisible(ctx, repository.IsSBOMVisibleParams{
-		ID:      sbomID,
-		UserID:  uuidOrNull(vis.UserID),
-		IsAdmin: visAdminBool(vis),
+		ID:            sbomID,
+		UserID:        uuidOrNull(vis.UserID),
+		IsAdmin:       visAdminBool(vis),
+		KeyNamespaces: vis.keyNamespaces(),
 	})
 	if err != nil {
 		if errors.Is(err, pgx.ErrNoRows) {
@@ -571,6 +576,7 @@ func (s *searchService) ListSBOMs(ctx context.Context, filter SBOMFilter) (Curso
 		Digest:          textOrNull(filter.Digest),
 		UserID:          uuidOrNull(filter.Visibility.UserID),
 		IsAdmin:         visAdminBool(filter.Visibility),
+		KeyNamespaces:   filter.Visibility.keyNamespaces(),
 		HasCursor:       pgtype.Bool{Bool: filter.HasCursor, Valid: true},
 		CursorCreatedAt: pgtype.Timestamptz{Time: filter.CursorCreatedAt, Valid: filter.HasCursor},
 		CursorID:        uuidOrNull(filter.CursorID),
@@ -620,6 +626,7 @@ func (s *searchService) listSBOMsByArtifact(ctx context.Context, artifactID pgty
 		ImageVersion:    textOrNull(imageVersion),
 		UserID:          uuidOrNull(vis.UserID),
 		IsAdmin:         visAdminBool(vis),
+		KeyNamespaces:   vis.keyNamespaces(),
 		HasCursor:       pgtype.Bool{Bool: page.HasCursor, Valid: true},
 		CursorCreatedAt: pgtype.Timestamptz{Time: page.CursorCreatedAt, Valid: page.HasCursor},
 		CursorID:        uuidOrNull(page.CursorID),
@@ -679,11 +686,12 @@ func (s *searchService) ListSBOMsByDigest(ctx context.Context, digest string, li
 	q := repository.New(s.db)
 
 	rows, err := q.ListSBOMsByDigest(ctx, repository.ListSBOMsByDigestParams{
-		Digest:    textOrNull(digest),
-		UserID:    uuidOrNull(vis.UserID),
-		IsAdmin:   visAdminBool(vis),
-		RowLimit:  limit,
-		RowOffset: offset,
+		Digest:        textOrNull(digest),
+		UserID:        uuidOrNull(vis.UserID),
+		IsAdmin:       visAdminBool(vis),
+		KeyNamespaces: vis.keyNamespaces(),
+		RowLimit:      limit,
+		RowOffset:     offset,
 	})
 	if err != nil {
 		return PagedResult[SBOMSummary]{}, fmt.Errorf("listing sboms by digest: %w", err)
@@ -723,9 +731,10 @@ func (s *searchService) GetSBOMDependencies(ctx context.Context, sbomIDStr strin
 
 	// Access check.
 	visible, err := q.IsSBOMVisible(ctx, repository.IsSBOMVisibleParams{
-		ID:      sbomID,
-		UserID:  uuidOrNull(vis.UserID),
-		IsAdmin: visAdminBool(vis),
+		ID:            sbomID,
+		UserID:        uuidOrNull(vis.UserID),
+		IsAdmin:       visAdminBool(vis),
+		KeyNamespaces: vis.keyNamespaces(),
 	})
 	if err != nil {
 		if errors.Is(err, pgx.ErrNoRows) {
@@ -827,9 +836,10 @@ func (s *searchService) ListSBOMComponents(ctx context.Context, sbomIDStr string
 
 	// Access check.
 	visible, err := q.IsSBOMVisible(ctx, repository.IsSBOMVisibleParams{
-		ID:      sbomID,
-		UserID:  uuidOrNull(vis.UserID),
-		IsAdmin: visAdminBool(vis),
+		ID:            sbomID,
+		UserID:        uuidOrNull(vis.UserID),
+		IsAdmin:       visAdminBool(vis),
+		KeyNamespaces: vis.keyNamespaces(),
 	})
 	if err != nil {
 		if errors.Is(err, pgx.ErrNoRows) {
@@ -872,9 +882,10 @@ func (s *searchService) ListSBOMComponentsPage(ctx context.Context, sbomIDStr st
 
 	// Access check.
 	visible, err := q.IsSBOMVisible(ctx, repository.IsSBOMVisibleParams{
-		ID:      sbomID,
-		UserID:  uuidOrNull(vis.UserID),
-		IsAdmin: visAdminBool(vis),
+		ID:            sbomID,
+		UserID:        uuidOrNull(vis.UserID),
+		IsAdmin:       visAdminBool(vis),
+		KeyNamespaces: vis.keyNamespaces(),
 	})
 	if err != nil {
 		if errors.Is(err, pgx.ErrNoRows) {

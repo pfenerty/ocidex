@@ -481,9 +481,10 @@ func (s *clusterService) ListByNamespace(ctx context.Context, namespaceID string
 
 func (s *clusterService) List(ctx context.Context, filter VisibilityFilter) ([]Cluster, error) {
 	rows, err := s.repo.ListClusters(ctx, repository.ListClustersParams{
-		IsAdmin:   filter.adminFlag(),
-		UserID:    uuidOrNull(filter.UserID),
-		OwnedOnly: filter.ownedFlag(),
+		IsAdmin:       filter.adminFlag(),
+		KeyNamespaces: filter.keyNamespaces(),
+		UserID:        uuidOrNull(filter.UserID),
+		OwnedOnly:     filter.ownedFlag(),
 	})
 	if err != nil {
 		return nil, fmt.Errorf("listing clusters: %w", err)
@@ -633,26 +634,28 @@ func (s *clusterService) ListWorkloads(ctx context.Context, clusterID string, pa
 	return pagedInventory("workloads", params.Limit, params.Offset,
 		func() (int64, error) {
 			return s.repo.CountClusterWorkloads(ctx, repository.CountClusterWorkloadsParams{
-				ClusterID:    cid,
-				K8sNamespace: optionalText(params.K8sNamespace),
-				MatchState:   optionalText(params.MatchState),
-				Q:            optionalText(params.Query),
-				UserID:       uuidOrNull(filter.UserID),
-				IsAdmin:      filter.adminFlag(),
+				ClusterID:     cid,
+				K8sNamespace:  optionalText(params.K8sNamespace),
+				MatchState:    optionalText(params.MatchState),
+				Q:             optionalText(params.Query),
+				UserID:        uuidOrNull(filter.UserID),
+				IsAdmin:       filter.adminFlag(),
+				KeyNamespaces: filter.keyNamespaces(),
 			})
 		},
 		func(limit, offset int32) ([]repository.ListClusterWorkloadsRow, error) {
 			return s.repo.ListClusterWorkloads(ctx, repository.ListClusterWorkloadsParams{
-				ClusterID:    cid,
-				K8sNamespace: optionalText(params.K8sNamespace),
-				MatchState:   optionalText(params.MatchState),
-				Q:            optionalText(params.Query),
-				SortBy:       sortBy,
-				SortDir:      sortDir,
-				Limit:        pgtype.Int4{Int32: limit, Valid: true},
-				Offset:       pgtype.Int4{Int32: offset, Valid: true},
-				UserID:       uuidOrNull(filter.UserID),
-				IsAdmin:      filter.adminFlag(),
+				ClusterID:     cid,
+				K8sNamespace:  optionalText(params.K8sNamespace),
+				MatchState:    optionalText(params.MatchState),
+				Q:             optionalText(params.Query),
+				SortBy:        sortBy,
+				SortDir:       sortDir,
+				Limit:         pgtype.Int4{Int32: limit, Valid: true},
+				Offset:        pgtype.Int4{Int32: offset, Valid: true},
+				UserID:        uuidOrNull(filter.UserID),
+				IsAdmin:       filter.adminFlag(),
+				KeyNamespaces: filter.keyNamespaces(),
 			})
 		}, workloadFromRepo)
 }
@@ -673,26 +676,28 @@ func (s *clusterService) ListImages(ctx context.Context, clusterID string, param
 	return pagedInventory("images", params.Limit, params.Offset,
 		func() (int64, error) {
 			return s.repo.CountClusterImages(ctx, repository.CountClusterImagesParams{
-				ClusterID:    cid,
-				K8sNamespace: optionalText(params.K8sNamespace),
-				MatchState:   optionalText(params.MatchState),
-				Q:            optionalText(params.Query),
-				UserID:       uuidOrNull(filter.UserID),
-				IsAdmin:      filter.adminFlag(),
+				ClusterID:     cid,
+				K8sNamespace:  optionalText(params.K8sNamespace),
+				MatchState:    optionalText(params.MatchState),
+				Q:             optionalText(params.Query),
+				UserID:        uuidOrNull(filter.UserID),
+				IsAdmin:       filter.adminFlag(),
+				KeyNamespaces: filter.keyNamespaces(),
 			})
 		},
 		func(limit, offset int32) ([]repository.ListClusterImagesRow, error) {
 			return s.repo.ListClusterImages(ctx, repository.ListClusterImagesParams{
-				ClusterID:    cid,
-				K8sNamespace: optionalText(params.K8sNamespace),
-				MatchState:   optionalText(params.MatchState),
-				Q:            optionalText(params.Query),
-				SortBy:       sortBy,
-				SortDir:      sortDir,
-				Limit:        pgtype.Int4{Int32: limit, Valid: true},
-				Offset:       pgtype.Int4{Int32: offset, Valid: true},
-				UserID:       uuidOrNull(filter.UserID),
-				IsAdmin:      filter.adminFlag(),
+				ClusterID:     cid,
+				K8sNamespace:  optionalText(params.K8sNamespace),
+				MatchState:    optionalText(params.MatchState),
+				Q:             optionalText(params.Query),
+				SortBy:        sortBy,
+				SortDir:       sortDir,
+				Limit:         pgtype.Int4{Int32: limit, Valid: true},
+				Offset:        pgtype.Int4{Int32: offset, Valid: true},
+				UserID:        uuidOrNull(filter.UserID),
+				IsAdmin:       filter.adminFlag(),
+				KeyNamespaces: filter.keyNamespaces(),
 			})
 		}, imageFromRepo)
 }
@@ -736,9 +741,10 @@ func (s *clusterService) NamespaceFacets(ctx context.Context, clusterID string, 
 		return nil, ErrNotFound
 	}
 	rows, err := s.repo.ListClusterK8sNamespaces(ctx, repository.ListClusterK8sNamespacesParams{
-		ClusterID: cid,
-		UserID:    uuidOrNull(filter.UserID),
-		IsAdmin:   filter.adminFlag(),
+		ClusterID:     cid,
+		UserID:        uuidOrNull(filter.UserID),
+		IsAdmin:       filter.adminFlag(),
+		KeyNamespaces: filter.keyNamespaces(),
 	})
 	if err != nil {
 		return nil, fmt.Errorf("listing cluster namespaces: %w", err)
@@ -756,9 +762,10 @@ func (s *clusterService) Coverage(ctx context.Context, clusterID string, filter 
 		return WorkloadCoverage{}, ErrNotFound
 	}
 	row, err := s.repo.GetClusterWorkloadCoverage(ctx, repository.GetClusterWorkloadCoverageParams{
-		ClusterID: cid,
-		UserID:    uuidOrNull(filter.UserID),
-		IsAdmin:   filter.adminFlag(),
+		ClusterID:     cid,
+		UserID:        uuidOrNull(filter.UserID),
+		IsAdmin:       filter.adminFlag(),
+		KeyNamespaces: filter.keyNamespaces(),
 	})
 	if err != nil {
 		return WorkloadCoverage{}, fmt.Errorf("computing coverage: %w", err)
@@ -783,10 +790,11 @@ func (s *clusterService) RunningVulns(ctx context.Context, clusterID string, par
 	severity := optionalText(params.Severity)
 
 	total, err := s.repo.CountClusterRunningVulns(ctx, repository.CountClusterRunningVulnsParams{
-		ClusterID: cid,
-		Severity:  severity,
-		UserID:    uuidOrNull(filter.UserID),
-		IsAdmin:   filter.adminFlag(),
+		ClusterID:     cid,
+		Severity:      severity,
+		UserID:        uuidOrNull(filter.UserID),
+		IsAdmin:       filter.adminFlag(),
+		KeyNamespaces: filter.keyNamespaces(),
 	})
 	if err != nil {
 		return PagedResult[RunningVuln]{}, fmt.Errorf("counting running vulnerabilities: %w", err)
@@ -794,14 +802,15 @@ func (s *clusterService) RunningVulns(ctx context.Context, clusterID string, par
 
 	sortBy, sortDir := clampSort(params.SortBy, params.SortDir, RunningVulnSortKeys)
 	rows, err := s.repo.ListClusterRunningVulns(ctx, repository.ListClusterRunningVulnsParams{
-		ClusterID: cid,
-		Severity:  severity,
-		SortBy:    sortBy,
-		SortDir:   sortDir,
-		Limit:     pgtype.Int4{Int32: limit, Valid: true},
-		Offset:    pgtype.Int4{Int32: offset, Valid: true},
-		UserID:    uuidOrNull(filter.UserID),
-		IsAdmin:   filter.adminFlag(),
+		ClusterID:     cid,
+		Severity:      severity,
+		SortBy:        sortBy,
+		SortDir:       sortDir,
+		Limit:         pgtype.Int4{Int32: limit, Valid: true},
+		Offset:        pgtype.Int4{Int32: offset, Valid: true},
+		UserID:        uuidOrNull(filter.UserID),
+		IsAdmin:       filter.adminFlag(),
+		KeyNamespaces: filter.keyNamespaces(),
 	})
 	if err != nil {
 		return PagedResult[RunningVuln]{}, fmt.Errorf("listing running vulnerabilities: %w", err)
@@ -832,9 +841,10 @@ func (s *clusterService) WorkloadsForVulnerability(ctx context.Context, canonica
 		return nil, ErrNotFound
 	}
 	params := repository.ListWorkloadsForVulnerabilityParams{
-		CanonicalID: canonicalID,
-		UserID:      uuidOrNull(filter.UserID),
-		IsAdmin:     filter.adminFlag(),
+		CanonicalID:   canonicalID,
+		UserID:        uuidOrNull(filter.UserID),
+		IsAdmin:       filter.adminFlag(),
+		KeyNamespaces: filter.keyNamespaces(),
 	}
 	// An unparseable cluster id is not silently widened to every cluster: that
 	// would answer a different, larger question than the caller asked.
@@ -1087,10 +1097,11 @@ func (s *clusterService) WorkloadsForArtifact(ctx context.Context, artifactID st
 	}
 	lim, _ := clampPage(limit, 0)
 	rows, err := s.repo.ListWorkloadsForArtifact(ctx, repository.ListWorkloadsForArtifactParams{
-		ArtifactID: aid,
-		UserID:     uuidOrNull(filter.UserID),
-		IsAdmin:    filter.adminFlag(),
-		Limit:      pgtype.Int4{Int32: lim, Valid: true},
+		ArtifactID:    aid,
+		UserID:        uuidOrNull(filter.UserID),
+		IsAdmin:       filter.adminFlag(),
+		KeyNamespaces: filter.keyNamespaces(),
+		Limit:         pgtype.Int4{Int32: lim, Valid: true},
 	})
 	if err != nil {
 		return nil, fmt.Errorf("listing workloads for artifact: %w", err)
