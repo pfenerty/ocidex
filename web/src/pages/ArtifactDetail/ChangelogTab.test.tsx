@@ -27,6 +27,7 @@ function renderTab(
     entries: ChangelogEntryData[],
     pagination: PaginationMeta | undefined,
     onPageChange: (offset: number) => void = () => undefined,
+    architectures: string[] = ["amd64"],
 ) {
     return render(() => (
         <Router root={(props) => <>{props.children}</>}>
@@ -38,8 +39,9 @@ function renderTab(
                             entries={entries}
                             pagination={pagination}
                             onPageChange={onPageChange}
-                            availableArchitectures={["amd64"]}
+                            availableArchitectures={architectures}
                             selectedArch="amd64"
+                            order={<span class="test-order">order</span>}
                             onArchChange={() => undefined}
                             availableFlavors={[]}
                             selectedFlavor={undefined}
@@ -96,5 +98,24 @@ describe("ChangelogTab zero-change entries", () => {
         const { queryByText } = renderTab([entry("v1.1.0", "v1.2.0", 3)], undefined);
         expect(queryByText("no package changes")).toBeNull();
         expect(queryByText("+3 added")).not.toBeNull();
+    });
+});
+
+describe("ChangelogTab controls", () => {
+    // Order, architecture and view used to take three rows for one entry.
+    it("puts order, architecture and view on one row", () => {
+        const { container } = renderTab([entry("1.0", "1.1", 1)], undefined, undefined, ["amd64", "arm64"]);
+        const row = container.querySelector(".changelog-controls");
+        expect(row?.querySelector(".test-order")).not.toBeNull();
+        expect(row?.textContent).toContain("arm64");
+        expect(row?.querySelector(".changelog-controls-end")).not.toBeNull();
+    });
+
+    it("switches the architecture pills to a picker past four", () => {
+        const archs = ["amd64", "arm64", "arm", "ppc64le", "s390x"];
+        const many = renderTab([entry("1.0", "1.1", 1)], undefined, undefined, archs).container;
+        expect(many.querySelector(".changelog-arch-picker")).not.toBeNull();
+        const few = renderTab([entry("1.0", "1.1", 1)], undefined, undefined, archs.slice(0, 4)).container;
+        expect(few.querySelector(".changelog-arch-picker")).toBeNull();
     });
 });

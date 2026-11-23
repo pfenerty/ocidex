@@ -10,7 +10,7 @@ import type { DiscoverFeatured, DiscoverRecent, DiscoverVuln } from "~/api/queri
 import { CATEGORY_COLORS } from "~/utils/licenseUtils";
 import { plural, relativeDate } from "~/utils/format";
 import { splitImageRef } from "~/utils/oci";
-import { formatDelta, latestVerdict } from "~/utils/versionDelta";
+import { formatDelta, historyPoints, latestVerdict } from "~/utils/versionDelta";
 import { Shiny, isShiny } from "~/components/Shiny";
 import { StatusChip } from "~/components/ui";
 import { VULN_DATA_STATUS } from "~/utils/status";
@@ -128,10 +128,9 @@ const num = (x: number, crit = false): JSX.Element => (
     <span class={x === 0 ? "featured-zero" : crit ? "featured-crit" : undefined}>{x.toLocaleString()}</span>
 );
 
-/** Featured images as one table to scan and compare: name, latest, size, findings. */
 /** Critical change in the newest version against the previous one of its variant. */
 function critDelta(f: DiscoverFeatured): number | undefined {
-    const v = latestVerdict((f.criticalHistory ?? []).map((h) => ({ versionKey: h.versionKey, critical: h.critical })));
+    const v = latestVerdict(historyPoints(f.criticalHistory));
     return v?.delta;
 }
 
@@ -151,7 +150,31 @@ const FEATURED_COLUMNS: Column<DiscoverFeatured>[] = [
     },
     { header: "Latest", class: "featured-version", render: (f) => f.subjectVersion ?? "—" },
     { header: "Packages", align: "right", class: "featured-n", render: (f) => f.packageCount.toLocaleString() },
-    { header: "Crit", align: "right", class: "featured-n", render: (f) => num(f.vulns.critical, true) },
+    {
+        // The change rides in the count it changes, small and muted; a rise
+        // takes the worse colour. No change says nothing: "±0" was noise on a
+        // third of the rows.
+        header: "Crit",
+        align: "right",
+        class: "featured-n",
+        render: (f) => {
+            const d = critDelta(f);
+            return (
+                <>
+                    {num(f.vulns.critical, true)}
+                    <Show when={d !== undefined && d !== 0}>
+                        <span
+                            class="featured-delta"
+                            classList={{ "featured-delta-worse": (d ?? 0) > 0 }}
+                            title="Critical findings in the latest version compared with the previous one"
+                        >
+                            {formatDelta(d ?? 0)}
+                        </span>
+                    </Show>
+                </>
+            );
+        },
+    },
     { header: "High", align: "right", class: "featured-n", render: (f) => num(f.vulns.high) },
     { header: "Med", align: "right", class: "featured-n", render: (f) => num(f.vulns.medium) },
     { header: "Low", align: "right", class: "featured-n", render: (f) => num(f.vulns.low) },
@@ -173,25 +196,10 @@ const FEATURED_COLUMNS: Column<DiscoverFeatured>[] = [
             );
         },
     },
-    {
-        header: "Δ crit",
-        align: "right",
-        render: (f) => {
-            const d = critDelta(f);
-            return (
-                <Show when={d !== undefined} fallback={<span class="text-muted">—</span>}>
-                    <span
-                        class="delta-cell"
-                        classList={{ "delta-zero": d === 0, "delta-worse": (d ?? 0) > 0 }}
-                        title="Critical findings in the latest version compared with the previous one"
-                    >
-                        {formatDelta(d ?? 0)}
-                    </span>
-                </Show>
-            );
-        },
-    },
 ];
+
+/** Widest blast radius rows: the panel matches the license panel beside it. */
+const BLAST_RADIUS_ROWS = 5;
 
 function VulnRow(props: { v: DiscoverVuln }): JSX.Element {
     return (
@@ -208,7 +216,13 @@ function VulnRow(props: { v: DiscoverVuln }): JSX.Element {
                     {plural(props.v.affectedArtifactCount, "artifact")}
                 </span>
             </div>
-            <Show when={props.v.summary}>{(s) => <p class="landing-row-sub">{s()}</p>}</Show>
+            <Show when={props.v.summary}>
+                {(s) => (
+                    <p class="landing-row-sub" title={s()}>
+                        {s()}
+                    </p>
+                )}
+            </Show>
         </li>
     );
 }
@@ -309,7 +323,7 @@ export function HomeDiscovery(): JSX.Element {
                                 <h3 class="landing-subhead">Widest blast radius</h3>
                                 <ul class="landing-list">
                                     <For
-                                        each={data().topVulnerabilities}
+                                        each={(data().topVulnerabilities ?? []).slice(0, BLAST_RADIUS_ROWS)}
                                         fallback={<li class="landing-list-empty text-muted">No known vulnerabilities.</li>}
                                     >
                                         {(v) => <VulnRow v={v} />}

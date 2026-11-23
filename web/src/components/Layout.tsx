@@ -103,9 +103,10 @@ export default function Layout(props: ParentProps) {
 
     // Until /users/me answers, the shell does not know who is looking, and
     // guessing "signed out" painted Sign in and a short nav on every hard load,
-    // then jumped ~70px when the session arrived (ocidex-dirs). The nav is laid
-    // out but invisible until then, so its links appear once, in place; a
-    // refetch ("refreshing") keeps the previous answer on screen.
+    // then jumped ~70px when the session arrived. The public links do not
+    // depend on the answer, so they show at once; the signed-in group after
+    // them is laid out but invisible until then, and a refetch ("refreshing")
+    // keeps the previous answer on screen.
     const settled = () => user.state === "ready" || user.state === "errored" || user.state === "refreshing";
 
     async function handleLogout() {
@@ -156,17 +157,11 @@ export default function Layout(props: ParentProps) {
                     <span>Search</span>
                     <kbd>{isAppleShortcut() ? "\u2318K" : "Ctrl K"}</kbd>
                 </button>
-                <nav classList={{ "nav-pending": !settled() }} aria-busy={!settled()}>
+                <nav aria-busy={!settled()}>
                     <A href="/" end aria-label="Home">
                         <Home size={16} />
                         <span>Home</span>
                     </A>
-                    <Show when={user()}>
-                        <A href="/dashboard" aria-label="Workspace">
-                            <LayoutDashboard size={16} />
-                            <span>Workspace</span>
-                        </A>
-                    </Show>
                     <A href="/artifacts" aria-label="Artifacts" data-lead={lead("/artifacts")}>
                         <Package size={16} />
                         <span>Artifacts</span>
@@ -187,6 +182,17 @@ export default function Layout(props: ParentProps) {
                         <ArrowUpDown size={16} />
                         <span>Compare</span>
                     </A>
+                    {/* Signed-in links come after every public one, in one
+                        group that waits for the session, so the public links
+                        can show at once without being pushed along when it
+                        arrives. */}
+                    <span class="nav-signed-in" classList={{ "nav-pending": !settled() }}>
+                    <Show when={user()}>
+                        <A href="/dashboard" aria-label="Workspace">
+                            <LayoutDashboard size={16} />
+                            <span>Workspace</span>
+                        </A>
+                    </Show>
                     <Show when={user()}>
                         <A href="/clusters" aria-label="Clusters" data-lead={lead("/clusters")}>
                             <Server size={16} />
@@ -211,6 +217,7 @@ export default function Layout(props: ParentProps) {
                             <span>Admin</span>
                         </A>
                     </Show>
+                    </span>
                 </nav>
                 <div class="topbar-footer">
                     <div class="topbar-more" ref={moreRef}>

@@ -440,7 +440,7 @@ func (s *searchService) attachCriticalHistory(ctx context.Context, q *repository
 		if !ok {
 			continue
 		}
-		point := VersionCritical{VersionKey: r.VersionKey}
+		point := VersionCritical{VersionKey: r.VersionKey, Architecture: r.Architecture}
 		if r.Scanned {
 			c := r.Critical
 			point.Critical = &c

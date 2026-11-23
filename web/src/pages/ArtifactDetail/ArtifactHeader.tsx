@@ -3,9 +3,8 @@ import { Show } from "solid-js";
 import { A } from "@solidjs/router";
 import type { ArtifactDetail } from "~/api/client";
 import PurlLink from "~/components/PurlLink";
-import { Sprite } from "~/components/Sprite";
 import { Shiny } from "~/components/Shiny";
-import { entryText, type SeverityPoint } from "~/utils/versionDelta";
+import { entryText, type CriticalChange, type SeverityPoint } from "~/utils/versionDelta";
 import CopyShareLink, { artifactLookupPath } from "~/components/CopyShareLink";
 import WatchStar from "~/components/WatchStar";
 import { Button, ButtonGroup, Card, DetailField, DetailGrid, EntryLine, PageHeader, TitleWithPrefix, TypeBadge } from "~/components/ui";
@@ -13,6 +12,7 @@ import { purlToRegistryUrl, purlTypeLabel } from "~/utils/purl";
 import { artifactDisplayName, formatDateTime } from "~/utils/format";
 import { containerRegistryUrl, detectRegistry } from "~/utils/oci";
 import { safeHref } from "~/utils/links";
+import { SigningBadge } from "~/components/ui/SigningBadge";
 
 /**
  * ArtifactHeader is the title row: entry line, name, actions (ocidex-iz0r.6).
@@ -21,7 +21,26 @@ import { safeHref } from "~/utils/links";
  * and the one thing on the page that looked clickable for no visible reason.
  * The registry is an action now, beside Compare, which is the page's primary.
  */
-export function ArtifactHeader(props: { artifact: ArtifactDetail; breadcrumb?: JSX.Element; points?: SeverityPoint[]; shiny?: boolean }) {
+/** The diff of the change the tile states, or an empty diff without one. */
+export function compareHref(change: CriticalChange | undefined): string {
+    if (change?.fromSbomId === undefined || change.toSbomId === undefined) return "/diff";
+    return `/diff?from=${encodeURIComponent(change.fromSbomId)}&to=${encodeURIComponent(change.toSbomId)}`;
+}
+
+function compareTitle(change: CriticalChange | undefined): string | undefined {
+    return change === undefined ? undefined : `Compare with ${change.previous}`;
+}
+
+export function ArtifactHeader(props: {
+    artifact: ArtifactDetail;
+    breadcrumb?: JSX.Element;
+    points?: SeverityPoint[];
+    shiny?: boolean;
+    /** The change the vulnerabilities tile states; Compare opens it as a diff. */
+    change?: CriticalChange;
+    /** Signing is image-only, so the chip shows for containers alone. */
+    isContainer?: boolean;
+}) {
     const a = () => props.artifact;
     const registryPurl = () => {
         const purl = a().purl;
@@ -37,21 +56,27 @@ export function ArtifactHeader(props: { artifact: ArtifactDetail; breadcrumb?: J
                 <>
                     <EntryLine kind="Artifact" id={a().id} number={a().entryNumber} />
                     <TypeBadge type={a().type} />
+                    {/* Signing as a chip beside the type: one word needs no
+                        tile. Its scope is every SBOM, unlike the band's
+                        latest-version counts, so the chip says so. An
+                        unenriched artifact has no status to show. */}
+                    <Show when={props.isContainer === true && a().signingStatus !== ""}>
+                        <SigningBadge
+                            status={a().signingStatus}
+                            scope={{
+                                label: "any SBOM",
+                                description: "Worst status across every SBOM of this artifact.",
+                            }}
+                        />
+                    </Show>
                     <Show when={props.shiny === true}>
                         <Shiny />
                     </Show>
                 </>
             }
-            title={
-                <span class="with-sprite">
-                    <Show when={props.points !== undefined && props.points.length > 0}>
-                        <Sprite points={props.points ?? []} size={34} class="sprite-title" />
-                    </Show>
-                    <span>
-                        <TitleWithPrefix name={artifactDisplayName(a())} />
-                    </span>
-                </span>
-            }
+            /* No sprite here: beside the wordmark it read as a second logo.
+               Sprites stay in the list and grid, where they tell rows apart. */
+            title={<TitleWithPrefix name={artifactDisplayName(a())} />}
             /* The entry: a two-line summary written from the version data. */
             subtitle={entryText(props.points ?? [], a().versionCount)}
             actions={
@@ -86,7 +111,11 @@ export function ArtifactHeader(props: { artifact: ArtifactDetail; breadcrumb?: J
                         </Button>
                     </Show>
                     <CopyShareLink path={artifactLookupPath(a())} />
-                    <Button as={A} href={`/diff`} size="sm" variant="primary">
+                    {/* Opens the change the tile states, both sides filled in; an
+                        empty /diff made the reader find this artifact again.
+                        Not the page's primary action: the answer is already on
+                        the page, this is the detail behind it. */}
+                    <Button as={A} href={compareHref(props.change)} size="sm" title={compareTitle(props.change)}>
                         Compare SBOMs
                     </Button>
                 </ButtonGroup>
@@ -105,17 +134,17 @@ export function ArtifactHeader(props: { artifact: ArtifactDetail; breadcrumb?: J
  *
  * Group is not a row here: `artifactDisplayName` already prefixes it onto the
  * title, so a "Group" row was only ever a second rendering of the heading.
+ *
+ * The catalog comparison bars (`stats`) live here too. They restate the band's
+ * figures against catalog maxima, which is reference detail rather than an
+ * answer, so they do not earn a place above the tabs.
  */
-export function ArtifactIdentity(props: { artifact: ArtifactDetail }) {
+export function ArtifactIdentity(props: { artifact: ArtifactDetail; stats?: JSX.Element }) {
     const a = () => props.artifact;
-    const hasIdentity = () =>
-        (a().purl !== undefined && a().purl !== "") || (a().cpe !== undefined && a().cpe !== "");
-
     return (
         <details class="mb-4">
-            <summary class="text-muted text-sm cursor-pointer">
-                {hasIdentity() ? "Identity" : "Internal ID"}
-            </summary>
+            <summary class="text-muted text-sm cursor-pointer">Entry data</summary>
+            {props.stats}
             <Card class="mt-2">
                 <DetailGrid>
                     <DetailField label="Package URL" when={a().purl}>

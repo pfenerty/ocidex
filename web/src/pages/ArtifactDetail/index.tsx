@@ -24,7 +24,8 @@ import { Breadcrumb, QueryBoundary, Segmented, TabBar, createExpandedSet, type C
 import { artifactDisplayName, plural } from "~/utils/format";
 import { ArtifactHeader, ArtifactIdentity } from "./ArtifactHeader";
 import { ArtifactBand, type ArtifactTab } from "./ArtifactBand";
-import { ChangeVerdict, VersionChart, severityPoints } from "./ArtifactChange";
+import { severityPoints } from "./ArtifactChange";
+import { criticalChange } from "~/utils/versionDelta";
 import { StatBlock, type StatRow } from "./StatBlock";
 import { isShiny } from "~/components/Shiny";
 import { VersionsTab } from "./VersionsTab";
@@ -134,14 +135,21 @@ function ArtifactDetailPage() {
         }),
     );
 
-    // The newest page in the default order, for the verdict and the chart. Same
-    // key as the table's default view, so it costs no request until the reader
-    // sorts or pages away, and the verdict then stays put.
+    // The newest page in the default order, for the tile's change and the entry
+    // text. Same key as the table's default view, so it costs no request until
+    // the reader sorts or pages away, and the tile then stays put.
     const latestVersionsQuery = useArtifactVersions(
         () => params.id,
         () => ({ limit: versionLimit, offset: 0, mode: viewMode() }),
     );
     const latestPoints = () => severityPoints(latestVersionsQuery.data?.data);
+    // The tile counts the headline version, which need not be the table's
+    // first row (a newer prerelease sorts above it), so the change is looked
+    // up by that version rather than taken from the top.
+    const headlineChange = () => {
+        const version = vulnSummaryQuery.data?.subjectVersion;
+        return version === undefined || version === "" ? undefined : criticalChange(latestPoints(), version);
+    };
 
     // Catalog maximums come from the warmed stats snapshot; until it is warm
     // there is nothing to scale against and the block stays hidden.
@@ -244,6 +252,11 @@ function ArtifactDetailPage() {
         { id: "semver", label: "Semver", title: "Only semver versions, ordered by semantic version" },
         { id: "all", label: "All", title: "All versions, highest version first" },
     ];
+    // The version-order switch. The versions tab shows it on its own row; the
+    // changelog puts it on the row with its other controls.
+    const orderControl = (cls?: string) => (
+        <Segmented class={cls} label="Version order" options={MODES} value={effectiveMode()} onChange={selectMode} />
+    );
 
     const crumbs = (): Crumb[] => [
         { label: "Artifacts", href: "/artifacts" },
@@ -267,7 +280,7 @@ function ArtifactDetailPage() {
             >
                         {(a) => (
                             <>
-                                <ArtifactHeader artifact={a()} breadcrumb={<Breadcrumb items={crumbs()} />} points={latestPoints()} shiny={vulnSummaryQuery.data !== undefined && isShiny(vulnSummaryQuery.data.matched, vulnSummaryQuery.data.summary?.total)} />
+                                <ArtifactHeader artifact={a()} breadcrumb={<Breadcrumb items={crumbs()} />} points={latestPoints()} change={headlineChange()} isContainer={isContainer()} shiny={vulnSummaryQuery.data !== undefined && isShiny(vulnSummaryQuery.data.matched, vulnSummaryQuery.data.summary?.total)} />
 
                                 <Show when={runningClusters().length > 0}>
                                     <p class="mb-3" data-testid="running-in">
@@ -280,36 +293,23 @@ function ArtifactDetailPage() {
                                     </p>
                                 </Show>
 
-                                <div class="artifact-summary">
-                                    <ChangeVerdict points={latestPoints()} />
-                                    <ArtifactBand
-                                        artifact={a()}
-                                        isContainer={isContainer()}
-                                        vulns={vulnSummaryQuery.data?.summary}
-                                        vulnsVersion={vulnSummaryQuery.data?.subjectVersion}
-                                        vulnsCounted={vulnSummaryQuery.data?.countedSbom}
-                                        vulnsMatched={vulnSummaryQuery.data?.matched}
-                                        ordering={effectiveMode()}
-                                        active={tab()}
-                                        onSelect={setTab}
-                                    />
-                                </div>
+                                <ArtifactBand
+                                    artifact={a()}
+                                    vulns={vulnSummaryQuery.data?.summary}
+                                    vulnsVersion={vulnSummaryQuery.data?.subjectVersion}
+                                    vulnsCounted={vulnSummaryQuery.data?.countedSbom}
+                                    vulnsChange={headlineChange()}
+                                    vulnsMatched={vulnSummaryQuery.data?.matched}
+                                    ordering={effectiveMode()}
+                                    active={tab()}
+                                    onSelect={setTab}
+                                />
 
-                                <StatBlock rows={statRows(a())} />
-
-                                <ArtifactIdentity artifact={a()} />
+                                <ArtifactIdentity artifact={a()} stats={<StatBlock rows={statRows(a())} />} />
 
                                 <TabBar tabs={tabs(a().versionCount)} active={tab()} onSelect={setTab} />
 
-                                <Show when={hasSemver() && (tab() === "versions" || tab() === "changelog")}>
-                                    <Segmented
-                                        class="mb-4"
-                                        label="Version order"
-                                        options={MODES}
-                                        value={effectiveMode()}
-                                        onChange={selectMode}
-                                    />
-                                </Show>
+                                <Show when={hasSemver() && tab() === "versions"}>{orderControl("mb-4")}</Show>
 
                                 <Show when={tab() === "versions"}>
                                     {/* Semver mode drops every other version, so the
@@ -334,7 +334,6 @@ function ArtifactDetailPage() {
                                             </Show>
                                         )}
                                     </Show>
-                                    <VersionChart points={latestPoints()} />
                                     <VersionsTab
                                         artifactId={params.id}
                                         isContainer={isContainer()}
@@ -375,6 +374,7 @@ function ArtifactDetailPage() {
                                                 onFlavorChange={selectChangelogFlavor}
                                                 viewMode={changelogView()}
                                                 onViewModeChange={setChangelogView}
+                                                order={hasSemver() ? orderControl() : undefined}
                                             />
                                         )}
                                     </QueryBoundary>

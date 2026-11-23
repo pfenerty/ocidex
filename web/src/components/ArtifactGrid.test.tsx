@@ -33,4 +33,27 @@ describe("ArtifactGrid", () => {
         expect(slot?.querySelector("a")?.getAttribute("href")).toBe("/clusters/k1?tab=gaps");
         expect(slot?.querySelector(".artifact-slot-number")?.textContent).toBe("not caught");
     });
+
+    // Sprites scale to each artifact's own history, so on their own a row of
+    // them reads as identical glyphs.
+    it("says each card's latest critical count and tints its newest bar when there are any", () => {
+        const withCrit: ArtifactSummary = {
+            ...artifact(1, "ghcr.io/x/a"),
+            vulns: { critical: 4, high: 0, medium: 0, low: 0, unknown: 0, total: 4 },
+            criticalHistory: [
+                { versionKey: "2.0.0", critical: 4 },
+                { versionKey: "1.0.0", critical: 9 },
+            ],
+        };
+        const clean: ArtifactSummary = {
+            ...artifact(2, "ghcr.io/x/b"),
+            vulns: { critical: 0, high: 1, medium: 0, low: 0, unknown: 0, total: 1 },
+            criticalHistory: [{ versionKey: "1.0.0", critical: 0 }],
+        };
+        const { container } = renderGrid({ artifacts: [withCrit, clean, artifact(3, "ghcr.io/x/c")] });
+        const slots = [...container.querySelectorAll(".artifact-slot")];
+        expect(slots.map((s) => s.querySelector(".artifact-slot-crit")?.textContent)).toEqual(["4 critical", "0 critical", undefined]);
+        expect(slots[0].querySelectorAll(".sprite-bar-critical")).toHaveLength(1);
+        expect(slots[1].querySelectorAll(".sprite-bar-critical")).toHaveLength(0);
+    });
 });

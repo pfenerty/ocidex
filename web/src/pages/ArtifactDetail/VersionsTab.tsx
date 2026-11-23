@@ -1,3 +1,4 @@
+import "./VersionsTab.css";
 import { clusterNames, runningForVersion, type RunningWorkload } from "./RunningTab";
 import { Show, For } from "solid-js";
 import { A } from "@solidjs/router";
@@ -10,12 +11,29 @@ import { Button, ExternalAnchor, StatusPill } from "~/components/ui";
 import { StatusChip } from "~/components/ui";
 import { VULN_DATA_STATUS } from "~/utils/status";
 import { buildTime } from "~/utils/format";
-import { formatDelta, UNTAGGED_VERSION, versionDeltas } from "~/utils/versionDelta";
+import {
+    evolutionLabel,
+    evolutionLine,
+    formatDelta,
+    UNTAGGED_VERSION,
+    versionDeltas,
+    type VersionDelta,
+} from "~/utils/versionDelta";
 import { severityPoints } from "./ArtifactChange";
 
-function DeltaCell(props: { value: number | undefined }) {
+function DeltaCell(props: { delta: VersionDelta; value: number | undefined }) {
     return (
-        <Show when={props.value !== undefined} fallback={<span class="text-muted">—</span>}>
+        <Show
+            when={props.value !== undefined}
+            fallback={
+                <span
+                    class="text-muted"
+                    title={props.delta.noSharedArch === true ? "no shared architecture with the previous version" : undefined}
+                >
+                    —
+                </span>
+            }
+        >
             <span
                 class="delta-cell"
                 classList={{ "delta-zero": props.value === 0, "delta-worse": (props.value ?? 0) > 0 }}
@@ -25,6 +43,29 @@ function DeltaCell(props: { value: number | undefined }) {
         </Show>
     );
 }
+
+/**
+ * A thin divider where the version order crosses a major version or a change
+ * of base image ("evolved · 2.x → 3.0"): the boundary where an upgrade stops
+ * being drop-in. Only in the table's own order; a column sort mixes lines.
+ * The list is newest first, so the divider above a run of older versions
+ * names the step from that run to the one above it.
+ */
+const evolution = {
+    key: (v: ArtifactVersionSummary) => evolutionLine(v.versionKey),
+    header: (
+        _key: string,
+        _count: number,
+        _index: number,
+        previous: { items: ArtifactVersionSummary[] } | undefined,
+        items: ArtifactVersionSummary[],
+    ) => {
+        // The run above is newer; its last row is where that line began.
+        const newerFirst = previous === undefined ? undefined : previous.items[previous.items.length - 1];
+        const label = newerFirst === undefined ? undefined : evolutionLabel(items[0].versionKey, newerFirst.versionKey);
+        return <>{label === undefined ? undefined : <span class="version-evolved">{label}</span>}</>;
+    },
+};
 
 export function VersionsTab(props: {
     /** Where the artifact runs, for the Running column (ocidex-70eo.8);
@@ -78,7 +119,12 @@ export function VersionsTab(props: {
     // previous version in the default order. Sorted by severity, the row below
     // is just the next-worst, so the columns are dropped.
     const deltas = () => versionDeltas(severityPoints(props.versions));
-    const deltaIndex = (version: ArtifactVersionSummary) => (props.versions ?? []).indexOf(version);
+    // A row the table renders is always in props.versions; the empty fallback
+    // only keeps a lookup miss from throwing.
+    const deltaFor = (version: ArtifactVersionSummary): VersionDelta => {
+        const i = (props.versions ?? []).indexOf(version);
+        return i < 0 ? {} : deltas()[i];
+    };
     const deltaColumns = (): Column<ArtifactVersionSummary>[] =>
         props.sortBy !== undefined
             ? []
@@ -86,12 +132,18 @@ export function VersionsTab(props: {
                   {
                       header: "Δ crit",
                       align: "right",
-                      render: (version) => <DeltaCell value={deltas()[deltaIndex(version)]?.critical} />,
+                      render: (version) => {
+                          const d = deltaFor(version);
+                          return <DeltaCell delta={d} value={d.critical} />;
+                      },
                   },
                   {
                       header: "Δ high",
                       align: "right",
-                      render: (version) => <DeltaCell value={deltas()[deltaIndex(version)]?.high} />,
+                      render: (version) => {
+                          const d = deltaFor(version);
+                          return <DeltaCell delta={d} value={d.high} />;
+                      },
                   },
               ];
 
@@ -228,6 +280,7 @@ export function VersionsTab(props: {
             sortBy={props.sortBy}
             sortDir={props.sortDir}
             onSort={props.onSort}
+            groupBy={props.sortBy === undefined ? evolution : undefined}
             pagination={
                 props.pagination
                     ? { pagination: props.pagination, onPageChange: props.onPageChange }

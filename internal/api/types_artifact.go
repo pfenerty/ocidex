@@ -136,6 +136,9 @@ type ArtifactVersionSummary struct {
 	// "never scanned" as "clean" (ADR-044).
 	Vulns       *service.VulnSummary `json:"vulns,omitempty" doc:"Severity counts for this version's newest SBOM. Absent means no findings are recorded, which may mean it was never scanned — do not render it as zero."`
 	VulnMatched bool                 `json:"vulnMatched" doc:"The newest SBOM was matched against the vulnerability store and the counts reflect it: an absent vulns then means none known"`
+	// CountedSbom is the SBOM the counts above come from: deltas between
+	// versions compare only when both were counted on the same architecture.
+	CountedSbom *service.CountedSBOM `json:"countedSbom,omitempty" doc:"The SBOM this version's counts come from"`
 }
 
 // ListArtifactVersionsOutput is the response for GET /api/v1/artifacts/{id}/versions.

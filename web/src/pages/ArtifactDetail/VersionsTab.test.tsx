@@ -151,3 +151,25 @@ describe("VersionsTab build history", () => {
         expect(hasButton(container)).toBe(false);
     });
 });
+
+describe("VersionsTab evolution divider", () => {
+    const v = (versionKey: string): ArtifactVersionSummary => ({ ...version, versionKey });
+
+    // Newest first: the divider sits above the older line and names the step.
+    it("marks a major version boundary between adjacent rows", () => {
+        const { container } = renderTab(true, [v("3.1.0"), v("3.0.0"), v("2.9.1"), v("2.9.0")]);
+        const dividers = [...container.querySelectorAll(".version-evolved")].map((d) => d.textContent);
+        expect(dividers).toEqual(["evolved · 2.x → 3.0.0"]);
+    });
+
+    it("marks a change of base image", () => {
+        const { container } = renderTab(true, [v("3.13.0-trixie"), v("3.12.1-bookworm")]);
+        expect(container.querySelector(".version-evolved")?.textContent).toBe("evolved · bookworm → trixie");
+    });
+
+    it("adds nothing within one line", () => {
+        const { container } = renderTab(true, [v("3.2.0"), v("3.1.0"), v("3.0.0")]);
+        expect(container.querySelector(".version-evolved")).toBeNull();
+        expect(container.querySelector(".group-header-row")).toBeNull();
+    });
+});

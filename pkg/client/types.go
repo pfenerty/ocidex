@@ -1774,11 +1774,12 @@ type ArtifactTypeCountEntry struct {
 
 // ArtifactVersionSummary defines model for ArtifactVersionSummary.
 type ArtifactVersionSummary struct {
-	Architectures *[]string  `json:"architectures"`
-	BuildDate     *time.Time `json:"buildDate,omitempty"`
-	CreatedAt     time.Time  `json:"createdAt"`
-	ImageVersion  *string    `json:"imageVersion,omitempty"`
-	Revision      *string    `json:"revision,omitempty"`
+	Architectures *[]string    `json:"architectures"`
+	BuildDate     *time.Time   `json:"buildDate,omitempty"`
+	CountedSbom   *CountedSBOM `json:"countedSbom,omitempty"`
+	CreatedAt     time.Time    `json:"createdAt"`
+	ImageVersion  *string      `json:"imageVersion,omitempty"`
+	Revision      *string      `json:"revision,omitempty"`
 
 	// SbomCount Total number of SBOMs ingested for this version
 	SbomCount int64  `json:"sbomCount"`
@@ -4272,8 +4273,10 @@ type UserResponse struct {
 
 // VersionCritical defines model for VersionCritical.
 type VersionCritical struct {
-	Critical   *int64 `json:"critical,omitempty"`
-	VersionKey string `json:"versionKey"`
+	// Architecture Architecture the count was taken from
+	Architecture *string `json:"architecture,omitempty"`
+	Critical     *int64  `json:"critical,omitempty"`
+	VersionKey   string  `json:"versionKey"`
 }
 
 // VersionOutputBody defines model for VersionOutputBody.

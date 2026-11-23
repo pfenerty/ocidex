@@ -266,9 +266,21 @@ td.featured-n {
     font-weight: 600;
 }
 
+/* Narrow: the mix is a proportion to glance at, and the counts beside it
+   carry the numbers. */
 .featured-mix {
-    width: 22%;
-    min-width: 8rem;
+    width: 72px;
+}
+
+/* The critical change inside the Crit cell, secondary to the count. */
+.featured-delta {
+    margin-left: 0.35rem;
+    font-size: var(--text-xs);
+    color: var(--color-text-muted);
+}
+
+.featured-delta-worse {
+    color: var(--color-worse);
 }
 
 /* --- proportional bars ----------------------------------------------------- */
@@ -391,14 +403,16 @@ td.featured-n {
     white-space: nowrap;
 }
 
-/* The advisory summary, two lines at most: enough to say what it is. */
+/* The advisory summary, one line: enough to say what it is, with the full
+   text on hover. Two lines ran the list to twice the height of the panel
+   beside it. */
 .landing-row-sub {
     margin: 0.25rem 0 0;
     font-size: var(--text-sm);
     line-height: 1.45;
     color: var(--color-text-muted);
     display: -webkit-box;
-    -webkit-line-clamp: 2;
+    -webkit-line-clamp: 1;
     -webkit-box-orient: vertical;
     overflow: hidden;
 }

@@ -6,6 +6,7 @@ import { SeverityPill } from "./VulnBadge";
 import { StatusChip } from "~/components/ui/StatusChip";
 import { VULN_DATA_STATUS } from "~/utils/status";
 import { fixSplitLabel } from "~/utils/vuln";
+import { formatDelta, type CriticalChange } from "~/utils/versionDelta";
 
 /**
  * The worst severity actually present, which is the figure that decides whether
@@ -45,7 +46,7 @@ function breakdownTitle(v: VulnSummary): string {
  * says so instead of reading as clean. That is the same distinction ADR-044
  * insists on for unmatched cluster workloads: unknown must never read as clean.
  */
-function VulnTileSub(props: { vulns: VulnSummary | undefined; matched?: boolean }) {
+function VulnTileSub(props: { vulns: VulnSummary | undefined; matched?: boolean; change?: CriticalChange }) {
     return (
         <Show
             when={props.vulns !== undefined}
@@ -60,6 +61,22 @@ function VulnTileSub(props: { vulns: VulnSummary | undefined; matched?: boolean 
                         <SeverityPill severity={w().label}>
                             {w().count} {w().label}
                         </SeverityPill>
+                        {/* The change since the version before it, beside the count
+                            it changes. It is a critical delta, so it says so
+                            unless the pill already does. */}
+                        <Show when={props.change}>
+                            {(c) => (
+                                <span
+                                    class="tile-delta"
+                                    classList={{ "tile-delta-worse": c().delta > 0 }}
+                                    title={`Critical findings compared with ${c().previous}`}
+                                >
+                                    {" "}
+                                    {formatDelta(c().delta)}
+                                    {w().label === "critical" ? "" : " critical"} vs {c().previous}
+                                </span>
+                            )}
+                        </Show>
                         {/* The remainder, so the line adds up to the number above
                             it: the worst alone read as "1 medium" under a 3
                             (ocidex-nps9.10). The full breakdown is on hover. */}
@@ -100,6 +117,8 @@ export function vulnTile<T extends string>(
     scope?: JSX.Element,
     /** The counted SBOM was matched, so an absent summary means zero, not unknown. */
     matched?: boolean,
+    /** How the critical count changed from the version before, where one compares. */
+    change?: CriticalChange,
 ): StatTile<T> {
     return {
         id,
@@ -116,6 +135,6 @@ export function vulnTile<T extends string>(
         // colour on the number: the shared redscale (`sev-*`) is a set of badge
         // *backgrounds*, so applying it to `.tile-value` would paint a
         // full-bleed block behind the count instead of tinting it.
-        sub: <VulnTileSub vulns={vulns} matched={matched} />,
+        sub: <VulnTileSub vulns={vulns} matched={matched} change={change} />,
     };
 }

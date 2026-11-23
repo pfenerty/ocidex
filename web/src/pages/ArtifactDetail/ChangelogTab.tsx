@@ -1,4 +1,4 @@
-import { Show, For } from "solid-js";
+import { Show, For, type JSX } from "solid-js";
 import "./ChangelogTab.css";
 import type { ChangelogEntryData } from "~/utils/diff";
 import type { PaginationMeta } from "~/api/client";
@@ -7,6 +7,10 @@ import { DiffEntryCard } from "~/components/DiffEntryCard";
 import { EmptyState } from "~/components/Feedback";
 import Pagination from "~/components/Pagination";
 import { TabBar } from "~/components/ui";
+import { Combobox } from "~/components/ui/Combobox";
+
+/** Above this many architectures the pills become a picker. */
+const MAX_ARCH_PILLS = 4;
 
 // The changelog is a page of a longer timeline, not the whole of it
 // (ocidex-7gf7.4). Both the page and the tree/list mode are owned by the parent:
@@ -24,6 +28,8 @@ export function ChangelogTab(props: {
     onFlavorChange: (flavor: string) => void;
     viewMode: "tree" | "list";
     onViewModeChange: (mode: "tree" | "list") => void;
+    /** The page's version-order control, placed on the same row as the rest. */
+    order?: JSX.Element;
 }) {
     const effectiveArch = () =>
         props.selectedArch ?? props.availableArchitectures[0];
@@ -32,28 +38,49 @@ export function ChangelogTab(props: {
 
     return (
         <>
-            <div class="mb-4 flex items-start gap-3">
-                <div class="flex min-w-0 flex-1 flex-col gap-2">
-                    <Show when={props.availableArchitectures.length > 1}>
-                        <TabBar
-                            variant="filter"
+            {/* One row for every control that shapes one entry: order, then
+                architecture and flavor, then tree or list. Three rows of
+                controls pushed the first entry down for nothing. */}
+            <div class="changelog-controls">
+                {props.order}
+                <Show when={props.availableArchitectures.length > 1}>
+                    {/* Pills scan well up to a handful; past that they wrap
+                        into a block of their own, so they become a picker. */}
+                    <Show
+                        when={props.availableArchitectures.length > MAX_ARCH_PILLS}
+                        fallback={
+                            <TabBar
+                                variant="filter"
+                                label="Architecture"
+                                tabs={props.availableArchitectures.map((a) => ({ id: a, label: a }))}
+                                active={effectiveArch()}
+                                onSelect={props.onArchChange}
+                            />
+                        }
+                    >
+                        <Combobox
+                            class="changelog-arch-picker"
                             label="Architecture"
-                            tabs={props.availableArchitectures.map((a) => ({ id: a, label: a }))}
-                            active={effectiveArch()}
+                            items={props.availableArchitectures}
+                            value={effectiveArch()}
                             onSelect={props.onArchChange}
+                            itemId={(a) => a}
+                            itemLabel={(a) => a}
                         />
                     </Show>
-                    <Show when={props.availableFlavors.length > 1}>
-                        <TabBar
-                            variant="filter"
-                            label="Flavor"
-                            tabs={props.availableFlavors.map((f) => ({ id: f, label: f }))}
-                            active={effectiveFlavor()}
-                            onSelect={props.onFlavorChange}
-                        />
-                    </Show>
-                </div>
-                <ViewToggle mode={props.viewMode} onChange={props.onViewModeChange} />
+                </Show>
+                <Show when={props.availableFlavors.length > 1}>
+                    <TabBar
+                        variant="filter"
+                        label="Flavor"
+                        tabs={props.availableFlavors.map((f) => ({ id: f, label: f }))}
+                        active={effectiveFlavor()}
+                        onSelect={props.onFlavorChange}
+                    />
+                </Show>
+                <span class="changelog-controls-end">
+                    <ViewToggle mode={props.viewMode} onChange={props.onViewModeChange} />
+                </span>
             </div>
             <Show
                 when={props.entries.length > 0}

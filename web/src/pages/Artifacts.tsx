@@ -16,6 +16,7 @@ import type { ToolbarField } from "~/components/ui";
 import { StatusChip } from "~/components/ui";
 import { VULN_DATA_STATUS } from "~/utils/status";
 import { countedLabel } from "~/utils/vuln";
+import { historyPoints } from "~/utils/versionDelta";
 
 const ARTIFACT_TYPES = [
     "application",
@@ -87,7 +88,7 @@ const columns: Column<ArtifactSummary>[] = [
         render: (a) => (
             <span class="with-sprite">
                 <Sprite
-                    points={(a.criticalHistory ?? []).map((h) => ({ versionKey: h.versionKey, critical: h.critical }))}
+                    points={historyPoints(a.criticalHistory)}
                 />
                 <A href={`/artifacts/${a.id}`}>{artifactDisplayName(a)}</A>
             </span>
@@ -201,6 +202,9 @@ const VIEWS = [
     { id: "grid", label: "Grid", title: "Every artifact as a numbered slot with its sprite" },
 ] as const;
 
+/** Grid page size: divisible by the common column counts. */
+const GRID_PAGE_SIZE = 24;
+
 export default function Artifacts() {
     // Every filter lives in the URL, not just the type. Home's breakdown chips
     // already linked into `?type=`; name was a local signal, so the one view a
@@ -218,10 +222,16 @@ export default function Artifacts() {
     const sortBy = () => (param("sort") === "severity" ? "severity" : undefined);
     const sortDir = (): SortDir => (param("dir") === "asc" ? "asc" : "desc");
 
+    // Table or the numbered grid, kept in the URL so a link opens the same view.
+    const view = (): "table" | "grid" => (param("view") === "grid" ? "grid" : "table");
+
     const query = useArtifactsInfinite(() => ({
         name: param("name"),
         type: param("type"),
-        limit: DEFAULT_PAGE_SIZE,
+        // The grid's column count follows the width; 24 divides evenly by
+        // more of them (2, 3, 4, 6, 8, 12) than 20 does, so full pages end on
+        // a full row more often.
+        limit: view() === "grid" ? GRID_PAGE_SIZE : DEFAULT_PAGE_SIZE,
         // Always every artifact (ocidex-7gf7.8). This used to be a "Show all"
         // checkbox, defaulted off, hiding artifacts with no sufficiently
         // enriched SBOM. Migration 00056 flipped enrichment_sufficient true for
@@ -283,8 +293,6 @@ export default function Artifacts() {
 
     // Changing the sort re-orders the whole result set server-side, so every
     // page already loaded is stale — dropping the cursor restarts from page one.
-    // Table or the numbered grid, kept in the URL so a link opens the same view.
-    const view = (): "table" | "grid" => (param("view") === "grid" ? "grid" : "table");
 
     // For a signed-in caller, the grid also shows what runs on their clusters
     // with no SBOM. Only fetched while the grid is on screen.

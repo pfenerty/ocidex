@@ -405,7 +405,7 @@ func attachFeaturedHistory(ctx context.Context, q *repository.Queries, items []D
 		if !ok {
 			continue
 		}
-		point := VersionCritical{VersionKey: r.VersionKey}
+		point := VersionCritical{VersionKey: r.VersionKey, Architecture: r.Architecture}
 		if r.Scanned {
 			c := r.Critical
 			point.Critical = &c

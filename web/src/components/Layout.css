@@ -159,8 +159,14 @@
     margin-top: 0.3rem;
 }
 
-/* See `settled` in Layout.tsx: laid out, not shown, until the session is known. */
-.topbar nav.nav-pending {
+/* The signed-in links are a group of their own so they can wait for the
+   session (see `settled` in Layout.tsx) while the public links show at once.
+   `display: contents` keeps them laid out as direct children of the nav. */
+.topbar nav .nav-signed-in {
+    display: contents;
+}
+
+.topbar nav .nav-signed-in.nav-pending > * {
     visibility: hidden;
 }
 

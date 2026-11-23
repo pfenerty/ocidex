@@ -409,6 +409,10 @@
             "format": "date-time",
             "type": "string"
           },
+          "countedSbom": {
+            "$ref": "#/components/schemas/CountedSBOM",
+            "description": "The SBOM this version's counts come from"
+          },
           "createdAt": {
             "format": "date-time",
             "type": "string"
@@ -7460,6 +7464,10 @@
       "VersionCritical": {
         "additionalProperties": false,
         "properties": {
+          "architecture": {
+            "description": "Architecture the count was taken from",
+            "type": "string"
+          },
           "critical": {
             "format": "int64",
             "type": "integer"

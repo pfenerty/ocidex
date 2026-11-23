@@ -30,7 +30,6 @@ type BandProps = Parameters<typeof ArtifactBand>[0];
 function renderBand(over: Partial<BandProps> = {}) {
     const props: BandProps = {
         artifact: ARTIFACT,
-        isContainer: true,
         vulns: VULNS,
         ordering: "semver",
         active: "versions",
@@ -69,22 +68,11 @@ function sub(container: HTMLElement, head: string): string {
     return tile(container, head).querySelector(".tile-sub")?.textContent.trim() ?? "";
 }
 
-describe("ArtifactBand signing tile", () => {
-    it("shows signing for a container", () => {
+describe("ArtifactBand signing", () => {
+    // Signing is a header chip now; one word does not need a tile.
+    it("has no signing tile", () => {
         const { container } = renderBand();
-        expect(tile(container, "Signing").textContent).toContain("Signed");
-    });
-
-    it("omits signing entirely for a non-container", () => {
-        // On an uploaded binary this would be a permanent "unsigned" that no
-        // amount of enrichment can change, so it is absent rather than bad news.
-        const { container } = renderBand({ isContainer: false });
         expect(() => tile(container, "Signing")).toThrow();
-    });
-
-    it("says not enriched rather than unsigned when the status is unknown", () => {
-        const { container } = renderBand({ artifact: { ...ARTIFACT, signingStatus: "" } });
-        expect(tile(container, "Signing").textContent).toContain("Not enriched");
     });
 });
 
@@ -140,6 +128,23 @@ describe("ArtifactBand vulnerability tile", () => {
         expect(tile(container, "Vulnerabilities").querySelector(".tile-scope")?.textContent).toBe("1.27.4-trixie · amd64");
     });
 
+    it("states the critical change since the previous version beside the count", () => {
+        const { container } = renderBand({
+            vulns: { total: 23, critical: 23, high: 0, medium: 0, low: 0, unknown: 0 },
+            vulnsChange: { previous: "1.27.1", delta: -82 },
+        });
+        expect(sub(container, "Vulnerabilities")).toContain("23 critical −82 vs 1.27.1");
+        expect(tile(container, "Vulnerabilities").querySelector(".tile-delta-worse")).toBeNull();
+    });
+
+    it("marks a rise and names it critical when the worst finding is not", () => {
+        const { container } = renderBand({
+            vulns: { total: 4, critical: 0, high: 4, medium: 0, low: 0, unknown: 0 },
+            vulnsChange: { previous: "2.0.0", delta: 0 },
+        });
+        expect(sub(container, "Vulnerabilities")).toContain("4 high ±0 critical vs 2.0.0");
+    });
+
     it("says not scanned rather than zero when there is no summary", () => {
         // ADR-044's rule, applied here: unknown must never read as clean.
         const { container } = renderBand({ vulns: undefined });
@@ -173,11 +178,6 @@ describe("ArtifactBand tile scopes", () => {
     it("scopes the vulnerability tile to the latest version", () => {
         const { container } = renderBand();
         expect(tileScope(tile(container, "Vulnerabilities"))).toBe("latest version");
-    });
-
-    it("scopes the signing tile to any SBOM", () => {
-        const { container } = renderBand();
-        expect(tileScope(tile(container, "Signing"))).toBe("any SBOM");
     });
 });
 

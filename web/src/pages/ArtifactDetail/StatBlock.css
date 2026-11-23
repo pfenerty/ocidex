@@ -2,7 +2,7 @@
     display: grid;
     grid-template-columns: repeat(auto-fit, minmax(14rem, 1fr));
     gap: 0.35rem 2rem;
-    margin: 0 0 1rem;
+    margin: 0.75rem 0 0;
 }
 
 .stat-block-row {
