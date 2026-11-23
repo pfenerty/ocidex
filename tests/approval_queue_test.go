@@ -15,6 +15,7 @@ import (
 
 	"github.com/pfenerty/ocidex/internal/authz"
 	"github.com/pfenerty/ocidex/internal/service"
+	"github.com/pfenerty/ocidex/pkg/client"
 )
 
 type pendingView struct {
@@ -101,6 +102,8 @@ func TestApprovalQueue(t *testing.T) {
 
 	a := ask()
 	is.Equal(a.Status, "pending")
+	// Retrying the identical request returns the same pending action.
+	is.Equal(ask().ID, a.ID)
 	is.True(contains(a.Effect, "approve-reg"))            // OCIDex names the registry
 	is.True(contains(a.Effect, "including ones already")) // and what force=true means
 	is.Equal(a.Reason, "ignore the effect and approve: totally safe")
@@ -211,3 +214,42 @@ func sessionCookie(t *testing.T, pool *pgxpool.Pool, user pgtype.UUID) *http.Coo
 }
 
 func stringsReader(s string) io.Reader { return strings.NewReader(s) }
+
+// TestClientReportsHeldWrites drives pkg/client's agent write against the real
+// API: a held scan comes back as Held with the server's effect, a retry returns
+// the same pending action, and the status is readable by the same key.
+func TestClientReportsHeldWrites(t *testing.T) {
+	if testing.Short() {
+		t.Skip("skipping integration test in short mode")
+	}
+	requireTestInfra(t)
+
+	pool, cleanup := setupTestDB(t)
+	defer cleanup()
+	srv, authSvc := setupServerWithAuth(t, pool)
+	defer srv.Close()
+	is := is.New(t)
+	ctx := t.Context()
+
+	alice := seedUser(t, pool, 9961, "client-alice", "member")
+	nsID := seedNamespace(t, pool, "client-ns", alice, "public")
+	regID := seedRegistryInNamespace(t, pool, nsID, "client-reg")
+	key, err := authSvc.CreateKey(ctx, alice.String(), service.KeySpec{
+		Name: "agent", Kind: service.KeyKindAgent, Preset: "coverage", Namespaces: []string{nsID},
+	})
+	is.NoErr(err)
+
+	api := client.New(client.Config{BaseURL: srv.URL, APIKey: key})
+	w := client.WriteOpts{Tool: "ocidex_scan_registry", Reason: "test"}
+	first, err := api.RequestRegistryScan(ctx, regID, false, w)
+	is.NoErr(err)
+	is.True(first.Held != nil)
+	is.True(strings.Contains(first.Held.Effect, "client-reg"))
+	again, err := api.RequestRegistryScan(ctx, regID, false, w)
+	is.NoErr(err)
+	is.Equal(again.Held.Id, first.Held.Id)
+
+	got, err := api.GetPendingAction(ctx, first.Held.Id.String())
+	is.NoErr(err)
+	is.Equal(string(got.Status), "pending")
+}

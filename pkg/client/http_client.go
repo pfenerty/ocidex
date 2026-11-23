@@ -50,9 +50,30 @@ func (c *httpClient) request(ctx context.Context, method, path string, params ur
 	return c.do(ctx, method, path, params, body, ct, dest)
 }
 
+// doWithHeaders is request with extra headers, returning the 2xx status so a
+// caller can tell 202 (held) from 200.
+func (c *httpClient) doWithHeaders(ctx context.Context, method, path string, params url.Values, jsonBody any, headers http.Header, dest any) (int, error) {
+	var body io.Reader
+	ct := ""
+	if jsonBody != nil {
+		b, err := json.Marshal(jsonBody)
+		if err != nil {
+			return 0, fmt.Errorf("encoding request body: %w", err)
+		}
+		body = bytes.NewReader(b)
+		ct = "application/json"
+	}
+	return c.send(ctx, method, path, params, body, ct, headers, dest)
+}
+
 // do executes one HTTP request and handles auth, errors, and response decoding.
 // body may be nil (no body). contentType is set only when body is non-nil.
 func (c *httpClient) do(ctx context.Context, method, path string, params url.Values, body io.Reader, contentType string, dest any) error {
+	_, err := c.send(ctx, method, path, params, body, contentType, nil, dest)
+	return err
+}
+
+func (c *httpClient) send(ctx context.Context, method, path string, params url.Values, body io.Reader, contentType string, headers http.Header, dest any) (int, error) {
 	u := c.base + path
 	if len(params) > 0 {
 		u += "?" + params.Encode()
@@ -60,10 +81,13 @@ func (c *httpClient) do(ctx context.Context, method, path string, params url.Val
 
 	req, err := http.NewRequestWithContext(ctx, method, u, body)
 	if err != nil {
-		return fmt.Errorf("building request: %w", err)
+		return 0, fmt.Errorf("building request: %w", err)
 	}
 	if contentType != "" {
 		req.Header.Set("Content-Type", contentType)
+	}
+	for k, v := range headers {
+		req.Header[k] = v
 	}
 	if c.apiKey != "" {
 		req.Header.Set("Authorization", "Bearer "+c.apiKey)
@@ -71,25 +95,25 @@ func (c *httpClient) do(ctx context.Context, method, path string, params url.Val
 
 	resp, err := c.http.Do(req)
 	if err != nil {
-		return err
+		return 0, err
 	}
 	defer resp.Body.Close()
 
 	respBody, err := io.ReadAll(resp.Body)
 	if err != nil {
-		return fmt.Errorf("reading response: %w", err)
+		return 0, fmt.Errorf("reading response: %w", err)
 	}
 
 	if resp.StatusCode < 200 || resp.StatusCode >= 300 {
-		return mapError(resp.StatusCode, respBody)
+		return resp.StatusCode, mapError(resp.StatusCode, respBody)
 	}
 
 	if dest != nil && len(respBody) > 0 {
 		if err := json.Unmarshal(respBody, dest); err != nil {
-			return fmt.Errorf("decoding response: %w", err)
+			return resp.StatusCode, fmt.Errorf("decoding response: %w", err)
 		}
 	}
-	return nil
+	return resp.StatusCode, nil
 }
 
 // pageParams converts PageOpts into url.Values for list endpoints.

@@ -126,6 +126,13 @@ func (s *approvalService) Hold(ctx context.Context, req HoldRequest) (PendingAct
 	if body == nil {
 		body = []byte{}
 	}
+	// A retried request returns the action already waiting for it, so an
+	// agent that retries a held write does not ask a person twice.
+	if dup, err := s.q.FindPendingDuplicate(ctx, repository.FindPendingDuplicateParams{
+		ApiKeyID: keyID, Method: req.Method, Path: req.Path, Body: body,
+	}); err == nil {
+		return toPendingAction(dup), nil
+	}
 	row, err := s.q.CreatePendingAction(ctx, repository.CreatePendingActionParams{
 		ApiKeyID:    keyID,
 		UserID:      userID,

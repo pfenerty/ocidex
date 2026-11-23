@@ -41,6 +41,12 @@ type FakeClient struct {
 	GetCurrentUserFn func(ctx context.Context) (MeOutputBody, error)
 	GetKeySelfFn     func(ctx context.Context) (KeySelfOutputBody, error)
 
+	WatchArtifactFn        func(ctx context.Context, artifactID string, w WriteOpts) (WriteResult, error)
+	UnwatchArtifactFn      func(ctx context.Context, artifactID string, w WriteOpts) (WriteResult, error)
+	RequestRegistryScanFn  func(ctx context.Context, registryID string, force bool, w WriteOpts) (WriteResult, error)
+	RequestClusterIngestFn func(ctx context.Context, clusterID string, digests []string, w WriteOpts) (WriteResult, error)
+	GetPendingActionFn     func(ctx context.Context, id string) (PendingActionView, error)
+
 	// Cluster inventory
 	ListClustersFn         func(ctx context.Context, namespaceID string) ([]ClusterResponse, error)
 	GetClusterFn           func(ctx context.Context, id string) (ClusterResponse, error)
@@ -648,4 +654,39 @@ func (f *FakeClient) GetEnrichmentJobsSummary(ctx context.Context) ([]Enrichment
 		return f.GetEnrichmentJobsSummaryFn(ctx)
 	}
 	return nil, nil
+}
+
+func (f *FakeClient) WatchArtifact(ctx context.Context, artifactID string, w WriteOpts) (WriteResult, error) {
+	if f.WatchArtifactFn != nil {
+		return f.WatchArtifactFn(ctx, artifactID, w)
+	}
+	return WriteResult{}, nil
+}
+
+func (f *FakeClient) UnwatchArtifact(ctx context.Context, artifactID string, w WriteOpts) (WriteResult, error) {
+	if f.UnwatchArtifactFn != nil {
+		return f.UnwatchArtifactFn(ctx, artifactID, w)
+	}
+	return WriteResult{}, nil
+}
+
+func (f *FakeClient) RequestRegistryScan(ctx context.Context, registryID string, force bool, w WriteOpts) (WriteResult, error) {
+	if f.RequestRegistryScanFn != nil {
+		return f.RequestRegistryScanFn(ctx, registryID, force, w)
+	}
+	return WriteResult{}, nil
+}
+
+func (f *FakeClient) RequestClusterIngest(ctx context.Context, clusterID string, digests []string, w WriteOpts) (WriteResult, error) {
+	if f.RequestClusterIngestFn != nil {
+		return f.RequestClusterIngestFn(ctx, clusterID, digests, w)
+	}
+	return WriteResult{}, nil
+}
+
+func (f *FakeClient) GetPendingAction(ctx context.Context, id string) (PendingActionView, error) {
+	if f.GetPendingActionFn != nil {
+		return f.GetPendingActionFn(ctx, id)
+	}
+	return PendingActionView{}, nil
 }

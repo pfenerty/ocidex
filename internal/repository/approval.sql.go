@@ -127,6 +127,55 @@ func (q *Queries) ExpirePendingAction(ctx context.Context, id pgtype.UUID) error
 	return err
 }
 
+const findPendingDuplicate = `-- name: FindPendingDuplicate :one
+SELECT id, api_key_id, user_id, namespace_id, capability, method, path, body, effect, reason, agent_label, status, created_at, expires_at, decided_by, decided_at, executed_at, result_status, result_body FROM pending_action
+WHERE api_key_id = $1 AND method = $2 AND path = $3 AND body = $4
+  AND status = 'pending' AND expires_at > now()
+ORDER BY created_at DESC
+LIMIT 1
+`
+
+type FindPendingDuplicateParams struct {
+	ApiKeyID pgtype.UUID `json:"api_key_id"`
+	Method   string      `json:"method"`
+	Path     string      `json:"path"`
+	Body     []byte      `json:"body"`
+}
+
+// An identical request from the same key that is still waiting: a retried
+// request returns this one rather than asking again (idempotent holds).
+func (q *Queries) FindPendingDuplicate(ctx context.Context, arg FindPendingDuplicateParams) (PendingAction, error) {
+	row := q.db.QueryRow(ctx, findPendingDuplicate,
+		arg.ApiKeyID,
+		arg.Method,
+		arg.Path,
+		arg.Body,
+	)
+	var i PendingAction
+	err := row.Scan(
+		&i.ID,
+		&i.ApiKeyID,
+		&i.UserID,
+		&i.NamespaceID,
+		&i.Capability,
+		&i.Method,
+		&i.Path,
+		&i.Body,
+		&i.Effect,
+		&i.Reason,
+		&i.AgentLabel,
+		&i.Status,
+		&i.CreatedAt,
+		&i.ExpiresAt,
+		&i.DecidedBy,
+		&i.DecidedAt,
+		&i.ExecutedAt,
+		&i.ResultStatus,
+		&i.ResultBody,
+	)
+	return i, err
+}
+
 const getAPIKeyForExecution = `-- name: GetAPIKeyForExecution :one
 SELECT k.id, k.user_id, k.capabilities, k.cluster_id, k.kind, k.namespace_ids, k.agent_label,
        k.approval_required, u.display_name, u.role

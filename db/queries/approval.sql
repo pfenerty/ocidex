@@ -52,3 +52,12 @@ FROM api_key k
 JOIN ocidex_user u ON u.id = k.user_id
 WHERE k.id = $1
   AND (k.expires_at IS NULL OR k.expires_at > now());
+
+-- name: FindPendingDuplicate :one
+-- An identical request from the same key that is still waiting: a retried
+-- request returns this one rather than asking again (idempotent holds).
+SELECT * FROM pending_action
+WHERE api_key_id = @api_key_id AND method = @method AND path = @path AND body = @body
+  AND status = 'pending' AND expires_at > now()
+ORDER BY created_at DESC
+LIMIT 1;

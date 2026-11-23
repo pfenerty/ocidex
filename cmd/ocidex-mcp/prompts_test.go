@@ -32,10 +32,11 @@ func listedTools(t *testing.T, session *mcp.ClientSession) map[string]*mcp.Tool 
 // Guidance that names a tool which does not exist sends the model into an
 // error it cannot recover from, so every reference is checked. The workflow
 // lines in the instructions drop the ocidex_ prefix for brevity; those are
-// checked by their bare names.
+// checked by their bare names. The server runs with the widest surface, a
+// key that may scan, so the write tools the guidance mentions are listed.
 func TestGuidanceNamesOnlyRealTools(t *testing.T) {
 	i := is.New(t)
-	session := connect(t, &client.FakeClient{})
+	session := connect(t, &client.FakeClient{GetKeySelfFn: agentSelf([]string{"read_private", "trigger_scan"}, []string{"trigger_scan"})})
 	tools := listedTools(t, session)
 
 	texts := make([]string, 0, 3)

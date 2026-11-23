@@ -5,8 +5,6 @@ import (
 	"slices"
 	"time"
 
-	"github.com/modelcontextprotocol/go-sdk/mcp"
-
 	"github.com/pfenerty/ocidex/pkg/client"
 )
 
@@ -19,6 +17,8 @@ type keySurface struct {
 	approvalRequired []string
 	namespaces       []string
 	expiresAt        *time.Time
+	// server is the OCIDex base URL, for approval links.
+	server string
 }
 
 // personalKeyHint is what an agent is told when write tools are off.
@@ -73,7 +73,3 @@ func (s keySurface) allows(capability string) bool {
 func (s keySurface) held(capability string) bool {
 	return slices.Contains(s.approvalRequired, capability)
 }
-
-// registerWriteTools registers the write tools the key allows. The tools
-// themselves land with ocidex-m3yx.8; this is the gate they register through.
-func registerWriteTools(_ *mcp.Server, _ client.Client, _ keySurface) {}

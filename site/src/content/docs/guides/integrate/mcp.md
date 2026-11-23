@@ -92,6 +92,24 @@ The server is resolved like the CLI's: `--server`, then `OCIDEX_URL`, then the c
 | `ocidex_vulnerability_workloads` | Workloads running an image that carries one advisory. |
 | `ocidex_ingest_sbom` | Upload a CycloneDX document. Needs `ingest`. |
 
+### Write tools
+
+Only an agent key gets these (create one under **Admin → Agents**). Each one is listed only when the
+key may use it, takes `preview: true` to describe the request without sending it, and is safe to
+retry.
+
+| Tool | What it does | Needs |
+| --- | --- | --- |
+| `ocidex_watch_artifact` / `ocidex_unwatch_artifact` | Add an artifact to the user's watchlist, or remove it. | nothing beyond the key |
+| `ocidex_scan_registry` | Queue scans of a registry's new and changed images. | `trigger_scan` |
+| `ocidex_ingest_unknown_images` | Queue scans of named images a cluster runs with no SBOM (at most 200 per call). | `trigger_scan` |
+| `ocidex_approval_status` | Whether a held request was approved, and what happened when it ran. | nothing beyond the key |
+
+A write the key must have approved comes back `held`, with OCIDex's own description of the effect
+and an `approval_url`. Nothing runs until a person approves it in the browser. The agent is told to
+pass on the link and poll `ocidex_approval_status`, not to resend. Agent keys also have hourly
+budgets; a spent budget is refused until the next hour.
+
 When a name matches several artifacts, a lookup returns the candidates and what tells them apart,
 rather than guessing, so the agent can ask again more precisely.
 
