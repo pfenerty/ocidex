@@ -346,6 +346,11 @@ type VisibilityFilter struct {
 	IsAdmin   bool   // admin sees everything (ignored when OwnedOnly)
 	UserID    string // authenticated user's ID (zero-value if unauthenticated)
 	OwnedOnly bool   // restrict to rows this user owns, excluding others' public rows
+	// KeyNamespaces narrows everything above to these namespaces, plus public
+	// ones (ADR-0058 A2): the namespace set of the API key that authenticated
+	// the request. Nil is no narrowing, which is a session and an unscoped
+	// personal key. It narrows admins too.
+	KeyNamespaces []string
 }
 
 // adminFlag renders IsAdmin as the pgtype.Bool that every visible_namespace_ids()
@@ -353,6 +358,23 @@ type VisibilityFilter struct {
 // never NULL-typed, which keeps it symmetric with UserID at the call site.
 func (f VisibilityFilter) adminFlag() pgtype.Bool {
 	return pgtype.Bool{Bool: f.IsAdmin, Valid: true}
+}
+
+// keyNamespaces renders KeyNamespaces as the key_namespaces narg every
+// visibility function takes. Nil stays nil, which pgx sends as SQL NULL and the
+// functions read as "no narrowing"; an unparseable id is dropped, which can
+// only narrow further.
+func (f VisibilityFilter) keyNamespaces() []pgtype.UUID {
+	if f.KeyNamespaces == nil {
+		return nil
+	}
+	out := make([]pgtype.UUID, 0, len(f.KeyNamespaces))
+	for _, id := range f.KeyNamespaces {
+		if u := uuidOrNull(id); u.Valid {
+			out = append(out, u)
+		}
+	}
+	return out
 }
 
 // ownedFlag renders OwnedOnly as the owned_only narg understood by the list
@@ -650,8 +672,9 @@ func (s *registryService) Get(ctx context.Context, id string) (Registry, error) 
 
 func (s *registryService) List(ctx context.Context, filter VisibilityFilter) ([]Registry, error) {
 	rows, err := s.repo.ListRegistries(ctx, repository.ListRegistriesParams{
-		IsAdmin: pgtype.Bool{Bool: filter.IsAdmin, Valid: true},
-		UserID:  uuidOrNull(filter.UserID),
+		IsAdmin:       pgtype.Bool{Bool: filter.IsAdmin, Valid: true},
+		KeyNamespaces: filter.keyNamespaces(),
+		UserID:        uuidOrNull(filter.UserID),
 	})
 	if err != nil {
 		return nil, fmt.Errorf("listing registries: %w", err)
@@ -667,11 +690,12 @@ func (s *registryService) List(ctx context.Context, filter VisibilityFilter) ([]
 
 func (s *registryService) ListPaged(ctx context.Context, filter VisibilityFilter, limit, offset int32) (PagedResult[Registry], error) {
 	rows, err := s.repo.ListRegistriesPaged(ctx, repository.ListRegistriesPagedParams{
-		IsAdmin:   filter.adminFlag(),
-		UserID:    uuidOrNull(filter.UserID),
-		OwnedOnly: filter.ownedFlag(),
-		RowLimit:  limit,
-		RowOffset: offset,
+		IsAdmin:       filter.adminFlag(),
+		KeyNamespaces: filter.keyNamespaces(),
+		UserID:        uuidOrNull(filter.UserID),
+		OwnedOnly:     filter.ownedFlag(),
+		RowLimit:      limit,
+		RowOffset:     offset,
 	})
 	if err != nil {
 		return PagedResult[Registry]{}, fmt.Errorf("listing registries: %w", err)
@@ -917,8 +941,9 @@ func (s *registryService) Delete(ctx context.Context, id string) error {
 
 func (s *registryService) TrustSummary(ctx context.Context, vis VisibilityFilter) ([]RegistryTrustCount, error) {
 	rows, err := s.repo.ListRegistryTrustSummary(ctx, repository.ListRegistryTrustSummaryParams{
-		IsAdmin: vis.adminFlag(),
-		UserID:  uuidOrNull(vis.UserID),
+		IsAdmin:       vis.adminFlag(),
+		KeyNamespaces: vis.keyNamespaces(),
+		UserID:        uuidOrNull(vis.UserID),
 	})
 	if err != nil {
 		return nil, fmt.Errorf("listing registry trust summary: %w", err)

@@ -101,13 +101,14 @@ DELETE FROM session WHERE token_hash = $1;
 DELETE FROM session WHERE expires_at <= now();
 
 -- name: CreateAPIKey :one
-INSERT INTO api_key (user_id, name, key_hash, prefix, capabilities, expires_at)
-VALUES ($1, $2, $3, $4, $5, $6)
+INSERT INTO api_key (user_id, name, key_hash, prefix, capabilities, expires_at, kind, namespace_ids, agent_label)
+VALUES (@user_id, @name, @key_hash, @prefix, @capabilities, sqlc.narg('expires_at'),
+        @kind, sqlc.narg('namespace_ids')::uuid[], sqlc.narg('agent_label'))
 RETURNING *;
 
 -- name: GetAPIKeyByHash :one
 SELECT k.id, k.user_id, k.name, k.key_hash, k.prefix, k.capabilities, k.created_at, k.last_used_at,
-       k.cluster_id, u.display_name, u.role
+       k.cluster_id, k.kind, k.namespace_ids, k.agent_label, u.display_name, u.role
 FROM api_key k
 JOIN ocidex_user u ON u.id = k.user_id
 WHERE k.key_hash = $1
@@ -122,10 +123,21 @@ WHERE id = $1
   AND (last_used_at IS NULL OR last_used_at < now() - interval '1 minute');
 
 -- name: ListAPIKeysByUser :many
-SELECT id, name, prefix, capabilities, created_at, last_used_at, cluster_id, expires_at
+SELECT id, name, prefix, capabilities, created_at, last_used_at, cluster_id, expires_at,
+       kind, namespace_ids, agent_label
 FROM api_key
 WHERE user_id = $1
 ORDER BY created_at ASC;
 
 -- name: DeleteAPIKey :execrows
 DELETE FROM api_key WHERE id = $1 AND user_id = $2;
+
+-- name: CountKeyNamespacesAllowed :one
+-- How many of the requested namespaces exist and may appear on a key the user
+-- holds: any namespace for an installation admin, otherwise only ones the user
+-- is a member of. A key's namespace set narrows, so naming a namespace you
+-- cannot act in grants nothing; it is refused so the key says what it can do.
+SELECT COUNT(*)::bigint FROM namespace n
+WHERE n.id = ANY (@namespace_ids::uuid[])
+  AND (@is_admin::boolean
+       OR EXISTS (SELECT 1 FROM namespace_member m WHERE m.namespace_id = n.id AND m.user_id = @user_id));

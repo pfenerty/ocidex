@@ -30,6 +30,12 @@ func can(user service.AuthUser, namespaceID string, c authz.Capability) bool {
 	if !user.KeyAllows(c) {
 		return false
 	}
+	// A key limited to namespaces acts only inside them, admin or not
+	// (ADR-0058 A2). Applied here, before authz.Allow, for the same reason the
+	// capability ceiling is: Allow short-circuits an admin.
+	if !user.KeyCoversNamespace(namespaceID) {
+		return false
+	}
 	role, present := user.Grants[namespaceID]
 	if namespaceID == "" {
 		role, present = "", false
@@ -89,8 +95,9 @@ func visibilityFilterFromContext(ctx context.Context) service.VisibilityFilter {
 		return service.VisibilityFilter{}
 	}
 	return service.VisibilityFilter{
-		IsAdmin: user.Role == roleAdmin,
-		UserID:  user.ID,
+		IsAdmin:       user.Role == roleAdmin,
+		UserID:        user.ID,
+		KeyNamespaces: user.APIKeyNamespaces,
 	}
 }
 
@@ -111,5 +118,5 @@ func ownedFilterFromContext(ctx context.Context) service.VisibilityFilter {
 	if !ok {
 		return service.VisibilityFilter{OwnedOnly: true}
 	}
-	return service.VisibilityFilter{UserID: user.ID, OwnedOnly: true}
+	return service.VisibilityFilter{UserID: user.ID, OwnedOnly: true, KeyNamespaces: user.APIKeyNamespaces}
 }

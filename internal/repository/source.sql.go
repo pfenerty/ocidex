@@ -103,17 +103,18 @@ FROM source s
 JOIN namespace n ON n.id = s.namespace_id
 WHERE (
     CASE WHEN COALESCE($1::boolean, false)
-         THEN n.id IN (SELECT owned_namespace_ids($2::uuid))
-         ELSE n.id IN (SELECT visible_namespace_ids($2::uuid, $3::boolean))
+         THEN n.id IN (SELECT owned_namespace_ids($2::uuid, $3::uuid[]))
+         ELSE n.id IN (SELECT visible_namespace_ids($2::uuid, $4::boolean, $3::uuid[]))
     END
 )
 ORDER BY s.created_at ASC
 `
 
 type ListSourcesParams struct {
-	OwnedOnly pgtype.Bool `json:"owned_only"`
-	UserID    pgtype.UUID `json:"user_id"`
-	IsAdmin   pgtype.Bool `json:"is_admin"`
+	OwnedOnly     pgtype.Bool   `json:"owned_only"`
+	UserID        pgtype.UUID   `json:"user_id"`
+	KeyNamespaces []pgtype.UUID `json:"key_namespaces"`
+	IsAdmin       pgtype.Bool   `json:"is_admin"`
 }
 
 type ListSourcesRow struct {
@@ -127,7 +128,12 @@ type ListSourcesRow struct {
 // switches to the ownership path — see ListNamespaces for why the two live in
 // one query.
 func (q *Queries) ListSources(ctx context.Context, arg ListSourcesParams) ([]ListSourcesRow, error) {
-	rows, err := q.db.Query(ctx, listSources, arg.OwnedOnly, arg.UserID, arg.IsAdmin)
+	rows, err := q.db.Query(ctx, listSources,
+		arg.OwnedOnly,
+		arg.UserID,
+		arg.KeyNamespaces,
+		arg.IsAdmin,
+	)
 	if err != nil {
 		return nil, err
 	}

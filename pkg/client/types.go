@@ -156,6 +156,24 @@ func (e CreateAPIKeyInputBodyCapabilities) Valid() bool {
 	}
 }
 
+// Defines values for CreateAPIKeyInputBodyKind.
+const (
+	CreateAPIKeyInputBodyKindAgent    CreateAPIKeyInputBodyKind = "agent"
+	CreateAPIKeyInputBodyKindPersonal CreateAPIKeyInputBodyKind = "personal"
+)
+
+// Valid indicates whether the value is a known member of the CreateAPIKeyInputBodyKind enum.
+func (e CreateAPIKeyInputBodyKind) Valid() bool {
+	switch e {
+	case CreateAPIKeyInputBodyKindAgent:
+		return true
+	case CreateAPIKeyInputBodyKindPersonal:
+		return true
+	default:
+		return false
+	}
+}
+
 // Defines values for CreateNamespaceInputBodyVisibility.
 const (
 	CreateNamespaceInputBodyVisibilityPrivate CreateNamespaceInputBodyVisibility = "private"
@@ -369,6 +387,27 @@ func (e EnrichmentJobResponseState) Valid() bool {
 	case EnrichmentJobResponseStateRunning:
 		return true
 	case EnrichmentJobResponseStateSucceeded:
+		return true
+	default:
+		return false
+	}
+}
+
+// Defines values for KeyMetaResponseKind.
+const (
+	KeyMetaResponseKindAgent    KeyMetaResponseKind = "agent"
+	KeyMetaResponseKindCluster  KeyMetaResponseKind = "cluster"
+	KeyMetaResponseKindPersonal KeyMetaResponseKind = "personal"
+)
+
+// Valid indicates whether the value is a known member of the KeyMetaResponseKind enum.
+func (e KeyMetaResponseKind) Valid() bool {
+	switch e {
+	case KeyMetaResponseKindAgent:
+		return true
+	case KeyMetaResponseKindCluster:
+		return true
+	case KeyMetaResponseKindPersonal:
 		return true
 	default:
 		return false
@@ -641,19 +680,19 @@ func (e SetNamespaceMemberInputBodyRole) Valid() bool {
 
 // Defines values for SourceResponseKind.
 const (
-	Cluster     SourceResponseKind = "cluster"
-	OciRegistry SourceResponseKind = "oci_registry"
-	Upload      SourceResponseKind = "upload"
+	SourceResponseKindCluster     SourceResponseKind = "cluster"
+	SourceResponseKindOciRegistry SourceResponseKind = "oci_registry"
+	SourceResponseKindUpload      SourceResponseKind = "upload"
 )
 
 // Valid indicates whether the value is a known member of the SourceResponseKind enum.
 func (e SourceResponseKind) Valid() bool {
 	switch e {
-	case Cluster:
+	case SourceResponseKindCluster:
 		return true
-	case OciRegistry:
+	case SourceResponseKindOciRegistry:
 		return true
-	case Upload:
+	case SourceResponseKindUpload:
 		return true
 	default:
 		return false
@@ -2201,18 +2240,30 @@ type CreateAPIKeyInputBody struct {
 	// Schema A URL to the JSON Schema for this object.
 	Schema *string `json:"$schema,omitempty"`
 
+	// AgentLabel What you call the agent's client, shown in the key list and the audit log
+	AgentLabel *string `json:"agentLabel,omitempty"`
+
 	// Capabilities Capabilities this key may exercise, intersected with the owner's live namespace roles. Empty means all of them.
 	Capabilities *[]CreateAPIKeyInputBodyCapabilities `json:"capabilities,omitempty"`
 
 	// ExpiresAt When the key stops working. Must be in the future. Omit for a key that never expires.
 	ExpiresAt *time.Time `json:"expiresAt,omitempty"`
 
+	// Kind personal (default) or agent: a key a program uses on your behalf
+	Kind *CreateAPIKeyInputBodyKind `json:"kind,omitempty"`
+
 	// Name Human-readable label for this key
 	Name string `json:"name"`
+
+	// Namespaces Limit the key to these namespace ids: it may act and read private data only in them. Omit for every namespace you belong to (personal keys only).
+	Namespaces *[]string `json:"namespaces,omitempty"`
 }
 
 // CreateAPIKeyInputBodyCapabilities defines model for CreateAPIKeyInputBody.Capabilities.
 type CreateAPIKeyInputBodyCapabilities string
+
+// CreateAPIKeyInputBodyKind personal (default) or agent: a key a program uses on your behalf
+type CreateAPIKeyInputBodyKind string
 
 // CreateAPIKeyOutputBody defines model for CreateAPIKeyOutputBody.
 type CreateAPIKeyOutputBody struct {
@@ -2958,6 +3009,9 @@ type InventoryWorkload struct {
 
 // KeyMetaResponse defines model for KeyMetaResponse.
 type KeyMetaResponse struct {
+	// AgentLabel An agent key's client name
+	AgentLabel *string `json:"agentLabel,omitempty"`
+
 	// Capabilities Capabilities this key may exercise, before intersection with the owner's live namespace roles
 	Capabilities *[]string `json:"capabilities"`
 
@@ -2969,13 +3023,22 @@ type KeyMetaResponse struct {
 	ExpiresAt *time.Time `json:"expiresAt,omitempty"`
 
 	// Id Key UUID
-	Id         string     `json:"id"`
-	LastUsedAt *time.Time `json:"lastUsedAt,omitempty"`
-	Name       string     `json:"name"`
+	Id string `json:"id"`
+
+	// Kind personal, agent, or cluster
+	Kind       KeyMetaResponseKind `json:"kind"`
+	LastUsedAt *time.Time          `json:"lastUsedAt,omitempty"`
+	Name       string              `json:"name"`
+
+	// Namespaces The namespaces the key is limited to; absent means every namespace its owner belongs to
+	Namespaces *[]string `json:"namespaces,omitempty"`
 
 	// Prefix First 8 characters of the key
 	Prefix string `json:"prefix"`
 }
+
+// KeyMetaResponseKind personal, agent, or cluster
+type KeyMetaResponseKind string
 
 // LicenseCategoryMix defines model for LicenseCategoryMix.
 type LicenseCategoryMix struct {

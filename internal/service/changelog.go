@@ -134,9 +134,10 @@ func (s *searchService) DiffSBOMs(ctx context.Context, fromIDStr string, toIDStr
 	// Access check for both SBOMs.
 	for _, id := range []pgtype.UUID{fromID, toID} {
 		visible, err := q.IsSBOMVisible(ctx, repository.IsSBOMVisibleParams{
-			ID:      id,
-			UserID:  uuidOrNull(vis.UserID),
-			IsAdmin: visAdminBool(vis),
+			ID:            id,
+			UserID:        uuidOrNull(vis.UserID),
+			IsAdmin:       visAdminBool(vis),
+			KeyNamespaces: vis.keyNamespaces(),
 		})
 		if err != nil {
 			return ChangelogEntry{}, fmt.Errorf("checking sbom visibility: %w", err)
@@ -198,9 +199,10 @@ func (s *searchService) DiffSBOMsWithTree(ctx context.Context, fromIDStr string,
 
 	for _, id := range []pgtype.UUID{fromID, toID} {
 		visible, err := q.IsSBOMVisible(ctx, repository.IsSBOMVisibleParams{
-			ID:      id,
-			UserID:  uuidOrNull(vis.UserID),
-			IsAdmin: visAdminBool(vis),
+			ID:            id,
+			UserID:        uuidOrNull(vis.UserID),
+			IsAdmin:       visAdminBool(vis),
+			KeyNamespaces: vis.keyNamespaces(),
 		})
 		if err != nil {
 			return DiffTree{}, fmt.Errorf("checking sbom visibility: %w", err)
@@ -331,9 +333,10 @@ func (s *searchService) GetArtifactChangelog(ctx context.Context, artifactIDStr 
 
 	// Access check.
 	visible, err := q.IsArtifactVisible(ctx, repository.IsArtifactVisibleParams{
-		AID:     artifactID,
-		UserID:  uuidOrNull(vis.UserID),
-		IsAdmin: visAdminBool(vis),
+		AID:           artifactID,
+		UserID:        uuidOrNull(vis.UserID),
+		IsAdmin:       visAdminBool(vis),
+		KeyNamespaces: vis.keyNamespaces(),
 	})
 	if err != nil {
 		return Changelog{}, fmt.Errorf("checking artifact visibility: %w", err)
@@ -348,6 +351,7 @@ func (s *searchService) GetArtifactChangelog(ctx context.Context, artifactIDStr 
 		SubjectVersion: textOrNull(query.SubjectVersion),
 		UserID:         uuidOrNull(vis.UserID),
 		IsAdmin:        visAdminBool(vis),
+		KeyNamespaces:  vis.keyNamespaces(),
 		RowLimit:       10000,
 	})
 	if err != nil {

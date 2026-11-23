@@ -143,7 +143,7 @@ WHERE (sqlc.narg('state')::text IS NULL OR j.state = sqlc.narg('state')::text)
   AND (
     COALESCE(sqlc.narg('is_admin')::boolean, false)
     OR s.namespace_id IN (
-        SELECT visible_namespace_ids(sqlc.narg('user_id')::uuid, sqlc.narg('is_admin')::boolean))
+        SELECT visible_namespace_ids(sqlc.narg('user_id')::uuid, sqlc.narg('is_admin')::boolean, sqlc.narg('key_namespaces')::uuid[]))
   )
 ORDER BY
     CASE j.state
@@ -165,7 +165,7 @@ WHERE (sqlc.narg('state')::text IS NULL OR j.state = sqlc.narg('state')::text)
   AND (
     COALESCE(sqlc.narg('is_admin')::boolean, false)
     OR s.namespace_id IN (
-        SELECT visible_namespace_ids(sqlc.narg('user_id')::uuid, sqlc.narg('is_admin')::boolean))
+        SELECT visible_namespace_ids(sqlc.narg('user_id')::uuid, sqlc.narg('is_admin')::boolean, sqlc.narg('key_namespaces')::uuid[]))
   );
 
 -- SummarizeEnrichmentJobs returns one row per (enricher, state) with its count,
@@ -179,7 +179,7 @@ LEFT JOIN sbom s ON s.id = j.sbom_id
 WHERE (
     COALESCE(sqlc.narg('is_admin')::boolean, false)
     OR s.namespace_id IN (
-        SELECT visible_namespace_ids(sqlc.narg('user_id')::uuid, sqlc.narg('is_admin')::boolean))
+        SELECT visible_namespace_ids(sqlc.narg('user_id')::uuid, sqlc.narg('is_admin')::boolean, sqlc.narg('key_namespaces')::uuid[]))
   )
 GROUP BY j.enricher_name, j.state;
 

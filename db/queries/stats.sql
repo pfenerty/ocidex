@@ -4,11 +4,11 @@ WITH visible_sbom AS (
     FROM sbom s
     JOIN namespace n ON n.id = s.namespace_id
     WHERE n.id IN (SELECT visible_namespace_ids(
-             sqlc.narg('user_id')::uuid, sqlc.narg('is_admin')::boolean))
+             sqlc.narg('user_id')::uuid, sqlc.narg('is_admin')::boolean, sqlc.narg('key_namespaces')::uuid[]))
 )
 SELECT
     (SELECT COUNT(*)::bigint FROM artifact a
-       WHERE artifact_visible(a.id, sqlc.narg('user_id')::uuid, sqlc.narg('is_admin')::boolean)
+       WHERE artifact_visible(a.id, sqlc.narg('user_id')::uuid, sqlc.narg('is_admin')::boolean, sqlc.narg('key_namespaces')::uuid[])
     ) AS artifact_count,
     (SELECT COUNT(*)::bigint FROM visible_sbom) AS sbom_count,
     -- Package and version counts come from component_rollup: it is already
@@ -25,7 +25,7 @@ SELECT
         FROM component_rollup r
         WHERE r.type = 'library'
           AND (r.namespace_id IN (
-                SELECT visible_namespace_ids(sqlc.narg('user_id')::uuid, sqlc.narg('is_admin')::boolean)))
+                SELECT visible_namespace_ids(sqlc.narg('user_id')::uuid, sqlc.narg('is_admin')::boolean, sqlc.narg('key_namespaces')::uuid[])))
     ) t) AS package_count,
     (SELECT COUNT(*)::bigint FROM (
         SELECT DISTINCT r.name, COALESCE(r.group_name,'') AS g, COALESCE(v.version,'') AS v, r.type
@@ -33,7 +33,7 @@ SELECT
         LEFT JOIN LATERAL unnest(r.versions) AS v(version) ON true
         WHERE r.type = 'library'
           AND (r.namespace_id IN (
-                SELECT visible_namespace_ids(sqlc.narg('user_id')::uuid, sqlc.narg('is_admin')::boolean)))
+                SELECT visible_namespace_ids(sqlc.narg('user_id')::uuid, sqlc.narg('is_admin')::boolean, sqlc.narg('key_namespaces')::uuid[])))
     ) t) AS version_count,
     (SELECT COUNT(*)::bigint FROM license) AS license_count;
 
@@ -42,7 +42,7 @@ SELECT
 -- artifact_count, so the two always sum consistently on the dashboard.
 SELECT a.type, COUNT(*)::bigint AS artifact_count
 FROM artifact a
-WHERE artifact_visible(a.id, sqlc.narg('user_id')::uuid, sqlc.narg('is_admin')::boolean)
+WHERE artifact_visible(a.id, sqlc.narg('user_id')::uuid, sqlc.narg('is_admin')::boolean, sqlc.narg('key_namespaces')::uuid[])
 GROUP BY a.type
 ORDER BY artifact_count DESC, a.type;
 
@@ -62,7 +62,7 @@ SELECT
 FROM license_rollup lr
 JOIN license l ON l.id = lr.license_id
 WHERE lr.namespace_id IN (SELECT visible_namespace_ids(
-         sqlc.narg('user_id')::uuid, sqlc.narg('is_admin')::boolean))
+         sqlc.narg('user_id')::uuid, sqlc.narg('is_admin')::boolean, sqlc.narg('key_namespaces')::uuid[]))
 GROUP BY 1
 ORDER BY component_count DESC;
 
@@ -72,7 +72,7 @@ WITH visible_sbom AS (
     FROM sbom s
     JOIN namespace n ON n.id = s.namespace_id
     WHERE n.id IN (SELECT visible_namespace_ids(
-             sqlc.narg('user_id')::uuid, sqlc.narg('is_admin')::boolean))
+             sqlc.narg('user_id')::uuid, sqlc.narg('is_admin')::boolean, sqlc.narg('key_namespaces')::uuid[]))
 )
 SELECT
     DATE(created_at)::text AS day,
@@ -92,7 +92,7 @@ WITH pkg_first_seen AS (
     SELECT DATE(MIN(r.first_seen)) AS first_seen
     FROM component_rollup r
     WHERE r.namespace_id IN (SELECT visible_namespace_ids(
-             sqlc.narg('user_id')::uuid, sqlc.narg('is_admin')::boolean))
+             sqlc.narg('user_id')::uuid, sqlc.narg('is_admin')::boolean, sqlc.narg('key_namespaces')::uuid[]))
     GROUP BY r.name, COALESCE(r.group_name, ''), r.type
 ),
 daily_new AS (
@@ -115,7 +115,7 @@ WITH ver_first_seen AS (
     SELECT DATE(MIN(r.first_seen)) AS first_seen
     FROM component_version_rollup r
     WHERE r.namespace_id IN (SELECT visible_namespace_ids(
-             sqlc.narg('user_id')::uuid, sqlc.narg('is_admin')::boolean))
+             sqlc.narg('user_id')::uuid, sqlc.narg('is_admin')::boolean, sqlc.narg('key_namespaces')::uuid[]))
     GROUP BY r.name, COALESCE(r.group_name, ''), COALESCE(r.version, ''), r.type
 ),
 daily_new AS (
@@ -144,7 +144,7 @@ SELECT
 FROM component_rollup r
 LEFT JOIN LATERAL unnest(r.versions) WITH ORDINALITY AS v(version, ord) ON true
 WHERE (r.namespace_id IN (
-        SELECT visible_namespace_ids(sqlc.narg('user_id')::uuid, sqlc.narg('is_admin')::boolean)))
+        SELECT visible_namespace_ids(sqlc.narg('user_id')::uuid, sqlc.narg('is_admin')::boolean, sqlc.narg('key_namespaces')::uuid[])))
 GROUP BY r.name, r.group_name, r.type
 ORDER BY version_count DESC
 LIMIT @top_n::int;
@@ -171,7 +171,7 @@ WITH canonical AS (
     SELECT DISTINCT vr.canonical_id
     FROM vuln_rollup vr
     WHERE vr.namespace_id IN (SELECT visible_namespace_ids(
-             sqlc.narg('user_id')::uuid, sqlc.narg('is_admin')::boolean))
+             sqlc.narg('user_id')::uuid, sqlc.narg('is_admin')::boolean, sqlc.narg('key_namespaces')::uuid[]))
 )
 SELECT
     COUNT(*)::bigint AS total_vulns,
@@ -193,7 +193,7 @@ JOIN canonical c ON c.canonical_id = r.canonical_id;
 -- Computed by the stats warmer, never on a request.
 WITH visible_artifact AS (
     SELECT a.id FROM artifact a
-    WHERE artifact_visible(a.id, sqlc.narg('user_id')::uuid, sqlc.narg('is_admin')::boolean)
+    WHERE artifact_visible(a.id, sqlc.narg('user_id')::uuid, sqlc.narg('is_admin')::boolean, sqlc.narg('key_namespaces')::uuid[])
 ),
 latest AS (
     SELECT va.id AS artifact_id, s.id AS sbom_id, s.subject_version
@@ -205,10 +205,10 @@ per_artifact AS (
            (SELECT COUNT(*) FROM component c WHERE c.sbom_id = l.sbom_id) AS packages,
            (SELECT COUNT(DISTINCT sbom_version_key(s.id, s.subject_version)) FROM sbom s
               WHERE s.artifact_id = l.artifact_id
-                AND s.namespace_id IN (SELECT visible_namespace_ids(sqlc.narg('user_id')::uuid, sqlc.narg('is_admin')::boolean))) AS versions,
+                AND s.namespace_id IN (SELECT visible_namespace_ids(sqlc.narg('user_id')::uuid, sqlc.narg('is_admin')::boolean, sqlc.narg('key_namespaces')::uuid[]))) AS versions,
            (SELECT COUNT(*) FROM sbom s
               WHERE s.artifact_id = l.artifact_id
-                AND s.namespace_id IN (SELECT visible_namespace_ids(sqlc.narg('user_id')::uuid, sqlc.narg('is_admin')::boolean))) AS sboms,
+                AND s.namespace_id IN (SELECT visible_namespace_ids(sqlc.narg('user_id')::uuid, sqlc.narg('is_admin')::boolean, sqlc.narg('key_namespaces')::uuid[]))) AS sboms,
            (SELECT COUNT(DISTINCT e.data->>'architecture') FROM sbom s
               JOIN enrichment e ON e.sbom_id = s.id AND e.enricher_name = 'oci-metadata' AND e.status = 'success'
               WHERE s.artifact_id = l.artifact_id AND s.subject_version IS NOT DISTINCT FROM l.subject_version) AS architectures,

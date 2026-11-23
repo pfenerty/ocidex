@@ -32,11 +32,18 @@ var (
 type keyMgmtAuthService struct {
 	fakeAuthService
 	created [][]authz.Capability
+	specs   []service.KeySpec
 	deleted []string
 }
 
 func (f *keyMgmtAuthService) CreateExpiringAPIKey(_ context.Context, _ string, _ string, caps []authz.Capability, _ time.Time) (string, error) {
 	f.created = append(f.created, caps)
+	return "ocidex_new", nil
+}
+
+func (f *keyMgmtAuthService) CreateKey(_ context.Context, _ string, spec service.KeySpec) (string, error) {
+	f.created = append(f.created, spec.Capabilities)
+	f.specs = append(f.specs, spec)
 	return "ocidex_new", nil
 }
 

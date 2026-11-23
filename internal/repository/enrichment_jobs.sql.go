@@ -216,15 +216,16 @@ WHERE ($1::text IS NULL OR j.state = $1::text)
   AND (
     COALESCE($3::boolean, false)
     OR s.namespace_id IN (
-        SELECT visible_namespace_ids($4::uuid, $3::boolean))
+        SELECT visible_namespace_ids($4::uuid, $3::boolean, $5::uuid[]))
   )
 `
 
 type CountEnrichmentJobsParams struct {
-	State        pgtype.Text `json:"state"`
-	EnricherName pgtype.Text `json:"enricher_name"`
-	IsAdmin      pgtype.Bool `json:"is_admin"`
-	UserID       pgtype.UUID `json:"user_id"`
+	State         pgtype.Text   `json:"state"`
+	EnricherName  pgtype.Text   `json:"enricher_name"`
+	IsAdmin       pgtype.Bool   `json:"is_admin"`
+	UserID        pgtype.UUID   `json:"user_id"`
+	KeyNamespaces []pgtype.UUID `json:"key_namespaces"`
 }
 
 func (q *Queries) CountEnrichmentJobs(ctx context.Context, arg CountEnrichmentJobsParams) (int64, error) {
@@ -233,6 +234,7 @@ func (q *Queries) CountEnrichmentJobs(ctx context.Context, arg CountEnrichmentJo
 		arg.EnricherName,
 		arg.IsAdmin,
 		arg.UserID,
+		arg.KeyNamespaces,
 	)
 	var count int64
 	err := row.Scan(&count)
@@ -348,7 +350,7 @@ WHERE ($1::text IS NULL OR j.state = $1::text)
   AND (
     COALESCE($3::boolean, false)
     OR s.namespace_id IN (
-        SELECT visible_namespace_ids($4::uuid, $3::boolean))
+        SELECT visible_namespace_ids($4::uuid, $3::boolean, $5::uuid[]))
   )
 ORDER BY
     CASE j.state
@@ -360,16 +362,17 @@ ORDER BY
     END,
     j.created_at DESC,
     j.id
-LIMIT $6 OFFSET $5
+LIMIT $7 OFFSET $6
 `
 
 type ListEnrichmentJobsParams struct {
-	State        pgtype.Text `json:"state"`
-	EnricherName pgtype.Text `json:"enricher_name"`
-	IsAdmin      pgtype.Bool `json:"is_admin"`
-	UserID       pgtype.UUID `json:"user_id"`
-	Offset       int32       `json:"offset_"`
-	Limit        int32       `json:"limit_"`
+	State         pgtype.Text   `json:"state"`
+	EnricherName  pgtype.Text   `json:"enricher_name"`
+	IsAdmin       pgtype.Bool   `json:"is_admin"`
+	UserID        pgtype.UUID   `json:"user_id"`
+	KeyNamespaces []pgtype.UUID `json:"key_namespaces"`
+	Offset        int32         `json:"offset_"`
+	Limit         int32         `json:"limit_"`
 }
 
 type ListEnrichmentJobsRow struct {
@@ -401,6 +404,7 @@ func (q *Queries) ListEnrichmentJobs(ctx context.Context, arg ListEnrichmentJobs
 		arg.EnricherName,
 		arg.IsAdmin,
 		arg.UserID,
+		arg.KeyNamespaces,
 		arg.Offset,
 		arg.Limit,
 	)
@@ -605,14 +609,15 @@ LEFT JOIN sbom s ON s.id = j.sbom_id
 WHERE (
     COALESCE($1::boolean, false)
     OR s.namespace_id IN (
-        SELECT visible_namespace_ids($2::uuid, $1::boolean))
+        SELECT visible_namespace_ids($2::uuid, $1::boolean, $3::uuid[]))
   )
 GROUP BY j.enricher_name, j.state
 `
 
 type SummarizeEnrichmentJobsParams struct {
-	IsAdmin pgtype.Bool `json:"is_admin"`
-	UserID  pgtype.UUID `json:"user_id"`
+	IsAdmin       pgtype.Bool   `json:"is_admin"`
+	UserID        pgtype.UUID   `json:"user_id"`
+	KeyNamespaces []pgtype.UUID `json:"key_namespaces"`
 }
 
 type SummarizeEnrichmentJobsRow struct {
@@ -626,7 +631,7 @@ type SummarizeEnrichmentJobsRow struct {
 // namespaces so a namespace owner sees the ingest health of their own
 // artifacts rather than the whole installation's.
 func (q *Queries) SummarizeEnrichmentJobs(ctx context.Context, arg SummarizeEnrichmentJobsParams) ([]SummarizeEnrichmentJobsRow, error) {
-	rows, err := q.db.Query(ctx, summarizeEnrichmentJobs, arg.IsAdmin, arg.UserID)
+	rows, err := q.db.Query(ctx, summarizeEnrichmentJobs, arg.IsAdmin, arg.UserID, arg.KeyNamespaces)
 	if err != nil {
 		return nil, err
 	}

@@ -15,10 +15,10 @@ const countComponentVersions = `-- name: CountComponentVersions :one
 WITH matched AS MATERIALIZED (
     SELECT c.sbom_id, c.version
     FROM component c
-    WHERE c.name = $3
-      AND ($4::text IS NULL OR c.group_name = $4)
-      AND ($5::text IS NULL OR c.version = $5)
-      AND ($6::text IS NULL OR c.type = $6)
+    WHERE c.name = $4
+      AND ($5::text IS NULL OR c.group_name = $5)
+      AND ($6::text IS NULL OR c.version = $6)
+      AND ($7::text IS NULL OR c.type = $7)
 )
 SELECT COUNT(*) AS total,
        COUNT(DISTINCT m.version) AS version_count,
@@ -28,16 +28,17 @@ SELECT COUNT(*) AS total,
        COUNT(DISTINCT m.sbom_id) AS sbom_count
 FROM matched m
 JOIN sbom s ON s.id = m.sbom_id
-WHERE s.namespace_id IN (SELECT visible_namespace_ids($1::uuid, $2::boolean))
+WHERE s.namespace_id IN (SELECT visible_namespace_ids($1::uuid, $2::boolean, $3::uuid[]))
 `
 
 type CountComponentVersionsParams struct {
-	UserID    pgtype.UUID `json:"user_id"`
-	IsAdmin   pgtype.Bool `json:"is_admin"`
-	Name      string      `json:"name"`
-	GroupName pgtype.Text `json:"group_name"`
-	Version   pgtype.Text `json:"version"`
-	Type      pgtype.Text `json:"type"`
+	UserID        pgtype.UUID   `json:"user_id"`
+	IsAdmin       pgtype.Bool   `json:"is_admin"`
+	KeyNamespaces []pgtype.UUID `json:"key_namespaces"`
+	Name          string        `json:"name"`
+	GroupName     pgtype.Text   `json:"group_name"`
+	Version       pgtype.Text   `json:"version"`
+	Type          pgtype.Text   `json:"type"`
 }
 
 type CountComponentVersionsRow struct {
@@ -79,6 +80,7 @@ func (q *Queries) CountComponentVersions(ctx context.Context, arg CountComponent
 	row := q.db.QueryRow(ctx, countComponentVersions,
 		arg.UserID,
 		arg.IsAdmin,
+		arg.KeyNamespaces,
 		arg.Name,
 		arg.GroupName,
 		arg.Version,
@@ -190,24 +192,25 @@ WHERE c.name = $1
   AND ($2::text IS NULL OR c.group_name = $2)
   AND ($3::text IS NULL OR c.version = $3)
   AND ($4::text IS NULL OR c.type = $4)
-  AND s.namespace_id IN (SELECT visible_namespace_ids($5::uuid, $6::boolean))
+  AND s.namespace_id IN (SELECT visible_namespace_ids($5::uuid, $6::boolean, $7::uuid[]))
 ORDER BY c.version_major DESC NULLS LAST,
          c.version_minor DESC NULLS LAST,
          c.version_patch DESC NULLS LAST,
          s.created_at DESC,
          c.id
-LIMIT $8 OFFSET $7
+LIMIT $9 OFFSET $8
 `
 
 type GetComponentVersionsParams struct {
-	Name      string      `json:"name"`
-	GroupName pgtype.Text `json:"group_name"`
-	Version   pgtype.Text `json:"version"`
-	Type      pgtype.Text `json:"type"`
-	UserID    pgtype.UUID `json:"user_id"`
-	IsAdmin   pgtype.Bool `json:"is_admin"`
-	RowOffset int32       `json:"row_offset"`
-	RowLimit  int32       `json:"row_limit"`
+	Name          string        `json:"name"`
+	GroupName     pgtype.Text   `json:"group_name"`
+	Version       pgtype.Text   `json:"version"`
+	Type          pgtype.Text   `json:"type"`
+	UserID        pgtype.UUID   `json:"user_id"`
+	IsAdmin       pgtype.Bool   `json:"is_admin"`
+	KeyNamespaces []pgtype.UUID `json:"key_namespaces"`
+	RowOffset     int32         `json:"row_offset"`
+	RowLimit      int32         `json:"row_limit"`
 }
 
 type GetComponentVersionsRow struct {
@@ -238,6 +241,7 @@ func (q *Queries) GetComponentVersions(ctx context.Context, arg GetComponentVers
 		arg.Type,
 		arg.UserID,
 		arg.IsAdmin,
+		arg.KeyNamespaces,
 		arg.RowOffset,
 		arg.RowLimit,
 	)
@@ -425,35 +429,47 @@ func (q *Queries) GetSBOMRef(ctx context.Context, id pgtype.UUID) (GetSBOMRefRow
 }
 
 const isArtifactVisible = `-- name: IsArtifactVisible :one
-SELECT artifact_visible($1, $2::uuid, $3::boolean) AS visible
+SELECT artifact_visible($1, $2::uuid, $3::boolean, $4::uuid[]) AS visible
 `
 
 type IsArtifactVisibleParams struct {
-	AID     pgtype.UUID `json:"a_id"`
-	UserID  pgtype.UUID `json:"user_id"`
-	IsAdmin pgtype.Bool `json:"is_admin"`
+	AID           pgtype.UUID   `json:"a_id"`
+	UserID        pgtype.UUID   `json:"user_id"`
+	IsAdmin       pgtype.Bool   `json:"is_admin"`
+	KeyNamespaces []pgtype.UUID `json:"key_namespaces"`
 }
 
 func (q *Queries) IsArtifactVisible(ctx context.Context, arg IsArtifactVisibleParams) (bool, error) {
-	row := q.db.QueryRow(ctx, isArtifactVisible, arg.AID, arg.UserID, arg.IsAdmin)
+	row := q.db.QueryRow(ctx, isArtifactVisible,
+		arg.AID,
+		arg.UserID,
+		arg.IsAdmin,
+		arg.KeyNamespaces,
+	)
 	var visible bool
 	err := row.Scan(&visible)
 	return visible, err
 }
 
 const isSBOMVisible = `-- name: IsSBOMVisible :one
-SELECT sbom_visible(s.namespace_id, $2::uuid, $3::boolean) AS visible
+SELECT sbom_visible(s.namespace_id, $2::uuid, $3::boolean, $4::uuid[]) AS visible
 FROM sbom s WHERE s.id = $1
 `
 
 type IsSBOMVisibleParams struct {
-	ID      pgtype.UUID `json:"id"`
-	UserID  pgtype.UUID `json:"user_id"`
-	IsAdmin pgtype.Bool `json:"is_admin"`
+	ID            pgtype.UUID   `json:"id"`
+	UserID        pgtype.UUID   `json:"user_id"`
+	IsAdmin       pgtype.Bool   `json:"is_admin"`
+	KeyNamespaces []pgtype.UUID `json:"key_namespaces"`
 }
 
 func (q *Queries) IsSBOMVisible(ctx context.Context, arg IsSBOMVisibleParams) (bool, error) {
-	row := q.db.QueryRow(ctx, isSBOMVisible, arg.ID, arg.UserID, arg.IsAdmin)
+	row := q.db.QueryRow(ctx, isSBOMVisible,
+		arg.ID,
+		arg.UserID,
+		arg.IsAdmin,
+		arg.KeyNamespaces,
+	)
 	var visible bool
 	err := row.Scan(&visible)
 	return visible, err
@@ -607,14 +623,15 @@ SELECT DISTINCT p.purl_type::text AS purl_type
 FROM component_rollup r
 CROSS JOIN LATERAL unnest(r.purl_types) AS p(purl_type)
 WHERE (r.namespace_id IN (
-        SELECT visible_namespace_ids($1::uuid, $2::boolean)))
+        SELECT visible_namespace_ids($1::uuid, $2::boolean, $3::uuid[])))
 ORDER BY 1
 LIMIT 200
 `
 
 type ListComponentPurlTypesParams struct {
-	UserID  pgtype.UUID `json:"user_id"`
-	IsAdmin pgtype.Bool `json:"is_admin"`
+	UserID        pgtype.UUID   `json:"user_id"`
+	IsAdmin       pgtype.Bool   `json:"is_admin"`
+	KeyNamespaces []pgtype.UUID `json:"key_namespaces"`
 }
 
 // Reads component_rollup (ocidex-ckv.2). This populates the filter dropdown on
@@ -623,7 +640,7 @@ type ListComponentPurlTypesParams struct {
 // The rollup already stores the split_part result per identity.
 // Safety cap: purl types are a small, fixed vocabulary; bound the scan.
 func (q *Queries) ListComponentPurlTypes(ctx context.Context, arg ListComponentPurlTypesParams) ([]string, error) {
-	rows, err := q.db.Query(ctx, listComponentPurlTypes, arg.UserID, arg.IsAdmin)
+	rows, err := q.db.Query(ctx, listComponentPurlTypes, arg.UserID, arg.IsAdmin, arg.KeyNamespaces)
 	if err != nil {
 		return nil, err
 	}
@@ -646,9 +663,9 @@ const listComponentVersionSummaries = `-- name: ListComponentVersionSummaries :m
 WITH matched AS MATERIALIZED (
     SELECT c.sbom_id, c.type, c.version, c.purl, c.version_major, c.version_minor, c.version_patch
     FROM component c
-    WHERE c.name = $5
-      AND ($6::text IS NULL OR c.group_name = $6)
-      AND ($7::text IS NULL OR c.type = $7)
+    WHERE c.name = $6
+      AND ($7::text IS NULL OR c.group_name = $7)
+      AND ($8::text IS NULL OR c.type = $8)
 )
 SELECT m.version,
        MIN(m.type)::text AS type,
@@ -657,23 +674,24 @@ SELECT m.version,
        COUNT(DISTINCT s.artifact_id) AS artifact_count
 FROM matched m
 JOIN sbom s ON s.id = m.sbom_id
-WHERE s.namespace_id IN (SELECT visible_namespace_ids($1::uuid, $2::boolean))
+WHERE s.namespace_id IN (SELECT visible_namespace_ids($1::uuid, $2::boolean, $3::uuid[]))
 GROUP BY m.version
 ORDER BY MAX(m.version_major) DESC NULLS LAST,
          MAX(m.version_minor) DESC NULLS LAST,
          MAX(m.version_patch) DESC NULLS LAST,
          m.version DESC NULLS LAST
-LIMIT $4 OFFSET $3
+LIMIT $5 OFFSET $4
 `
 
 type ListComponentVersionSummariesParams struct {
-	UserID    pgtype.UUID `json:"user_id"`
-	IsAdmin   pgtype.Bool `json:"is_admin"`
-	RowOffset int32       `json:"row_offset"`
-	RowLimit  int32       `json:"row_limit"`
-	Name      string      `json:"name"`
-	GroupName pgtype.Text `json:"group_name"`
-	Type      pgtype.Text `json:"type"`
+	UserID        pgtype.UUID   `json:"user_id"`
+	IsAdmin       pgtype.Bool   `json:"is_admin"`
+	KeyNamespaces []pgtype.UUID `json:"key_namespaces"`
+	RowOffset     int32         `json:"row_offset"`
+	RowLimit      int32         `json:"row_limit"`
+	Name          string        `json:"name"`
+	GroupName     pgtype.Text   `json:"group_name"`
+	Type          pgtype.Text   `json:"type"`
 }
 
 type ListComponentVersionSummariesRow struct {
@@ -697,6 +715,7 @@ func (q *Queries) ListComponentVersionSummaries(ctx context.Context, arg ListCom
 	rows, err := q.db.Query(ctx, listComponentVersionSummaries,
 		arg.UserID,
 		arg.IsAdmin,
+		arg.KeyNamespaces,
 		arg.RowOffset,
 		arg.RowLimit,
 		arg.Name,
@@ -734,7 +753,7 @@ WITH visible AS (
            r.version_major, r.version_minor, r.version_patch
     FROM license_component_rollup r
     WHERE r.license_id = $3
-      AND r.namespace_id IN (SELECT visible_namespace_ids($4::uuid, $5::boolean))
+      AND r.namespace_id IN (SELECT visible_namespace_ids($4::uuid, $5::boolean, $6::uuid[]))
     ORDER BY r.name, COALESCE(r.group_name, ''), COALESCE(r.version, ''), r.type, r.component_id
 )
 SELECT component_id AS id, sbom_id, type, name, group_name, version, purl,
@@ -749,11 +768,12 @@ LIMIT $2 OFFSET $1
 `
 
 type ListComponentsByLicenseParams struct {
-	RowOffset int32       `json:"row_offset"`
-	RowLimit  int32       `json:"row_limit"`
-	LicenseID pgtype.UUID `json:"license_id"`
-	UserID    pgtype.UUID `json:"user_id"`
-	IsAdmin   pgtype.Bool `json:"is_admin"`
+	RowOffset     int32         `json:"row_offset"`
+	RowLimit      int32         `json:"row_limit"`
+	LicenseID     pgtype.UUID   `json:"license_id"`
+	UserID        pgtype.UUID   `json:"user_id"`
+	IsAdmin       pgtype.Bool   `json:"is_admin"`
+	KeyNamespaces []pgtype.UUID `json:"key_namespaces"`
 }
 
 type ListComponentsByLicenseRow struct {
@@ -778,6 +798,7 @@ func (q *Queries) ListComponentsByLicense(ctx context.Context, arg ListComponent
 		arg.LicenseID,
 		arg.UserID,
 		arg.IsAdmin,
+		arg.KeyNamespaces,
 	)
 	if err != nil {
 		return nil, err
@@ -845,23 +866,24 @@ SELECT l.id, l.spdx_id, l.name, l.url,
 FROM license l
 LEFT JOIN license_rollup lr ON lr.license_id = l.id
   AND (lr.namespace_id IN (
-        SELECT visible_namespace_ids($1::uuid, $2::boolean)))
-WHERE ($3::text IS NULL OR l.spdx_id ILIKE like_contains($3::text))
-  AND ($4::text IS NULL OR l.name ILIKE like_contains($4::text))
-  AND ($5::text IS NULL OR license_category(l.spdx_id) = $5::text)
+        SELECT visible_namespace_ids($1::uuid, $2::boolean, $3::uuid[])))
+WHERE ($4::text IS NULL OR l.spdx_id ILIKE like_contains($4::text))
+  AND ($5::text IS NULL OR l.name ILIKE like_contains($5::text))
+  AND ($6::text IS NULL OR license_category(l.spdx_id) = $6::text)
 GROUP BY l.id, l.spdx_id, l.name, l.url
 ORDER BY component_count DESC, l.name, l.id
-LIMIT $7 OFFSET $6
+LIMIT $8 OFFSET $7
 `
 
 type ListLicensesParams struct {
-	UserID    pgtype.UUID `json:"user_id"`
-	IsAdmin   pgtype.Bool `json:"is_admin"`
-	SpdxID    pgtype.Text `json:"spdx_id"`
-	Name      pgtype.Text `json:"name"`
-	Category  pgtype.Text `json:"category"`
-	RowOffset int32       `json:"row_offset"`
-	RowLimit  int32       `json:"row_limit"`
+	UserID        pgtype.UUID   `json:"user_id"`
+	IsAdmin       pgtype.Bool   `json:"is_admin"`
+	KeyNamespaces []pgtype.UUID `json:"key_namespaces"`
+	SpdxID        pgtype.Text   `json:"spdx_id"`
+	Name          pgtype.Text   `json:"name"`
+	Category      pgtype.Text   `json:"category"`
+	RowOffset     int32         `json:"row_offset"`
+	RowLimit      int32         `json:"row_limit"`
 }
 
 type ListLicensesRow struct {
@@ -895,6 +917,7 @@ func (q *Queries) ListLicenses(ctx context.Context, arg ListLicensesParams) ([]L
 	rows, err := q.db.Query(ctx, listLicenses,
 		arg.UserID,
 		arg.IsAdmin,
+		arg.KeyNamespaces,
 		arg.SpdxID,
 		arg.Name,
 		arg.Category,
@@ -940,17 +963,18 @@ FROM sbom s
 JOIN namespace n ON n.id = s.namespace_id
 LEFT JOIN source src ON src.id = s.source_id
 LEFT JOIN artifact a ON a.id = s.artifact_id
-WHERE n.id IN (SELECT owned_namespace_ids($1::uuid))
+WHERE n.id IN (SELECT owned_namespace_ids($1::uuid, $2::uuid[]))
   AND (
-    NOT $2::boolean
-    OR (s.created_at, s.id) < ($3::timestamptz, $4::uuid)
+    NOT $3::boolean
+    OR (s.created_at, s.id) < ($4::timestamptz, $5::uuid)
   )
 ORDER BY s.created_at DESC, s.id DESC
-LIMIT $5
+LIMIT $6
 `
 
 type ListOwnedActivityParams struct {
 	ViewerID        pgtype.UUID        `json:"viewer_id"`
+	KeyNamespaces   []pgtype.UUID      `json:"key_namespaces"`
 	HasCursor       pgtype.Bool        `json:"has_cursor"`
 	CursorCreatedAt pgtype.Timestamptz `json:"cursor_created_at"`
 	CursorID        pgtype.UUID        `json:"cursor_id"`
@@ -986,6 +1010,7 @@ type ListOwnedActivityRow struct {
 func (q *Queries) ListOwnedActivity(ctx context.Context, arg ListOwnedActivityParams) ([]ListOwnedActivityRow, error) {
 	rows, err := q.db.Query(ctx, listOwnedActivity,
 		arg.ViewerID,
+		arg.KeyNamespaces,
 		arg.HasCursor,
 		arg.CursorCreatedAt,
 		arg.CursorID,
@@ -1300,13 +1325,13 @@ SELECT s.id, s.serial_number, s.spec_version, s.version, s.artifact_id, s.subjec
 FROM sbom s
 WHERE ($1::text IS NULL OR s.serial_number = $1)
   AND ($2::text IS NULL OR s.digest = $2)
-  AND s.namespace_id IN (SELECT visible_namespace_ids($3::uuid, $4::boolean))
+  AND s.namespace_id IN (SELECT visible_namespace_ids($3::uuid, $4::boolean, $5::uuid[]))
   AND (
-    NOT $5::boolean
-    OR (s.created_at, s.id) < ($6::timestamptz, $7::uuid)
+    NOT $6::boolean
+    OR (s.created_at, s.id) < ($7::timestamptz, $8::uuid)
   )
 ORDER BY s.created_at DESC, s.id DESC
-LIMIT $8
+LIMIT $9
 `
 
 type ListSBOMsParams struct {
@@ -1314,6 +1339,7 @@ type ListSBOMsParams struct {
 	Digest          pgtype.Text        `json:"digest"`
 	UserID          pgtype.UUID        `json:"user_id"`
 	IsAdmin         pgtype.Bool        `json:"is_admin"`
+	KeyNamespaces   []pgtype.UUID      `json:"key_namespaces"`
 	HasCursor       pgtype.Bool        `json:"has_cursor"`
 	CursorCreatedAt pgtype.Timestamptz `json:"cursor_created_at"`
 	CursorID        pgtype.UUID        `json:"cursor_id"`
@@ -1339,6 +1365,7 @@ func (q *Queries) ListSBOMs(ctx context.Context, arg ListSBOMsParams) ([]ListSBO
 		arg.Digest,
 		arg.UserID,
 		arg.IsAdmin,
+		arg.KeyNamespaces,
 		arg.HasCursor,
 		arg.CursorCreatedAt,
 		arg.CursorID,
@@ -1376,17 +1403,18 @@ SELECT s.id, s.serial_number, s.spec_version, s.version, s.artifact_id, s.subjec
        COUNT(*) OVER() AS total_count
 FROM sbom s
 WHERE s.digest = $1
-  AND s.namespace_id IN (SELECT visible_namespace_ids($2::uuid, $3::boolean))
+  AND s.namespace_id IN (SELECT visible_namespace_ids($2::uuid, $3::boolean, $4::uuid[]))
 ORDER BY s.created_at DESC, s.id DESC
-LIMIT $5 OFFSET $4
+LIMIT $6 OFFSET $5
 `
 
 type ListSBOMsByDigestParams struct {
-	Digest    pgtype.Text `json:"digest"`
-	UserID    pgtype.UUID `json:"user_id"`
-	IsAdmin   pgtype.Bool `json:"is_admin"`
-	RowOffset int32       `json:"row_offset"`
-	RowLimit  int32       `json:"row_limit"`
+	Digest        pgtype.Text   `json:"digest"`
+	UserID        pgtype.UUID   `json:"user_id"`
+	IsAdmin       pgtype.Bool   `json:"is_admin"`
+	KeyNamespaces []pgtype.UUID `json:"key_namespaces"`
+	RowOffset     int32         `json:"row_offset"`
+	RowLimit      int32         `json:"row_limit"`
 }
 
 type ListSBOMsByDigestRow struct {
@@ -1406,6 +1434,7 @@ func (q *Queries) ListSBOMsByDigest(ctx context.Context, arg ListSBOMsByDigestPa
 		arg.Digest,
 		arg.UserID,
 		arg.IsAdmin,
+		arg.KeyNamespaces,
 		arg.RowOffset,
 		arg.RowLimit,
 	)
@@ -1447,24 +1476,25 @@ WHERE ($1::text IS NULL OR c.name = $1)
   AND ($4::text IS NULL OR c.version = $4)
   AND EXISTS (
     SELECT 1 FROM sbom s WHERE s.id = c.sbom_id
-      AND s.namespace_id IN (SELECT visible_namespace_ids($5::uuid, $6::boolean))
+      AND s.namespace_id IN (SELECT visible_namespace_ids($5::uuid, $6::boolean, $7::uuid[]))
   )
 ORDER BY c.version_major DESC NULLS LAST,
          c.version_minor DESC NULLS LAST,
          c.version_patch DESC NULLS LAST,
          c.name, c.group_name, c.version, c.id
-LIMIT $8 OFFSET $7
+LIMIT $9 OFFSET $8
 `
 
 type SearchComponentsParams struct {
-	Name      pgtype.Text `json:"name"`
-	Purl      pgtype.Text `json:"purl"`
-	GroupName pgtype.Text `json:"group_name"`
-	Version   pgtype.Text `json:"version"`
-	UserID    pgtype.UUID `json:"user_id"`
-	IsAdmin   pgtype.Bool `json:"is_admin"`
-	RowOffset int32       `json:"row_offset"`
-	RowLimit  int32       `json:"row_limit"`
+	Name          pgtype.Text   `json:"name"`
+	Purl          pgtype.Text   `json:"purl"`
+	GroupName     pgtype.Text   `json:"group_name"`
+	Version       pgtype.Text   `json:"version"`
+	UserID        pgtype.UUID   `json:"user_id"`
+	IsAdmin       pgtype.Bool   `json:"is_admin"`
+	KeyNamespaces []pgtype.UUID `json:"key_namespaces"`
+	RowOffset     int32         `json:"row_offset"`
+	RowLimit      int32         `json:"row_limit"`
 }
 
 type SearchComponentsRow struct {
@@ -1494,6 +1524,7 @@ func (q *Queries) SearchComponents(ctx context.Context, arg SearchComponentsPara
 		arg.Version,
 		arg.UserID,
 		arg.IsAdmin,
+		arg.KeyNamespaces,
 		arg.RowOffset,
 		arg.RowLimit,
 	)
@@ -1556,37 +1587,38 @@ WHERE ($1::text IS NULL OR r.name ILIKE like_contains($1::text))
   AND ($3::text IS NULL OR r.type = $3)
   AND ($4::text IS NULL OR $4::text = ANY(r.purl_types))
   AND (r.namespace_id IN (
-        SELECT visible_namespace_ids($5::uuid, $6::boolean)))
+        SELECT visible_namespace_ids($5::uuid, $6::boolean, $7::uuid[])))
 GROUP BY r.name, r.group_name, r.type
 ORDER BY
   -- 'severity' needs five keys rather than one: a single total would rank a
   -- package with 40 lows above one with a critical. Ranked lexicographically,
   -- worst severity first, the way the /artifacts list orders. The keys collapse
   -- to NULL under any other sort, so every row ties and the CASE below decides.
-  CASE WHEN $7::text = 'severity' THEN MAX(r.critical) END * CASE $8::text WHEN 'asc' THEN 1 ELSE -1 END ASC NULLS LAST,
-  CASE WHEN $7::text = 'severity' THEN MAX(r.high)     END * CASE $8::text WHEN 'asc' THEN 1 ELSE -1 END ASC NULLS LAST,
-  CASE WHEN $7::text = 'severity' THEN MAX(r.medium)   END * CASE $8::text WHEN 'asc' THEN 1 ELSE -1 END ASC NULLS LAST,
-  CASE WHEN $7::text = 'severity' THEN MAX(r.low)      END * CASE $8::text WHEN 'asc' THEN 1 ELSE -1 END ASC NULLS LAST,
-  CASE WHEN $7::text = 'severity' THEN MAX(r.unknown)  END * CASE $8::text WHEN 'asc' THEN 1 ELSE -1 END ASC NULLS LAST,
-  CASE $7::text
+  CASE WHEN $8::text = 'severity' THEN MAX(r.critical) END * CASE $9::text WHEN 'asc' THEN 1 ELSE -1 END ASC NULLS LAST,
+  CASE WHEN $8::text = 'severity' THEN MAX(r.high)     END * CASE $9::text WHEN 'asc' THEN 1 ELSE -1 END ASC NULLS LAST,
+  CASE WHEN $8::text = 'severity' THEN MAX(r.medium)   END * CASE $9::text WHEN 'asc' THEN 1 ELSE -1 END ASC NULLS LAST,
+  CASE WHEN $8::text = 'severity' THEN MAX(r.low)      END * CASE $9::text WHEN 'asc' THEN 1 ELSE -1 END ASC NULLS LAST,
+  CASE WHEN $8::text = 'severity' THEN MAX(r.unknown)  END * CASE $9::text WHEN 'asc' THEN 1 ELSE -1 END ASC NULLS LAST,
+  CASE $8::text
     WHEN 'version_count' THEN COUNT(DISTINCT v.version)
     WHEN 'sbom_count' THEN COALESCE(SUM(r.sbom_count) FILTER (WHERE COALESCE(v.ord, 1) = 1 AND COALESCE(p.ord, 1) = 1), 0)
-  END * CASE $8::text WHEN 'asc' THEN 1 ELSE -1 END ASC NULLS LAST,
+  END * CASE $9::text WHEN 'asc' THEN 1 ELSE -1 END ASC NULLS LAST,
   r.name, r.group_name, r.type
-LIMIT $10 OFFSET $9
+LIMIT $11 OFFSET $10
 `
 
 type SearchDistinctComponentsParams struct {
-	Name      pgtype.Text `json:"name"`
-	GroupName pgtype.Text `json:"group_name"`
-	Type      pgtype.Text `json:"type"`
-	PurlType  pgtype.Text `json:"purl_type"`
-	UserID    pgtype.UUID `json:"user_id"`
-	IsAdmin   pgtype.Bool `json:"is_admin"`
-	SortBy    string      `json:"sort_by"`
-	SortDir   string      `json:"sort_dir"`
-	RowOffset int32       `json:"row_offset"`
-	RowLimit  int32       `json:"row_limit"`
+	Name          pgtype.Text   `json:"name"`
+	GroupName     pgtype.Text   `json:"group_name"`
+	Type          pgtype.Text   `json:"type"`
+	PurlType      pgtype.Text   `json:"purl_type"`
+	UserID        pgtype.UUID   `json:"user_id"`
+	IsAdmin       pgtype.Bool   `json:"is_admin"`
+	KeyNamespaces []pgtype.UUID `json:"key_namespaces"`
+	SortBy        string        `json:"sort_by"`
+	SortDir       string        `json:"sort_dir"`
+	RowOffset     int32         `json:"row_offset"`
+	RowLimit      int32         `json:"row_limit"`
 }
 
 type SearchDistinctComponentsRow struct {
@@ -1622,6 +1654,7 @@ func (q *Queries) SearchDistinctComponents(ctx context.Context, arg SearchDistin
 		arg.PurlType,
 		arg.UserID,
 		arg.IsAdmin,
+		arg.KeyNamespaces,
 		arg.SortBy,
 		arg.SortDir,
 		arg.RowOffset,

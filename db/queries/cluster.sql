@@ -28,8 +28,8 @@ FROM cluster c
 JOIN namespace n ON n.id = c.namespace_id
 WHERE (
     CASE WHEN COALESCE(sqlc.narg('owned_only')::boolean, false)
-         THEN n.id IN (SELECT owned_namespace_ids(sqlc.narg('user_id')::uuid))
-         ELSE n.id IN (SELECT visible_namespace_ids(sqlc.narg('user_id')::uuid, sqlc.narg('is_admin')::boolean))
+         THEN n.id IN (SELECT owned_namespace_ids(sqlc.narg('user_id')::uuid, sqlc.narg('key_namespaces')::uuid[]))
+         ELSE n.id IN (SELECT visible_namespace_ids(sqlc.narg('user_id')::uuid, sqlc.narg('is_admin')::boolean, sqlc.narg('key_namespaces')::uuid[]))
     END
 )
 ORDER BY c.created_at ASC;
@@ -195,7 +195,7 @@ LEFT JOIN LATERAL (
     JOIN vulnerability v ON v.id = pv.vulnerability_id
 ) vs ON s.id IS NOT NULL
 WHERE w.cluster_id = $1
-  AND c.namespace_id IN (SELECT visible_namespace_ids(sqlc.narg('user_id')::uuid, sqlc.narg('is_admin')::boolean))
+  AND c.namespace_id IN (SELECT visible_namespace_ids(sqlc.narg('user_id')::uuid, sqlc.narg('is_admin')::boolean, sqlc.narg('key_namespaces')::uuid[]))
   AND (sqlc.narg('k8s_namespace')::text IS NULL OR w.k8s_namespace = sqlc.narg('k8s_namespace')::text)
   AND (sqlc.narg('match_state')::text IS NULL OR ms.state = sqlc.narg('match_state')::text)
   AND (sqlc.narg('q')::text IS NULL OR (
@@ -277,7 +277,7 @@ WITH img AS (
     FROM cluster_workload w
     JOIN cluster c ON c.id = w.cluster_id
     WHERE w.cluster_id = $1
-      AND c.namespace_id IN (SELECT visible_namespace_ids(sqlc.narg('user_id')::uuid, sqlc.narg('is_admin')::boolean))
+      AND c.namespace_id IN (SELECT visible_namespace_ids(sqlc.narg('user_id')::uuid, sqlc.narg('is_admin')::boolean, sqlc.narg('key_namespaces')::uuid[]))
       AND (sqlc.narg('k8s_namespace')::text IS NULL OR w.k8s_namespace = sqlc.narg('k8s_namespace')::text)
       AND (sqlc.narg('q')::text IS NULL OR (
             w.workload_name  ILIKE like_contains(sqlc.narg('q')::text)
@@ -392,7 +392,7 @@ FROM (
                 END)::text AS state
     ) ms
     WHERE w.cluster_id = $1
-      AND c.namespace_id IN (SELECT visible_namespace_ids(sqlc.narg('user_id')::uuid, sqlc.narg('is_admin')::boolean))
+      AND c.namespace_id IN (SELECT visible_namespace_ids(sqlc.narg('user_id')::uuid, sqlc.narg('is_admin')::boolean, sqlc.narg('key_namespaces')::uuid[]))
       AND (sqlc.narg('k8s_namespace')::text IS NULL OR w.k8s_namespace = sqlc.narg('k8s_namespace')::text)
       AND (sqlc.narg('match_state')::text IS NULL OR ms.state = sqlc.narg('match_state')::text)
       AND (sqlc.narg('q')::text IS NULL OR (
@@ -426,7 +426,7 @@ CROSS JOIN LATERAL (
             END)::text AS state
 ) ms
 WHERE w.cluster_id = $1
-  AND c.namespace_id IN (SELECT visible_namespace_ids(sqlc.narg('user_id')::uuid, sqlc.narg('is_admin')::boolean))
+  AND c.namespace_id IN (SELECT visible_namespace_ids(sqlc.narg('user_id')::uuid, sqlc.narg('is_admin')::boolean, sqlc.narg('key_namespaces')::uuid[]))
   AND (sqlc.narg('k8s_namespace')::text IS NULL OR w.k8s_namespace = sqlc.narg('k8s_namespace')::text)
   AND (sqlc.narg('match_state')::text IS NULL OR ms.state = sqlc.narg('match_state')::text)
   AND (sqlc.narg('q')::text IS NULL OR (
@@ -445,7 +445,7 @@ SELECT
 FROM cluster_workload w
 JOIN cluster c ON c.id = w.cluster_id
 WHERE w.cluster_id = $1
-  AND c.namespace_id IN (SELECT visible_namespace_ids(sqlc.narg('user_id')::uuid, sqlc.narg('is_admin')::boolean))
+  AND c.namespace_id IN (SELECT visible_namespace_ids(sqlc.narg('user_id')::uuid, sqlc.narg('is_admin')::boolean, sqlc.narg('key_namespaces')::uuid[]))
 GROUP BY w.k8s_namespace
 ORDER BY w.k8s_namespace ASC;
 
@@ -486,7 +486,7 @@ LEFT JOIN LATERAL (
 WHERE w.cluster_id = $1
   AND w.image_digest IS NOT NULL
   AND s.id IS NULL
-  AND c.namespace_id IN (SELECT visible_namespace_ids(sqlc.narg('user_id')::uuid, sqlc.narg('is_admin')::boolean))
+  AND c.namespace_id IN (SELECT visible_namespace_ids(sqlc.narg('user_id')::uuid, sqlc.narg('is_admin')::boolean, sqlc.narg('key_namespaces')::uuid[]))
 GROUP BY w.image_ref, w.image_digest
 ORDER BY COUNT(*) DESC, w.image_ref ASC;
 
@@ -516,7 +516,7 @@ LEFT JOIN LATERAL (
     LIMIT 1
 ) s ON true
 WHERE w.cluster_id = $1
-  AND c.namespace_id IN (SELECT visible_namespace_ids(sqlc.narg('user_id')::uuid, sqlc.narg('is_admin')::boolean));
+  AND c.namespace_id IN (SELECT visible_namespace_ids(sqlc.narg('user_id')::uuid, sqlc.narg('is_admin')::boolean, sqlc.narg('key_namespaces')::uuid[]));
 -- name: ListClusterRunningVulns :many
 -- Vulnerabilities scoped to images actually running in one cluster — the view
 -- the whole epic exists for.
@@ -553,7 +553,7 @@ WITH running AS (
     JOIN package_vulnerability pv ON pv.purl = comp.purl AND pv.go_symbol_set_id = comp.go_symbol_set_id
     JOIN vulnerability v ON v.id = pv.vulnerability_id
     WHERE w.cluster_id = $1
-      AND c.namespace_id IN (SELECT visible_namespace_ids(sqlc.narg('user_id')::uuid, sqlc.narg('is_admin')::boolean))
+      AND c.namespace_id IN (SELECT visible_namespace_ids(sqlc.narg('user_id')::uuid, sqlc.narg('is_admin')::boolean, sqlc.narg('key_namespaces')::uuid[]))
 ),
 counts AS (
     SELECT canonical_id, COUNT(DISTINCT workload_id)::bigint AS workload_count
@@ -646,7 +646,7 @@ WITH running AS (
     JOIN package_vulnerability pv ON pv.purl = comp.purl AND pv.go_symbol_set_id = comp.go_symbol_set_id
     JOIN vulnerability v ON v.id = pv.vulnerability_id
     WHERE w.cluster_id = $1
-      AND c.namespace_id IN (SELECT visible_namespace_ids(sqlc.narg('user_id')::uuid, sqlc.narg('is_admin')::boolean))
+      AND c.namespace_id IN (SELECT visible_namespace_ids(sqlc.narg('user_id')::uuid, sqlc.narg('is_admin')::boolean, sqlc.narg('key_namespaces')::uuid[]))
 )
 SELECT COUNT(DISTINCT canonical_id)::bigint AS total
 FROM running
@@ -696,7 +696,7 @@ WHERE EXISTS (
     WHERE COALESCE(NULLIF(v.canonical_id, ''), v.id) = @canonical_id::text
 )
   AND (sqlc.narg('cluster_id')::uuid IS NULL OR w.cluster_id = sqlc.narg('cluster_id')::uuid)
-  AND c.namespace_id IN (SELECT visible_namespace_ids(sqlc.narg('user_id')::uuid, sqlc.narg('is_admin')::boolean))
+  AND c.namespace_id IN (SELECT visible_namespace_ids(sqlc.narg('user_id')::uuid, sqlc.narg('is_admin')::boolean, sqlc.narg('key_namespaces')::uuid[]))
 ORDER BY c.name ASC, w.k8s_namespace ASC, w.workload_name ASC
 LIMIT sqlc.narg('limit')::int;
 
@@ -727,7 +727,7 @@ JOIN LATERAL (
 ) s ON true
 LEFT JOIN artifact a ON a.id = s.artifact_id
 WHERE s.artifact_id = @artifact_id::uuid
-  AND c.namespace_id IN (SELECT visible_namespace_ids(sqlc.narg('user_id')::uuid, sqlc.narg('is_admin')::boolean))
+  AND c.namespace_id IN (SELECT visible_namespace_ids(sqlc.narg('user_id')::uuid, sqlc.narg('is_admin')::boolean, sqlc.narg('key_namespaces')::uuid[]))
 ORDER BY c.name ASC, w.k8s_namespace ASC, w.workload_name ASC
 LIMIT sqlc.narg('limit')::int;
 
@@ -736,8 +736,8 @@ LIMIT sqlc.narg('limit')::int;
 -- caller here has already passed manage_cluster on the cluster's namespace.
 
 -- name: CreateClusterCredential :one
-INSERT INTO api_key (user_id, name, key_hash, prefix, capabilities, cluster_id)
-VALUES ($1, $2, $3, $4, ARRAY['push_inventory']::text[], $5)
+INSERT INTO api_key (user_id, name, key_hash, prefix, capabilities, cluster_id, kind)
+VALUES ($1, $2, $3, $4, ARRAY['push_inventory']::text[], $5, 'cluster')
 RETURNING id, name, prefix, created_at;
 
 -- name: ListClusterCredentials :many
@@ -760,9 +760,10 @@ WITH old AS (
     WHERE api_key.id = sqlc.arg('old_id') AND api_key.cluster_id = sqlc.arg('cluster_id')
     RETURNING api_key.name
 )
-INSERT INTO api_key (user_id, name, key_hash, prefix, capabilities, cluster_id)
+INSERT INTO api_key (user_id, name, key_hash, prefix, capabilities, cluster_id, kind)
 SELECT sqlc.arg('user_id'), old.name, sqlc.arg('key_hash'), sqlc.arg('prefix'),
-       ARRAY['push_inventory']::text[], sqlc.arg('cluster_id')
+       ARRAY['push_inventory']::text[], sqlc.arg('cluster_id'), 'cluster'
+
 FROM old
 RETURNING id, name, prefix, created_at;
 

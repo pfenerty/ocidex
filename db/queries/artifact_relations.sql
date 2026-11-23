@@ -33,7 +33,7 @@
 SELECT s.subject_version
 FROM sbom s
 WHERE s.artifact_id = @artifact_id
-  AND s.namespace_id IN (SELECT visible_namespace_ids(sqlc.narg('user_id')::uuid, sqlc.narg('is_admin')::boolean))
+  AND s.namespace_id IN (SELECT visible_namespace_ids(sqlc.narg('user_id')::uuid, sqlc.narg('is_admin')::boolean, sqlc.narg('key_namespaces')::uuid[]))
 ORDER BY s.created_at DESC, s.id DESC
 LIMIT 1;
 
@@ -85,11 +85,11 @@ WHERE (
          AND split_part(split_part(c.purl, '?', 1), '@', 1) = ANY(@module_purl_bases::text[]))
       )
   AND s.artifact_id <> @artifact_id
-  AND s.namespace_id IN (SELECT visible_namespace_ids(sqlc.narg('user_id')::uuid, sqlc.narg('is_admin')::boolean))
+  AND s.namespace_id IN (SELECT visible_namespace_ids(sqlc.narg('user_id')::uuid, sqlc.narg('is_admin')::boolean, sqlc.narg('key_namespaces')::uuid[]))
   AND s.id = (
       SELECT s2.id FROM sbom s2
       WHERE s2.artifact_id = s.artifact_id
-        AND s2.namespace_id IN (SELECT visible_namespace_ids(sqlc.narg('user_id')::uuid, sqlc.narg('is_admin')::boolean))
+        AND s2.namespace_id IN (SELECT visible_namespace_ids(sqlc.narg('user_id')::uuid, sqlc.narg('is_admin')::boolean, sqlc.narg('key_namespaces')::uuid[]))
       ORDER BY s2.created_at DESC, s2.id DESC
       LIMIT 1
   )
@@ -111,7 +111,7 @@ WITH subject_latest AS (
     SELECT s.id
     FROM sbom s
     WHERE s.artifact_id = @artifact_id
-      AND s.namespace_id IN (SELECT visible_namespace_ids(sqlc.narg('user_id')::uuid, sqlc.narg('is_admin')::boolean))
+      AND s.namespace_id IN (SELECT visible_namespace_ids(sqlc.narg('user_id')::uuid, sqlc.narg('is_admin')::boolean, sqlc.narg('key_namespaces')::uuid[]))
     ORDER BY s.created_at DESC, s.id DESC
     LIMIT 1
 )
@@ -148,12 +148,12 @@ LEFT JOIN LATERAL (
     SELECT s2.id, s2.subject_version, s2.digest, s2.flavor
     FROM sbom s2
     WHERE s2.artifact_id = a.id
-      AND s2.namespace_id IN (SELECT visible_namespace_ids(sqlc.narg('user_id')::uuid, sqlc.narg('is_admin')::boolean))
+      AND s2.namespace_id IN (SELECT visible_namespace_ids(sqlc.narg('user_id')::uuid, sqlc.narg('is_admin')::boolean, sqlc.narg('key_namespaces')::uuid[]))
     ORDER BY s2.created_at DESC, s2.id DESC
     LIMIT 1
 ) ls ON true
 WHERE c.sbom_id = (SELECT id FROM subject_latest)
   AND a.id <> @artifact_id
-  AND artifact_visible(a.id, sqlc.narg('user_id')::uuid, sqlc.narg('is_admin')::boolean)
+  AND artifact_visible(a.id, sqlc.narg('user_id')::uuid, sqlc.narg('is_admin')::boolean, sqlc.narg('key_namespaces')::uuid[])
 ORDER BY a.name, a.type, a.id
 LIMIT @row_limit;

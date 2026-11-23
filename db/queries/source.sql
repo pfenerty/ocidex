@@ -26,8 +26,8 @@ FROM source s
 JOIN namespace n ON n.id = s.namespace_id
 WHERE (
     CASE WHEN COALESCE(sqlc.narg('owned_only')::boolean, false)
-         THEN n.id IN (SELECT owned_namespace_ids(sqlc.narg('user_id')::uuid))
-         ELSE n.id IN (SELECT visible_namespace_ids(sqlc.narg('user_id')::uuid, sqlc.narg('is_admin')::boolean))
+         THEN n.id IN (SELECT owned_namespace_ids(sqlc.narg('user_id')::uuid, sqlc.narg('key_namespaces')::uuid[]))
+         ELSE n.id IN (SELECT visible_namespace_ids(sqlc.narg('user_id')::uuid, sqlc.narg('is_admin')::boolean, sqlc.narg('key_namespaces')::uuid[]))
     END
 )
 ORDER BY s.created_at ASC;

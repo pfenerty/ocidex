@@ -94,6 +94,11 @@ type CreateAPIKeyInput struct {
 		Capabilities []string `json:"capabilities,omitempty" enum:"read_private,ingest,trigger_scan,push_inventory,delete_artifact,manage_source,manage_cluster,read_secret,manage_member,delete_namespace,installation_admin" doc:"Capabilities this key may exercise, intersected with the owner's live namespace roles. Empty means all of them."`
 		// ExpiresAt is optional; a key without one never expires.
 		ExpiresAt *time.Time `json:"expiresAt,omitempty" doc:"When the key stops working. Must be in the future. Omit for a key that never expires."`
+		// Kind, Namespaces and AgentLabel follow ADR-0058: an agent key is a
+		// program acting for you and must be limited to named namespaces.
+		Kind       string   `json:"kind,omitempty" enum:"personal,agent" doc:"personal (default) or agent: a key a program uses on your behalf"`
+		Namespaces []string `json:"namespaces,omitempty" doc:"Limit the key to these namespace ids: it may act and read private data only in them. Omit for every namespace you belong to (personal keys only)."`
+		AgentLabel string   `json:"agentLabel,omitempty" maxLength:"100" doc:"What you call the agent's client, shown in the key list and the audit log"`
 	}
 }
 
@@ -114,6 +119,9 @@ type KeyMetaResponse struct {
 	LastUsedAt   *time.Time `json:"lastUsedAt,omitempty"`
 	ExpiresAt    *time.Time `json:"expiresAt,omitempty" doc:"When the key stops working; absent means never"`
 	ClusterID    string     `json:"clusterId,omitempty" doc:"Set for a cluster agent credential, which may only push this cluster's inventory"`
+	Kind         string     `json:"kind" enum:"personal,agent,cluster" doc:"personal, agent, or cluster"`
+	Namespaces   []string   `json:"namespaces,omitempty" doc:"The namespaces the key is limited to; absent means every namespace its owner belongs to"`
+	AgentLabel   string     `json:"agentLabel,omitempty" doc:"An agent key's client name"`
 }
 
 // ListAPIKeysOutput is the response for GET /api/v1/auth/keys.

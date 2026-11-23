@@ -2583,6 +2583,8 @@ export interface components {
              * @example https://example.com/api/schemas/CreateAPIKeyInputBody.json
              */
             readonly $schema?: string;
+            /** @description What you call the agent's client, shown in the key list and the audit log */
+            agentLabel?: string;
             /** @description Capabilities this key may exercise, intersected with the owner's live namespace roles. Empty means all of them. */
             capabilities?: ("read_private" | "ingest" | "trigger_scan" | "push_inventory" | "delete_artifact" | "manage_source" | "manage_cluster" | "read_secret" | "manage_member" | "delete_namespace" | "installation_admin")[] | null;
             /**
@@ -2590,8 +2592,15 @@ export interface components {
              * @description When the key stops working. Must be in the future. Omit for a key that never expires.
              */
             expiresAt?: string;
+            /**
+             * @description personal (default) or agent: a key a program uses on your behalf
+             * @enum {string}
+             */
+            kind?: "personal" | "agent";
             /** @description Human-readable label for this key */
             name: string;
+            /** @description Limit the key to these namespace ids: it may act and read private data only in them. Omit for every namespace you belong to (personal keys only). */
+            namespaces?: string[] | null;
         };
         CreateAPIKeyOutputBody: {
             /**
@@ -3373,6 +3382,8 @@ export interface components {
             workloadName: string;
         };
         KeyMetaResponse: {
+            /** @description An agent key's client name */
+            agentLabel?: string;
             /** @description Capabilities this key may exercise, before intersection with the owner's live namespace roles */
             capabilities: string[] | null;
             /** @description Set for a cluster agent credential, which may only push this cluster's inventory */
@@ -3386,9 +3397,16 @@ export interface components {
             expiresAt?: string;
             /** @description Key UUID */
             id: string;
+            /**
+             * @description personal, agent, or cluster
+             * @enum {string}
+             */
+            kind: "personal" | "agent" | "cluster";
             /** Format: date-time */
             lastUsedAt?: string;
             name: string;
+            /** @description The namespaces the key is limited to; absent means every namespace its owner belongs to */
+            namespaces?: string[] | null;
             /** @description First 8 characters of the key */
             prefix: string;
         };

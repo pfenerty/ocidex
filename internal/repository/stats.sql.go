@@ -14,7 +14,7 @@ import (
 const getArtifactMaxima = `-- name: GetArtifactMaxima :one
 WITH visible_artifact AS (
     SELECT a.id FROM artifact a
-    WHERE artifact_visible(a.id, $1::uuid, $2::boolean)
+    WHERE artifact_visible(a.id, $1::uuid, $2::boolean, $3::uuid[])
 ),
 latest AS (
     SELECT va.id AS artifact_id, s.id AS sbom_id, s.subject_version
@@ -26,10 +26,10 @@ per_artifact AS (
            (SELECT COUNT(*) FROM component c WHERE c.sbom_id = l.sbom_id) AS packages,
            (SELECT COUNT(DISTINCT sbom_version_key(s.id, s.subject_version)) FROM sbom s
               WHERE s.artifact_id = l.artifact_id
-                AND s.namespace_id IN (SELECT visible_namespace_ids($1::uuid, $2::boolean))) AS versions,
+                AND s.namespace_id IN (SELECT visible_namespace_ids($1::uuid, $2::boolean, $3::uuid[]))) AS versions,
            (SELECT COUNT(*) FROM sbom s
               WHERE s.artifact_id = l.artifact_id
-                AND s.namespace_id IN (SELECT visible_namespace_ids($1::uuid, $2::boolean))) AS sboms,
+                AND s.namespace_id IN (SELECT visible_namespace_ids($1::uuid, $2::boolean, $3::uuid[]))) AS sboms,
            (SELECT COUNT(DISTINCT e.data->>'architecture') FROM sbom s
               JOIN enrichment e ON e.sbom_id = s.id AND e.enricher_name = 'oci-metadata' AND e.status = 'success'
               WHERE s.artifact_id = l.artifact_id AND s.subject_version IS NOT DISTINCT FROM l.subject_version) AS architectures,
@@ -48,8 +48,9 @@ FROM per_artifact
 `
 
 type GetArtifactMaximaParams struct {
-	UserID  pgtype.UUID `json:"user_id"`
-	IsAdmin pgtype.Bool `json:"is_admin"`
+	UserID        pgtype.UUID   `json:"user_id"`
+	IsAdmin       pgtype.Bool   `json:"is_admin"`
+	KeyNamespaces []pgtype.UUID `json:"key_namespaces"`
 }
 
 type GetArtifactMaximaRow struct {
@@ -67,7 +68,7 @@ type GetArtifactMaximaRow struct {
 // and SBOMs count the whole artifact.
 // Computed by the stats warmer, never on a request.
 func (q *Queries) GetArtifactMaxima(ctx context.Context, arg GetArtifactMaximaParams) (GetArtifactMaximaRow, error) {
-	row := q.db.QueryRow(ctx, getArtifactMaxima, arg.UserID, arg.IsAdmin)
+	row := q.db.QueryRow(ctx, getArtifactMaxima, arg.UserID, arg.IsAdmin, arg.KeyNamespaces)
 	var i GetArtifactMaximaRow
 	err := row.Scan(
 		&i.MaxPackages,
@@ -83,14 +84,15 @@ func (q *Queries) GetArtifactMaxima(ctx context.Context, arg GetArtifactMaximaPa
 const getArtifactTypeCounts = `-- name: GetArtifactTypeCounts :many
 SELECT a.type, COUNT(*)::bigint AS artifact_count
 FROM artifact a
-WHERE artifact_visible(a.id, $1::uuid, $2::boolean)
+WHERE artifact_visible(a.id, $1::uuid, $2::boolean, $3::uuid[])
 GROUP BY a.type
 ORDER BY artifact_count DESC, a.type
 `
 
 type GetArtifactTypeCountsParams struct {
-	UserID  pgtype.UUID `json:"user_id"`
-	IsAdmin pgtype.Bool `json:"is_admin"`
+	UserID        pgtype.UUID   `json:"user_id"`
+	IsAdmin       pgtype.Bool   `json:"is_admin"`
+	KeyNamespaces []pgtype.UUID `json:"key_namespaces"`
 }
 
 type GetArtifactTypeCountsRow struct {
@@ -101,7 +103,7 @@ type GetArtifactTypeCountsRow struct {
 // Per-type breakdown of the same artifact set GetSummaryCounts counts as
 // artifact_count, so the two always sum consistently on the dashboard.
 func (q *Queries) GetArtifactTypeCounts(ctx context.Context, arg GetArtifactTypeCountsParams) ([]GetArtifactTypeCountsRow, error) {
-	rows, err := q.db.Query(ctx, getArtifactTypeCounts, arg.UserID, arg.IsAdmin)
+	rows, err := q.db.Query(ctx, getArtifactTypeCounts, arg.UserID, arg.IsAdmin, arg.KeyNamespaces)
 	if err != nil {
 		return nil, err
 	}
@@ -127,14 +129,15 @@ SELECT
 FROM license_rollup lr
 JOIN license l ON l.id = lr.license_id
 WHERE lr.namespace_id IN (SELECT visible_namespace_ids(
-         $1::uuid, $2::boolean))
+         $1::uuid, $2::boolean, $3::uuid[]))
 GROUP BY 1
 ORDER BY component_count DESC
 `
 
 type GetLicenseCategoryCountsParams struct {
-	UserID  pgtype.UUID `json:"user_id"`
-	IsAdmin pgtype.Bool `json:"is_admin"`
+	UserID        pgtype.UUID   `json:"user_id"`
+	IsAdmin       pgtype.Bool   `json:"is_admin"`
+	KeyNamespaces []pgtype.UUID `json:"key_namespaces"`
 }
 
 type GetLicenseCategoryCountsRow struct {
@@ -152,7 +155,7 @@ type GetLicenseCategoryCountsRow struct {
 // package, so the breakdown now answers "how much of what we run is under
 // copyleft" rather than weighting each package by how often it was scanned.
 func (q *Queries) GetLicenseCategoryCounts(ctx context.Context, arg GetLicenseCategoryCountsParams) ([]GetLicenseCategoryCountsRow, error) {
-	rows, err := q.db.Query(ctx, getLicenseCategoryCounts, arg.UserID, arg.IsAdmin)
+	rows, err := q.db.Query(ctx, getLicenseCategoryCounts, arg.UserID, arg.IsAdmin, arg.KeyNamespaces)
 	if err != nil {
 		return nil, err
 	}
@@ -176,7 +179,7 @@ WITH pkg_first_seen AS (
     SELECT DATE(MIN(r.first_seen)) AS first_seen
     FROM component_rollup r
     WHERE r.namespace_id IN (SELECT visible_namespace_ids(
-             $1::uuid, $2::boolean))
+             $1::uuid, $2::boolean, $3::uuid[]))
     GROUP BY r.name, COALESCE(r.group_name, ''), r.type
 ),
 daily_new AS (
@@ -193,8 +196,9 @@ ORDER BY first_seen
 `
 
 type GetPackageGrowthTimelineParams struct {
-	UserID  pgtype.UUID `json:"user_id"`
-	IsAdmin pgtype.Bool `json:"is_admin"`
+	UserID        pgtype.UUID   `json:"user_id"`
+	IsAdmin       pgtype.Bool   `json:"is_admin"`
+	KeyNamespaces []pgtype.UUID `json:"key_namespaces"`
 }
 
 type GetPackageGrowthTimelineRow struct {
@@ -207,7 +211,7 @@ type GetPackageGrowthTimelineRow struct {
 // earliest across the visible namespaces is the MIN of those, so this reads the
 // rollup instead of scanning component.
 func (q *Queries) GetPackageGrowthTimeline(ctx context.Context, arg GetPackageGrowthTimelineParams) ([]GetPackageGrowthTimelineRow, error) {
-	rows, err := q.db.Query(ctx, getPackageGrowthTimeline, arg.UserID, arg.IsAdmin)
+	rows, err := q.db.Query(ctx, getPackageGrowthTimeline, arg.UserID, arg.IsAdmin, arg.KeyNamespaces)
 	if err != nil {
 		return nil, err
 	}
@@ -232,7 +236,7 @@ WITH visible_sbom AS (
     FROM sbom s
     JOIN namespace n ON n.id = s.namespace_id
     WHERE n.id IN (SELECT visible_namespace_ids(
-             $2::uuid, $3::boolean))
+             $2::uuid, $3::boolean, $4::uuid[]))
 )
 SELECT
     DATE(created_at)::text AS day,
@@ -245,9 +249,10 @@ ORDER BY day
 `
 
 type GetSBOMIngestionTimelineParams struct {
-	NumDays int32       `json:"num_days"`
-	UserID  pgtype.UUID `json:"user_id"`
-	IsAdmin pgtype.Bool `json:"is_admin"`
+	NumDays       int32         `json:"num_days"`
+	UserID        pgtype.UUID   `json:"user_id"`
+	IsAdmin       pgtype.Bool   `json:"is_admin"`
+	KeyNamespaces []pgtype.UUID `json:"key_namespaces"`
 }
 
 type GetSBOMIngestionTimelineRow struct {
@@ -256,7 +261,12 @@ type GetSBOMIngestionTimelineRow struct {
 }
 
 func (q *Queries) GetSBOMIngestionTimeline(ctx context.Context, arg GetSBOMIngestionTimelineParams) ([]GetSBOMIngestionTimelineRow, error) {
-	rows, err := q.db.Query(ctx, getSBOMIngestionTimeline, arg.NumDays, arg.UserID, arg.IsAdmin)
+	rows, err := q.db.Query(ctx, getSBOMIngestionTimeline,
+		arg.NumDays,
+		arg.UserID,
+		arg.IsAdmin,
+		arg.KeyNamespaces,
+	)
 	if err != nil {
 		return nil, err
 	}
@@ -281,11 +291,11 @@ WITH visible_sbom AS (
     FROM sbom s
     JOIN namespace n ON n.id = s.namespace_id
     WHERE n.id IN (SELECT visible_namespace_ids(
-             $1::uuid, $2::boolean))
+             $1::uuid, $2::boolean, $3::uuid[]))
 )
 SELECT
     (SELECT COUNT(*)::bigint FROM artifact a
-       WHERE artifact_visible(a.id, $1::uuid, $2::boolean)
+       WHERE artifact_visible(a.id, $1::uuid, $2::boolean, $3::uuid[])
     ) AS artifact_count,
     (SELECT COUNT(*)::bigint FROM visible_sbom) AS sbom_count,
     -- Package and version counts come from component_rollup: it is already
@@ -302,7 +312,7 @@ SELECT
         FROM component_rollup r
         WHERE r.type = 'library'
           AND (r.namespace_id IN (
-                SELECT visible_namespace_ids($1::uuid, $2::boolean)))
+                SELECT visible_namespace_ids($1::uuid, $2::boolean, $3::uuid[])))
     ) t) AS package_count,
     (SELECT COUNT(*)::bigint FROM (
         SELECT DISTINCT r.name, COALESCE(r.group_name,'') AS g, COALESCE(v.version,'') AS v, r.type
@@ -310,14 +320,15 @@ SELECT
         LEFT JOIN LATERAL unnest(r.versions) AS v(version) ON true
         WHERE r.type = 'library'
           AND (r.namespace_id IN (
-                SELECT visible_namespace_ids($1::uuid, $2::boolean)))
+                SELECT visible_namespace_ids($1::uuid, $2::boolean, $3::uuid[])))
     ) t) AS version_count,
     (SELECT COUNT(*)::bigint FROM license) AS license_count
 `
 
 type GetSummaryCountsParams struct {
-	UserID  pgtype.UUID `json:"user_id"`
-	IsAdmin pgtype.Bool `json:"is_admin"`
+	UserID        pgtype.UUID   `json:"user_id"`
+	IsAdmin       pgtype.Bool   `json:"is_admin"`
+	KeyNamespaces []pgtype.UUID `json:"key_namespaces"`
 }
 
 type GetSummaryCountsRow struct {
@@ -329,7 +340,7 @@ type GetSummaryCountsRow struct {
 }
 
 func (q *Queries) GetSummaryCounts(ctx context.Context, arg GetSummaryCountsParams) (GetSummaryCountsRow, error) {
-	row := q.db.QueryRow(ctx, getSummaryCounts, arg.UserID, arg.IsAdmin)
+	row := q.db.QueryRow(ctx, getSummaryCounts, arg.UserID, arg.IsAdmin, arg.KeyNamespaces)
 	var i GetSummaryCountsRow
 	err := row.Scan(
 		&i.ArtifactCount,
@@ -351,16 +362,17 @@ SELECT
 FROM component_rollup r
 LEFT JOIN LATERAL unnest(r.versions) WITH ORDINALITY AS v(version, ord) ON true
 WHERE (r.namespace_id IN (
-        SELECT visible_namespace_ids($1::uuid, $2::boolean)))
+        SELECT visible_namespace_ids($1::uuid, $2::boolean, $3::uuid[])))
 GROUP BY r.name, r.group_name, r.type
 ORDER BY version_count DESC
-LIMIT $3::int
+LIMIT $4::int
 `
 
 type GetTopPackagesByVersionCountParams struct {
-	UserID  pgtype.UUID `json:"user_id"`
-	IsAdmin pgtype.Bool `json:"is_admin"`
-	TopN    int32       `json:"top_n"`
+	UserID        pgtype.UUID   `json:"user_id"`
+	IsAdmin       pgtype.Bool   `json:"is_admin"`
+	KeyNamespaces []pgtype.UUID `json:"key_namespaces"`
+	TopN          int32         `json:"top_n"`
 }
 
 type GetTopPackagesByVersionCountRow struct {
@@ -376,7 +388,12 @@ type GetTopPackagesByVersionCountRow struct {
 // sums; the ordinality filter charges each rollup row once, since unnesting
 // versions multiplies the rows SUM would otherwise see.
 func (q *Queries) GetTopPackagesByVersionCount(ctx context.Context, arg GetTopPackagesByVersionCountParams) ([]GetTopPackagesByVersionCountRow, error) {
-	rows, err := q.db.Query(ctx, getTopPackagesByVersionCount, arg.UserID, arg.IsAdmin, arg.TopN)
+	rows, err := q.db.Query(ctx, getTopPackagesByVersionCount,
+		arg.UserID,
+		arg.IsAdmin,
+		arg.KeyNamespaces,
+		arg.TopN,
+	)
 	if err != nil {
 		return nil, err
 	}
@@ -406,7 +423,7 @@ WITH ver_first_seen AS (
     SELECT DATE(MIN(r.first_seen)) AS first_seen
     FROM component_version_rollup r
     WHERE r.namespace_id IN (SELECT visible_namespace_ids(
-             $1::uuid, $2::boolean))
+             $1::uuid, $2::boolean, $3::uuid[]))
     GROUP BY r.name, COALESCE(r.group_name, ''), COALESCE(r.version, ''), r.type
 ),
 daily_new AS (
@@ -423,8 +440,9 @@ ORDER BY first_seen
 `
 
 type GetVersionGrowthTimelineParams struct {
-	UserID  pgtype.UUID `json:"user_id"`
-	IsAdmin pgtype.Bool `json:"is_admin"`
+	UserID        pgtype.UUID   `json:"user_id"`
+	IsAdmin       pgtype.Bool   `json:"is_admin"`
+	KeyNamespaces []pgtype.UUID `json:"key_namespaces"`
 }
 
 type GetVersionGrowthTimelineRow struct {
@@ -436,7 +454,7 @@ type GetVersionGrowthTimelineRow struct {
 // first appeared. Reads component_version_rollup, the version-grain twin of the
 // package timeline's source.
 func (q *Queries) GetVersionGrowthTimeline(ctx context.Context, arg GetVersionGrowthTimelineParams) ([]GetVersionGrowthTimelineRow, error) {
-	rows, err := q.db.Query(ctx, getVersionGrowthTimeline, arg.UserID, arg.IsAdmin)
+	rows, err := q.db.Query(ctx, getVersionGrowthTimeline, arg.UserID, arg.IsAdmin, arg.KeyNamespaces)
 	if err != nil {
 		return nil, err
 	}
@@ -468,7 +486,7 @@ WITH canonical AS (
     SELECT DISTINCT vr.canonical_id
     FROM vuln_rollup vr
     WHERE vr.namespace_id IN (SELECT visible_namespace_ids(
-             $1::uuid, $2::boolean))
+             $1::uuid, $2::boolean, $3::uuid[]))
 )
 SELECT
     COUNT(*)::bigint AS total_vulns,
@@ -484,8 +502,9 @@ JOIN canonical c ON c.canonical_id = r.canonical_id
 `
 
 type GetVulnStatsParams struct {
-	UserID  pgtype.UUID `json:"user_id"`
-	IsAdmin pgtype.Bool `json:"is_admin"`
+	UserID        pgtype.UUID   `json:"user_id"`
+	IsAdmin       pgtype.Bool   `json:"is_admin"`
+	KeyNamespaces []pgtype.UUID `json:"key_namespaces"`
 }
 
 type GetVulnStatsRow struct {
@@ -507,7 +526,7 @@ type GetVulnStatsRow struct {
 // for it, so it lands in exactly one bucket and these totals agree with the
 // /vulnerabilities list rather than counting a record once per alias severity.
 func (q *Queries) GetVulnStats(ctx context.Context, arg GetVulnStatsParams) (GetVulnStatsRow, error) {
-	row := q.db.QueryRow(ctx, getVulnStats, arg.UserID, arg.IsAdmin)
+	row := q.db.QueryRow(ctx, getVulnStats, arg.UserID, arg.IsAdmin, arg.KeyNamespaces)
 	var i GetVulnStatsRow
 	err := row.Scan(
 		&i.TotalVulns,

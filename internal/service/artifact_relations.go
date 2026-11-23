@@ -81,9 +81,10 @@ func (s *searchService) GetArtifactUsages(ctx context.Context, artifactIDStr str
 	subjectKey := componentKey(subject.Type, subject.Name, subject.GroupName, subject.Purl)
 
 	current, err := q.GetArtifactCurrentVersion(ctx, repository.GetArtifactCurrentVersionParams{
-		ArtifactID: artifactID,
-		UserID:     uuidOrNull(vis.UserID),
-		IsAdmin:    visAdminBool(vis),
+		ArtifactID:    artifactID,
+		UserID:        uuidOrNull(vis.UserID),
+		IsAdmin:       visAdminBool(vis),
+		KeyNamespaces: vis.keyNamespaces(),
 	})
 	if err != nil && !errors.Is(err, pgx.ErrNoRows) {
 		return nil, fmt.Errorf("getting artifact current version: %w", err)
@@ -101,6 +102,7 @@ func (s *searchService) GetArtifactUsages(ctx context.Context, artifactIDStr str
 		ArtifactID:      artifactID,
 		UserID:          uuidOrNull(vis.UserID),
 		IsAdmin:         visAdminBool(vis),
+		KeyNamespaces:   vis.keyNamespaces(),
 		RowLimit:        relationLimit,
 	})
 	if err != nil {
@@ -160,10 +162,11 @@ func (s *searchService) GetArtifactContains(ctx context.Context, artifactIDStr s
 	}
 
 	rows, err := q.ListArtifactContains(ctx, repository.ListArtifactContainsParams{
-		ArtifactID: artifactID,
-		UserID:     uuidOrNull(vis.UserID),
-		IsAdmin:    visAdminBool(vis),
-		RowLimit:   relationLimit,
+		ArtifactID:    artifactID,
+		UserID:        uuidOrNull(vis.UserID),
+		IsAdmin:       visAdminBool(vis),
+		KeyNamespaces: vis.keyNamespaces(),
+		RowLimit:      relationLimit,
 	})
 	if err != nil {
 		return nil, fmt.Errorf("listing artifact contains: %w", err)
@@ -202,9 +205,10 @@ func (s *searchService) visibleArtifact(
 	ctx context.Context, q *repository.Queries, id pgtype.UUID, vis VisibilityFilter,
 ) (repository.GetArtifactRow, error) {
 	visible, err := q.IsArtifactVisible(ctx, repository.IsArtifactVisibleParams{
-		AID:     id,
-		UserID:  uuidOrNull(vis.UserID),
-		IsAdmin: visAdminBool(vis),
+		AID:           id,
+		UserID:        uuidOrNull(vis.UserID),
+		IsAdmin:       visAdminBool(vis),
+		KeyNamespaces: vis.keyNamespaces(),
 	})
 	if err != nil {
 		return repository.GetArtifactRow{}, fmt.Errorf("checking artifact visibility: %w", err)
@@ -214,9 +218,10 @@ func (s *searchService) visibleArtifact(
 	}
 
 	row, err := q.GetArtifact(ctx, repository.GetArtifactParams{
-		ID:      id,
-		UserID:  uuidOrNull(vis.UserID),
-		IsAdmin: visAdminBool(vis),
+		ID:            id,
+		UserID:        uuidOrNull(vis.UserID),
+		IsAdmin:       visAdminBool(vis),
+		KeyNamespaces: vis.keyNamespaces(),
 	})
 	if err != nil {
 		if errors.Is(err, pgx.ErrNoRows) {

@@ -90,7 +90,7 @@ SELECT sqlc.embed(r), src.name, n.id AS namespace_id, n.visibility
 FROM registry r
 JOIN source src ON src.id = r.id
 JOIN namespace n ON n.id = src.namespace_id
-WHERE n.id IN (SELECT visible_namespace_ids(sqlc.narg('user_id')::uuid, sqlc.narg('is_admin')::boolean))
+WHERE n.id IN (SELECT visible_namespace_ids(sqlc.narg('user_id')::uuid, sqlc.narg('is_admin')::boolean, sqlc.narg('key_namespaces')::uuid[]))
 ORDER BY r.created_at ASC;
 
 -- name: ListRegistriesByNamespace :many
@@ -114,8 +114,8 @@ JOIN source src ON src.id = r.id
 JOIN namespace n ON n.id = src.namespace_id
 WHERE (
     CASE WHEN COALESCE(sqlc.narg('owned_only')::boolean, false)
-         THEN n.id IN (SELECT owned_namespace_ids(sqlc.narg('user_id')::uuid))
-         ELSE n.id IN (SELECT visible_namespace_ids(sqlc.narg('user_id')::uuid, sqlc.narg('is_admin')::boolean))
+         THEN n.id IN (SELECT owned_namespace_ids(sqlc.narg('user_id')::uuid, sqlc.narg('key_namespaces')::uuid[]))
+         ELSE n.id IN (SELECT visible_namespace_ids(sqlc.narg('user_id')::uuid, sqlc.narg('is_admin')::boolean, sqlc.narg('key_namespaces')::uuid[]))
     END
 )
 ORDER BY r.created_at ASC, r.id
@@ -216,7 +216,7 @@ WITH latest_provenance AS (
     LEFT JOIN enrichment p ON p.sbom_id = s.id AND p.enricher_name = 'provenance' AND p.status = 'success'
     WHERE s.artifact_id IS NOT NULL
       AND s.namespace_id IN (
-          SELECT visible_namespace_ids(sqlc.narg('user_id')::uuid, sqlc.narg('is_admin')::boolean))
+          SELECT visible_namespace_ids(sqlc.narg('user_id')::uuid, sqlc.narg('is_admin')::boolean, sqlc.narg('key_namespaces')::uuid[]))
     ORDER BY s.source_id, s.artifact_id, s.created_at DESC
 )
 SELECT source_id AS registry_id, signing_status, COUNT(*) AS artifact_count

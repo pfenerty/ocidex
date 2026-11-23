@@ -228,19 +228,25 @@ WHERE ($1::text IS NULL OR j.state = $1::text)
         SELECT 1 FROM source src
         WHERE src.id = COALESCE(j.cluster_id, j.registry_id)
           AND src.namespace_id IN (
-              SELECT visible_namespace_ids($3::uuid, $2::boolean))
+              SELECT visible_namespace_ids($3::uuid, $2::boolean, $4::uuid[]))
     )
   )
 `
 
 type CountScanJobsParams struct {
-	State   pgtype.Text `json:"state"`
-	IsAdmin pgtype.Bool `json:"is_admin"`
-	UserID  pgtype.UUID `json:"user_id"`
+	State         pgtype.Text   `json:"state"`
+	IsAdmin       pgtype.Bool   `json:"is_admin"`
+	UserID        pgtype.UUID   `json:"user_id"`
+	KeyNamespaces []pgtype.UUID `json:"key_namespaces"`
 }
 
 func (q *Queries) CountScanJobs(ctx context.Context, arg CountScanJobsParams) (int64, error) {
-	row := q.db.QueryRow(ctx, countScanJobs, arg.State, arg.IsAdmin, arg.UserID)
+	row := q.db.QueryRow(ctx, countScanJobs,
+		arg.State,
+		arg.IsAdmin,
+		arg.UserID,
+		arg.KeyNamespaces,
+	)
 	var count int64
 	err := row.Scan(&count)
 	return count, err
@@ -396,21 +402,27 @@ WHERE j.id = $1
         SELECT 1 FROM source src
         WHERE src.id = COALESCE(j.cluster_id, j.registry_id)
           AND src.namespace_id IN (
-              SELECT visible_namespace_ids($3::uuid, $2::boolean))
+              SELECT visible_namespace_ids($3::uuid, $2::boolean, $4::uuid[]))
     )
   )
 `
 
 type GetScanJobParams struct {
-	ID      pgtype.UUID `json:"id"`
-	IsAdmin pgtype.Bool `json:"is_admin"`
-	UserID  pgtype.UUID `json:"user_id"`
+	ID            pgtype.UUID   `json:"id"`
+	IsAdmin       pgtype.Bool   `json:"is_admin"`
+	UserID        pgtype.UUID   `json:"user_id"`
+	KeyNamespaces []pgtype.UUID `json:"key_namespaces"`
 }
 
 // Visibility-filtered on the same rule as ListScanJobs, so a job in a namespace
 // the caller cannot see 404s rather than leaking its repository and digest.
 func (q *Queries) GetScanJob(ctx context.Context, arg GetScanJobParams) (ScanJob, error) {
-	row := q.db.QueryRow(ctx, getScanJob, arg.ID, arg.IsAdmin, arg.UserID)
+	row := q.db.QueryRow(ctx, getScanJob,
+		arg.ID,
+		arg.IsAdmin,
+		arg.UserID,
+		arg.KeyNamespaces,
+	)
 	var i ScanJob
 	err := row.Scan(
 		&i.ID,
@@ -539,7 +551,7 @@ WHERE ($1::text IS NULL OR j.state = $1::text)
         SELECT 1 FROM source src
         WHERE src.id = COALESCE(j.cluster_id, j.registry_id)
           AND src.namespace_id IN (
-              SELECT visible_namespace_ids($3::uuid, $2::boolean))
+              SELECT visible_namespace_ids($3::uuid, $2::boolean, $4::uuid[]))
     )
   )
 ORDER BY
@@ -553,15 +565,16 @@ ORDER BY
     END,
     j.created_at DESC,
     j.id
-LIMIT $5 OFFSET $4
+LIMIT $6 OFFSET $5
 `
 
 type ListScanJobsParams struct {
-	State   pgtype.Text `json:"state"`
-	IsAdmin pgtype.Bool `json:"is_admin"`
-	UserID  pgtype.UUID `json:"user_id"`
-	Offset  int32       `json:"offset_"`
-	Limit   int32       `json:"limit_"`
+	State         pgtype.Text   `json:"state"`
+	IsAdmin       pgtype.Bool   `json:"is_admin"`
+	UserID        pgtype.UUID   `json:"user_id"`
+	KeyNamespaces []pgtype.UUID `json:"key_namespaces"`
+	Offset        int32         `json:"offset_"`
+	Limit         int32         `json:"limit_"`
 }
 
 // Scan jobs hang off a source, and a source inherits its visibility from the
@@ -575,6 +588,7 @@ func (q *Queries) ListScanJobs(ctx context.Context, arg ListScanJobsParams) ([]S
 		arg.State,
 		arg.IsAdmin,
 		arg.UserID,
+		arg.KeyNamespaces,
 		arg.Offset,
 		arg.Limit,
 	)

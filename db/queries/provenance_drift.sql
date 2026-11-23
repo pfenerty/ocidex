@@ -50,9 +50,9 @@ WHERE (
   AND (
     CASE WHEN COALESCE(sqlc.narg('owned_only')::boolean, false)
          THEN s.namespace_id IN (
-              SELECT owned_namespace_ids(sqlc.narg('user_id')::uuid))
+              SELECT owned_namespace_ids(sqlc.narg('user_id')::uuid, sqlc.narg('key_namespaces')::uuid[]))
          ELSE s.namespace_id IN (
-              SELECT visible_namespace_ids(sqlc.narg('user_id')::uuid, sqlc.narg('is_admin')::boolean))
+              SELECT visible_namespace_ids(sqlc.narg('user_id')::uuid, sqlc.narg('is_admin')::boolean, sqlc.narg('key_namespaces')::uuid[]))
     END
   )
 ORDER BY d.detected_at DESC, d.id DESC

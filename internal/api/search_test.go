@@ -321,7 +321,7 @@ func (f *fakeSearchService) ListRecentProvenanceDrift(_ context.Context, _ servi
 	return service.CursorPage[service.RecentDriftEntry]{}, nil
 }
 
-func (f *fakeSearchService) ListOwnedActivity(_ context.Context, _ string, _ service.FeedPage) (service.CursorPage[service.ActivityEntry], error) {
+func (f *fakeSearchService) ListOwnedActivity(_ context.Context, _ string, _ []string, _ service.FeedPage) (service.CursorPage[service.ActivityEntry], error) {
 	return service.CursorPage[service.ActivityEntry]{}, nil
 }
 

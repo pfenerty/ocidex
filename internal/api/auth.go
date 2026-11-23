@@ -9,6 +9,7 @@ import (
 	"net"
 	"net/http"
 	"net/url"
+	"slices"
 	"sort"
 	"time"
 
@@ -640,7 +641,7 @@ func meCursorList[T any](
 func (h *Handler) ListMyActivity(ctx context.Context, in *ListMyActivityInput) (*ListMyActivityOutput, error) {
 	data, meta, err := meCursorList(ctx, in.CursorParams,
 		func(u service.AuthUser, page service.FeedPage) (service.CursorPage[service.ActivityEntry], error) {
-			return h.insights.ListOwnedActivity(ctx, u.ID, page)
+			return h.insights.ListOwnedActivity(ctx, u.ID, u.APIKeyNamespaces, page)
 		},
 		func(a service.ActivityEntry) string { return encodeTimeIDCursor(a.CreatedAt, a.SBOMID) },
 	)
@@ -730,11 +731,24 @@ func (h *Handler) CreateAPIKey(ctx context.Context, in *CreateAPIKeyInput) (*Cre
 	if !keyCovers(user, caps) {
 		return nil, huma.Error403Forbidden("an API key can only create keys whose capabilities it holds itself")
 	}
+	// A key minting a key cannot widen its namespace set (ADR-0058 A2): a
+	// scoped key may only mint keys limited to a subset of its namespaces.
+	if !keyNamespacesCover(user, in.Body.Namespaces) {
+		return nil, huma.Error403Forbidden("an API key limited to namespaces can only create keys limited to those namespaces")
+	}
 	var expiresAt time.Time
 	if in.Body.ExpiresAt != nil {
 		expiresAt = *in.Body.ExpiresAt
 	}
-	plaintext, err := h.accounts.CreateExpiringAPIKey(ctx, user.ID, in.Body.Name, caps, expiresAt)
+	plaintext, err := h.accounts.CreateKey(ctx, user.ID, service.KeySpec{
+		Name:         in.Body.Name,
+		Capabilities: caps,
+		ExpiresAt:    expiresAt,
+		Kind:         in.Body.Kind,
+		Namespaces:   in.Body.Namespaces,
+		AgentLabel:   in.Body.AgentLabel,
+		IsAdmin:      user.Role == roleAdmin,
+	})
 	if err != nil {
 		return nil, mapServiceError(err)
 	}
@@ -764,6 +778,9 @@ func (h *Handler) ListAPIKeys(ctx context.Context, _ *struct{}) (*ListAPIKeysOut
 			LastUsedAt:   k.LastUsedAt,
 			ExpiresAt:    k.ExpiresAt,
 			ClusterID:    k.ClusterID,
+			Kind:         k.Kind,
+			Namespaces:   k.Namespaces,
+			AgentLabel:   k.AgentLabel,
 		}
 	}
 	return out, nil
@@ -808,6 +825,24 @@ func keyCovers(user service.AuthUser, caps []authz.Capability) bool {
 	}
 	for _, c := range caps {
 		if !user.KeyAllows(c) {
+			return false
+		}
+	}
+	return true
+}
+
+// keyNamespacesCover reports whether the calling credential may mint a key
+// limited to want. A session or unscoped key may mint any; a scoped key may
+// mint only keys scoped to a non-empty subset of its own namespaces.
+func keyNamespacesCover(user service.AuthUser, want []string) bool {
+	if !user.APIKeyAuth || user.APIKeyNamespaces == nil {
+		return true
+	}
+	if len(want) == 0 {
+		return false
+	}
+	for _, n := range want {
+		if !slices.Contains(user.APIKeyNamespaces, n) {
 			return false
 		}
 	}

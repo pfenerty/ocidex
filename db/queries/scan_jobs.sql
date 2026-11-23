@@ -75,7 +75,7 @@ WHERE (sqlc.narg('state')::text IS NULL OR j.state = sqlc.narg('state')::text)
         SELECT 1 FROM source src
         WHERE src.id = COALESCE(j.cluster_id, j.registry_id)
           AND src.namespace_id IN (
-              SELECT visible_namespace_ids(sqlc.narg('user_id')::uuid, sqlc.narg('is_admin')::boolean))
+              SELECT visible_namespace_ids(sqlc.narg('user_id')::uuid, sqlc.narg('is_admin')::boolean, sqlc.narg('key_namespaces')::uuid[]))
     )
   )
 ORDER BY
@@ -100,7 +100,7 @@ WHERE (sqlc.narg('state')::text IS NULL OR j.state = sqlc.narg('state')::text)
         SELECT 1 FROM source src
         WHERE src.id = COALESCE(j.cluster_id, j.registry_id)
           AND src.namespace_id IN (
-              SELECT visible_namespace_ids(sqlc.narg('user_id')::uuid, sqlc.narg('is_admin')::boolean))
+              SELECT visible_namespace_ids(sqlc.narg('user_id')::uuid, sqlc.narg('is_admin')::boolean, sqlc.narg('key_namespaces')::uuid[]))
     )
   );
 
@@ -119,7 +119,7 @@ WHERE j.id = @id
         SELECT 1 FROM source src
         WHERE src.id = COALESCE(j.cluster_id, j.registry_id)
           AND src.namespace_id IN (
-              SELECT visible_namespace_ids(sqlc.narg('user_id')::uuid, sqlc.narg('is_admin')::boolean))
+              SELECT visible_namespace_ids(sqlc.narg('user_id')::uuid, sqlc.narg('is_admin')::boolean, sqlc.narg('key_namespaces')::uuid[]))
     )
   );
 

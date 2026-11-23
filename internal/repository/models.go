@@ -19,8 +19,11 @@ type ApiKey struct {
 	// Ceiling on what this key may do, intersected at validation time with the owner's live namespace roles. Mirrors the Capability constants in internal/authz.
 	Capabilities []string `json:"capabilities"`
 	// Set for a cluster agent credential: the key may only push this cluster's inventory. NULL for an ordinary key.
-	ClusterID pgtype.UUID        `json:"cluster_id"`
-	ExpiresAt pgtype.Timestamptz `json:"expires_at"`
+	ClusterID    pgtype.UUID        `json:"cluster_id"`
+	ExpiresAt    pgtype.Timestamptz `json:"expires_at"`
+	Kind         string             `json:"kind"`
+	NamespaceIds []pgtype.UUID      `json:"namespace_ids"`
+	AgentLabel   pgtype.Text        `json:"agent_label"`
 }
 
 type Artifact struct {

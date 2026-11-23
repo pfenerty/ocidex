@@ -396,6 +396,9 @@ func attachFeaturedHistory(ctx context.Context, q *repository.Queries, items []D
 	rows, err := q.ListArtifactCriticalHistory(ctx, repository.ListArtifactCriticalHistoryParams{
 		ArtifactIds: ids,
 		IsAdmin:     pgtype.Bool{Bool: false, Valid: true},
+		// The landing page is the anonymous view: public namespaces only, so
+		// there is no key to narrow by.
+		KeyNamespaces: nil,
 	})
 	if err != nil {
 		return fmt.Errorf("listing featured critical history: %w", err)

@@ -209,19 +209,21 @@ func (s *jobService) Fail(ctx context.Context, msgID, lastError string) error {
 func (s *jobService) List(ctx context.Context, state string, vis VisibilityFilter, limit, offset int32) ([]ScanJob, int64, error) {
 	stateFilter := pgtype.Text{String: state, Valid: state != ""}
 	rows, err := s.repo.ListScanJobs(ctx, repository.ListScanJobsParams{
-		State:   stateFilter,
-		IsAdmin: vis.adminFlag(),
-		UserID:  uuidOrNull(vis.UserID),
-		Limit:   limit,
-		Offset:  offset,
+		State:         stateFilter,
+		IsAdmin:       vis.adminFlag(),
+		KeyNamespaces: vis.keyNamespaces(),
+		UserID:        uuidOrNull(vis.UserID),
+		Limit:         limit,
+		Offset:        offset,
 	})
 	if err != nil {
 		return nil, 0, fmt.Errorf("listing scan jobs: %w", err)
 	}
 	total, err := s.repo.CountScanJobs(ctx, repository.CountScanJobsParams{
-		State:   stateFilter,
-		IsAdmin: vis.adminFlag(),
-		UserID:  uuidOrNull(vis.UserID),
+		State:         stateFilter,
+		IsAdmin:       vis.adminFlag(),
+		KeyNamespaces: vis.keyNamespaces(),
+		UserID:        uuidOrNull(vis.UserID),
 	})
 	if err != nil {
 		return nil, 0, fmt.Errorf("counting scan jobs: %w", err)
@@ -239,9 +241,10 @@ func (s *jobService) Get(ctx context.Context, id string, vis VisibilityFilter) (
 		return ScanJob{}, ErrNotFound
 	}
 	row, err := s.repo.GetScanJob(ctx, repository.GetScanJobParams{
-		ID:      uid,
-		IsAdmin: vis.adminFlag(),
-		UserID:  uuidOrNull(vis.UserID),
+		ID:            uid,
+		IsAdmin:       vis.adminFlag(),
+		KeyNamespaces: vis.keyNamespaces(),
+		UserID:        uuidOrNull(vis.UserID),
 	})
 	if err != nil {
 		return ScanJob{}, ErrNotFound
@@ -308,13 +311,13 @@ func (s *jobService) CountByState(ctx context.Context) (int64, int64, int64, int
 	adminVis := VisibilityFilter{IsAdmin: true}
 
 	queued, err := s.repo.CountScanJobs(ctx, repository.CountScanJobsParams{
-		State: pgtype.Text{String: "queued", Valid: true}, IsAdmin: adminVis.adminFlag(),
+		State: pgtype.Text{String: "queued", Valid: true}, IsAdmin: adminVis.adminFlag(), KeyNamespaces: nil,
 	})
 	if err != nil {
 		return 0, 0, 0, 0, err
 	}
 	running, err := s.repo.CountScanJobs(ctx, repository.CountScanJobsParams{
-		State: pgtype.Text{String: "running", Valid: true}, IsAdmin: adminVis.adminFlag(),
+		State: pgtype.Text{String: "running", Valid: true}, IsAdmin: adminVis.adminFlag(), KeyNamespaces: nil,
 	})
 	if err != nil {
 		return 0, 0, 0, 0, err

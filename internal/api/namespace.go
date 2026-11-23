@@ -196,6 +196,11 @@ func toNamespaceResponse(ns service.Namespace, ownerUsername *string) NamespaceR
 // With self-service on — the default — anyone signed in may create one and
 // becomes its owner.
 func (h *Handler) requireNamespaceCreation(user service.AuthUser) error {
+	// A key limited to namespaces cannot create another: the new namespace
+	// would be outside its set the moment it exists (ADR-0058 A2).
+	if !user.KeyCoversNamespace("") {
+		return huma.Error403Forbidden("an API key limited to namespaces cannot create a namespace")
+	}
 	if h.cfg == nil || !h.cfg.RestrictNamespaceCreation {
 		return nil
 	}

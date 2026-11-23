@@ -64,6 +64,10 @@ func (f *configFakeAuthService) CreateAPIKey(_ context.Context, _ string, _ stri
 	return f.createKeyOut, nil
 }
 
+func (f *configFakeAuthService) CreateKey(ctx context.Context, userID string, spec service.KeySpec) (string, error) {
+	return f.CreateExpiringAPIKey(ctx, userID, spec.Name, spec.Capabilities, spec.ExpiresAt)
+}
+
 func (f *configFakeAuthService) CreateExpiringAPIKey(_ context.Context, _ string, _ string, _ []authz.Capability, _ time.Time) (string, error) {
 	return f.createKeyOut, nil
 }

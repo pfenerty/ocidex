@@ -128,10 +128,10 @@ func TestSearchDistinctComponents_SortNormalization(t *testing.T) {
 				queryFn: func(_ context.Context, _ string, args ...any) (pgx.Rows, error) {
 					// args positions match SearchDistinctComponents query:
 					// 0=Name, 1=GroupName, 2=Type, 3=PurlType, 4=UserID, 5=IsAdmin,
-					// 6=SortBy, 7=SortDir, 8=RowOffset, 9=RowLimit
-					if len(args) >= 8 {
-						capturedSortBy, _ = args[6].(string)
-						capturedSortDir, _ = args[7].(string)
+					// 6=KeyNamespaces, 7=SortBy, 8=SortDir, 9=RowOffset, 10=RowLimit
+					if len(args) >= 9 {
+						capturedSortBy, _ = args[7].(string)
+						capturedSortDir, _ = args[8].(string)
 					}
 					return emptyRows(), nil
 				},
@@ -279,11 +279,11 @@ func TestListTopVulnerabilities_SortNormalization(t *testing.T) {
 			db := &fakeDB{
 				queryFn: func(_ context.Context, _ string, args ...any) (pgx.Rows, error) {
 					// args positions match ListTopVulnerabilities:
-					// 0=OwnedOnly, 1=UserID, 2=IsAdmin, 3=Severity,
-					// 4=IDQuery, 5=SortBy, 6=SortDir, 7=RowOffset, 8=RowLimit
-					if len(args) >= 7 {
-						gotSortBy, _ = args[5].(string)
-						gotSortDir, _ = args[6].(string)
+					// 0=OwnedOnly, 1=UserID, 2=KeyNamespaces, 3=IsAdmin,
+					// 4=Severity, 5=IDQuery, 6=SortBy, 7=SortDir, 8=RowOffset, 9=RowLimit
+					if len(args) >= 8 {
+						gotSortBy, _ = args[6].(string)
+						gotSortDir, _ = args[7].(string)
 					}
 					return emptyRows(), nil
 				},
@@ -326,8 +326,8 @@ func TestListTopVulnerabilities_IDQuery(t *testing.T) {
 			var got pgtype.Text
 			db := &fakeDB{
 				queryFn: func(_ context.Context, _ string, args ...any) (pgx.Rows, error) {
-					if len(args) >= 5 {
-						got, _ = args[4].(pgtype.Text)
+					if len(args) >= 6 {
+						got, _ = args[5].(pgtype.Text)
 					}
 					return emptyRows(), nil
 				},
@@ -384,11 +384,11 @@ func TestListLicenses_SubstringFilters(t *testing.T) {
 			db := &fakeDB{
 				queryFn: func(_ context.Context, _ string, args ...any) (pgx.Rows, error) {
 					// args positions match ListLicenses:
-					// 0=UserID, 1=IsAdmin, 2=SpdxID, 3=Name, 4=Category,
-					// 5=RowOffset, 6=RowLimit
-					if len(args) >= 4 {
-						gotSpdx, _ = args[2].(pgtype.Text)
-						gotName, _ = args[3].(pgtype.Text)
+					// 0=UserID, 1=IsAdmin, 2=KeyNamespaces, 3=SpdxID, 4=Name,
+					// 5=Category, 6=RowOffset, 7=RowLimit
+					if len(args) >= 5 {
+						gotSpdx, _ = args[3].(pgtype.Text)
+						gotName, _ = args[4].(pgtype.Text)
 					}
 					return emptyRows(), nil
 				},

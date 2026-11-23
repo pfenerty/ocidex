@@ -35,7 +35,7 @@ visible_sbom AS (
     FROM sbom s
     JOIN watched w ON w.artifact_id = s.artifact_id
     WHERE s.namespace_id IN (
-        SELECT visible_namespace_ids(sqlc.narg('user_id')::uuid, sqlc.narg('is_admin')::boolean)
+        SELECT visible_namespace_ids(sqlc.narg('user_id')::uuid, sqlc.narg('is_admin')::boolean, sqlc.narg('key_namespaces')::uuid[])
     )
 ),
 version_events AS (

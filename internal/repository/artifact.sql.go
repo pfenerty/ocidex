@@ -21,17 +21,23 @@ FROM sbom s
 LEFT JOIN enrichment e ON e.sbom_id = s.id AND e.enricher_name = 'oci-metadata' AND e.status = 'success'
 LEFT JOIN enrichment u ON u.sbom_id = s.id AND u.enricher_name = 'user'         AND u.status = 'success'
 WHERE s.artifact_id = $1
-  AND s.namespace_id IN (SELECT visible_namespace_ids($2::uuid, $3::boolean))
+  AND s.namespace_id IN (SELECT visible_namespace_ids($2::uuid, $3::boolean, $4::uuid[]))
 `
 
 type CountArtifactVersionsParams struct {
-	ArtifactID pgtype.UUID `json:"artifact_id"`
-	UserID     pgtype.UUID `json:"user_id"`
-	IsAdmin    pgtype.Bool `json:"is_admin"`
+	ArtifactID    pgtype.UUID   `json:"artifact_id"`
+	UserID        pgtype.UUID   `json:"user_id"`
+	IsAdmin       pgtype.Bool   `json:"is_admin"`
+	KeyNamespaces []pgtype.UUID `json:"key_namespaces"`
 }
 
 func (q *Queries) CountArtifactVersions(ctx context.Context, arg CountArtifactVersionsParams) (int64, error) {
-	row := q.db.QueryRow(ctx, countArtifactVersions, arg.ArtifactID, arg.UserID, arg.IsAdmin)
+	row := q.db.QueryRow(ctx, countArtifactVersions,
+		arg.ArtifactID,
+		arg.UserID,
+		arg.IsAdmin,
+		arg.KeyNamespaces,
+	)
 	var version_count int64
 	err := row.Scan(&version_count)
 	return version_count, err
@@ -50,18 +56,19 @@ WHERE ($1::text IS NULL OR a.type = $1)
                SELECT 1 FROM artifact_namespace an
                WHERE an.artifact_id = a.id
                  AND an.namespace_id IN (
-                       SELECT owned_namespace_ids($5::uuid)))
-           ELSE artifact_visible(a.id, $5::uuid, $6::boolean)
+                       SELECT owned_namespace_ids($5::uuid, $6::uuid[])))
+           ELSE artifact_visible(a.id, $5::uuid, $7::boolean, $6::uuid[])
       END
 `
 
 type CountArtifactsParams struct {
-	Type              pgtype.Text `json:"type"`
-	Name              pgtype.Text `json:"name"`
-	RequireSufficient pgtype.Bool `json:"require_sufficient"`
-	OwnedOnly         pgtype.Bool `json:"owned_only"`
-	UserID            pgtype.UUID `json:"user_id"`
-	IsAdmin           pgtype.Bool `json:"is_admin"`
+	Type              pgtype.Text   `json:"type"`
+	Name              pgtype.Text   `json:"name"`
+	RequireSufficient pgtype.Bool   `json:"require_sufficient"`
+	OwnedOnly         pgtype.Bool   `json:"owned_only"`
+	UserID            pgtype.UUID   `json:"user_id"`
+	KeyNamespaces     []pgtype.UUID `json:"key_namespaces"`
+	IsAdmin           pgtype.Bool   `json:"is_admin"`
 }
 
 // The total behind ListArtifacts' first page, under the same filters and
@@ -74,6 +81,7 @@ func (q *Queries) CountArtifacts(ctx context.Context, arg CountArtifactsParams) 
 		arg.RequireSufficient,
 		arg.OwnedOnly,
 		arg.UserID,
+		arg.KeyNamespaces,
 		arg.IsAdmin,
 	)
 	var column_1 int64
@@ -106,19 +114,25 @@ const countSBOMsByArtifact = `-- name: CountSBOMsByArtifact :one
 SELECT COUNT(*)
 FROM sbom s
 WHERE s.artifact_id = $1
-  AND s.namespace_id IN (SELECT visible_namespace_ids($2::uuid, $3::boolean))
+  AND s.namespace_id IN (SELECT visible_namespace_ids($2::uuid, $3::boolean, $4::uuid[]))
 `
 
 type CountSBOMsByArtifactParams struct {
-	ArtifactID pgtype.UUID `json:"artifact_id"`
-	UserID     pgtype.UUID `json:"user_id"`
-	IsAdmin    pgtype.Bool `json:"is_admin"`
+	ArtifactID    pgtype.UUID   `json:"artifact_id"`
+	UserID        pgtype.UUID   `json:"user_id"`
+	IsAdmin       pgtype.Bool   `json:"is_admin"`
+	KeyNamespaces []pgtype.UUID `json:"key_namespaces"`
 }
 
 // Counts visible SBOMs for an artifact. Replaces the prior trick of reading
 // COUNT(*) OVER() off ListSBOMsByArtifact, which is now keyset-paginated.
 func (q *Queries) CountSBOMsByArtifact(ctx context.Context, arg CountSBOMsByArtifactParams) (int64, error) {
-	row := q.db.QueryRow(ctx, countSBOMsByArtifact, arg.ArtifactID, arg.UserID, arg.IsAdmin)
+	row := q.db.QueryRow(ctx, countSBOMsByArtifact,
+		arg.ArtifactID,
+		arg.UserID,
+		arg.IsAdmin,
+		arg.KeyNamespaces,
+	)
 	var count int64
 	err := row.Scan(&count)
 	return count, err
@@ -129,13 +143,14 @@ SELECT COUNT(*)
 FROM sbom s
 WHERE s.artifact_id = $1
   AND s.enrichment_sufficient
-  AND s.namespace_id IN (SELECT visible_namespace_ids($2::uuid, $3::boolean))
+  AND s.namespace_id IN (SELECT visible_namespace_ids($2::uuid, $3::boolean, $4::uuid[]))
 `
 
 type CountSufficientSBOMsByArtifactParams struct {
-	ArtifactID pgtype.UUID `json:"artifact_id"`
-	UserID     pgtype.UUID `json:"user_id"`
-	IsAdmin    pgtype.Bool `json:"is_admin"`
+	ArtifactID    pgtype.UUID   `json:"artifact_id"`
+	UserID        pgtype.UUID   `json:"user_id"`
+	IsAdmin       pgtype.Bool   `json:"is_admin"`
+	KeyNamespaces []pgtype.UUID `json:"key_namespaces"`
 }
 
 // Counts visible SBOMs for an artifact whose enrichment is sufficient. Kept
@@ -143,7 +158,12 @@ type CountSufficientSBOMsByArtifactParams struct {
 // column: that query's callers all want the plain total, and widening its
 // return type to a row struct would churn every one of them.
 func (q *Queries) CountSufficientSBOMsByArtifact(ctx context.Context, arg CountSufficientSBOMsByArtifactParams) (int64, error) {
-	row := q.db.QueryRow(ctx, countSufficientSBOMsByArtifact, arg.ArtifactID, arg.UserID, arg.IsAdmin)
+	row := q.db.QueryRow(ctx, countSufficientSBOMsByArtifact,
+		arg.ArtifactID,
+		arg.UserID,
+		arg.IsAdmin,
+		arg.KeyNamespaces,
+	)
 	var count int64
 	err := row.Scan(&count)
 	return count, err
@@ -231,37 +251,38 @@ SELECT a.id, a.type, a.name, a.group_name, a.purl, a.cpe, a.created_at, a.entry_
            WHEN EXISTS (
                SELECT 1 FROM enrichment pe JOIN sbom sx ON sx.id = pe.sbom_id
                WHERE sx.artifact_id = a.id AND pe.enricher_name = 'provenance'
-                 AND sx.namespace_id IN (SELECT visible_namespace_ids($1::uuid, $2::boolean))
+                 AND sx.namespace_id IN (SELECT visible_namespace_ids($1::uuid, $2::boolean, $3::uuid[]))
                  AND pe.status = 'success' AND signing_status(pe.data) = 'artifact_missing'
            ) THEN 'artifact_missing'
            WHEN EXISTS (
                SELECT 1 FROM enrichment pe JOIN sbom sx ON sx.id = pe.sbom_id
                WHERE sx.artifact_id = a.id AND pe.enricher_name = 'provenance'
-                 AND sx.namespace_id IN (SELECT visible_namespace_ids($1::uuid, $2::boolean))
+                 AND sx.namespace_id IN (SELECT visible_namespace_ids($1::uuid, $2::boolean, $3::uuid[]))
                  AND pe.status = 'success' AND signing_status(pe.data) = 'verification_failed'
            ) THEN 'verification_failed'
            WHEN EXISTS (
                SELECT 1 FROM enrichment pe JOIN sbom sx ON sx.id = pe.sbom_id
                WHERE sx.artifact_id = a.id AND pe.enricher_name = 'provenance'
-                 AND sx.namespace_id IN (SELECT visible_namespace_ids($1::uuid, $2::boolean))
+                 AND sx.namespace_id IN (SELECT visible_namespace_ids($1::uuid, $2::boolean, $3::uuid[]))
                  AND pe.status = 'success' AND signing_status(pe.data) = 'signed'
            ) THEN 'signed'
            WHEN EXISTS (
                SELECT 1 FROM enrichment pe JOIN sbom sx ON sx.id = pe.sbom_id
                WHERE sx.artifact_id = a.id AND pe.enricher_name = 'provenance'
-                 AND sx.namespace_id IN (SELECT visible_namespace_ids($1::uuid, $2::boolean))
+                 AND sx.namespace_id IN (SELECT visible_namespace_ids($1::uuid, $2::boolean, $3::uuid[]))
                  AND pe.status = 'success' AND signing_status(pe.data) = 'verified'
            ) THEN 'verified'
            ELSE 'unsigned'
        END)::text AS signing_status
 FROM artifact a
-WHERE a.id = $3
+WHERE a.id = $4
 `
 
 type GetArtifactParams struct {
-	UserID  pgtype.UUID `json:"user_id"`
-	IsAdmin pgtype.Bool `json:"is_admin"`
-	ID      pgtype.UUID `json:"id"`
+	UserID        pgtype.UUID   `json:"user_id"`
+	IsAdmin       pgtype.Bool   `json:"is_admin"`
+	KeyNamespaces []pgtype.UUID `json:"key_namespaces"`
+	ID            pgtype.UUID   `json:"id"`
 }
 
 type GetArtifactRow struct {
@@ -303,7 +324,12 @@ type GetArtifactRow struct {
 // TestArtifactRollupSigningStatus_ArtifactMissingDominates and
 // TestArtifactRollupSigningStatus_FailureBeatsVerified.
 func (q *Queries) GetArtifact(ctx context.Context, arg GetArtifactParams) (GetArtifactRow, error) {
-	row := q.db.QueryRow(ctx, getArtifact, arg.UserID, arg.IsAdmin, arg.ID)
+	row := q.db.QueryRow(ctx, getArtifact,
+		arg.UserID,
+		arg.IsAdmin,
+		arg.KeyNamespaces,
+		arg.ID,
+	)
 	var i GetArtifactRow
 	err := row.Scan(
 		&i.ID,
@@ -350,19 +376,25 @@ const getArtifactIDByEntryNumber = `-- name: GetArtifactIDByEntryNumber :one
 SELECT a.id
 FROM artifact a
 WHERE a.entry_number = $1::bigint
-  AND artifact_visible(a.id, $2::uuid, $3::boolean)
+  AND artifact_visible(a.id, $2::uuid, $3::boolean, $4::uuid[])
 `
 
 type GetArtifactIDByEntryNumberParams struct {
-	EntryNumber int64       `json:"entry_number"`
-	UserID      pgtype.UUID `json:"user_id"`
-	IsAdmin     pgtype.Bool `json:"is_admin"`
+	EntryNumber   int64         `json:"entry_number"`
+	UserID        pgtype.UUID   `json:"user_id"`
+	IsAdmin       pgtype.Bool   `json:"is_admin"`
+	KeyNamespaces []pgtype.UUID `json:"key_namespaces"`
 }
 
 // Resolves "#12" from search. artifact_visible() applies, so a private
 // artifact's number resolves to nothing for a caller who cannot see it.
 func (q *Queries) GetArtifactIDByEntryNumber(ctx context.Context, arg GetArtifactIDByEntryNumberParams) (pgtype.UUID, error) {
-	row := q.db.QueryRow(ctx, getArtifactIDByEntryNumber, arg.EntryNumber, arg.UserID, arg.IsAdmin)
+	row := q.db.QueryRow(ctx, getArtifactIDByEntryNumber,
+		arg.EntryNumber,
+		arg.UserID,
+		arg.IsAdmin,
+		arg.KeyNamespaces,
+	)
 	var id pgtype.UUID
 	err := row.Scan(&id)
 	return id, err
@@ -377,7 +409,7 @@ WITH per_version AS (
     CROSS JOIN LATERAL (SELECT sbom_architecture(s.id) AS arch) x
     WHERE s.artifact_id = ANY($1::uuid[])
       AND s.subject_version IS NOT NULL
-      AND s.namespace_id IN (SELECT visible_namespace_ids($2::uuid, $3::boolean))
+      AND s.namespace_id IN (SELECT visible_namespace_ids($2::uuid, $3::boolean, $4::uuid[]))
     -- version_headline_sbom()'s pick within each version, inline.
     ORDER BY s.artifact_id, s.subject_version, sbom_arch_rank(x.arch), x.arch, s.created_at DESC, s.id DESC
 ),
@@ -407,9 +439,10 @@ ORDER BY r.artifact_id, r.rn
 `
 
 type ListArtifactCriticalHistoryParams struct {
-	ArtifactIds []pgtype.UUID `json:"artifact_ids"`
-	UserID      pgtype.UUID   `json:"user_id"`
-	IsAdmin     pgtype.Bool   `json:"is_admin"`
+	ArtifactIds   []pgtype.UUID `json:"artifact_ids"`
+	UserID        pgtype.UUID   `json:"user_id"`
+	IsAdmin       pgtype.Bool   `json:"is_admin"`
+	KeyNamespaces []pgtype.UUID `json:"key_namespaces"`
 }
 
 type ListArtifactCriticalHistoryRow struct {
@@ -433,7 +466,12 @@ type ListArtifactCriticalHistoryRow struct {
 // Ranked the way artifact_headline_sbom() orders versions, so rank 1 is the
 // version the artifact is counted from.
 func (q *Queries) ListArtifactCriticalHistory(ctx context.Context, arg ListArtifactCriticalHistoryParams) ([]ListArtifactCriticalHistoryRow, error) {
-	rows, err := q.db.Query(ctx, listArtifactCriticalHistory, arg.ArtifactIds, arg.UserID, arg.IsAdmin)
+	rows, err := q.db.Query(ctx, listArtifactCriticalHistory,
+		arg.ArtifactIds,
+		arg.UserID,
+		arg.IsAdmin,
+		arg.KeyNamespaces,
+	)
 	if err != nil {
 		return nil, err
 	}
@@ -510,7 +548,7 @@ WITH sboms_meta AS (
     LEFT JOIN enrichment u ON u.sbom_id = s.id AND u.enricher_name = 'user'         AND u.status = 'success'
     LEFT JOIN enrichment p ON p.sbom_id = s.id AND p.enricher_name = 'provenance'   AND p.status = 'success'
     WHERE s.artifact_id = $1
-      AND s.namespace_id IN (SELECT visible_namespace_ids($4::uuid, $5::boolean))
+      AND s.namespace_id IN (SELECT visible_namespace_ids($4::uuid, $5::boolean, $6::uuid[]))
 ),
 newest_per_version AS (
     SELECT DISTINCT ON (version_key)
@@ -582,11 +620,12 @@ LIMIT $3 OFFSET $2
 `
 
 type ListArtifactVersionsParams struct {
-	ArtifactID pgtype.UUID `json:"artifact_id"`
-	RowOffset  int32       `json:"row_offset"`
-	RowLimit   int32       `json:"row_limit"`
-	UserID     pgtype.UUID `json:"user_id"`
-	IsAdmin    pgtype.Bool `json:"is_admin"`
+	ArtifactID    pgtype.UUID   `json:"artifact_id"`
+	RowOffset     int32         `json:"row_offset"`
+	RowLimit      int32         `json:"row_limit"`
+	UserID        pgtype.UUID   `json:"user_id"`
+	IsAdmin       pgtype.Bool   `json:"is_admin"`
+	KeyNamespaces []pgtype.UUID `json:"key_namespaces"`
 }
 
 type ListArtifactVersionsRow struct {
@@ -627,6 +666,7 @@ func (q *Queries) ListArtifactVersions(ctx context.Context, arg ListArtifactVers
 		arg.RowLimit,
 		arg.UserID,
 		arg.IsAdmin,
+		arg.KeyNamespaces,
 	)
 	if err != nil {
 		return nil, err
@@ -675,25 +715,25 @@ SELECT a.id, a.type, a.name, a.group_name, a.purl, a.cpe, a.created_at, a.entry_
            WHEN EXISTS (
                SELECT 1 FROM enrichment pe JOIN sbom sx ON sx.id = pe.sbom_id
                WHERE sx.artifact_id = a.id AND pe.enricher_name = 'provenance'
-                 AND sx.namespace_id IN (SELECT visible_namespace_ids($1::uuid, $2::boolean))
+                 AND sx.namespace_id IN (SELECT visible_namespace_ids($1::uuid, $2::boolean, $3::uuid[]))
                  AND pe.status = 'success' AND signing_status(pe.data) = 'artifact_missing'
            ) THEN 'artifact_missing'
            WHEN EXISTS (
                SELECT 1 FROM enrichment pe JOIN sbom sx ON sx.id = pe.sbom_id
                WHERE sx.artifact_id = a.id AND pe.enricher_name = 'provenance'
-                 AND sx.namespace_id IN (SELECT visible_namespace_ids($1::uuid, $2::boolean))
+                 AND sx.namespace_id IN (SELECT visible_namespace_ids($1::uuid, $2::boolean, $3::uuid[]))
                  AND pe.status = 'success' AND signing_status(pe.data) = 'verification_failed'
            ) THEN 'verification_failed'
            WHEN EXISTS (
                SELECT 1 FROM enrichment pe JOIN sbom sx ON sx.id = pe.sbom_id
                WHERE sx.artifact_id = a.id AND pe.enricher_name = 'provenance'
-                 AND sx.namespace_id IN (SELECT visible_namespace_ids($1::uuid, $2::boolean))
+                 AND sx.namespace_id IN (SELECT visible_namespace_ids($1::uuid, $2::boolean, $3::uuid[]))
                  AND pe.status = 'success' AND signing_status(pe.data) = 'signed'
            ) THEN 'signed'
            WHEN EXISTS (
                SELECT 1 FROM enrichment pe JOIN sbom sx ON sx.id = pe.sbom_id
                WHERE sx.artifact_id = a.id AND pe.enricher_name = 'provenance'
-                 AND sx.namespace_id IN (SELECT visible_namespace_ids($1::uuid, $2::boolean))
+                 AND sx.namespace_id IN (SELECT visible_namespace_ids($1::uuid, $2::boolean, $3::uuid[]))
                  AND pe.status = 'success' AND signing_status(pe.data) = 'verified'
            ) THEN 'verified'
            ELSE 'unsigned'
@@ -728,7 +768,7 @@ SELECT a.id, a.type, a.name, a.group_name, a.purl, a.cpe, a.created_at, a.entry_
        COALESCE(vr.architecture, '')::text AS counted_architecture
 FROM artifact a
 LEFT JOIN sbom s ON s.artifact_id = a.id
-    AND s.namespace_id IN (SELECT visible_namespace_ids($1::uuid, $2::boolean))
+    AND s.namespace_id IN (SELECT visible_namespace_ids($1::uuid, $2::boolean, $3::uuid[]))
 LEFT JOIN LATERAL (
     SELECT h.id AS sbom_id, hs.subject_version, sbom_architecture(h.id) AS architecture,
            r.critical, r.high, r.medium, r.low, r.unknown, r.fixable,
@@ -737,56 +777,57 @@ LEFT JOIN LATERAL (
     JOIN sbom hs ON hs.id = h.id
     LEFT JOIN sbom_vuln_rollup r ON r.sbom_id = h.id
 ) vr ON TRUE
-WHERE ($3::text IS NULL OR a.type = $3)
-  AND ($4::text IS NULL OR a.name ILIKE like_contains($4::text))
-  AND ($5::boolean IS NULL
-       OR NOT $5::boolean
+WHERE ($4::text IS NULL OR a.type = $4)
+  AND ($5::text IS NULL OR a.name ILIKE like_contains($5::text))
+  AND ($6::boolean IS NULL
+       OR NOT $6::boolean
        OR EXISTS (SELECT 1 FROM sbom s2 WHERE s2.artifact_id = a.id AND s2.enrichment_sufficient))
   -- owned_only is the ownership path for /api/v1/users/me/artifacts. An
   -- artifact is "mine" when it appears in a namespace I own; artifact_visible()
   -- would additionally admit every public artifact and every artifact with no
   -- namespace link at all, which is exactly what this collection must exclude
   -- (see ListNamespaces).
-  AND CASE WHEN COALESCE($6::boolean, false)
+  AND CASE WHEN COALESCE($7::boolean, false)
            THEN EXISTS (
                SELECT 1 FROM artifact_namespace an
                WHERE an.artifact_id = a.id
                  AND an.namespace_id IN (
-                       SELECT owned_namespace_ids($1::uuid)))
-           ELSE artifact_visible(a.id, $1::uuid, $2::boolean)
+                       SELECT owned_namespace_ids($1::uuid, $3::uuid[])))
+           ELSE artifact_visible(a.id, $1::uuid, $2::boolean, $3::uuid[])
       END
   AND (
-    NOT $7::boolean
-    OR (a.name, a.type, a.id) > ($8::text, $9::text, $10::uuid)
+    NOT $8::boolean
+    OR (a.name, a.type, a.id) > ($9::text, $10::text, $11::uuid)
   )
 GROUP BY a.id, vr.sbom_id, vr.subject_version, vr.architecture,
          vr.critical, vr.high, vr.medium, vr.low, vr.unknown, vr.fixable, vr.total
 ORDER BY
-    CASE WHEN $11::boolean THEN COALESCE(vr.total, 0) = 0 END,
-    CASE WHEN $11::boolean THEN COALESCE(vr.critical, 0) * $12::int END DESC,
-    CASE WHEN $11::boolean THEN COALESCE(vr.high,     0) * $12::int END DESC,
-    CASE WHEN $11::boolean THEN COALESCE(vr.medium,   0) * $12::int END DESC,
-    CASE WHEN $11::boolean THEN COALESCE(vr.low,      0) * $12::int END DESC,
-    CASE WHEN $11::boolean THEN COALESCE(vr.unknown,  0) * $12::int END DESC,
+    CASE WHEN $12::boolean THEN COALESCE(vr.total, 0) = 0 END,
+    CASE WHEN $12::boolean THEN COALESCE(vr.critical, 0) * $13::int END DESC,
+    CASE WHEN $12::boolean THEN COALESCE(vr.high,     0) * $13::int END DESC,
+    CASE WHEN $12::boolean THEN COALESCE(vr.medium,   0) * $13::int END DESC,
+    CASE WHEN $12::boolean THEN COALESCE(vr.low,      0) * $13::int END DESC,
+    CASE WHEN $12::boolean THEN COALESCE(vr.unknown,  0) * $13::int END DESC,
     a.name, a.type, a.id
-LIMIT $14 OFFSET $13
+LIMIT $15 OFFSET $14
 `
 
 type ListArtifactsParams struct {
-	UserID            pgtype.UUID `json:"user_id"`
-	IsAdmin           pgtype.Bool `json:"is_admin"`
-	Type              pgtype.Text `json:"type"`
-	Name              pgtype.Text `json:"name"`
-	RequireSufficient pgtype.Bool `json:"require_sufficient"`
-	OwnedOnly         pgtype.Bool `json:"owned_only"`
-	HasCursor         pgtype.Bool `json:"has_cursor"`
-	CursorName        pgtype.Text `json:"cursor_name"`
-	CursorType        pgtype.Text `json:"cursor_type"`
-	CursorID          pgtype.UUID `json:"cursor_id"`
-	SortSeverity      bool        `json:"sort_severity"`
-	SortDir           int32       `json:"sort_dir"`
-	RowOffset         int32       `json:"row_offset"`
-	RowLimit          int32       `json:"row_limit"`
+	UserID            pgtype.UUID   `json:"user_id"`
+	IsAdmin           pgtype.Bool   `json:"is_admin"`
+	KeyNamespaces     []pgtype.UUID `json:"key_namespaces"`
+	Type              pgtype.Text   `json:"type"`
+	Name              pgtype.Text   `json:"name"`
+	RequireSufficient pgtype.Bool   `json:"require_sufficient"`
+	OwnedOnly         pgtype.Bool   `json:"owned_only"`
+	HasCursor         pgtype.Bool   `json:"has_cursor"`
+	CursorName        pgtype.Text   `json:"cursor_name"`
+	CursorType        pgtype.Text   `json:"cursor_type"`
+	CursorID          pgtype.UUID   `json:"cursor_id"`
+	SortSeverity      bool          `json:"sort_severity"`
+	SortDir           int32         `json:"sort_dir"`
+	RowOffset         int32         `json:"row_offset"`
+	RowLimit          int32         `json:"row_limit"`
 }
 
 type ListArtifactsRow struct {
@@ -850,6 +891,7 @@ func (q *Queries) ListArtifacts(ctx context.Context, arg ListArtifactsParams) ([
 	rows, err := q.db.Query(ctx, listArtifacts,
 		arg.UserID,
 		arg.IsAdmin,
+		arg.KeyNamespaces,
 		arg.Type,
 		arg.Name,
 		arg.RequireSufficient,
@@ -907,17 +949,18 @@ SELECT s.id, s.subject_version, s.created_at, s.flavor
 FROM sbom s
 WHERE s.artifact_id = $1
   AND ($2::text IS NULL OR s.subject_version = $2)
-  AND s.namespace_id IN (SELECT visible_namespace_ids($3::uuid, $4::boolean))
+  AND s.namespace_id IN (SELECT visible_namespace_ids($3::uuid, $4::boolean, $5::uuid[]))
 ORDER BY s.created_at DESC, s.id DESC
-LIMIT $5
+LIMIT $6
 `
 
 type ListSBOMCandidatesByArtifactParams struct {
-	ArtifactID     pgtype.UUID `json:"artifact_id"`
-	SubjectVersion pgtype.Text `json:"subject_version"`
-	UserID         pgtype.UUID `json:"user_id"`
-	IsAdmin        pgtype.Bool `json:"is_admin"`
-	RowLimit       int32       `json:"row_limit"`
+	ArtifactID     pgtype.UUID   `json:"artifact_id"`
+	SubjectVersion pgtype.Text   `json:"subject_version"`
+	UserID         pgtype.UUID   `json:"user_id"`
+	IsAdmin        pgtype.Bool   `json:"is_admin"`
+	KeyNamespaces  []pgtype.UUID `json:"key_namespaces"`
+	RowLimit       int32         `json:"row_limit"`
 }
 
 type ListSBOMCandidatesByArtifactRow struct {
@@ -940,6 +983,7 @@ func (q *Queries) ListSBOMCandidatesByArtifact(ctx context.Context, arg ListSBOM
 		arg.SubjectVersion,
 		arg.UserID,
 		arg.IsAdmin,
+		arg.KeyNamespaces,
 		arg.RowLimit,
 	)
 	if err != nil {
@@ -982,13 +1026,13 @@ WHERE s.artifact_id = $1
   AND ($2::text IS NULL OR s.subject_version = $2)
   AND ($3::text IS NULL
        OR COALESCE(e.data->>'imageVersion', u.data->>'imageVersion') = $3)
-  AND s.namespace_id IN (SELECT visible_namespace_ids($4::uuid, $5::boolean))
+  AND s.namespace_id IN (SELECT visible_namespace_ids($4::uuid, $5::boolean, $6::uuid[]))
   AND (
-    NOT $6::boolean
-    OR (s.created_at, s.id) < ($7::timestamptz, $8::uuid)
+    NOT $7::boolean
+    OR (s.created_at, s.id) < ($8::timestamptz, $9::uuid)
   )
 ORDER BY s.created_at DESC, s.id DESC
-LIMIT $9
+LIMIT $10
 `
 
 type ListSBOMsByArtifactParams struct {
@@ -997,6 +1041,7 @@ type ListSBOMsByArtifactParams struct {
 	ImageVersion    pgtype.Text        `json:"image_version"`
 	UserID          pgtype.UUID        `json:"user_id"`
 	IsAdmin         pgtype.Bool        `json:"is_admin"`
+	KeyNamespaces   []pgtype.UUID      `json:"key_namespaces"`
 	HasCursor       pgtype.Bool        `json:"has_cursor"`
 	CursorCreatedAt pgtype.Timestamptz `json:"cursor_created_at"`
 	CursorID        pgtype.UUID        `json:"cursor_id"`
@@ -1028,6 +1073,7 @@ func (q *Queries) ListSBOMsByArtifact(ctx context.Context, arg ListSBOMsByArtifa
 		arg.ImageVersion,
 		arg.UserID,
 		arg.IsAdmin,
+		arg.KeyNamespaces,
 		arg.HasCursor,
 		arg.CursorCreatedAt,
 		arg.CursorID,
@@ -1073,17 +1119,18 @@ FROM artifact a
 WHERE a.name = $1::text
   AND ($2::text IS NULL OR a.type = $2)
   AND ($3::text IS NULL OR COALESCE(a.group_name, '') = $3)
-  AND artifact_visible(a.id, $4::uuid, $5::boolean)
+  AND artifact_visible(a.id, $4::uuid, $5::boolean, $6::uuid[])
 ORDER BY a.type, a.group_name NULLS FIRST, a.id
 LIMIT 50
 `
 
 type LookupArtifactsParams struct {
-	Name      string      `json:"name"`
-	Type      pgtype.Text `json:"type"`
-	GroupName pgtype.Text `json:"group_name"`
-	UserID    pgtype.UUID `json:"user_id"`
-	IsAdmin   pgtype.Bool `json:"is_admin"`
+	Name          string        `json:"name"`
+	Type          pgtype.Text   `json:"type"`
+	GroupName     pgtype.Text   `json:"group_name"`
+	UserID        pgtype.UUID   `json:"user_id"`
+	IsAdmin       pgtype.Bool   `json:"is_admin"`
+	KeyNamespaces []pgtype.UUID `json:"key_namespaces"`
 }
 
 type LookupArtifactsRow struct {
@@ -1110,6 +1157,7 @@ func (q *Queries) LookupArtifacts(ctx context.Context, arg LookupArtifactsParams
 		arg.GroupName,
 		arg.UserID,
 		arg.IsAdmin,
+		arg.KeyNamespaces,
 	)
 	if err != nil {
 		return nil, err

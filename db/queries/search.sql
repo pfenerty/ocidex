@@ -34,11 +34,11 @@ FROM sbom
 WHERE id = $1;
 
 -- name: IsSBOMVisible :one
-SELECT sbom_visible(s.namespace_id, sqlc.narg('user_id')::uuid, sqlc.narg('is_admin')::boolean) AS visible
+SELECT sbom_visible(s.namespace_id, sqlc.narg('user_id')::uuid, sqlc.narg('is_admin')::boolean, sqlc.narg('key_namespaces')::uuid[]) AS visible
 FROM sbom s WHERE s.id = $1;
 
 -- name: IsArtifactVisible :one
-SELECT artifact_visible($1, sqlc.narg('user_id')::uuid, sqlc.narg('is_admin')::boolean) AS visible;
+SELECT artifact_visible($1, sqlc.narg('user_id')::uuid, sqlc.narg('is_admin')::boolean, sqlc.narg('key_namespaces')::uuid[]) AS visible;
 
 -- name: ListSBOMs :many
 -- Keyset pagination on (created_at DESC, id DESC); backed by idx_sbom_created_at_id.
@@ -47,7 +47,7 @@ SELECT s.id, s.serial_number, s.spec_version, s.version, s.artifact_id, s.subjec
 FROM sbom s
 WHERE (sqlc.narg('serial_number')::text IS NULL OR s.serial_number = sqlc.narg('serial_number'))
   AND (sqlc.narg('digest')::text IS NULL OR s.digest = sqlc.narg('digest'))
-  AND s.namespace_id IN (SELECT visible_namespace_ids(sqlc.narg('user_id')::uuid, sqlc.narg('is_admin')::boolean))
+  AND s.namespace_id IN (SELECT visible_namespace_ids(sqlc.narg('user_id')::uuid, sqlc.narg('is_admin')::boolean, sqlc.narg('key_namespaces')::uuid[]))
   AND (
     NOT sqlc.narg('has_cursor')::boolean
     OR (s.created_at, s.id) < (sqlc.narg('cursor_created_at')::timestamptz, sqlc.narg('cursor_id')::uuid)
@@ -80,7 +80,7 @@ FROM sbom s
 JOIN namespace n ON n.id = s.namespace_id
 LEFT JOIN source src ON src.id = s.source_id
 LEFT JOIN artifact a ON a.id = s.artifact_id
-WHERE n.id IN (SELECT owned_namespace_ids(sqlc.arg('viewer_id')::uuid))
+WHERE n.id IN (SELECT owned_namespace_ids(sqlc.arg('viewer_id')::uuid, sqlc.narg('key_namespaces')::uuid[]))
   AND (
     NOT sqlc.narg('has_cursor')::boolean
     OR (s.created_at, s.id) < (sqlc.narg('cursor_created_at')::timestamptz, sqlc.narg('cursor_id')::uuid)
@@ -93,7 +93,7 @@ SELECT s.id, s.serial_number, s.spec_version, s.version, s.artifact_id, s.subjec
        COUNT(*) OVER() AS total_count
 FROM sbom s
 WHERE s.digest = $1
-  AND s.namespace_id IN (SELECT visible_namespace_ids(sqlc.narg('user_id')::uuid, sqlc.narg('is_admin')::boolean))
+  AND s.namespace_id IN (SELECT visible_namespace_ids(sqlc.narg('user_id')::uuid, sqlc.narg('is_admin')::boolean, sqlc.narg('key_namespaces')::uuid[]))
 ORDER BY s.created_at DESC, s.id DESC
 LIMIT @row_limit OFFSET @row_offset;
 
@@ -112,7 +112,7 @@ WHERE (sqlc.narg('name')::text IS NULL OR c.name = sqlc.narg('name'))
   AND (sqlc.narg('version')::text IS NULL OR c.version = sqlc.narg('version'))
   AND EXISTS (
     SELECT 1 FROM sbom s WHERE s.id = c.sbom_id
-      AND s.namespace_id IN (SELECT visible_namespace_ids(sqlc.narg('user_id')::uuid, sqlc.narg('is_admin')::boolean))
+      AND s.namespace_id IN (SELECT visible_namespace_ids(sqlc.narg('user_id')::uuid, sqlc.narg('is_admin')::boolean, sqlc.narg('key_namespaces')::uuid[]))
   )
 -- Version parts alone tie constantly (every unparseable version is all-NULL),
 -- and OFFSET over a tied ordering lets rows slide between pages: one page
@@ -166,7 +166,7 @@ SELECT l.id, l.spdx_id, l.name, l.url,
 FROM license l
 LEFT JOIN license_rollup lr ON lr.license_id = l.id
   AND (lr.namespace_id IN (
-        SELECT visible_namespace_ids(sqlc.narg('user_id')::uuid, sqlc.narg('is_admin')::boolean)))
+        SELECT visible_namespace_ids(sqlc.narg('user_id')::uuid, sqlc.narg('is_admin')::boolean, sqlc.narg('key_namespaces')::uuid[])))
 -- Substring matches, both of them. These were an exact `=` on spdx_id and a
 -- wildcard-free ILIKE on name, so "Filter by name…" only ever matched a reader
 -- who typed the whole license name — every prefix on the way to "Apache-2.0"
@@ -190,7 +190,7 @@ WITH visible AS (
            r.version_major, r.version_minor, r.version_patch
     FROM license_component_rollup r
     WHERE r.license_id = @license_id
-      AND r.namespace_id IN (SELECT visible_namespace_ids(sqlc.narg('user_id')::uuid, sqlc.narg('is_admin')::boolean))
+      AND r.namespace_id IN (SELECT visible_namespace_ids(sqlc.narg('user_id')::uuid, sqlc.narg('is_admin')::boolean, sqlc.narg('key_namespaces')::uuid[]))
     ORDER BY r.name, COALESCE(r.group_name, ''), COALESCE(r.version, ''), r.type, r.component_id
 )
 SELECT component_id AS id, sbom_id, type, name, group_name, version, purl,
@@ -347,7 +347,7 @@ SELECT DISTINCT p.purl_type::text AS purl_type
 FROM component_rollup r
 CROSS JOIN LATERAL unnest(r.purl_types) AS p(purl_type)
 WHERE (r.namespace_id IN (
-        SELECT visible_namespace_ids(sqlc.narg('user_id')::uuid, sqlc.narg('is_admin')::boolean)))
+        SELECT visible_namespace_ids(sqlc.narg('user_id')::uuid, sqlc.narg('is_admin')::boolean, sqlc.narg('key_namespaces')::uuid[])))
 ORDER BY 1
 -- Safety cap: purl types are a small, fixed vocabulary; bound the scan.
 LIMIT 200;
@@ -394,7 +394,7 @@ WHERE (sqlc.narg('name')::text IS NULL OR r.name ILIKE like_contains(sqlc.narg('
   AND (sqlc.narg('type')::text IS NULL OR r.type = sqlc.narg('type'))
   AND (sqlc.narg('purl_type')::text IS NULL OR sqlc.narg('purl_type')::text = ANY(r.purl_types))
   AND (r.namespace_id IN (
-        SELECT visible_namespace_ids(sqlc.narg('user_id')::uuid, sqlc.narg('is_admin')::boolean)))
+        SELECT visible_namespace_ids(sqlc.narg('user_id')::uuid, sqlc.narg('is_admin')::boolean, sqlc.narg('key_namespaces')::uuid[])))
 GROUP BY r.name, r.group_name, r.type
 ORDER BY
   -- 'severity' needs five keys rather than one: a single total would rank a
@@ -428,7 +428,7 @@ WHERE c.name = @name
   AND (sqlc.narg('group_name')::text IS NULL OR c.group_name = sqlc.narg('group_name'))
   AND (sqlc.narg('version')::text IS NULL OR c.version = sqlc.narg('version'))
   AND (sqlc.narg('type')::text IS NULL OR c.type = sqlc.narg('type'))
-  AND s.namespace_id IN (SELECT visible_namespace_ids(sqlc.narg('user_id')::uuid, sqlc.narg('is_admin')::boolean))
+  AND s.namespace_id IN (SELECT visible_namespace_ids(sqlc.narg('user_id')::uuid, sqlc.narg('is_admin')::boolean, sqlc.narg('key_namespaces')::uuid[]))
 -- c.id last makes the order total. Without it, every row of one SBOM (stdlib
 -- appears many times per Go image) and every version that does not parse tied,
 -- and OFFSET paging over a tie skipped some rows and repeated others -- the
@@ -485,7 +485,7 @@ SELECT COUNT(*) AS total,
        COUNT(DISTINCT m.sbom_id) AS sbom_count
 FROM matched m
 JOIN sbom s ON s.id = m.sbom_id
-WHERE s.namespace_id IN (SELECT visible_namespace_ids(sqlc.narg('user_id')::uuid, sqlc.narg('is_admin')::boolean));
+WHERE s.namespace_id IN (SELECT visible_namespace_ids(sqlc.narg('user_id')::uuid, sqlc.narg('is_admin')::boolean, sqlc.narg('key_namespaces')::uuid[]));
 
 -- name: ListComponentVersionSummaries :many
 -- One row per distinct version of a component, for /components/overview.
@@ -511,7 +511,7 @@ SELECT m.version,
        COUNT(DISTINCT s.artifact_id) AS artifact_count
 FROM matched m
 JOIN sbom s ON s.id = m.sbom_id
-WHERE s.namespace_id IN (SELECT visible_namespace_ids(sqlc.narg('user_id')::uuid, sqlc.narg('is_admin')::boolean))
+WHERE s.namespace_id IN (SELECT visible_namespace_ids(sqlc.narg('user_id')::uuid, sqlc.narg('is_admin')::boolean, sqlc.narg('key_namespaces')::uuid[]))
 GROUP BY m.version
 ORDER BY MAX(m.version_major) DESC NULLS LAST,
          MAX(m.version_minor) DESC NULLS LAST,

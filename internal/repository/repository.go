@@ -254,6 +254,7 @@ type AuthRepository interface {
 	DeleteSession(ctx context.Context, tokenHash string) error
 	DeleteExpiredSessions(ctx context.Context) error
 	CreateAPIKey(ctx context.Context, arg CreateAPIKeyParams) (ApiKey, error)
+	CountKeyNamespacesAllowed(ctx context.Context, arg CountKeyNamespacesAllowedParams) (int64, error)
 	GetAPIKeyByHash(ctx context.Context, keyHash string) (GetAPIKeyByHashRow, error)
 	TouchAPIKeyLastUsed(ctx context.Context, id pgtype.UUID) error
 	ListAPIKeysByUser(ctx context.Context, userID pgtype.UUID) ([]ListAPIKeysByUserRow, error)

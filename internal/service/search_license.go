@@ -17,13 +17,14 @@ func (s *searchService) ListLicenses(ctx context.Context, filter LicenseFilter) 
 	rows, err := q.ListLicenses(ctx, repository.ListLicensesParams{
 		// Trimmed: the match is a substring one now, so a box holding only
 		// whitespace would match every license under a filter that looks active.
-		SpdxID:    textOrNull(strings.TrimSpace(filter.SpdxID)),
-		Name:      textOrNull(strings.TrimSpace(filter.Name)),
-		Category:  textOrNull(filter.Category),
-		UserID:    uuidOrNull(filter.Visibility.UserID),
-		IsAdmin:   visAdminBool(filter.Visibility),
-		RowLimit:  filter.Limit,
-		RowOffset: filter.Offset,
+		SpdxID:        textOrNull(strings.TrimSpace(filter.SpdxID)),
+		Name:          textOrNull(strings.TrimSpace(filter.Name)),
+		Category:      textOrNull(filter.Category),
+		UserID:        uuidOrNull(filter.Visibility.UserID),
+		IsAdmin:       visAdminBool(filter.Visibility),
+		KeyNamespaces: filter.Visibility.keyNamespaces(),
+		RowLimit:      filter.Limit,
+		RowOffset:     filter.Offset,
 	})
 	if err != nil {
 		return PagedResult[LicenseCount]{}, fmt.Errorf("listing licenses: %w", err)
@@ -60,11 +61,12 @@ func (s *searchService) ListComponentsByLicense(ctx context.Context, licenseIDSt
 	q := repository.New(s.db)
 
 	rows, err := q.ListComponentsByLicense(ctx, repository.ListComponentsByLicenseParams{
-		LicenseID: licenseID,
-		UserID:    uuidOrNull(vis.UserID),
-		IsAdmin:   visAdminBool(vis),
-		RowLimit:  limit,
-		RowOffset: offset,
+		LicenseID:     licenseID,
+		UserID:        uuidOrNull(vis.UserID),
+		IsAdmin:       visAdminBool(vis),
+		KeyNamespaces: vis.keyNamespaces(),
+		RowLimit:      limit,
+		RowOffset:     offset,
 	})
 	if err != nil {
 		return PagedResult[ComponentSummary]{}, fmt.Errorf("listing components by license: %w", err)
