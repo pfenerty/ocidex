@@ -117,7 +117,7 @@ The application: API, web, NATS, scanner, enrichers, vuln-worker and the migrate
 | <code>migrate.<wbr>enabled</code> | `true` |  |
 | <code>nats.<wbr>image</code> | | Declared here rather than inline in the StatefulSet so Renovate's helm-values manager can see and bump it. |
 | <code>nats.<wbr>image.<wbr>repository</code> | `docker.io/nats` |  |
-| <code>nats.<wbr>image.<wbr>tag</code> | `2-alpine@sha256:afae2fdbe2e326c65e1246cb83b9d05d319188734f3bd577ac8072daae78a10f` |  |
+| <code>nats.<wbr>image.<wbr>tag</code> | `2-alpine@sha256:558394a23dd3c36f2d3a64b51865fd09908010e80a542cea5e75c2af543ed62a` |  |
 | <code>nats.<wbr>storage.<wbr>emptyDir</code> | `false` |  |
 | <code>nats.<wbr>storage.<wbr>size</code> | `1Gi` |  |
 | <code>nats.<wbr>storage.<wbr>storageClass</code> | "" |  |
