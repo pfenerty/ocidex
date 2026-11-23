@@ -6,7 +6,7 @@ metadata:
     pipelinesascode.tekton.dev/max-keep-runs: "5"
     pipelinesascode.tekton.dev/on-event: "[push]"
     pipelinesascode.tekton.dev/on-target-branch: "[main]"
-    pipelinesascode.tekton.dev/task: "[.tekton/tasks/set-status-pending-ocidex-push.k8s.yaml, .tekton/tasks/git-clone.k8s.yaml, .tekton/tasks/gofmt-check.k8s.yaml, .tekton/tasks/go-lint.k8s.yaml, .tekton/tasks/go-build.k8s.yaml, .tekton/tasks/go-test.k8s.yaml, .tekton/tasks/openapi-verify.k8s.yaml, .tekton/tasks/eslint-lint-web.k8s.yaml, .tekton/tasks/codegen-check.k8s.yaml, .tekton/tasks/go-integration-test.k8s.yaml, .tekton/tasks/govulncheck-scan.k8s.yaml, .tekton/tasks/grype-vuln-web.k8s.yaml, .tekton/tasks/gitleaks-secrets.k8s.yaml, .tekton/tasks/semgrep-sast.k8s.yaml, .tekton/tasks/image-build-api.k8s.yaml, .tekton/tasks/image-build-scanner-worker.k8s.yaml, .tekton/tasks/image-build-oci-metadata-worker.k8s.yaml, .tekton/tasks/image-build-git-worker.k8s.yaml, .tekton/tasks/image-build-user-enricher-worker.k8s.yaml, .tekton/tasks/image-build-provenance-worker.k8s.yaml, .tekton/tasks/image-build-vuln-worker.k8s.yaml, .tekton/tasks/image-build-web.k8s.yaml, .tekton/tasks/image-build-k8s-agent.k8s.yaml, .tekton/tasks/image-build-operator.k8s.yaml, .tekton/tasks/image-build-cli.k8s.yaml, .tekton/tasks/helm-check.k8s.yaml, .tekton/tasks/helm-publish.k8s.yaml, .tekton/tasks/sbom-push.k8s.yaml, .tekton/tasks/docs-publish-next.k8s.yaml, .tekton/tasks/reconcile-status-ocidex-push.k8s.yaml, .tekton/tasks/set-status-pending-ocidex-pull-request.k8s.yaml, .tekton/tasks/detect-go.k8s.yaml, .tekton/tasks/detect-node.k8s.yaml, .tekton/tasks/detect-codegen.k8s.yaml, .tekton/tasks/openapi-breaking.k8s.yaml, .tekton/tasks/detect-source.k8s.yaml, .tekton/tasks/tekton-check.k8s.yaml, .tekton/tasks/detect-pipeline.k8s.yaml, .tekton/tasks/detect-charts.k8s.yaml, .tekton/tasks/docs-build.k8s.yaml, .tekton/tasks/detect-docs.k8s.yaml, .tekton/tasks/reconcile-status-ocidex-pull-request.k8s.yaml, .tekton/tasks/set-status-pending-ocidex-tag.k8s.yaml, .tekton/tasks/image-release-api.k8s.yaml, .tekton/tasks/image-release-scanner-worker.k8s.yaml, .tekton/tasks/image-release-oci-metadata-worker.k8s.yaml, .tekton/tasks/image-release-git-worker.k8s.yaml, .tekton/tasks/image-release-user-enricher-worker.k8s.yaml, .tekton/tasks/image-release-provenance-worker.k8s.yaml, .tekton/tasks/image-release-vuln-worker.k8s.yaml, .tekton/tasks/image-release-web.k8s.yaml, .tekton/tasks/image-release-k8s-agent.k8s.yaml, .tekton/tasks/image-release-operator.k8s.yaml, .tekton/tasks/image-release-cli.k8s.yaml, .tekton/tasks/helm-release.k8s.yaml, .tekton/tasks/gh-release.k8s.yaml, .tekton/tasks/docs-publish-release.k8s.yaml, .tekton/tasks/reconcile-status-ocidex-tag.k8s.yaml]"
+    pipelinesascode.tekton.dev/task: "[.tekton/tasks/set-status-pending-ocidex-push.k8s.yaml, .tekton/tasks/git-clone.k8s.yaml, .tekton/tasks/gofmt-check.k8s.yaml, .tekton/tasks/check-tip.k8s.yaml, .tekton/tasks/go-lint.k8s.yaml, .tekton/tasks/go-build.k8s.yaml, .tekton/tasks/go-test.k8s.yaml, .tekton/tasks/openapi-verify.k8s.yaml, .tekton/tasks/eslint-lint-web.k8s.yaml, .tekton/tasks/codegen-check.k8s.yaml, .tekton/tasks/go-integration-test.k8s.yaml, .tekton/tasks/govulncheck-scan.k8s.yaml, .tekton/tasks/grype-vuln-web.k8s.yaml, .tekton/tasks/gitleaks-secrets.k8s.yaml, .tekton/tasks/semgrep-sast.k8s.yaml, .tekton/tasks/image-build-api.k8s.yaml, .tekton/tasks/image-build-scanner-worker.k8s.yaml, .tekton/tasks/image-build-oci-metadata-worker.k8s.yaml, .tekton/tasks/image-build-git-worker.k8s.yaml, .tekton/tasks/image-build-user-enricher-worker.k8s.yaml, .tekton/tasks/image-build-provenance-worker.k8s.yaml, .tekton/tasks/image-build-vuln-worker.k8s.yaml, .tekton/tasks/image-build-web.k8s.yaml, .tekton/tasks/image-build-k8s-agent.k8s.yaml, .tekton/tasks/image-build-operator.k8s.yaml, .tekton/tasks/image-build-cli.k8s.yaml, .tekton/tasks/helm-check.k8s.yaml, .tekton/tasks/helm-publish.k8s.yaml, .tekton/tasks/sbom-push.k8s.yaml, .tekton/tasks/docs-publish-next.k8s.yaml, .tekton/tasks/reconcile-status-ocidex-push.k8s.yaml, .tekton/tasks/set-status-pending-ocidex-pull-request.k8s.yaml, .tekton/tasks/detect-go.k8s.yaml, .tekton/tasks/detect-node.k8s.yaml, .tekton/tasks/detect-codegen.k8s.yaml, .tekton/tasks/openapi-breaking.k8s.yaml, .tekton/tasks/detect-source.k8s.yaml, .tekton/tasks/tekton-check.k8s.yaml, .tekton/tasks/detect-pipeline.k8s.yaml, .tekton/tasks/detect-charts.k8s.yaml, .tekton/tasks/docs-build.k8s.yaml, .tekton/tasks/detect-docs.k8s.yaml, .tekton/tasks/reconcile-status-ocidex-pull-request.k8s.yaml, .tekton/tasks/set-status-pending-ocidex-tag.k8s.yaml, .tekton/tasks/image-release-api.k8s.yaml, .tekton/tasks/image-release-scanner-worker.k8s.yaml, .tekton/tasks/image-release-oci-metadata-worker.k8s.yaml, .tekton/tasks/image-release-git-worker.k8s.yaml, .tekton/tasks/image-release-user-enricher-worker.k8s.yaml, .tekton/tasks/image-release-provenance-worker.k8s.yaml, .tekton/tasks/image-release-vuln-worker.k8s.yaml, .tekton/tasks/image-release-web.k8s.yaml, .tekton/tasks/image-release-k8s-agent.k8s.yaml, .tekton/tasks/image-release-operator.k8s.yaml, .tekton/tasks/image-release-cli.k8s.yaml, .tekton/tasks/helm-release.k8s.yaml, .tekton/tasks/gh-release.k8s.yaml, .tekton/tasks/docs-publish-release.k8s.yaml, .tekton/tasks/reconcile-status-ocidex-tag.k8s.yaml]"
   name: ocidex-ocidex-push
 spec:
   params:
@@ -182,6 +182,20 @@ spec:
         workspaces:
           - name: workspace
             workspace: workspace
+      - name: check-tip
+        params:
+          - name: source-branch
+            value: $(params.source-branch)
+          - name: revision
+            value: $(params.revision)
+        runAfter:
+          - git-clone
+        taskRef:
+          kind: Task
+          name: ocidex-check-tip
+        workspaces:
+          - name: workspace
+            workspace: workspace
       - name: gofmt-check
         params:
           - name: repo-full-name
@@ -193,10 +207,16 @@ spec:
           - name: check-run-id
             value: $(tasks.set-status-pending-ocidex-push.results.check-run-597c5002e426)
         runAfter:
+          - check-tip
           - set-status-pending-ocidex-push
         taskRef:
           kind: Task
           name: ocidex-gofmt-check
+        when:
+          - input: $(tasks.check-tip.results.tip)
+            operator: in
+            values:
+              - "true"
         workspaces:
           - name: workspace
             workspace: workspace
@@ -211,10 +231,16 @@ spec:
           - name: check-run-id
             value: $(tasks.set-status-pending-ocidex-push.results.check-run-1f589d4f9dc0)
         runAfter:
+          - check-tip
           - set-status-pending-ocidex-push
         taskRef:
           kind: Task
           name: ocidex-go-build
+        when:
+          - input: $(tasks.check-tip.results.tip)
+            operator: in
+            values:
+              - "true"
         workspaces:
           - name: go-cache
             workspace: go-cache
@@ -232,10 +258,16 @@ spec:
             value: $(tasks.set-status-pending-ocidex-push.results.check-run-fa7347d12d41)
         runAfter:
           - go-build
+          - check-tip
           - set-status-pending-ocidex-push
         taskRef:
           kind: Task
           name: ocidex-go-lint
+        when:
+          - input: $(tasks.check-tip.results.tip)
+            operator: in
+            values:
+              - "true"
         workspaces:
           - name: go-cache
             workspace: go-cache
@@ -253,10 +285,16 @@ spec:
             value: $(tasks.set-status-pending-ocidex-push.results.check-run-7a0612208705)
         runAfter:
           - go-build
+          - check-tip
           - set-status-pending-ocidex-push
         taskRef:
           kind: Task
           name: ocidex-go-test
+        when:
+          - input: $(tasks.check-tip.results.tip)
+            operator: in
+            values:
+              - "true"
         workspaces:
           - name: go-cache
             workspace: go-cache
@@ -273,10 +311,16 @@ spec:
           - name: check-run-id
             value: $(tasks.set-status-pending-ocidex-push.results.check-run-06f17b989143)
         runAfter:
+          - check-tip
           - set-status-pending-ocidex-push
         taskRef:
           kind: Task
           name: ocidex-eslint-lint-web
+        when:
+          - input: $(tasks.check-tip.results.tip)
+            operator: in
+            values:
+              - "true"
         workspaces:
           - name: node-cache
             workspace: node-cache
@@ -295,10 +339,16 @@ spec:
         runAfter:
           - go-build
           - eslint-lint-web
+          - check-tip
           - set-status-pending-ocidex-push
         taskRef:
           kind: Task
           name: ocidex-openapi-verify
+        when:
+          - input: $(tasks.check-tip.results.tip)
+            operator: in
+            values:
+              - "true"
         workspaces:
           - name: node-cache
             workspace: node-cache
@@ -316,10 +366,16 @@ spec:
             value: $(tasks.set-status-pending-ocidex-push.results.check-run-d7821c2f8993)
         runAfter:
           - go-build
+          - check-tip
           - set-status-pending-ocidex-push
         taskRef:
           kind: Task
           name: ocidex-codegen-check
+        when:
+          - input: $(tasks.check-tip.results.tip)
+            operator: in
+            values:
+              - "true"
         workspaces:
           - name: go-cache
             workspace: go-cache
@@ -337,11 +393,17 @@ spec:
             value: $(tasks.set-status-pending-ocidex-push.results.check-run-88490e4492ce)
         runAfter:
           - go-test
+          - check-tip
           - set-status-pending-ocidex-push
         taskRef:
           kind: Task
           name: ocidex-go-integration-test
         timeout: 30m
+        when:
+          - input: $(tasks.check-tip.results.tip)
+            operator: in
+            values:
+              - "true"
         workspaces:
           - name: go-cache
             workspace: go-cache
@@ -361,10 +423,16 @@ spec:
             value: $(tasks.set-status-pending-ocidex-push.results.check-run-14a786f1c7c4)
         runAfter:
           - go-build
+          - check-tip
           - set-status-pending-ocidex-push
         taskRef:
           kind: Task
           name: ocidex-govulncheck-scan
+        when:
+          - input: $(tasks.check-tip.results.tip)
+            operator: in
+            values:
+              - "true"
         workspaces:
           - name: go-cache
             workspace: go-cache
@@ -383,10 +451,16 @@ spec:
           - name: check-run-id
             value: $(tasks.set-status-pending-ocidex-push.results.check-run-7fd7abd3f376)
         runAfter:
+          - check-tip
           - set-status-pending-ocidex-push
         taskRef:
           kind: Task
           name: ocidex-grype-vuln-web
+        when:
+          - input: $(tasks.check-tip.results.tip)
+            operator: in
+            values:
+              - "true"
         workspaces:
           - name: workspace
             workspace: workspace
@@ -401,10 +475,16 @@ spec:
           - name: check-run-id
             value: $(tasks.set-status-pending-ocidex-push.results.check-run-6ff80b84857c)
         runAfter:
+          - check-tip
           - set-status-pending-ocidex-push
         taskRef:
           kind: Task
           name: ocidex-gitleaks-secrets
+        when:
+          - input: $(tasks.check-tip.results.tip)
+            operator: in
+            values:
+              - "true"
         workspaces:
           - name: workspace
             workspace: workspace
@@ -421,10 +501,16 @@ spec:
           - name: check-run-id
             value: $(tasks.set-status-pending-ocidex-push.results.check-run-94126e72e0d9)
         runAfter:
+          - check-tip
           - set-status-pending-ocidex-push
         taskRef:
           kind: Task
           name: ocidex-semgrep-sast
+        when:
+          - input: $(tasks.check-tip.results.tip)
+            operator: in
+            values:
+              - "true"
         workspaces:
           - name: workspace
             workspace: workspace
@@ -442,10 +528,16 @@ spec:
           - go-test
           - go-integration-test
           - openapi-verify
+          - check-tip
           - set-status-pending-ocidex-push
         taskRef:
           kind: Task
           name: ocidex-image-build-api
+        when:
+          - input: $(tasks.check-tip.results.tip)
+            operator: in
+            values:
+              - "true"
         workspaces:
           - name: buildkit-cache
             workspace: buildkit-cache
@@ -465,11 +557,17 @@ spec:
           - go-test
           - go-integration-test
           - openapi-verify
+          - check-tip
           - image-build-api
           - set-status-pending-ocidex-push
         taskRef:
           kind: Task
           name: ocidex-image-build-scanner-worker
+        when:
+          - input: $(tasks.check-tip.results.tip)
+            operator: in
+            values:
+              - "true"
         workspaces:
           - name: buildkit-cache
             workspace: buildkit-cache
@@ -489,11 +587,17 @@ spec:
           - go-test
           - go-integration-test
           - openapi-verify
+          - check-tip
           - image-build-scanner-worker
           - set-status-pending-ocidex-push
         taskRef:
           kind: Task
           name: ocidex-image-build-oci-metadata-worker
+        when:
+          - input: $(tasks.check-tip.results.tip)
+            operator: in
+            values:
+              - "true"
         workspaces:
           - name: buildkit-cache
             workspace: buildkit-cache
@@ -513,11 +617,17 @@ spec:
           - go-test
           - go-integration-test
           - openapi-verify
+          - check-tip
           - image-build-oci-metadata-worker
           - set-status-pending-ocidex-push
         taskRef:
           kind: Task
           name: ocidex-image-build-git-worker
+        when:
+          - input: $(tasks.check-tip.results.tip)
+            operator: in
+            values:
+              - "true"
         workspaces:
           - name: buildkit-cache
             workspace: buildkit-cache
@@ -537,11 +647,17 @@ spec:
           - go-test
           - go-integration-test
           - openapi-verify
+          - check-tip
           - image-build-git-worker
           - set-status-pending-ocidex-push
         taskRef:
           kind: Task
           name: ocidex-image-build-user-enricher-worker
+        when:
+          - input: $(tasks.check-tip.results.tip)
+            operator: in
+            values:
+              - "true"
         workspaces:
           - name: buildkit-cache
             workspace: buildkit-cache
@@ -561,11 +677,17 @@ spec:
           - go-test
           - go-integration-test
           - openapi-verify
+          - check-tip
           - image-build-user-enricher-worker
           - set-status-pending-ocidex-push
         taskRef:
           kind: Task
           name: ocidex-image-build-provenance-worker
+        when:
+          - input: $(tasks.check-tip.results.tip)
+            operator: in
+            values:
+              - "true"
         workspaces:
           - name: buildkit-cache
             workspace: buildkit-cache
@@ -585,11 +707,17 @@ spec:
           - go-test
           - go-integration-test
           - openapi-verify
+          - check-tip
           - image-build-provenance-worker
           - set-status-pending-ocidex-push
         taskRef:
           kind: Task
           name: ocidex-image-build-vuln-worker
+        when:
+          - input: $(tasks.check-tip.results.tip)
+            operator: in
+            values:
+              - "true"
         workspaces:
           - name: buildkit-cache
             workspace: buildkit-cache
@@ -609,11 +737,17 @@ spec:
           - go-test
           - go-integration-test
           - openapi-verify
+          - check-tip
           - image-build-vuln-worker
           - set-status-pending-ocidex-push
         taskRef:
           kind: Task
           name: ocidex-image-build-web
+        when:
+          - input: $(tasks.check-tip.results.tip)
+            operator: in
+            values:
+              - "true"
         workspaces:
           - name: buildkit-cache
             workspace: buildkit-cache
@@ -633,11 +767,17 @@ spec:
           - go-test
           - go-integration-test
           - openapi-verify
+          - check-tip
           - image-build-web
           - set-status-pending-ocidex-push
         taskRef:
           kind: Task
           name: ocidex-image-build-k8s-agent
+        when:
+          - input: $(tasks.check-tip.results.tip)
+            operator: in
+            values:
+              - "true"
         workspaces:
           - name: buildkit-cache
             workspace: buildkit-cache
@@ -657,11 +797,17 @@ spec:
           - go-test
           - go-integration-test
           - openapi-verify
+          - check-tip
           - image-build-k8s-agent
           - set-status-pending-ocidex-push
         taskRef:
           kind: Task
           name: ocidex-image-build-operator
+        when:
+          - input: $(tasks.check-tip.results.tip)
+            operator: in
+            values:
+              - "true"
         workspaces:
           - name: buildkit-cache
             workspace: buildkit-cache
@@ -681,11 +827,17 @@ spec:
           - go-test
           - go-integration-test
           - openapi-verify
+          - check-tip
           - image-build-operator
           - set-status-pending-ocidex-push
         taskRef:
           kind: Task
           name: ocidex-image-build-cli
+        when:
+          - input: $(tasks.check-tip.results.tip)
+            operator: in
+            values:
+              - "true"
         workspaces:
           - name: buildkit-cache
             workspace: buildkit-cache
@@ -702,10 +854,16 @@ spec:
           - name: check-run-id
             value: $(tasks.set-status-pending-ocidex-push.results.check-run-1292575c9224)
         runAfter:
+          - check-tip
           - set-status-pending-ocidex-push
         taskRef:
           kind: Task
           name: ocidex-helm-check
+        when:
+          - input: $(tasks.check-tip.results.tip)
+            operator: in
+            values:
+              - "true"
         workspaces:
           - name: workspace
             workspace: workspace
@@ -732,10 +890,16 @@ spec:
           - image-build-operator
           - image-build-cli
           - helm-check
+          - check-tip
           - set-status-pending-ocidex-push
         taskRef:
           kind: Task
           name: ocidex-helm-publish
+        when:
+          - input: $(tasks.check-tip.results.tip)
+            operator: in
+            values:
+              - "true"
         workspaces:
           - name: workspace
             workspace: workspace
@@ -753,10 +917,16 @@ spec:
             value: $(tasks.set-status-pending-ocidex-push.results.check-run-8d8e4887cf11)
         runAfter:
           - go-build
+          - check-tip
           - set-status-pending-ocidex-push
         taskRef:
           kind: Task
           name: ocidex-sbom-push
+        when:
+          - input: $(tasks.check-tip.results.tip)
+            operator: in
+            values:
+              - "true"
         workspaces:
           - name: go-cache
             workspace: go-cache
@@ -773,10 +943,16 @@ spec:
           - name: check-run-id
             value: $(tasks.set-status-pending-ocidex-push.results.check-run-c782fdb7ab1d)
         runAfter:
+          - check-tip
           - set-status-pending-ocidex-push
         taskRef:
           kind: Task
           name: ocidex-docs-publish-next
+        when:
+          - input: $(tasks.check-tip.results.tip)
+            operator: in
+            values:
+              - "true"
         workspaces:
           - name: node-cache
             workspace: node-cache

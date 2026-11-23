@@ -12,6 +12,7 @@ import {
   codegenChanged,
   docsChanged,
 } from "./changes";
+import { isTip } from "./supersede";
 import { goFmt } from "./jobs/go-fmt/spec";
 import { goBuild } from "./jobs/go-build/spec";
 import { goTest } from "./jobs/go-test/spec";
@@ -35,14 +36,19 @@ import { sbomPush } from "./jobs/sbom-push/spec";
 import { docsBuild, docsPublishNext, docsPublishRelease } from "./jobs/docs/spec";
 
 // ─── Task groups ──────────────────────────────────────────────────────────────
-// Core build/verify tasks + the always-on security scans. Run ungated on push so
-// the publish path (main) always rebuilds and re-scans.
+// Core build/verify tasks + the always-on security scans. On push they are gated only on
+// isTip, so main's newest commit always rebuilds and re-scans.
 const coreTasks = [goFmt, goLint, goTest, goBuild, openapiCheck, codegenCheck, frontendLint, goIntegration];
 // go-vulncheck = reachability-aware Go gate (replaced grype-on-Go, which only added
 // noise for Go — e.g. flagging the unreachable, unfixable x/crypto/openpgp advisory);
 // web-security = frontend npm deps (grype — govulncheck can't scan npm); semgrep = SAST;
 // secrets-scan = gitleaks.
 const securityTasks = [goVulncheck, webSecurity, secretsScan, semgrep];
+
+// Skip a task when a newer commit has landed on the run's branch (supersede.ts): runs queue
+// under the PAC concurrency_limit instead of being cancelled, so a superseded run would
+// otherwise do all of its work for a commit nothing will use.
+const onTip = (task: Parameters<typeof gated>[0]) => gated(task, { when: isTip });
 
 // ─── Synthesis defaults ──────────────────────────────────────────────────────
 // Project options that change what a task synthesizes to, shared by the project in
@@ -70,9 +76,11 @@ export const pushPipeline = new GitPipeline({
   name: "ocidex-push",
   workspace: sourceWs,
   // Publish only from main — feature-branch pushes shouldn't run image builds.
-  // Cancel an older in-progress run for the same branch when a newer one starts,
-  // so two serial image-build chains never overlap and burst the single node's
-  // memory (risking a node-wide OOM instead of a per-container one).
+  // Two image-build chains must never overlap: they share one buildkitd root, and the
+  // burst risks a node-wide OOM. cancelInProgress used to guarantee that; PAC ignores it
+  // under the Repository's concurrency_limit, which now serializes runs instead, and the
+  // isTip gate below skips a queued run whose commit is already superseded. The
+  // annotation stays so this still holds if the limit is ever removed.
   trigger: { rules: [{ on: TRIGGER_EVENTS.PUSH, branch: "main" }], cancelInProgress: true },
   // All three pipelines share one generated git-clone task, so clone depth must be
   // consistent: the PR pipeline's onChanges needs full history for a reachable
@@ -94,15 +102,16 @@ export const pushPipeline = new GitPipeline({
   // the image chain, and its sidecar-backed suite is not something the cold-run estimate
   // above accounted for.
   timeout: "3h",
+  // Every task is gated on isTip: a queued push for a commit that is no longer main's tip
+  // skips straight to the end, and only the newest commit builds and publishes.
   tasks: [
-    ...coreTasks,
-    ...securityTasks,
-    ...serial(imageBuilds),
-    helmCheck,
-    helmPublish,
-    sbomPush,
+    ...[...coreTasks, ...securityTasks].map(onTip),
+    ...serial(imageBuilds.map(onTip)),
+    onTip(helmCheck),
+    onTip(helmPublish),
+    onTip(sbomPush),
     // The /next/ docs preview (ADR-0057); independent of the image chain.
-    docsPublishNext,
+    onTip(docsPublishNext),
   ],
 });
 
@@ -129,30 +138,30 @@ export const prPipeline = new GitPipeline({
   // queue existed, four Renovate PRs started together and all timed out at 1h.
   timeout: "1h30m",
   tasks: [
-    gated(goBuild, { when: goChanged }),
-    gated(frontendLint, { when: nodeChanged }),
-    gated(goFmt, { when: goChanged }),
-    gated(goLint, { when: goChanged }),
-    gated(goTest, { when: goChanged }),
-    gated(goIntegration, { when: goChanged }),
-    gated(openapiCheck, { when: goChanged }),
-    gated(codegenCheck, { when: codegenChanged }),
-    gated(openapiBreaking, { when: goChanged }),
-    gated(goVulncheck, { when: goChanged }),
+    gated(goBuild, { when: goChanged.and(isTip) }),
+    gated(frontendLint, { when: nodeChanged.and(isTip) }),
+    gated(goFmt, { when: goChanged.and(isTip) }),
+    gated(goLint, { when: goChanged.and(isTip) }),
+    gated(goTest, { when: goChanged.and(isTip) }),
+    gated(goIntegration, { when: goChanged.and(isTip) }),
+    gated(openapiCheck, { when: goChanged.and(isTip) }),
+    gated(codegenCheck, { when: codegenChanged.and(isTip) }),
+    gated(openapiBreaking, { when: goChanged.and(isTip) }),
+    gated(goVulncheck, { when: goChanged.and(isTip) }),
     // web-security is a leaf → gate on the frontend bucket. semgrep is multi-language SAST →
     // run when Go OR frontend code changed (skips docs/CI-only PRs). secrets-scan stays
-    // ungated: secrets can land in any file, and it's cheap.
-    gated(webSecurity, { when: nodeChanged }),
-    gated(semgrep, { when: sourceChanged }),
-    secretsScan,
+    // gated only on isTip: secrets can land in any file, and it's cheap.
+    gated(webSecurity, { when: nodeChanged.and(isTip) }),
+    gated(semgrep, { when: sourceChanged.and(isTip) }),
+    onTip(secretsScan),
     // Fails if .tekton drifts from .tektonic/ or synth breaks — only when pipeline defs change.
-    gated(tektonCheck, { when: pipelineChanged }),
+    gated(tektonCheck, { when: pipelineChanged.and(isTip) }),
     // Helm lint + PodSecurity render check — only when the charts, the policies, or the
     // driver script changed. Leaf task on this pipeline (nothing publishes on a PR), so
     // gating it is safe; on push/tag it runs ungated as a `needs` of helm-publish/-release.
-    gated(helmCheck, { when: chartsChanged }),
+    gated(helmCheck, { when: chartsChanged.and(isTip) }),
     // Docs site build and link check. Generated-page staleness is codegen-check's job.
-    gated(docsBuild, { when: docsChanged }),
+    gated(docsBuild, { when: docsChanged.and(isTip) }),
   ],
 });
 

@@ -1,0 +1,52 @@
+apiVersion: tekton.dev/v1
+kind: Task
+metadata:
+  name: ocidex-check-tip
+  namespace: ocidex-ci
+spec:
+  params:
+    - description: Branch or tag ref of the event, bound by PAC from source_branch
+      name: source-branch
+      type: string
+    - description: Commit SHA, bound by PAC from revision
+      name: revision
+      type: string
+  results:
+    - description: "'true' unless the run's revision is no longer the tip of its branch"
+      name: tip
+      type: string
+  stepTemplate:
+    computeResources:
+      limits:
+        cpu: "1"
+        memory: 512Mi
+      requests:
+        cpu: 100m
+        memory: 128Mi
+    imagePullPolicy: Always
+    securityContext:
+      allowPrivilegeEscalation: false
+      capabilities:
+        drop:
+          - ALL
+    workingDir: $(workspaces.workspace.path)
+  steps:
+    - image: ghcr.io/pfenerty/apko-cicd/base:stable
+      name: check
+      script: |-
+        #!/bin/sh
+        log() { printf '[%s] %s\n' "$(date +%H:%M:%S)" "$*"; }
+        branch="$(params.source-branch)"
+        case "$branch" in refs/*) ref="$branch" ;; *) ref="refs/heads/$branch" ;; esac
+        printf true > $(results.tip.path)
+        if git -c safe.directory='*' ls-remote origin "$ref" > /tmp/tektonic-tip.txt 2>/dev/null; then
+          if [ -s /tmp/tektonic-tip.txt ]; then
+            if ! grep -q "^$(params.revision)" /tmp/tektonic-tip.txt; then
+              echo "superseded: $(params.revision) is no longer the tip of $ref; skipping"
+              cat /tmp/tektonic-tip.txt
+              printf false > $(results.tip.path)
+            fi
+          fi
+        fi
+  workspaces:
+    - name: workspace

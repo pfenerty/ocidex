@@ -5,6 +5,7 @@ import type { PipelineView } from "@tektonic-ci/core/testing";
 
 import { prPipeline, pushPipeline, synthDefaults } from "../pipelines";
 import { changePaths } from "../changes";
+import { CHECK_TIP_TASK } from "../supersede";
 
 // ─── PR gating ────────────────────────────────────────────────────────────────
 // Evaluates the PR pipeline's `when` gates against a changed-file set, the way each
@@ -41,14 +42,20 @@ function bucketMatches(detectTask: string, files: string[]): boolean {
 }
 
 const resultRef = /^\$\(tasks\.([\w-]+)\.results\.changed\)$/;
+const tipRef = `$(tasks.${CHECK_TIP_TASK}.results.tip)`;
 
-// Which of the PR pipeline's tasks would run for this changed-file set. Every gate this
-// pipeline uses is a classic `in ["true"]` guard on a detect-* result; anything else fails
-// the test rather than being guessed at.
+function isTipClause(clause: { input: unknown; operator: string; values: unknown }): boolean {
+  return String(clause.input) === tipRef && clause.operator === "in" && JSON.stringify(clause.values) === '["true"]';
+}
+
+// Which of the PR pipeline's tasks would run for this changed-file set, on a run that is
+// still its branch's tip. Every gate this pipeline uses is a classic `in ["true"]` guard on
+// a detect-* result or on check-tip; anything else fails the test rather than being guessed at.
 function runsFor(pr: PipelineView, files: string[]): Set<string> {
   const running = new Set<string>();
   for (const name of pr.taskNames) {
     const runs = pr.when(name).every((clause) => {
+      if (isTipClause(clause)) return true;
       const m = resultRef.exec(String(clause.input));
       if (!m || clause.operator !== "in" || JSON.stringify(clause.values) !== '["true"]') {
         throw new Error(`${name}: unexpected when clause ${JSON.stringify(clause)}`);
@@ -74,7 +81,7 @@ const goTasks = [
   "codegen-check",
 ];
 const frontendTasks = ["eslint-lint-web", "grype-vuln-web"];
-// Tasks the PR pipeline deliberately runs on every change.
+// Tasks the PR pipeline deliberately runs on every change (gitleaks only gated on isTip).
 const alwaysRun = ["git-clone", "gitleaks-secrets"];
 
 describe("PR pipeline gating", () => {
@@ -84,11 +91,22 @@ describe("PR pipeline gating", () => {
     for (const d of detects) assert.ok(changePaths[d], d);
   });
 
-  it("gates every task except the always-run set", () => {
-    const ungated = pr.taskNames.filter(
-      (n) => !pr.isGated(n) && !n.startsWith("detect-") && !n.startsWith("set-status-"),
+  it("gates every task on a file change except the always-run set", () => {
+    const unconditional = pr.taskNames.filter(
+      (n) =>
+        !n.startsWith("detect-") &&
+        !n.startsWith("set-status-") &&
+        n !== CHECK_TIP_TASK &&
+        !pr.when(n).some((c) => !isTipClause(c)),
     );
-    assert.deepEqual(ungated.sort(), [...alwaysRun].sort());
+    assert.deepEqual(unconditional.sort(), [...alwaysRun].sort());
+  });
+
+  it("skips every task but the clone and check-tip itself on a superseded run", () => {
+    const work = pr.taskNames.filter(
+      (n) => !n.startsWith("detect-") && !n.startsWith("set-status-") && n !== CHECK_TIP_TASK && n !== "git-clone",
+    );
+    for (const n of work) assert.ok(pr.when(n).some(isTipClause), n);
   });
 
   it("skips every Go task on a frontend-only change", () => {
@@ -105,7 +123,7 @@ describe("PR pipeline gating", () => {
 
   it("runs only the always-run set on a docs-only change", () => {
     const runs = runsFor(pr, ["docs/ARCHITECTURE.md"]);
-    const work = [...runs].filter((n) => !n.startsWith("detect-") && !n.startsWith("set-status-"));
+    const work = [...runs].filter((n) => !n.startsWith("detect-") && !n.startsWith("set-status-") && n !== CHECK_TIP_TASK);
     assert.deepEqual(work.sort(), [...alwaysRun].sort());
   });
 
@@ -117,7 +135,7 @@ describe("PR pipeline gating", () => {
 
   it("runs docs-build alone on a site-only change", () => {
     const runs = runsFor(pr, ["site/src/content/docs/index.mdx"]);
-    const work = [...runs].filter((n) => !n.startsWith("detect-") && !n.startsWith("set-status-"));
+    const work = [...runs].filter((n) => !n.startsWith("detect-") && !n.startsWith("set-status-") && n !== CHECK_TIP_TASK);
     assert.deepEqual(work.sort(), [...alwaysRun, "docs-build"].sort());
   });
 
@@ -133,6 +151,26 @@ describe("PR pipeline gating", () => {
 
   it("orders go-integration-test after go-test", () => {
     assert.ok(pr.runAfter("go-integration-test").includes("go-test"));
+  });
+});
+
+// ─── Push: superseded runs ───────────────────────────────────────────────────
+// Push runs queue under the PAC concurrency_limit, which disables cancel-in-progress. Every
+// push task must be gated on check-tip, so a queued run for an old commit skips its image
+// builds instead of racing the newest commit's run for the shared buildkitd root.
+describe("push pipeline superseded-run guard", () => {
+  const push = synthPipeline(pushPipeline, synthDefaults);
+
+  it("gates every task on check-tip", () => {
+    const work = push.taskNames.filter(
+      (n) => n !== CHECK_TIP_TASK && n !== "git-clone" && !n.startsWith("set-status-"),
+    );
+    assert.ok(work.includes("image-build-api"));
+    for (const n of work) assert.ok(push.when(n).some(isTipClause), n);
+  });
+
+  it("keeps the image builds serial", () => {
+    assert.ok(push.runAfter("image-build-scanner-worker").includes("image-build-api"));
   });
 });
 
