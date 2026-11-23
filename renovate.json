@@ -34,6 +34,16 @@
       "automerge": true
     },
     {
+      "description": "Majors wait for a checkbox in the Dependency Dashboard instead of opening a PR. A major is a migration, not a bump: solid-js 2 can't resolve until @tanstack/solid-query supports it (ERESOLVE, #287), and postgres 19 has to move together with the CNPG cluster (#285, #286). Either way the PR just sat red or untested. Approve one in the dashboard when you're ready to do the migration on its branch.",
+      "matchUpdateTypes": ["major"],
+      "dependencyDashboardApproval": true
+    },
+    {
+      "description": "Pin the npm that Renovate uses to update lockfiles to the major the repo uses. Unconstrained, Renovate installs the newest npm, and npm 12 refuses to fetch bundled-dependency tarballs (EALLOWREMOTE on @tailwindcss/oxide-wasm32-wasi, #264), so every web/ lockfile update failed. Raise this with the local and CI npm.",
+      "matchManagers": ["npm"],
+      "constraints": { "npm": "^11" }
+    },
+    {
       "description": "Digest-pin runtime and build images so every build is reproducible and Renovate owns the rebase. Deliberately excludes the .tekton/ CI images: ghcr.io/pfenerty/apko-cicd/base:stable is a moving tag used 100+ times, so pinning it would force a Renovate PR plus a `make tekton-synth` on every upstream base rebuild.",
       "matchManagers": ["dockerfile", "docker-compose", "helm-values"],
       "pinDigests": true
@@ -98,9 +108,15 @@
       "groupName": "app images"
     },
     {
-      "description": "Chart images: third-party images the Helm charts deploy (e.g. NATS).",
+      "description": "Chart images: third-party images the Helm charts deploy (e.g. NATS). The docs site's generated Helm reference (site/src/content/docs/reference/helm-values.md) prints each image tag and digest, so a bump has to regenerate it, or codegen-check's docs-reference-check fails (#262). Needs `make docs-generate` in RENOVATE_ALLOWED_COMMANDS on the renovate-ocidex cronjob in homelab.",
       "matchManagers": ["helm-values"],
-      "groupName": "chart images"
+      "groupName": "chart images",
+      "postUpgradeTasks": {
+        "installTools": { "golang": {} },
+        "commands": ["make docs-generate"],
+        "fileFilters": ["site/src/content/docs/reference/**"],
+        "executionMode": "branch"
+      }
     },
     {
       "description": "Dev images: local-only stacks (docker-compose*.yml) and the never-published mock IdP. Shares some images with the app/chart groups (golang builder, nats), which then bump in two PRs.",

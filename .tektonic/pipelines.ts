@@ -122,6 +122,12 @@ export const prPipeline = new GitPipeline({
   workspace: sourceWs,
   trigger: { rules: [{ on: TRIGGER_EVENTS.PULL_REQUEST }], cancelInProgress: true },
   cloneDepth: "full",
+  // Explicit, not Tekton's 1h default: a full Go run takes 19-40 min uncontended
+  // (go-integration-test alone budgets 25m), and a cold cache adds to that. Contention is
+  // handled upstream: the PAC Repository's concurrency_limit holds extra runs as Pending,
+  // and a Pending run's timeout doesn't start until it runs (homelab-3p8). Before that
+  // queue existed, four Renovate PRs started together and all timed out at 1h.
+  timeout: "1h30m",
   tasks: [
     gated(goBuild, { when: goChanged }),
     gated(frontendLint, { when: nodeChanged }),
