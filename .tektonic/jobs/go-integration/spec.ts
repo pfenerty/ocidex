@@ -37,7 +37,7 @@ export const goIntegration = new Task({
     {
       name: "postgres",
       // Same image the testcontainers path uses, so schema behaviour is identical.
-      image: "postgres:18-alpine",
+      image: "postgres:19-alpine",
       // The project-wide runAsUser: 1024 has no /etc/passwd entry, so initdb dies in
       // getpwuid ("could not look up effective user ID"). As root the image's own
       // entrypoint chowns PGDATA and re-execs as postgres, which is the supported

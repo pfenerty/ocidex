@@ -27,7 +27,7 @@ spec:
           value: test
         - name: POSTGRES_PASSWORD
           value: test
-      image: postgres:18-alpine
+      image: postgres:19-alpine
       imagePullPolicy: Always
       name: postgres
       readinessProbe:
