@@ -107,7 +107,7 @@ The server is resolved like the CLI's: `--server`, then `OCIDEX_URL`, then the c
 
 ### Write tools
 
-Only an agent key gets these (create one under **Admin → Agents**). Each one is listed only when the
+Only an agent key gets these (see [Agents](/guides/integrate/agents/)). Each one is listed only when the
 key may use it, takes `preview: true` to describe the request without sending it, and is safe to
 retry.
 

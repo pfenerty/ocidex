@@ -50,6 +50,9 @@ keys at once.
 Give a CI key only the capabilities its job needs. A pipeline that uploads SBOMs needs `ingest`,
 and without `push_inventory` it can't overwrite a cluster's inventory by mistake.
 
+An **agent key** is for an AI agent. It is made from a preset, limited to named namespaces, always
+expires, and can hold its writes for your approval. See [Agent security](/concepts/agent-security/).
+
 ## Signing in
 
 OCIDex signs users in with GitHub, or with any OpenID Connect provider, or both. An account can
