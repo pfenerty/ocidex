@@ -4,6 +4,11 @@ import (
 	"context"
 	"log/slog"
 	"time"
+
+	"go.opentelemetry.io/otel/attribute"
+	"go.opentelemetry.io/otel/metric"
+
+	"github.com/pfenerty/ocidex/internal/metrics"
 )
 
 // statsWarmTimeout bounds a single warm pass. It is deliberately far larger
@@ -25,6 +30,8 @@ type StatsWarmer struct {
 	svc      SearchService
 	interval time.Duration
 	logger   *slog.Logger
+
+	passes metric.Int64Counter // nil until WithMetrics
 }
 
 // NewStatsWarmer constructs a StatsWarmer. A non-positive interval falls back
@@ -37,6 +44,37 @@ func NewStatsWarmer(svc SearchService, interval time.Duration, logger *slog.Logg
 		interval = StatsWarmInterval
 	}
 	return &StatsWarmer{svc: svc, interval: interval, logger: logger}
+}
+
+// WithMetrics records ocidex.cache.warm.passes on mp, by payload, scope and
+// outcome. A payload that only ever fails leaves its endpoint warming forever,
+// so the error count is what an alert watches.
+func (w *StatsWarmer) WithMetrics(mp metric.MeterProvider) *StatsWarmer {
+	passes, err := metrics.Meter(mp).Int64Counter("ocidex.cache.warm.passes",
+		metric.WithDescription("Background cache warm passes, by payload (stats, discovery), scope and outcome (ok, error)."),
+		metric.WithUnit("{pass}"))
+	if err != nil {
+		w.logger.Error("stats warmer metrics disabled", "err", err)
+		return w
+	}
+	w.passes = passes
+	return w
+}
+
+func (w *StatsWarmer) record(ctx context.Context, payload, scope string, err error) {
+	if w.passes == nil {
+		return
+	}
+	outcome := "ok"
+	if err != nil {
+		outcome = "error"
+	}
+	// The pass's own context may be past its deadline; the count must still land.
+	w.passes.Add(context.WithoutCancel(ctx), 1, metric.WithAttributes(
+		attribute.String("payload", payload),
+		attribute.String("scope", scope),
+		attribute.String("outcome", outcome),
+	))
 }
 
 // warmedScopes are the visibility scopes the warmer refreshes: the two that
@@ -109,7 +147,9 @@ func (w *StatsWarmer) warm(ctx context.Context, vis VisibilityFilter) {
 	start := time.Now()
 	// Log the cost even on success: this is the only place the true query time
 	// is visible now that no request waits on it.
-	if _, err := w.svc.WarmDashboardStats(scopeCtx, vis); err != nil {
+	_, err := w.svc.WarmDashboardStats(scopeCtx, vis)
+	w.record(ctx, "stats", statsCacheKey(vis), err)
+	if err != nil {
 		w.logger.Error("stats warm failed", "scope", statsCacheKey(vis), "duration", time.Since(start), "err", err)
 		return
 	}
@@ -123,7 +163,9 @@ func (w *StatsWarmer) warmDiscovery(ctx context.Context) {
 	defer cancel()
 
 	start := time.Now()
-	if _, err := w.svc.WarmDiscovery(scopeCtx); err != nil {
+	_, err := w.svc.WarmDiscovery(scopeCtx)
+	w.record(ctx, "discovery", discoverCacheKey, err)
+	if err != nil {
 		w.logger.Error("discovery warm failed", "duration", time.Since(start), "err", err)
 		return
 	}

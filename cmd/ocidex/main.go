@@ -311,7 +311,8 @@ func startBackgroundJobs(ctx context.Context, d backgroundDeps) {
 	// so this runs on every replica rather than behind leader election. It gets
 	// its own search service on the small background pool so a warm pass can
 	// never occupy connections the request path needs.
-	statsWarmer := service.NewStatsWarmer(d.svcs.search, service.StatsWarmInterval, d.logger)
+	statsWarmer := service.NewStatsWarmer(d.svcs.search, service.StatsWarmInterval, d.logger).
+		WithMetrics(d.meters)
 	go statsWarmer.Run(ctx)
 	slog.Info("dashboard stats warmer started", "interval", service.StatsWarmInterval)
 

@@ -488,6 +488,17 @@ const getDiscoverTopVulnerabilities = `-- name: GetDiscoverTopVulnerabilities :m
 WITH public_ns AS (
     SELECT visible_namespace_ids(NULL::uuid, false) AS id
 ),
+headline AS MATERIALIZED (
+    SELECT h.id AS sbom_id
+    FROM artifact a
+    CROSS JOIN LATERAL (SELECT artifact_headline_sbom(a.id, NULL::uuid, false) AS id) h
+    WHERE EXISTS (
+        SELECT 1 FROM sbom s
+        WHERE s.artifact_id = a.id
+          AND s.namespace_id IN (SELECT id FROM public_ns)
+    )
+      AND h.id IS NOT NULL
+),
 canonical AS (
     -- Collapse aliased OSV records (GO-xxxx + GHSA-yyyy) to one row per
     -- real-world vulnerability, preferring the alias that carries a severity.
@@ -521,15 +532,10 @@ SELECT v.id,
 FROM candidate cd
 JOIN canonical v ON v.canonical_id = cd.canonical_id
 CROSS JOIN LATERAL (
-    SELECT COUNT(*)::bigint AS affected_artifact_count
-    FROM (
-        SELECT DISTINCT s.artifact_id, s.id
-        FROM component c
-        JOIN sbom s ON s.id = c.sbom_id
-        WHERE c.purl = ANY (cd.purls)
-          AND s.namespace_id IN (SELECT id FROM public_ns)
-    ) hit
-    WHERE hit.id = artifact_headline_sbom(hit.artifact_id, NULL::uuid, false)
+    SELECT COUNT(DISTINCT c.sbom_id)::bigint AS affected_artifact_count
+    FROM component c
+    JOIN headline h ON h.sbom_id = c.sbom_id
+    WHERE c.purl = ANY (cd.purls)
 ) ar
 WHERE ar.affected_artifact_count > 0
 ORDER BY ar.affected_artifact_count DESC,
@@ -575,8 +581,13 @@ type GetDiscoverTopVulnerabilitiesRow struct {
 // The ordinality filter on the unnest is the vuln_rollup idiom from
 // ListTopVulnerabilities: unnesting purls multiplies the rows SUM would see, so
 // each rollup row is charged exactly once.
+// The SBOM each public artifact is counted from, resolved once per artifact.
+// Calling artifact_headline_sbom() per candidate hit instead re-resolves the
+// same artifact for every matching SBOM of every candidate, which ran past the
+// warmer's 10 minute deadline on production data.
 // Counted the way an artifact row counts: an artifact is affected when the
 // SBOM it is counted from is, so one that fixed the CVE releases ago drops out.
+// Each artifact has one headline SBOM, so distinct SBOMs are distinct artifacts.
 // A candidate every affected artifact has since fixed affects nothing now.
 func (q *Queries) GetDiscoverTopVulnerabilities(ctx context.Context, arg GetDiscoverTopVulnerabilitiesParams) ([]GetDiscoverTopVulnerabilitiesRow, error) {
 	rows, err := q.db.Query(ctx, getDiscoverTopVulnerabilities, arg.RowLimit, arg.CandidateLimit)

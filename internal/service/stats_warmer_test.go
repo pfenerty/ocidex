@@ -10,6 +10,9 @@ import (
 	"time"
 
 	"github.com/matryer/is"
+	"go.opentelemetry.io/otel/attribute"
+	sdkmetric "go.opentelemetry.io/otel/sdk/metric"
+	"go.opentelemetry.io/otel/sdk/metric/metricdata"
 )
 
 // warmRecorder is a SearchService that only implements the method the warmer
@@ -22,7 +25,9 @@ type warmRecorder struct {
 	scopes     []string
 	discovered int
 	err        error
-	calls      chan struct{}
+	// discoverErr fails only the discovery warm, the way production did.
+	discoverErr error
+	calls       chan struct{}
 
 	// delay/before/after let a test observe how long a warm takes and how many
 	// run at once.
@@ -70,6 +75,9 @@ func (w *warmRecorder) WarmDiscovery(_ context.Context) (*Discovery, error) {
 	w.mu.Lock()
 	w.discovered++
 	w.mu.Unlock()
+	if w.discoverErr != nil {
+		return nil, w.discoverErr
+	}
 	if w.err != nil {
 		return nil, w.err
 	}
@@ -282,4 +290,49 @@ func TestNewStatsWarmerDefaultsNonPositiveInterval(t *testing.T) {
 	is := is.New(t)
 	is.Equal(NewStatsWarmer(&warmRecorder{}, 0, discardLogger()).interval, StatsWarmInterval)
 	is.Equal(NewStatsWarmer(&warmRecorder{}, -time.Second, discardLogger()).interval, StatsWarmInterval)
+}
+
+func warmPassCounts(t *testing.T, reader *sdkmetric.ManualReader) map[string]int64 {
+	t.Helper()
+	var rm metricdata.ResourceMetrics
+	if err := reader.Collect(context.Background(), &rm); err != nil {
+		t.Fatal(err)
+	}
+	out := map[string]int64{}
+	for _, sm := range rm.ScopeMetrics {
+		for _, m := range sm.Metrics {
+			if m.Name != "ocidex.cache.warm.passes" {
+				continue
+			}
+			for _, dp := range m.Data.(metricdata.Sum[int64]).DataPoints {
+				key := ""
+				for _, k := range []attribute.Key{"payload", "scope", "outcome"} {
+					v, _ := dp.Attributes.Value(k)
+					key += v.AsString() + " "
+				}
+				out[key[:len(key)-1]] = dp.Value
+			}
+		}
+	}
+	return out
+}
+
+// A discovery pass that fails every time leaves /discover warming forever
+// while /stats looks healthy, so the failure has to be countable on its own.
+func TestStatsWarmerCountsPassesByOutcome(t *testing.T) {
+	is := is.New(t)
+	reader := sdkmetric.NewManualReader()
+	mp := sdkmetric.NewMeterProvider(sdkmetric.WithReader(reader))
+
+	ok := NewStatsWarmer(&warmRecorder{}, time.Hour, discardLogger()).WithMetrics(mp)
+	ok.tick(t.Context())
+	failing := NewStatsWarmer(&warmRecorder{discoverErr: context.DeadlineExceeded}, time.Hour, discardLogger()).WithMetrics(mp)
+	failing.tick(t.Context())
+
+	is.Equal(warmPassCounts(t, reader), map[string]int64{
+		"stats anon ok":          2,
+		"stats admin ok":         2,
+		"discovery public ok":    1,
+		"discovery public error": 1,
+	})
 }
