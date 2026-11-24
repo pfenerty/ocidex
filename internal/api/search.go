@@ -581,6 +581,7 @@ func (h *Handler) ListArtifactVersions(ctx context.Context, input *ListArtifactV
 			Vulns:         v.Vulns,
 			VulnMatched:   v.VulnMatched,
 			CountedSbom:   v.CountedSBOM,
+			Flavor:        v.Flavor,
 		})
 	}
 

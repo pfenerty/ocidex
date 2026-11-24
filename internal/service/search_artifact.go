@@ -222,6 +222,7 @@ func artifactVersionFromRow(row repository.ListArtifactVersionsRow) ArtifactVers
 	v.Vulns = withFixable(vulnSummaryOrNil(row.VulnCritical, row.VulnHigh, row.VulnMedium, row.VulnLow, row.VulnUnknown), row.VulnFixable)
 	v.VulnMatched = row.VulnMatched
 	v.CountedSBOM = countedSBOM(row.NewestSbomID, row.VersionKey, row.CountedArchitecture)
+	v.Flavor = row.Flavor
 	if arches, ok := row.Architectures.([]interface{}); ok {
 		strs := make([]string, 0, len(arches))
 		for _, a := range arches {

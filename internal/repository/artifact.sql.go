@@ -539,6 +539,7 @@ WITH sboms_meta AS (
         s.enrichment_sufficient,
         s.version_major, s.version_minor, s.version_patch,
         s.version_prerelease, s.version_variant,
+        COALESCE(s.flavor, '') AS flavor,
         COALESCE(s.subject_version,
             COALESCE(e.data->>'imageVersion', u.data->>'imageVersion'),
             '(untagged)')                                                  AS version_key,
@@ -558,7 +559,7 @@ WITH sboms_meta AS (
 newest_per_version AS (
     SELECT DISTINCT ON (version_key)
         id, version_key, architecture, created_at, enrichment_sufficient, image_version, revision, source_url, build_date, signing_status,
-        version_major, version_minor, version_patch, version_prerelease, version_variant
+        version_major, version_minor, version_patch, version_prerelease, version_variant, flavor
     FROM sboms_meta
     ORDER BY version_key, sbom_arch_rank(architecture), architecture, created_at DESC, id DESC
 ),
@@ -578,6 +579,7 @@ SELECT
     n.version_key,
     n.id           AS newest_sbom_id,
     COALESCE(n.architecture, '')::text AS counted_architecture,
+    n.flavor::text AS flavor,
     n.created_at,
     n.enrichment_sufficient,
     n.image_version,
@@ -637,6 +639,7 @@ type ListArtifactVersionsRow struct {
 	VersionKey           string             `json:"version_key"`
 	NewestSbomID         pgtype.UUID        `json:"newest_sbom_id"`
 	CountedArchitecture  string             `json:"counted_architecture"`
+	Flavor               string             `json:"flavor"`
 	CreatedAt            pgtype.Timestamptz `json:"created_at"`
 	EnrichmentSufficient bool               `json:"enrichment_sufficient"`
 	ImageVersion         interface{}        `json:"image_version"`
@@ -684,6 +687,7 @@ func (q *Queries) ListArtifactVersions(ctx context.Context, arg ListArtifactVers
 			&i.VersionKey,
 			&i.NewestSbomID,
 			&i.CountedArchitecture,
+			&i.Flavor,
 			&i.CreatedAt,
 			&i.EnrichmentSufficient,
 			&i.ImageVersion,

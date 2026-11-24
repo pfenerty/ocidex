@@ -1978,8 +1978,11 @@ type ArtifactVersionSummary struct {
 	BuildDate     *time.Time   `json:"buildDate,omitempty"`
 	CountedSbom   *CountedSBOM `json:"countedSbom,omitempty"`
 	CreatedAt     time.Time    `json:"createdAt"`
-	ImageVersion  *string      `json:"imageVersion,omitempty"`
-	Revision      *string      `json:"revision,omitempty"`
+
+	// Flavor Base-image flavor of the counted SBOM (alpine, debian, ...); absent when unknown
+	Flavor       *string `json:"flavor,omitempty"`
+	ImageVersion *string `json:"imageVersion,omitempty"`
+	Revision     *string `json:"revision,omitempty"`
 
 	// SbomCount Total number of SBOMs ingested for this version
 	SbomCount int64  `json:"sbomCount"`

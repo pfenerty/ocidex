@@ -152,24 +152,24 @@ describe("VersionsTab build history", () => {
     });
 });
 
-describe("VersionsTab evolution divider", () => {
-    const v = (versionKey: string): ArtifactVersionSummary => ({ ...version, versionKey });
+describe("VersionsTab flavor groups", () => {
+    const v = (versionKey: string, flavor?: string): ArtifactVersionSummary => ({ ...version, versionKey, flavor });
 
-    // Newest first: the divider sits above the older line and names the step.
-    it("marks a major version boundary between adjacent rows", () => {
-        const { container } = renderTab(true, [v("3.1.0"), v("3.0.0"), v("2.9.1"), v("2.9.0")]);
-        const dividers = [...container.querySelectorAll(".version-evolved")].map((d) => d.textContent);
-        expect(dividers).toEqual(["evolved · 2.x → 3.0.0"]);
+    it("groups each flavor's versions together, newest flavor first, with a label", () => {
+        const { container } = renderTab(true, [
+            v("v2.46.1", "alpine"),
+            v("v2.46.1-distroless", "debian"),
+            v("v2.46.0", "alpine"),
+            v("v2.46.0-distroless", "debian"),
+        ]);
+        const labels = [...container.querySelectorAll(".version-flavor")].map((d) => d.firstChild?.textContent);
+        expect(labels).toEqual(["alpine", "debian"]);
+        const keys = [...container.querySelectorAll("tbody a.font-mono")].map((a) => a.textContent);
+        expect(keys).toEqual(["v2.46.1", "v2.46.0", "v2.46.1-distroless", "v2.46.0-distroless"]);
     });
 
-    it("marks a change of base image", () => {
-        const { container } = renderTab(true, [v("3.13.0-trixie"), v("3.12.1-bookworm")]);
-        expect(container.querySelector(".version-evolved")?.textContent).toBe("evolved · bookworm → trixie");
-    });
-
-    it("adds nothing within one line", () => {
-        const { container } = renderTab(true, [v("3.2.0"), v("3.1.0"), v("3.0.0")]);
-        expect(container.querySelector(".version-evolved")).toBeNull();
+    it("adds no rows for a single flavor, and no evolution dividers", () => {
+        const { container } = renderTab(true, [v("3.1.0", "alpine"), v("3.0.0", "alpine"), v("2.9.1", "alpine")]);
         expect(container.querySelector(".group-header-row")).toBeNull();
     });
 });

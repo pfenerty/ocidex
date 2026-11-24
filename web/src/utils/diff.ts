@@ -1,4 +1,8 @@
 import type { SBOMRef, ChangeSummary, ComponentDiff } from "~/api/client";
+import type { components } from "~/types/openapi";
+
+/** CVEs a release closed and opened, by severity. */
+export type ChangelogVulnTotals = components["schemas"]["ChangelogVulnTotals"];
 import { relativeDate } from "~/utils/format";
 
 export function changelogRefLabel(ref: {
@@ -18,4 +22,6 @@ export interface ChangelogEntryData {
     to: SBOMRef;
     summary: ChangeSummary;
     changes: ComponentDiff[];
+    /** Present on changelog and diff responses that matched vulnerabilities. */
+    vulns?: ChangelogVulnTotals;
 }

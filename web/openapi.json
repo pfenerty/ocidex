@@ -446,6 +446,10 @@
             "format": "date-time",
             "type": "string"
           },
+          "flavor": {
+            "description": "Base-image flavor of the counted SBOM (alpine, debian, ...); absent when unknown",
+            "type": "string"
+          },
           "imageVersion": {
             "type": "string"
           },

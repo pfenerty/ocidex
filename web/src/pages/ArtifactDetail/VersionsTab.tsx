@@ -12,8 +12,6 @@ import { StatusChip } from "~/components/ui";
 import { VULN_DATA_STATUS } from "~/utils/status";
 import { buildTime } from "~/utils/format";
 import {
-    evolutionLabel,
-    evolutionLine,
     formatDelta,
     UNTAGGED_VERSION,
     versionDeltas,
@@ -45,27 +43,38 @@ function DeltaCell(props: { delta: VersionDelta; value: number | undefined }) {
 }
 
 /**
- * A thin divider where the version order crosses a major version or a change
- * of base image ("evolved · 2.x → 3.0"): the boundary where an upgrade stops
- * being drop-in. Only in the table's own order; a column sort mixes lines.
- * The list is newest first, so the divider above a run of older versions
- * names the step from that run to the one above it.
+ * Versions grouped by flavor (alpine, debian, ...): a page interleaves an
+ * image's lines in version order, and reading one line's history means
+ * skipping every other row. Each flavor keeps its own newest-first order and
+ * the flavors appear in the order their newest version does. Only in the
+ * table's own order; a column sort is a request to mix them.
  */
-const evolution = {
-    key: (v: ArtifactVersionSummary) => evolutionLine(v.versionKey),
-    header: (
-        _key: string,
-        _count: number,
-        _index: number,
-        previous: { items: ArtifactVersionSummary[] } | undefined,
-        items: ArtifactVersionSummary[],
-    ) => {
-        // The run above is newer; its last row is where that line began.
-        const newerFirst = previous === undefined ? undefined : previous.items[previous.items.length - 1];
-        const label = newerFirst === undefined ? undefined : evolutionLabel(items[0].versionKey, newerFirst.versionKey);
-        return <>{label === undefined ? undefined : <span class="version-evolved">{label}</span>}</>;
-    },
-};
+export function groupByFlavor(rows: readonly ArtifactVersionSummary[]): ArtifactVersionSummary[] {
+    const order: string[] = [];
+    const by = new Map<string, ArtifactVersionSummary[]>();
+    for (const r of rows) {
+        const f = r.flavor ?? "";
+        const list = by.get(f);
+        if (list === undefined) {
+            order.push(f);
+            by.set(f, [r]);
+        } else {
+            list.push(r);
+        }
+    }
+    return order.flatMap((f) => by.get(f) ?? []);
+}
+
+const flavorGroups = (flavors: number) => ({
+    key: (v: ArtifactVersionSummary) => v.flavor ?? "",
+    header: (key: string, count: number) =>
+        flavors < 2 ? undefined : (
+            <span class="version-flavor">
+                {key === "" ? "unknown flavor" : key}
+                <span class="version-flavor-n">{count}</span>
+            </span>
+        ),
+});
 
 export function VersionsTab(props: {
     /** Where the artifact runs, for the Running column (ocidex-70eo.8);
@@ -109,6 +118,7 @@ export function VersionsTab(props: {
 
     // A signing status every row shares is said once, by the band's Signing
     // tile; a column repeating it on every row is noise.
+    const flavorCount = () => new Set((props.versions ?? []).map((v) => v.flavor ?? "")).size;
     const signingVaries = () => new Set((props.versions ?? []).map((v) => v.signingStatus)).size > 1;
     const signingColumn: Column<ArtifactVersionSummary> = {
         header: "Signing",
@@ -271,7 +281,7 @@ export function VersionsTab(props: {
     return (
         <DataTable
             columns={columns()}
-            rows={props.versions}
+            rows={props.sortBy === undefined ? groupByFlavor(props.versions ?? []) : props.versions}
             loading={props.loading}
             isError={props.isError}
             error={props.error}
@@ -280,7 +290,7 @@ export function VersionsTab(props: {
             sortBy={props.sortBy}
             sortDir={props.sortDir}
             onSort={props.onSort}
-            groupBy={props.sortBy === undefined ? evolution : undefined}
+            groupBy={props.sortBy === undefined ? flavorGroups(flavorCount()) : undefined}
             pagination={
                 props.pagination
                     ? { pagination: props.pagination, onPageChange: props.onPageChange }

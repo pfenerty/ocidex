@@ -23,6 +23,7 @@ import { Skeleton, SkeletonHeader, SkeletonText } from "~/components/Skeleton";
 import { Breadcrumb, QueryBoundary, Segmented, TabBar, createExpandedSet, type Crumb, type TabDef } from "~/components/ui";
 import { artifactDisplayName, plural } from "~/utils/format";
 import { ArtifactHeader, ArtifactIdentity } from "./ArtifactHeader";
+import { TagChoice } from "./TagChoice";
 import { ArtifactBand, type ArtifactTab } from "./ArtifactBand";
 import { severityPoints } from "./ArtifactChange";
 import { criticalChange } from "~/utils/versionDelta";
@@ -281,6 +282,15 @@ function ArtifactDetailPage() {
                         {(a) => (
                             <>
                                 <ArtifactHeader artifact={a()} breadcrumb={<Breadcrumb items={crumbs()} />} points={latestPoints()} change={headlineChange()} isContainer={isContainer()} shiny={vulnSummaryQuery.data !== undefined && isShiny(vulnSummaryQuery.data.matched, vulnSummaryQuery.data.summary?.total)} />
+
+                                <Show when={isContainer()}>
+                                    <TagChoice
+                                        artifactId={a().id}
+                                        versions={latestVersionsQuery.data?.data}
+                                        newestKey={vulnSummaryQuery.data?.subjectVersion}
+                                        signedIn={signedIn()}
+                                    />
+                                </Show>
 
                                 <Show when={runningClusters().length > 0}>
                                     <p class="mb-3" data-testid="running-in">

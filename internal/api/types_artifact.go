@@ -139,6 +139,7 @@ type ArtifactVersionSummary struct {
 	// CountedSbom is the SBOM the counts above come from: deltas between
 	// versions compare only when both were counted on the same architecture.
 	CountedSbom *service.CountedSBOM `json:"countedSbom,omitempty" doc:"The SBOM this version's counts come from"`
+	Flavor      string               `json:"flavor,omitempty" doc:"Base-image flavor of the counted SBOM (alpine, debian, ...); absent when unknown"`
 }
 
 // ListArtifactVersionsOutput is the response for GET /api/v1/artifacts/{id}/versions.

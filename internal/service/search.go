@@ -701,6 +701,8 @@ type ArtifactVersion struct {
 	VulnMatched bool `json:"vulnMatched" doc:"Matched against the vulnerability store, and the counts reflect it: an absent vulns then means none known"`
 	// CountedSBOM is the SBOM this row's counts are from.
 	CountedSBOM *CountedSBOM `json:"countedSbom,omitempty" doc:"The SBOM this version's counts come from"`
+	// Flavor is the counted SBOM's base-image flavor (ADR-0020); empty when unknown.
+	Flavor string `json:"flavor,omitempty"`
 }
 
 // SBOMSummary is a lightweight SBOM representation for list views.

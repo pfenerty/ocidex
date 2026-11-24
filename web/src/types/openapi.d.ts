@@ -2297,6 +2297,8 @@ export interface components {
             countedSbom?: components["schemas"]["CountedSBOM"];
             /** Format: date-time */
             createdAt: string;
+            /** @description Base-image flavor of the counted SBOM (alpine, debian, ...); absent when unknown */
+            flavor?: string;
             imageVersion?: string;
             revision?: string;
             /**
