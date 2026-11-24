@@ -43,7 +43,7 @@ export function ArtifactGrid(props: { artifacts: ArtifactSummary[]; seenOnly?: S
                                 scaled to the artifact's own history, so on its own
                                 it cannot say how many. Absent when not scanned;
                                 zero when scanned with no findings. */}
-                            <Show when={a.vulns !== undefined || a.vulnMatched}>
+                            <Show when={a.vulns !== undefined || a.vulnMatched === true}>
                                 <span
                                     class="artifact-slot-crit"
                                     classList={{ "artifact-slot-crit-some": (a.vulns?.critical ?? 0) > 0 }}

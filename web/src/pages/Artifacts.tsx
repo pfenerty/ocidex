@@ -149,7 +149,7 @@ const columns: Column<ArtifactSummary>[] = [
                         when={a.vulns}
                         fallback={
                             <StatusChip
-                                status={a.vulnMatched ? VULN_DATA_STATUS.clean : VULN_DATA_STATUS.unscanned}
+                                status={a.vulnMatched === true ? VULN_DATA_STATUS.clean : VULN_DATA_STATUS.unscanned}
                             />
                         }
                     >
