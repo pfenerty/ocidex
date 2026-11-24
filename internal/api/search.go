@@ -802,6 +802,8 @@ func (h *Handler) GetDiscovery(ctx context.Context, _ *struct{}) (*DiscoveryOutp
 	out.Body.RecentArtifacts = discovery.RecentArtifacts
 	out.Body.TopVulnerabilities = discovery.TopVulnerabilities
 	out.Body.LicenseSpread = discovery.LicenseSpread
+	out.Body.TopPackages = discovery.TopPackages
+	out.Body.CriticalCuts = discovery.CriticalCuts
 	out.Body.Warming = discovery.Warming
 
 	if discovery.Warming {

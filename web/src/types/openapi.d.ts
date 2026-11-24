@@ -3126,8 +3126,30 @@ export interface components {
             /** Format: int64 */
             versionCount: number;
         };
+        DiscoverCut: {
+            artifactId: string;
+            /** Format: int64 */
+            fromCritical: number;
+            fromSbomId: string;
+            fromVersion: string;
+            name: string;
+            /**
+             * Format: date-time
+             * @description Build date of the release, else when it was indexed
+             */
+            releasedAt?: string;
+            /** Format: int64 */
+            toCritical: number;
+            toSbomId: string;
+            toVersion: string;
+        };
         DiscoverFeatured: {
             artifactId: string;
+            /**
+             * Format: date-time
+             * @description Build date of the counted SBOM's image, when known
+             */
+            builtAt?: string;
             /** @description The SBOM the card's counts come from */
             countedSbom?: components["schemas"]["CountedSBOM"];
             /** Format: date-time */
@@ -3143,6 +3165,11 @@ export interface components {
             packageCount: number;
             sbomId: string;
             subjectVersion?: string;
+            /**
+             * Format: int64
+             * @description Public tags indexed for this artifact
+             */
+            tagCount: number;
             type: string;
             /** @description The newest SBOM has been matched against the vulnerability store */
             vulnMatched: boolean;
@@ -3155,6 +3182,26 @@ export interface components {
             id: string;
             name: string;
             spdxId?: string;
+        };
+        DiscoverPackage: {
+            /**
+             * Format: int64
+             * @description Known critical CVEs across its versions
+             */
+            critical: number;
+            /** @description purl type */
+            ecosystem: string;
+            group?: string;
+            /**
+             * Format: int64
+             * @description Known high CVEs across its versions
+             */
+            high: number;
+            name: string;
+            /** Format: int64 */
+            sbomCount: number;
+            /** Format: int64 */
+            versionCount: number;
         };
         DiscoverRecent: {
             artifactId: string;
@@ -3189,6 +3236,8 @@ export interface components {
              * @example https://example.com/api/schemas/DiscoveryOutputBody.json
              */
             readonly $schema?: string;
+            /** @description Recent public releases that removed the most criticals, one per artifact */
+            criticalCuts: components["schemas"]["DiscoverCut"][] | null;
             /** @description Featured public artifacts (DISCOVER_FEATURED, in order), each summarised from its newest SBOM */
             featuredArtifacts: components["schemas"]["DiscoverFeatured"][] | null;
             /** @description When this snapshot was computed; absent while warming */
@@ -3199,6 +3248,8 @@ export interface components {
             recentArtifacts: components["schemas"]["DiscoverRecent"][] | null;
             /** @description Artifacts ranked by how widely they are used, how many versions are tracked, and how recently they were seen */
             topArtifacts: components["schemas"]["DiscoverArtifact"][] | null;
+            /** @description The package in the most public SBOMs per ecosystem, among those with a known critical or high */
+            topPackages: components["schemas"]["DiscoverPackage"][] | null;
             /** @description Vulnerabilities ranked by how many public artifacts they affect */
             topVulnerabilities: components["schemas"]["DiscoverVuln"][] | null;
             /** @description No snapshot is available yet, so every section is empty because nothing is known — not because the catalog is empty; render a loading state and retry */

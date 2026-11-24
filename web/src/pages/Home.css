@@ -1,479 +1,366 @@
-.landing {
-    display: flex;
-    flex-direction: column;
-    min-height: 100%;
-}
+/* Home (ocidex-n3u5): a short intro, then tables of things a visitor
+ * recognizes. Body-size type throughout; the only heading above body size is
+ * the one intro line. Rows are CSS grids so a phone can drop columns. */
 
-.landing-hero {
-    padding: 3rem 2rem 2.5rem;
-    border-bottom: 1px solid var(--color-border);
-    display: flex;
-    flex-direction: column;
-    gap: 1rem;
-    /* Was 680px, which is the right measure for the pitch paragraph and far too
-       narrow for a five-tile band — auto-fit gave it four ~150px columns and
-       wrapped the fifth alone. The prose keeps its own max-width below; the
-       hero column is now sized for the widest thing in it (ocidex-ag4q.42). */
-    /* Matches .landing-features-grid, so the hero's rule and the sections
-       below share one right edge (ocidex-gu40). */
-    max-width: calc(75rem + 4rem);
-}
-
-/* The line, not the wordmark: the bar already names the product. */
-.landing-title {
-    max-width: 22ch;
-    text-wrap: balance;
-    font-size: 2.5rem;
-    font-weight: 800;
-    letter-spacing: -0.01em;
-    margin: 0;
-    line-height: 1.05;
-}
-
-
-.landing-pitch {
-    font-size: 0.9375rem;
-    line-height: 1.65;
-    color: var(--color-text-muted);
-    max-width: 580px;
-    margin: 0;
-}
-
-/* The loading / unavailable placeholder that stands in for the StatBand. The
-   band itself is styled by components/TileBand.css; this box only has to hold
-   its place without collapsing the hero. */
-.landing-stats {
-    display: flex;
-    align-items: center;
-    gap: 0.5rem;
-    font-size: 0.8125rem;
-    font-family: var(--font-mono);
-    color: var(--color-text-muted);
-    padding: 0.5rem 0.75rem;
-    background: var(--color-surface);
-    border: 1px solid var(--color-border);
-    border-radius: var(--radius-md);
-    width: fit-content;
-}
-
-/* The corpus in one strip: a row of figures, each a link where a list page
-   receives it. */
-.landing-facts {
-    display: flex;
-    flex-wrap: wrap;
-    width: fit-content;
-    max-width: 100%;
-    border: 1px solid var(--color-border);
-    border-radius: var(--radius-lg);
-    background: var(--color-surface);
-}
-
-.landing-fact {
-    display: grid;
-    padding: 0.5rem 1rem;
-    border-left: 1px solid var(--color-border);
-    color: var(--color-text);
-    text-decoration: none;
-}
-
-.landing-fact:first-child {
-    border-left: 0;
-}
-
-a.landing-fact:hover {
-    background: var(--color-surface-hover);
-    text-decoration: none;
-}
-
-.landing-fact-value {
-    font-family: var(--font-display);
-    font-stretch: 85%;
-    font-weight: 700;
-    font-size: var(--text-xl);
-    line-height: 1.15;
-    font-variant-numeric: tabular-nums;
-}
-
-.landing-fact-label {
-    font-size: var(--text-sm);
-    color: var(--color-text-muted);
-}
-
-.landing-stats-sep { color: var(--color-text-dim); }
-
-.landing-types {
-    display: flex;
-    flex-wrap: wrap;
-    align-items: center;
-    gap: 0.5rem;
-}
-
-.landing-type {
-    display: inline-flex;
-    align-items: center;
-    gap: 0.375rem;
-    text-decoration: none;
-    color: inherit;
-}
-
-.landing-type-count {
-    font-family: var(--font-mono);
-    font-size: 0.8125rem;
-    color: var(--color-text-muted);
-}
-
-.landing-ctas {
-    display: flex;
-    gap: 0.625rem;
-    flex-wrap: wrap;
-}
-
-/* The palette's door, sized as the hero's primary input. It opens the same
-   CommandPalette as the sidebar's Search button. */
-.landing-search {
-    display: flex;
-    align-items: center;
-    gap: 0.625rem;
-    width: 100%;
-    max-width: 36rem;
-    padding: 0.75rem 1rem;
-    background: var(--color-surface);
-    border: 1px solid var(--color-border);
-    border-radius: var(--radius-md);
-    color: var(--color-text-muted);
-    font-size: var(--text-base);
-    text-align: left;
-    cursor: text;
-}
-
-.landing-search:hover { border-color: var(--color-border-hover); }
-
-.landing-search span { flex: 1; }
-
-.landing-search kbd {
-    font-family: var(--font-mono);
-    font-size: var(--text-xs);
-    padding: 0.125rem 0.375rem;
-    border: 1px solid var(--color-border);
-    border-radius: 4px;
-}
-
-/* ------------------------------------------------------------------------
-   Discovery (ocidex-gu40). One column of full-width sections: featured
-   cards, an exposure / license pair, and the recent feed. No section ever
-   sits alone in a half-empty grid row, which is what the old four-panel
-   auto-fill grid did at common widths.
-   ------------------------------------------------------------------------ */
-.landing-features {
-    padding: 2rem;
-    flex: 1;
-}
-
-.landing-features-grid {
+.home {
     display: flex;
     flex-direction: column;
     gap: 1.5rem;
-    max-width: 75rem;
+    max-width: 82rem;
+    padding: 2rem 2rem 2.5rem;
 }
 
-.landing-discover-loading { max-width: 75rem; }
-.landing-discover-error { margin: 0; }
-
-.landing-section-head {
-    display: flex;
-    align-items: baseline;
-    justify-content: space-between;
-    gap: 1rem;
-    margin-bottom: 0.75rem;
-}
-
-.landing-section-title {
-    display: flex;
-    align-items: center;
-    gap: 0.5rem;
-    margin: 0;
-    font-size: var(--text-lg);
-    font-weight: 600;
-    color: var(--color-text);
-}
-
-.landing-section-title svg { color: var(--color-text-muted); }
-
-.landing-section-all {
-    font-size: var(--text-sm);
-    color: var(--color-text-muted);
-    text-decoration: none;
-    white-space: nowrap;
-}
-
-.landing-section-all:hover { color: var(--color-secondary); }
-
-/* --- image names: the short name a reader scans for, then its path ------ */
-.image-name {
+.home-intro {
     display: flex;
     flex-direction: column;
-    min-width: 0;
-}
-
-.image-name-short {
-    color: var(--color-text);
-    font-weight: 600;
-    overflow-wrap: anywhere;
-}
-
-.image-name-prefix {
-    font-family: var(--font-mono);
-    font-size: var(--text-xs);
-    color: var(--color-text-muted);
-    overflow-wrap: anywhere;
-}
-
-/* --- featured images: one table to scan and compare ---------------------- */
-td.featured-n {
-    font-family: var(--font-mono);
-    font-size: var(--text-sm);
-    font-variant-numeric: tabular-nums;
-}
-
-.featured-zero {
-    color: var(--color-text-dim);
-}
-
-.featured-crit {
-    color: var(--color-severity-critical);
-    font-weight: 600;
-}
-
-.featured-version {
-    font-family: var(--font-mono);
-    font-size: var(--text-sm);
-    color: var(--color-text-muted);
-}
-
-/* The name is the link; the registry path beside it is context, so no
-   underline runs under it. */
-.featured-table .featured-link {
-    color: var(--color-text);
-    text-decoration: none;
-}
-
-.featured-table .featured-link:hover .image-name-short {
-    text-decoration: underline;
-}
-
-.featured-name .image-name-short {
-    font-family: var(--font-mono);
-    font-weight: 600;
-}
-
-/* Narrow: the mix is a proportion to glance at, and the counts beside it
-   carry the numbers. */
-.featured-mix {
-    width: 72px;
-}
-
-/* The critical change inside the Crit cell, secondary to the count. */
-.featured-delta {
-    margin-left: 0.35rem;
-    font-size: var(--text-xs);
-    color: var(--color-text-muted);
-}
-
-.featured-delta-worse {
-    color: var(--color-worse);
-}
-
-/* --- proportional bars ----------------------------------------------------- */
-.mix-bar {
-    display: flex;
-    height: 0.625rem;
-    border-radius: 999px;
-    overflow: hidden;
-    gap: 2px;
-    background: var(--color-surface-hover);
-}
-
-.mix-bar-thin { height: 0.375rem; }
-
-.mix-seg {
-    flex-basis: 0;
-    min-width: 3px;
-}
-
-.mix-legend {
-    list-style: none;
-    margin: 0.5rem 0 0;
-    padding: 0;
-    display: flex;
-    flex-wrap: wrap;
-    gap: 0.25rem 1rem;
-    font-size: var(--text-sm);
-    color: var(--color-text-muted);
-}
-
-.mix-legend li {
-    display: inline-flex;
-    align-items: center;
-    gap: 0.375rem;
-}
-
-.mix-legend-n {
-    font-family: var(--font-mono);
-    color: var(--color-text);
-}
-
-.mix-dot {
-    display: inline-block;
-    flex: none;
-    width: 0.625rem;
-    height: 0.625rem;
-    border-radius: 2px;
-}
-
-/* License categories, the same tokens CATEGORY_COLORS (utils/licenseUtils)
-   gives the Licenses page. */
-.lic-permissive { background: var(--color-success); }
-.lic-weak-copyleft { background: var(--color-warning); }
-.lic-copyleft { background: var(--color-danger); }
-.lic-uncategorized,
-.lic-unknown { background: var(--color-text-dim); }
-
-/* --- exposure / license pair --------------------------------------------- */
-.landing-pair {
-    display: grid;
-    grid-template-columns: repeat(auto-fit, minmax(22rem, 1fr));
-    gap: 1rem;
-}
-
-.landing-panel {
-    display: flex;
-    flex-direction: column;
-    padding: 1.25rem;
-    color: var(--color-text);
-    min-width: 0;
-}
-
-.landing-subhead {
-    margin: 1.25rem 0 0.25rem;
-    font-size: var(--text-xs);
-    font-weight: 600;
-    text-transform: uppercase;
-    letter-spacing: 0.04em;
-    color: var(--color-text-muted);
-}
-
-.landing-list {
-    list-style: none;
-    margin: 0;
-    padding: 0;
-}
-
-.landing-row {
-    padding: 0.5rem 0;
-    border-top: 1px solid var(--color-border);
-}
-
-.landing-row:first-child { border-top: none; }
-
-.landing-row-main {
-    display: flex;
-    align-items: center;
-    gap: 0.5rem;
-    min-width: 0;
-}
-
-/* Names wrap rather than truncate: a clipped CVE or license id is a
-   different id. */
-.landing-row-name {
-    flex: 1;
-    min-width: 0;
-    overflow-wrap: anywhere;
-    color: var(--color-text);
-    text-decoration: none;
-}
-
-.landing-row-name:hover { color: var(--color-secondary); }
-
-.landing-mono { font-family: var(--font-mono); }
-
-.landing-row-meta {
-    font-family: var(--font-mono);
-    font-size: var(--text-xs);
-    color: var(--color-text-muted);
-    white-space: nowrap;
-}
-
-/* The advisory summary, one line: enough to say what it is, with the full
-   text on hover. Two lines ran the list to twice the height of the panel
-   beside it. */
-.landing-row-sub {
-    margin: 0.25rem 0 0;
-    font-size: var(--text-sm);
-    line-height: 1.45;
-    color: var(--color-text-muted);
-    display: -webkit-box;
-    -webkit-line-clamp: 1;
-    -webkit-box-orient: vertical;
-    overflow: hidden;
-}
-
-.landing-list-empty {
-    padding: 0.375rem 0;
-    font-size: var(--text-sm);
-}
-
-/* --- recent feed ----------------------------------------------------------- */
-.recent-grid {
-    list-style: none;
-    margin: 0;
-    padding: 0;
-    display: grid;
-    grid-template-columns: repeat(auto-fill, minmax(20rem, 1fr));
-    column-gap: 2rem;
-}
-
-.recent-row {
-    display: flex;
-    align-items: center;
     gap: 0.75rem;
-    padding: 0.5rem 0;
-    border-top: 1px solid var(--color-border);
-    min-width: 0;
 }
 
-.recent-name {
-    flex: 1;
-    min-width: 0;
-    text-decoration: none;
+.home-title {
+    margin: 0;
+    font-size: 1.5rem;
+    font-weight: 600;
+    line-height: 1.25;
+    text-wrap: balance;
 }
 
-.recent-name:hover .image-name-short { color: var(--color-secondary); }
-
-.recent-version {
-    font-size: var(--text-xs);
+.home-pitch {
+    margin: 0;
+    max-width: 44rem;
     color: var(--color-text-muted);
-    overflow-wrap: anywhere;
-    max-width: 9rem;
+    line-height: 1.6;
+}
+
+.home-search {
+    display: flex;
+    align-items: center;
+    gap: 0.6rem;
+    width: min(100%, 30rem);
+    padding: 0.55rem 0.8rem;
+    background: var(--color-surface);
+    border: 1px solid var(--color-border);
+    border-radius: var(--radius-md);
+    color: var(--color-text-muted);
+    font: inherit;
+    cursor: pointer;
+}
+
+.home-search:hover {
+    border-color: var(--color-border-hover);
+}
+
+.home-search span {
+    flex: 1;
+    text-align: left;
+}
+
+.home-search kbd {
+    font-family: var(--font-mono);
+    font-size: var(--text-xs);
+    padding: 0.1rem 0.35rem;
+    border: 1px solid var(--color-border);
+    border-radius: var(--radius-md);
+}
+
+/* --- shared ------------------------------------------------------------- */
+.home-label {
+    font-size: var(--text-xs);
+    letter-spacing: 0.06em;
+    text-transform: uppercase;
+    color: var(--color-text-muted);
+}
+
+.home-muted {
+    color: var(--color-text-muted);
+}
+
+.home-small {
+    font-size: var(--text-sm);
+}
+
+.home-strong {
+    font-weight: 600;
+}
+
+.home-right {
     text-align: right;
 }
 
-.recent-time {
-    font-size: var(--text-xs);
-    color: var(--color-text-muted);
-    text-decoration: none;
+.home-mono {
+    font-family: var(--font-mono);
+    font-size: var(--text-sm);
+}
+
+.home-num {
+    text-align: right;
+    font-family: var(--font-mono);
+    font-size: var(--text-sm);
+    font-variant-numeric: tabular-nums;
     white-space: nowrap;
 }
 
-.recent-time:hover { color: var(--color-secondary); }
-
-@media (max-width: 640px) {
-    .landing-features { padding: 1.25rem 1rem; }
-    .landing-pair { grid-template-columns: 1fr; }
-    .recent-grid { grid-template-columns: 1fr; }
+.home-ellipsis {
+    min-width: 0;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
 }
 
-/* Unknown is outside the severity scale, and its chip background
-   (.sev-default, surface-hover) is the bar's own track colour, which made a
-   quarter of the bar disappear. In a bar it reads as a neutral grey. */
-.mix-seg.sev-default,
-.mix-dot.sev-default { background: var(--color-text-dim); }
+.home-crit {
+    color: var(--color-severity-critical);
+}
+
+.home-high {
+    color: var(--color-severity-high);
+}
+
+.home-zero {
+    color: var(--color-text-dim);
+}
+
+.home-loading,
+.home-error {
+    padding: 1rem 0;
+}
+
+.home-tables {
+    display: flex;
+    flex-direction: column;
+    gap: 1.25rem;
+}
+
+.home-pair {
+    display: grid;
+    grid-template-columns: minmax(0, 1.4fr) minmax(0, 1fr);
+    gap: 1.25rem;
+    align-items: start;
+}
+
+/* .card sets its own padding; tables here run edge to edge. */
+.card.home-card {
+    padding: 0;
+    min-width: 0;
+}
+
+.home-card-head {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 0.5rem 1.25rem;
+    justify-content: space-between;
+    align-items: baseline;
+    padding: 0.8rem 1rem 0.6rem;
+}
+
+.home-card-head h2 {
+    margin: 0;
+    font-size: var(--text-base);
+    font-weight: 600;
+}
+
+.home-all {
+    font-size: var(--text-sm);
+    color: var(--color-text-muted);
+    text-decoration: none;
+}
+
+.home-all:hover {
+    color: var(--color-secondary);
+}
+
+.home-sub,
+.home-note {
+    margin: 0;
+    padding: 0 1rem 0.6rem;
+    font-size: var(--text-sm);
+    color: var(--color-text-muted);
+}
+
+.home-note {
+    padding-top: 0.6rem;
+    border-top: 1px solid var(--color-border);
+}
+
+.home-row {
+    color: var(--color-text);
+    text-decoration: none;
+}
+
+.home-row:hover {
+    background: var(--color-surface-hover);
+}
+
+.home-row:hover .image-name-short {
+    text-decoration: underline;
+}
+
+.home-img,
+.home-pkg,
+.home-cut {
+    display: grid;
+    gap: 1rem;
+    align-items: center;
+    padding: 0.5rem 1rem;
+    border-top: 1px solid var(--color-border);
+}
+
+.home-img {
+    grid-template-columns:
+        minmax(0, 1.8fr) minmax(0, 1.4fr) 3rem 3.5rem 4.5rem minmax(10rem, 1.3fr) 3rem;
+}
+
+.home-pkg {
+    grid-template-columns: minmax(0, 1.6fr) minmax(0, 1.5fr) 3rem 5.5rem;
+}
+
+.home-cut {
+    grid-template-columns: minmax(0, 1fr) minmax(0, 1fr) auto auto;
+}
+
+/* The signed-in band keeps its Dashboard.css look but sits in this column. */
+.home .home-band {
+    margin: 0;
+}
+
+.home-eco {
+    font-size: var(--text-xs);
+}
+
+.image-name {
+    display: flex;
+    align-items: baseline;
+    gap: 0.5rem;
+    min-width: 0;
+    overflow: hidden;
+    white-space: nowrap;
+}
+
+.image-name-short {
+    min-width: 0;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    font-family: var(--font-mono);
+    font-size: var(--text-sm);
+    font-weight: 600;
+}
+
+.image-name-prefix {
+    min-width: 0;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    font-size: var(--text-xs);
+    color: var(--color-text-dim);
+}
+
+.home-trend {
+    display: flex;
+    align-items: center;
+    gap: 0.6rem;
+    min-width: 0;
+}
+
+.spark {
+    flex: none;
+    overflow: visible;
+}
+
+.spark path {
+    fill: none;
+    stroke: var(--color-severity-critical);
+    stroke-width: 1.5;
+    stroke-linejoin: round;
+    stroke-linecap: round;
+}
+
+.home-bar-cell {
+    display: flex;
+    align-items: center;
+    gap: 0.6rem;
+    min-width: 0;
+}
+
+.home-bar {
+    position: relative;
+    flex: 1;
+    height: 6px;
+    background: var(--color-surface-hover);
+    border-radius: 3px;
+}
+
+/* Width is set per row at runtime (element.style), which the CSP allows. */
+.home-bar-fill {
+    position: absolute;
+    inset: 0 auto 0 0;
+    border-radius: 3px;
+    background: var(--color-text-muted);
+}
+
+.home-facts {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 0.4rem 1.25rem;
+    padding-top: 1rem;
+    border-top: 1px solid var(--color-border);
+    font-size: var(--text-sm);
+    color: var(--color-text-muted);
+}
+
+.home-fact {
+    color: var(--color-text-muted);
+    text-decoration: none;
+}
+
+a.home-fact:hover {
+    color: var(--color-secondary);
+}
+
+.home-fact-value {
+    font-family: var(--font-mono);
+    color: var(--color-text);
+}
+
+/* --- narrow ------------------------------------------------------------------
+ * A phone keeps the name, the newest tag and the critical count; the rest is
+ * a tap away on the artifact page. */
+@media (max-width: 900px) {
+    .home {
+        padding: 1.25rem 1rem 2rem;
+    }
+
+    .home-pair {
+        grid-template-columns: minmax(0, 1fr);
+    }
+
+    .home-img {
+        grid-template-columns: minmax(0, 1fr) minmax(0, 1fr) 2.5rem;
+        gap: 0.6rem;
+    }
+
+    .home-img > :nth-child(n + 4),
+    .home-img .home-date,
+    .image-name-prefix {
+        display: none;
+    }
+
+    .home-pkg {
+        grid-template-columns: minmax(0, 1fr) 4rem 4.5rem;
+        gap: 0.6rem;
+    }
+
+    .home-pkg > :nth-child(2) .home-bar {
+        display: none;
+    }
+
+    .home-pkg > :nth-child(3) {
+        display: none;
+    }
+
+    .home-cut {
+        grid-template-columns: minmax(0, 1fr) 7rem;
+        gap: 0.6rem;
+    }
+
+    .home-cut > :nth-child(2),
+    .home-cut > :nth-child(4) {
+        display: none;
+    }
+}

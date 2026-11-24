@@ -1,9 +1,8 @@
 import { A } from "@solidjs/router";
-import { ExternalLink, Search } from "lucide-solid";
+import { Search } from "lucide-solid";
 import { For, Show } from "solid-js";
 import { openCommandPalette, isAppleShortcut } from "~/components/CommandPalette";
 import { Skeleton } from "~/components/Skeleton";
-import { Button, TypeBadge } from "~/components/ui";
 import { useDashboardStats } from "~/api/queries";
 import { HomeBand } from "~/pages/Dashboard/HomeBand";
 import { HomeDiscovery } from "~/pages/HomeDiscovery";
@@ -46,135 +45,73 @@ function facts(data: Stats): Fact[] {
 
 function FactStrip(props: { data: Stats }) {
     return (
-        <div class="landing-facts">
+        <footer class="home-facts">
             <For each={facts(props.data)}>
                 {(f) => {
                     const inner = (
                         <>
-                            <span class="landing-fact-value">{f.value}</span>
-                            <span class="landing-fact-label">{f.label}</span>
+                            <span class="home-fact-value">{f.value}</span> {f.label}
                         </>
                     );
                     return f.href !== undefined ? (
-                        <A href={f.href} class="landing-fact" title={f.title}>
+                        <A href={f.href} class="home-fact" title={f.title}>
                             {inner}
                         </A>
                     ) : (
-                        <div class="landing-fact" title={f.title}>{inner}</div>
+                        <span class="home-fact" title={f.title}>
+                            {inner}
+                        </span>
                     );
                 }}
             </For>
-        </div>
+        </footer>
     );
 }
 
+/**
+ * Home is for someone who has never heard of OCIDex: one line on what it is,
+ * search, then the images and packages they already know, in tables. The
+ * catalog totals close the page rather than open it.
+ */
 export default function Home() {
     const stats = useDashboardStats();
 
     return (
-        <div class="landing">
-            <section class="landing-hero">
-                <h1 class="brand landing-title">What changed since the last tag.</h1>
-                {/* The line stays short; this does the explaining, with the
-                    real count once stats arrive. */}
-                <p class="landing-pitch">
-                    SBOMs for{" "}
-                    {stats.data && !stats.data.warming
-                        ? `${stats.data.artifactCount.toLocaleString()} images, binaries and libraries`
-                        : "every image, binary and library you ship"}
-                    , read down to each package and compared version to version.
+        <div class="home">
+            <section class="home-intro">
+                <h1 class="home-title">What's inside the container images you already pull</h1>
+                <p class="home-pitch">
+                    OCIDex reads the SBOM of every published tag: each package, its license, the CVEs known against it,
+                    and what changed from the tag before.
                 </p>
-                {/* The palette is the fastest way into the catalog, and the
-                    sidebar's button is easy to miss on a first visit. This is
-                    the same palette, not a second search. */}
-                <button type="button" class="landing-search" onClick={openCommandPalette}>
+                {/* The same palette as the sidebar's search, not a second one. */}
+                <button type="button" class="home-search" onClick={openCommandPalette}>
                     <Search size={16} />
-                    <span>Search images, packages and CVEs</span>
+                    <span>Look up an image, package or CVE</span>
                     <kbd>{isAppleShortcut() ? "\u2318K" : "Ctrl K"}</kbd>
                 </button>
-                {/* Stats have three states and all three are visible: an
-                    unadorned <Show> rendered a failure as silence, which is
-                    indistinguishable from a catalog that is simply empty.
-                    A `warming` payload carries zero placeholders rather than
-                    real counts, so it belongs in the loading state too — the
-                    query keeps polling until a computed snapshot lands. */}
-                <Show
-                    when={stats.data && !stats.data.warming ? stats.data : undefined}
-                    fallback={
-                        <div class="landing-stats">
-                            <Show
-                                when={stats.isError}
-                                fallback={<Skeleton width="24rem" height="1em" />}
-                            >
-                                <span class="text-muted">Catalog stats are unavailable.</span>
-                            </Show>
-                        </div>
-                    }
-                >
-                    {(data) => (
-                        <>
-                            <FactStrip data={data()} />
-                            {/* The breakdown counts the same artifact set as
-                                artifactCount above, so the chips always sum to
-                                it. The field is nullable in the generated spec —
-                                an empty catalog has no chips to show at all. */}
-                            <Show when={data().artifactTypes?.length}>
-                                <div class="landing-types">
-                                    <For each={data().artifactTypes}>
-                                        {(t) => (
-                                            <A
-                                                href={`/artifacts?type=${encodeURIComponent(t.type)}`}
-                                                class="landing-type"
-                                            >
-                                                <TypeBadge type={t.type} />
-                                                <span class="landing-type-count">
-                                                    {t.artifactCount.toLocaleString()}
-                                                </span>
-                                            </A>
-                                        )}
-                                    </For>
-                                </div>
-                            </Show>
-                        </>
-                    )}
-                </Show>
-                {/* Three things to do, phrased as verbs. The tiles above say how
-                    much is in the index; these say what you can do with it. A
-                    stranger who reads only the top of this page should leave it
-                    with a destination. */}
-                <div class="landing-ctas">
-                    <Button as={A} href="/artifacts" variant="primary">
-                        Browse artifacts
-                    </Button>
-                    <Button as={A} href="/components">
-                        Search components
-                    </Button>
-                    <Button as={A} href="/vulnerabilities">
-                        Review vulnerabilities
-                    </Button>
-                    <Button
-                        as="a"
-                        href="https://github.com/pfenerty/ocidex"
-                        target="_blank"
-                        rel="noreferrer noopener"
-                    >
-                        <ExternalLink size={14} />
-                        GitHub
-                    </Button>
-                </div>
             </section>
 
-            {/* Personalized band for signed-in users (ocidex-998g.5). It renders
-                nothing when signed out, which is why it sits between the hero and
-                the discovery cards rather than inside either. */}
+            {/* Signed-in band; renders nothing when signed out. */}
             <HomeBand />
 
-            {/* Live catalog content, not a description of it (ocidex-q1z7.3).
-                The five static feature cards this replaces said the same thing
-                to a full catalog and an empty one, so they told a first-time
-                visitor nothing about whether the index was worth searching.
-                Section navigation now lives on each panel's "see all" link. */}
             <HomeDiscovery />
+
+            {/* Stats have three states and all three are visible: a failure
+                must not read as an empty catalog, and a warming payload carries
+                zero placeholders rather than counts. */}
+            <Show
+                when={stats.data && !stats.data.warming ? stats.data : undefined}
+                fallback={
+                    <div class="home-facts">
+                        <Show when={stats.isError} fallback={<Skeleton width="24rem" height="1em" />}>
+                            <span class="home-muted">Catalog stats are unavailable.</span>
+                        </Show>
+                    </div>
+                }
+            >
+                {(data) => <FactStrip data={data()} />}
+            </Show>
         </div>
     );
 }

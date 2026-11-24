@@ -2782,9 +2782,27 @@ type DiscoverArtifact struct {
 	VersionCount int64      `json:"versionCount"`
 }
 
+// DiscoverCut defines model for DiscoverCut.
+type DiscoverCut struct {
+	ArtifactId   string `json:"artifactId"`
+	FromCritical int64  `json:"fromCritical"`
+	FromSbomId   string `json:"fromSbomId"`
+	FromVersion  string `json:"fromVersion"`
+	Name         string `json:"name"`
+
+	// ReleasedAt Build date of the release, else when it was indexed
+	ReleasedAt *time.Time `json:"releasedAt,omitempty"`
+	ToCritical int64      `json:"toCritical"`
+	ToSbomId   string     `json:"toSbomId"`
+	ToVersion  string     `json:"toVersion"`
+}
+
 // DiscoverFeatured defines model for DiscoverFeatured.
 type DiscoverFeatured struct {
-	ArtifactId  string       `json:"artifactId"`
+	ArtifactId string `json:"artifactId"`
+
+	// BuiltAt Build date of the counted SBOM's image, when known
+	BuiltAt     *time.Time   `json:"builtAt,omitempty"`
 	CountedSbom *CountedSBOM `json:"countedSbom,omitempty"`
 	CreatedAt   time.Time    `json:"createdAt"`
 
@@ -2797,7 +2815,10 @@ type DiscoverFeatured struct {
 	PackageCount   int64   `json:"packageCount"`
 	SbomId         string  `json:"sbomId"`
 	SubjectVersion *string `json:"subjectVersion,omitempty"`
-	Type           string  `json:"type"`
+
+	// TagCount Public tags indexed for this artifact
+	TagCount int64  `json:"tagCount"`
+	Type     string `json:"type"`
 
 	// VulnMatched The newest SBOM has been matched against the vulnerability store
 	VulnMatched bool               `json:"vulnMatched"`
@@ -2811,6 +2832,22 @@ type DiscoverLicense struct {
 	Id             string  `json:"id"`
 	Name           string  `json:"name"`
 	SpdxId         *string `json:"spdxId,omitempty"`
+}
+
+// DiscoverPackage defines model for DiscoverPackage.
+type DiscoverPackage struct {
+	// Critical Known critical CVEs across its versions
+	Critical int64 `json:"critical"`
+
+	// Ecosystem purl type
+	Ecosystem string  `json:"ecosystem"`
+	Group     *string `json:"group,omitempty"`
+
+	// High Known high CVEs across its versions
+	High         int64  `json:"high"`
+	Name         string `json:"name"`
+	SbomCount    int64  `json:"sbomCount"`
+	VersionCount int64  `json:"versionCount"`
 }
 
 // DiscoverRecent defines model for DiscoverRecent.
@@ -2843,6 +2880,9 @@ type DiscoveryOutputBody struct {
 	// Schema A URL to the JSON Schema for this object.
 	Schema *string `json:"$schema,omitempty"`
 
+	// CriticalCuts Recent public releases that removed the most criticals, one per artifact
+	CriticalCuts *[]DiscoverCut `json:"criticalCuts"`
+
 	// FeaturedArtifacts Featured public artifacts (DISCOVER_FEATURED, in order), each summarised from its newest SBOM
 	FeaturedArtifacts *[]DiscoverFeatured `json:"featuredArtifacts"`
 
@@ -2857,6 +2897,9 @@ type DiscoveryOutputBody struct {
 
 	// TopArtifacts Artifacts ranked by how widely they are used, how many versions are tracked, and how recently they were seen
 	TopArtifacts *[]DiscoverArtifact `json:"topArtifacts"`
+
+	// TopPackages The package in the most public SBOMs per ecosystem, among those with a known critical or high
+	TopPackages *[]DiscoverPackage `json:"topPackages"`
 
 	// TopVulnerabilities Vulnerabilities ranked by how many public artifacts they affect
 	TopVulnerabilities *[]DiscoverVuln `json:"topVulnerabilities"`

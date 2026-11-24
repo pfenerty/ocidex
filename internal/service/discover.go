@@ -25,6 +25,8 @@ type Discovery struct {
 	RecentArtifacts    []DiscoverRecent   `json:"recentArtifacts"`
 	TopVulnerabilities []DiscoverVuln     `json:"topVulnerabilities"`
 	LicenseSpread      []DiscoverLicense  `json:"licenseSpread"`
+	TopPackages        []DiscoverPackage  `json:"topPackages" doc:"The package in the most public SBOMs per ecosystem, among those with a known critical or high"`
+	CriticalCuts       []DiscoverCut      `json:"criticalCuts" doc:"Recent public releases that removed the most criticals, one per artifact"`
 	// GeneratedAt is when the warmer computed this payload. Zero while warming.
 	GeneratedAt time.Time `json:"generatedAt"`
 	// Warming reports that the aggregates have not been computed yet, so the
@@ -74,6 +76,32 @@ type DiscoverFeatured struct {
 	VulnMatched bool `json:"vulnMatched" doc:"The newest SBOM has been matched against the vulnerability store"`
 	// CountedSBOM is the SBOM the card's counts come from.
 	CountedSBOM *CountedSBOM `json:"countedSbom,omitempty" doc:"The SBOM the card's counts come from"`
+	TagCount    int64        `json:"tagCount" doc:"Public tags indexed for this artifact"`
+	BuiltAt     *time.Time   `json:"builtAt,omitempty" doc:"Build date of the counted SBOM's image, when known"`
+}
+
+// DiscoverPackage is one row of the most-common-packages table.
+type DiscoverPackage struct {
+	Ecosystem    string  `json:"ecosystem" doc:"purl type"`
+	Name         string  `json:"name"`
+	Group        *string `json:"group,omitempty"`
+	SbomCount    int64   `json:"sbomCount"`
+	VersionCount int64   `json:"versionCount"`
+	Critical     int64   `json:"critical" doc:"Known critical CVEs across its versions"`
+	High         int64   `json:"high" doc:"Known high CVEs across its versions"`
+}
+
+// DiscoverCut is one release that removed criticals.
+type DiscoverCut struct {
+	ArtifactID   string     `json:"artifactId"`
+	Name         string     `json:"name"`
+	FromSbomID   string     `json:"fromSbomId"`
+	FromVersion  string     `json:"fromVersion"`
+	FromCritical int64      `json:"fromCritical"`
+	ToSbomID     string     `json:"toSbomId"`
+	ToVersion    string     `json:"toVersion"`
+	ToCritical   int64      `json:"toCritical"`
+	ReleasedAt   *time.Time `json:"releasedAt,omitempty" doc:"Build date of the release, else when it was indexed"`
 }
 
 // VulnSeverityCounts is a per-severity vulnerability count.
@@ -143,6 +171,10 @@ const (
 	discoverRecentLimit      = 12
 	discoverVulnLimit        = 10
 	discoverLicenseLimit     = 12
+	discoverPackageLimit     = 12
+	discoverCutLimit         = 5
+	// discoverCutWindowDays bounds which releases count as recent.
+	discoverCutWindowDays = 120
 
 	// discoverVulnCandidates bounds the cheap first stage of the blast-radius
 	// query. Ranking by rollup SBOM count is a good but not exact proxy for
@@ -176,6 +208,8 @@ func (s *searchService) GetDiscovery(ctx context.Context) (*Discovery, error) {
 		RecentArtifacts:    []DiscoverRecent{},
 		TopVulnerabilities: []DiscoverVuln{},
 		LicenseSpread:      []DiscoverLicense{},
+		TopPackages:        []DiscoverPackage{},
+		CriticalCuts:       []DiscoverCut{},
 		Warming:            true,
 	}, nil
 }
@@ -191,6 +225,8 @@ func (s *searchService) WarmDiscovery(ctx context.Context) (*Discovery, error) {
 		recent   []repository.GetDiscoverRecentArtifactsRow
 		vulns    []repository.GetDiscoverTopVulnerabilitiesRow
 		licenses []repository.GetDiscoverLicenseSpreadRow
+		packages []repository.GetDiscoverTopPackagesRow
+		cuts     []repository.GetDiscoverCriticalCutsRow
 	)
 
 	g, gctx := errgroup.WithContext(ctx)
@@ -249,11 +285,33 @@ func (s *searchService) WarmDiscovery(ctx context.Context) (*Discovery, error) {
 		return nil
 	})
 
+	g.Go(func() error {
+		var err error
+		packages, err = q.GetDiscoverTopPackages(gctx, discoverPackageLimit)
+		if err != nil {
+			return fmt.Errorf("getting top packages: %w", err)
+		}
+		return nil
+	})
+	g.Go(func() error {
+		var err error
+		cuts, err = q.GetDiscoverCriticalCuts(gctx, repository.GetDiscoverCriticalCutsParams{
+			WindowDays: discoverCutWindowDays,
+			RowLimit:   discoverCutLimit,
+		})
+		if err != nil {
+			return fmt.Errorf("getting critical cuts: %w", err)
+		}
+		return nil
+	})
+
 	if err := g.Wait(); err != nil {
 		return nil, err
 	}
 
 	payload := buildDiscovery(featured, top, recent, vulns, licenses)
+	payload.TopPackages = buildDiscoverPackages(packages)
+	payload.CriticalCuts = buildDiscoverCuts(cuts)
 
 	// Public scope: the snapshot is the anonymous view (see GetDiscovery).
 	if err := attachFeaturedHistory(ctx, q, payload.FeaturedArtifacts); err != nil {
@@ -286,6 +344,8 @@ func buildDiscovery(
 			CountedSBOM:    countedSBOM(r.SbomID, r.SubjectVersion.String, r.Architecture),
 			CreatedAt:      r.CreatedAt.Time,
 			PackageCount:   r.PackageCount,
+			TagCount:       r.TagCount,
+			BuiltAt:        parseOptionalTime(r.BuildDate),
 			Vulns: VulnSeverityCounts{
 				Critical: r.CriticalCount,
 				High:     r.HighCount,
@@ -416,4 +476,45 @@ func attachFeaturedHistory(ctx context.Context, q *repository.Queries, items []D
 		items[i].CriticalHistory = append(items[i].CriticalHistory, point)
 	}
 	return nil
+}
+
+func buildDiscoverPackages(rows []repository.GetDiscoverTopPackagesRow) []DiscoverPackage {
+	out := make([]DiscoverPackage, 0, len(rows))
+	for _, r := range rows {
+		p := DiscoverPackage{
+			Ecosystem: r.Ecosystem, Name: r.Name, SbomCount: r.SbomCount,
+			VersionCount: r.VersionCount, Critical: r.Critical, High: r.High,
+		}
+		if r.GroupName != "" {
+			g := r.GroupName
+			p.Group = &g
+		}
+		out = append(out, p)
+	}
+	return out
+}
+
+func buildDiscoverCuts(rows []repository.GetDiscoverCriticalCutsRow) []DiscoverCut {
+	out := make([]DiscoverCut, 0, len(rows))
+	for _, r := range rows {
+		out = append(out, DiscoverCut{
+			ArtifactID: r.ArtifactID.String(), Name: r.Name,
+			FromSbomID: r.FromSbomID.String(), FromVersion: r.FromVersion, FromCritical: r.FromCritical,
+			ToSbomID: r.ToSbomID.String(), ToVersion: r.ToVersion, ToCritical: r.ToCritical,
+			ReleasedAt: parseOptionalTime(r.ReleasedAt),
+		})
+	}
+	return out
+}
+
+// parseOptionalTime parses an RFC 3339 timestamp, nil when empty or malformed.
+func parseOptionalTime(s string) *time.Time {
+	if s == "" {
+		return nil
+	}
+	t, err := time.Parse(time.RFC3339Nano, s)
+	if err != nil {
+		return nil
+	}
+	return &t
 }

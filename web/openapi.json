@@ -2718,10 +2718,62 @@
         ],
         "type": "object"
       },
+      "DiscoverCut": {
+        "additionalProperties": false,
+        "properties": {
+          "artifactId": {
+            "type": "string"
+          },
+          "fromCritical": {
+            "format": "int64",
+            "type": "integer"
+          },
+          "fromSbomId": {
+            "type": "string"
+          },
+          "fromVersion": {
+            "type": "string"
+          },
+          "name": {
+            "type": "string"
+          },
+          "releasedAt": {
+            "description": "Build date of the release, else when it was indexed",
+            "format": "date-time",
+            "type": "string"
+          },
+          "toCritical": {
+            "format": "int64",
+            "type": "integer"
+          },
+          "toSbomId": {
+            "type": "string"
+          },
+          "toVersion": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "artifactId",
+          "name",
+          "fromSbomId",
+          "fromVersion",
+          "fromCritical",
+          "toSbomId",
+          "toVersion",
+          "toCritical"
+        ],
+        "type": "object"
+      },
       "DiscoverFeatured": {
         "additionalProperties": false,
         "properties": {
           "artifactId": {
+            "type": "string"
+          },
+          "builtAt": {
+            "description": "Build date of the counted SBOM's image, when known",
+            "format": "date-time",
             "type": "string"
           },
           "countedSbom": {
@@ -2759,6 +2811,11 @@
           "subjectVersion": {
             "type": "string"
           },
+          "tagCount": {
+            "description": "Public tags indexed for this artifact",
+            "format": "int64",
+            "type": "integer"
+          },
           "type": {
             "type": "string"
           },
@@ -2779,7 +2836,8 @@
           "packageCount",
           "vulns",
           "licenses",
-          "vulnMatched"
+          "vulnMatched",
+          "tagCount"
         ],
         "type": "object"
       },
@@ -2808,6 +2866,48 @@
           "name",
           "category",
           "componentCount"
+        ],
+        "type": "object"
+      },
+      "DiscoverPackage": {
+        "additionalProperties": false,
+        "properties": {
+          "critical": {
+            "description": "Known critical CVEs across its versions",
+            "format": "int64",
+            "type": "integer"
+          },
+          "ecosystem": {
+            "description": "purl type",
+            "type": "string"
+          },
+          "group": {
+            "type": "string"
+          },
+          "high": {
+            "description": "Known high CVEs across its versions",
+            "format": "int64",
+            "type": "integer"
+          },
+          "name": {
+            "type": "string"
+          },
+          "sbomCount": {
+            "format": "int64",
+            "type": "integer"
+          },
+          "versionCount": {
+            "format": "int64",
+            "type": "integer"
+          }
+        },
+        "required": [
+          "ecosystem",
+          "name",
+          "sbomCount",
+          "versionCount",
+          "critical",
+          "high"
         ],
         "type": "object"
       },
@@ -2905,6 +3005,16 @@
             "readOnly": true,
             "type": "string"
           },
+          "criticalCuts": {
+            "description": "Recent public releases that removed the most criticals, one per artifact",
+            "items": {
+              "$ref": "#/components/schemas/DiscoverCut"
+            },
+            "type": [
+              "array",
+              "null"
+            ]
+          },
           "featuredArtifacts": {
             "description": "Featured public artifacts (DISCOVER_FEATURED, in order), each summarised from its newest SBOM",
             "items": {
@@ -2949,6 +3059,16 @@
               "null"
             ]
           },
+          "topPackages": {
+            "description": "The package in the most public SBOMs per ecosystem, among those with a known critical or high",
+            "items": {
+              "$ref": "#/components/schemas/DiscoverPackage"
+            },
+            "type": [
+              "array",
+              "null"
+            ]
+          },
           "topVulnerabilities": {
             "description": "Vulnerabilities ranked by how many public artifacts they affect",
             "items": {
@@ -2970,6 +3090,8 @@
           "recentArtifacts",
           "topVulnerabilities",
           "licenseSpread",
+          "topPackages",
+          "criticalCuts",
           "warming"
         ],
         "type": "object"
