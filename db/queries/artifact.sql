@@ -181,7 +181,10 @@ SELECT a.id, a.type, a.name, a.group_name, a.purl, a.cpe, a.created_at, a.entry_
        -- Which SBOM those counts are from, so the row can say so.
        vr.sbom_id AS counted_sbom_id,
        vr.subject_version AS counted_version,
-       COALESCE(vr.architecture, '')::text AS counted_architecture
+       COALESCE(vr.architecture, '')::text AS counted_architecture,
+       -- Whether the counted SBOM was matched against the vulnerability
+       -- store, which tells a zero total's "no findings" from "never scanned".
+       (vr.sbom_id IS NOT NULL AND sbom_vuln_settled(vr.sbom_id))::boolean AS vuln_matched
 FROM artifact a
 -- An artifact is visible when any namespace it appears in is, so it can carry
 -- SBOMs from a namespace the viewer cannot see. Every SBOM read below is

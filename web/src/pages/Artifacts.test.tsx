@@ -65,6 +65,7 @@ interface ArtifactRow {
     sufficientSbomCount: number;
     group?: string;
     vulns?: VulnSummary;
+    vulnMatched?: boolean;
 }
 
 interface InfiniteQuery {
@@ -363,6 +364,13 @@ describe("Artifacts severity column", () => {
         mockUseArtifacts.mockReturnValue(makeQuery({ data: page([makeArtifact()]) }) as never);
         const { getByText } = renderArtifacts();
         expect(getByText("Not scanned")).toBeDefined();
+    });
+
+    it("says '0 known' when scanned with no findings", () => {
+        mockUseArtifacts.mockReturnValue(makeQuery({ data: page([makeArtifact({ vulnMatched: true })]) }) as never);
+        const { getByText, queryByText } = renderArtifacts();
+        expect(getByText("0 known")).toBeDefined();
+        expect(queryByText("Not scanned")).toBeNull();
     });
 
     it("renders per-severity counts when a summary is present", () => {

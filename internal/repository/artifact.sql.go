@@ -774,7 +774,10 @@ SELECT a.id, a.type, a.name, a.group_name, a.purl, a.cpe, a.created_at, a.entry_
        -- Which SBOM those counts are from, so the row can say so.
        vr.sbom_id AS counted_sbom_id,
        vr.subject_version AS counted_version,
-       COALESCE(vr.architecture, '')::text AS counted_architecture
+       COALESCE(vr.architecture, '')::text AS counted_architecture,
+       -- Whether the counted SBOM was matched against the vulnerability
+       -- store, which tells a zero total's "no findings" from "never scanned".
+       (vr.sbom_id IS NOT NULL AND sbom_vuln_settled(vr.sbom_id))::boolean AS vuln_matched
 FROM artifact a
 LEFT JOIN sbom s ON s.artifact_id = a.id
     AND s.namespace_id IN (SELECT visible_namespace_ids($1::uuid, $2::boolean, $3::uuid[]))
@@ -860,6 +863,7 @@ type ListArtifactsRow struct {
 	CountedSbomID       pgtype.UUID        `json:"counted_sbom_id"`
 	CountedVersion      pgtype.Text        `json:"counted_version"`
 	CountedArchitecture string             `json:"counted_architecture"`
+	VulnMatched         bool               `json:"vuln_matched"`
 }
 
 // Same worst-case-first rollup precedence as GetArtifact above — see that
@@ -942,6 +946,7 @@ func (q *Queries) ListArtifacts(ctx context.Context, arg ListArtifactsParams) ([
 			&i.CountedSbomID,
 			&i.CountedVersion,
 			&i.CountedArchitecture,
+			&i.VulnMatched,
 		); err != nil {
 			return nil, err
 		}

@@ -1918,19 +1918,22 @@ type ArtifactDetail struct {
 	CriticalHistory *[]VersionCritical `json:"criticalHistory,omitempty"`
 
 	// EntryNumber Sequential number in the order the artifact was first indexed. Never reused.
-	EntryNumber         int64        `json:"entryNumber"`
-	Group               *string      `json:"group,omitempty"`
-	Id                  string       `json:"id"`
-	Name                string       `json:"name"`
-	PackageCount        int64        `json:"packageCount"`
-	Purl                *string      `json:"purl,omitempty"`
-	SbomCount           int64        `json:"sbomCount"`
-	SigningStatus       string       `json:"signingStatus"`
-	SufficientSbomCount int64        `json:"sufficientSbomCount"`
-	Type                string       `json:"type"`
-	VersionCount        int64        `json:"versionCount"`
-	Vulns               *VulnSummary `json:"vulns,omitempty"`
-	Watched             bool         `json:"watched"`
+	EntryNumber         int64   `json:"entryNumber"`
+	Group               *string `json:"group,omitempty"`
+	Id                  string  `json:"id"`
+	Name                string  `json:"name"`
+	PackageCount        int64   `json:"packageCount"`
+	Purl                *string `json:"purl,omitempty"`
+	SbomCount           int64   `json:"sbomCount"`
+	SigningStatus       string  `json:"signingStatus"`
+	SufficientSbomCount int64   `json:"sufficientSbomCount"`
+	Type                string  `json:"type"`
+	VersionCount        int64   `json:"versionCount"`
+
+	// VulnMatched The counted SBOM was matched against the vulnerability store: an absent vulns then means none known. List responses only.
+	VulnMatched *bool        `json:"vulnMatched,omitempty"`
+	Vulns       *VulnSummary `json:"vulns,omitempty"`
+	Watched     bool         `json:"watched"`
 }
 
 // ArtifactMaxima defines model for ArtifactMaxima.
@@ -1967,15 +1970,18 @@ type ArtifactSummary struct {
 	CriticalHistory *[]VersionCritical `json:"criticalHistory,omitempty"`
 
 	// EntryNumber Sequential number in the order the artifact was first indexed. Never reused.
-	EntryNumber         int64        `json:"entryNumber"`
-	Group               *string      `json:"group,omitempty"`
-	Id                  string       `json:"id"`
-	Name                string       `json:"name"`
-	SbomCount           int64        `json:"sbomCount"`
-	SigningStatus       string       `json:"signingStatus"`
-	SufficientSbomCount int64        `json:"sufficientSbomCount"`
-	Type                string       `json:"type"`
-	Vulns               *VulnSummary `json:"vulns,omitempty"`
+	EntryNumber         int64   `json:"entryNumber"`
+	Group               *string `json:"group,omitempty"`
+	Id                  string  `json:"id"`
+	Name                string  `json:"name"`
+	SbomCount           int64   `json:"sbomCount"`
+	SigningStatus       string  `json:"signingStatus"`
+	SufficientSbomCount int64   `json:"sufficientSbomCount"`
+	Type                string  `json:"type"`
+
+	// VulnMatched The counted SBOM was matched against the vulnerability store: an absent vulns then means none known. List responses only.
+	VulnMatched *bool        `json:"vulnMatched,omitempty"`
+	Vulns       *VulnSummary `json:"vulns,omitempty"`
 }
 
 // ArtifactTypeCountEntry defines model for ArtifactTypeCountEntry.

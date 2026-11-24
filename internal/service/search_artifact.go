@@ -406,10 +406,10 @@ func (s *searchService) ListArtifacts(ctx context.Context, filter ArtifactFilter
 			// SBOM, since the rollup only records SBOMs with at least one
 			// finding. That is "no known vulnerabilities" or "never scanned"
 			// indistinguishably, so it maps to a nil summary rather than an
-			// all-zero one: the UI has to say "not scanned" (ADR-044), and an
-			// all-zero summary would license it to say "clean".
+			// all-zero one; VulnMatched is what tells the two apart (ADR-044).
 			Vulns:       withFixable(vulnSummaryOrNil(row.VulnCritical, row.VulnHigh, row.VulnMedium, row.VulnLow, row.VulnUnknown), row.VulnFixable),
 			CountedSBOM: countedSBOM(row.CountedSbomID, row.CountedVersion.String, row.CountedArchitecture),
+			VulnMatched: row.VulnMatched,
 		})
 	}
 

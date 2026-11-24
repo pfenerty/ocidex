@@ -635,6 +635,9 @@ type ArtifactSummary struct {
 	// distinguishing them. Callers must render nil as unknown, never as a
 	// clean zero (ADR-044) — the same contract ArtifactVersion.Vulns carries.
 	Vulns *VulnSummary `json:"vulns,omitempty"`
+	// VulnMatched says the counted SBOM was matched against the vulnerability
+	// store, so a nil Vulns then means none known rather than never scanned.
+	VulnMatched bool `json:"vulnMatched,omitempty" doc:"The counted SBOM was matched against the vulnerability store: an absent vulns then means none known. List responses only."`
 	// CountedSBOM is the SBOM Vulns was counted from. Set by ListArtifacts only.
 	CountedSBOM *CountedSBOM `json:"countedSbom,omitempty" doc:"The SBOM the vulnerability counts come from. List responses only."`
 }
