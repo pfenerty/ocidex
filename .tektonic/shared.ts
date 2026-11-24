@@ -9,10 +9,10 @@ export const goCgoImage = "ghcr.io/pfenerty/apko-cicd/golang:1.27-cgo";
 export const nodeImage = "ghcr.io/pfenerty/apko-cicd/nodejs:24";
 export const baseImage = "ghcr.io/pfenerty/apko-cicd/base:stable";
 // Go-version-matched govulncheck image; bump the -goX.Y suffix in lockstep with goImage.
-export const govulncheckImage = "ghcr.io/pfenerty/apko-cicd/govulncheck:1.9.0-go1.27";
+export const govulncheckImage = "ghcr.io/pfenerty/apko-cicd/govulncheck:1.10.0-go1.27";
 // SBOM + vuln scanners shared by the dependency-audit tasks (see jobs/_dep-scan.ts).
-export const syftImage = "ghcr.io/pfenerty/apko-cicd/syft:1.57.1";
-export const grypeImage = "ghcr.io/pfenerty/apko-cicd/grype:0.121.3";
+export const syftImage = "ghcr.io/pfenerty/apko-cicd/syft:1.57.2";
+export const grypeImage = "ghcr.io/pfenerty/apko-cicd/grype:0.122.1";
 // SAST + secrets scanners — first-party apko-cicd images (on base, so nushell + git are
 // present), replacing Docker Hub semgrep/semgrep and zricethezav/gitleaks.
 export const semgrepImage = "ghcr.io/pfenerty/apko-cicd/semgrep:1.165.0";
