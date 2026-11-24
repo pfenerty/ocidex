@@ -8,14 +8,10 @@ import "./TagChoice.css";
 
 type Counts = NonNullable<ArtifactVersionSummary["vulns"]>;
 
-function findings(v: Counts): number {
-    return v.critical + v.high + v.medium + v.low + v.unknown;
-}
-
 /** "N critical · M findings with no fix", or that every finding has one. */
 export function fixLine(v: Counts | undefined, matched: boolean): string {
     if (v === undefined) return matched ? "no known vulnerabilities" : "not scanned yet";
-    const total = findings(v);
+    const total = v.total;
     const unfixed = total - (v.fixable ?? 0);
     const crit = `${v.critical} critical`;
     if (unfixed <= 0) return `${crit} · all ${total} findings have an upstream fix`;

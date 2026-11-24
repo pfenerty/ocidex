@@ -8,7 +8,7 @@ const v = (versionKey: string, flavor: string, critical: number, high: number, m
         versionKey,
         flavor,
         vulnMatched: matched,
-        vulns: { critical, high, medium: 0, low: 0, unknown: 0, fixable: critical + high },
+        vulns: { critical, high, medium: 0, low: 0, unknown: 0, total: critical + high, fixable: critical + high },
     }) as ArtifactVersionSummary;
 
 describe("fewestCriticals", () => {
@@ -32,13 +32,13 @@ describe("fewestCriticals", () => {
 
 describe("fixLine", () => {
     it("says how many findings have no fix", () => {
-        expect(fixLine({ critical: 2, high: 30, medium: 5, low: 0, unknown: 0, fixable: 16 }, true)).toBe(
+        expect(fixLine({ critical: 2, high: 30, medium: 5, low: 0, unknown: 0, total: 37, fixable: 16 }, true)).toBe(
             "2 critical · 21 findings with no fix",
         );
     });
 
     it("says when every finding has a fix", () => {
-        expect(fixLine({ critical: 1, high: 33, medium: 0, low: 0, unknown: 0, fixable: 34 }, true)).toBe(
+        expect(fixLine({ critical: 1, high: 33, medium: 0, low: 0, unknown: 0, total: 34, fixable: 34 }, true)).toBe(
             "1 critical · all 34 findings have an upstream fix",
         );
     });
