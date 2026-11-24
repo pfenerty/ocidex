@@ -36,6 +36,33 @@ func (e ArtifactVersionSummarySigningStatus) Valid() bool {
 	}
 }
 
+// Defines values for ChangeVulnSeverity.
+const (
+	ChangeVulnSeverityCRITICAL ChangeVulnSeverity = "CRITICAL"
+	ChangeVulnSeverityHIGH     ChangeVulnSeverity = "HIGH"
+	ChangeVulnSeverityLOW      ChangeVulnSeverity = "LOW"
+	ChangeVulnSeverityMEDIUM   ChangeVulnSeverity = "MEDIUM"
+	ChangeVulnSeverityUNKNOWN  ChangeVulnSeverity = "UNKNOWN"
+)
+
+// Valid indicates whether the value is a known member of the ChangeVulnSeverity enum.
+func (e ChangeVulnSeverity) Valid() bool {
+	switch e {
+	case ChangeVulnSeverityCRITICAL:
+		return true
+	case ChangeVulnSeverityHIGH:
+		return true
+	case ChangeVulnSeverityLOW:
+		return true
+	case ChangeVulnSeverityMEDIUM:
+		return true
+	case ChangeVulnSeverityUNKNOWN:
+		return true
+	default:
+		return false
+	}
+}
+
 // Defines values for ClusterHealthResponseState.
 const (
 	Erroring      ClusterHealthResponseState = "erroring"
@@ -1987,6 +2014,16 @@ type ChangeSummary struct {
 	Upgraded   int64 `json:"upgraded"`
 }
 
+// ChangeVuln defines model for ChangeVuln.
+type ChangeVuln struct {
+	// Id Canonical vulnerability id; aliases are collapsed
+	Id       string             `json:"id"`
+	Severity ChangeVulnSeverity `json:"severity"`
+}
+
+// ChangeVulnSeverity defines model for ChangeVuln.Severity.
+type ChangeVulnSeverity string
+
 // Changelog defines model for Changelog.
 type Changelog struct {
 	// Schema A URL to the JSON Schema for this object.
@@ -2003,11 +2040,18 @@ type Changelog struct {
 // ChangelogEntry defines model for ChangelogEntry.
 type ChangelogEntry struct {
 	// Schema A URL to the JSON Schema for this object.
-	Schema  *string          `json:"$schema,omitempty"`
-	Changes *[]ComponentDiff `json:"changes"`
-	From    SBOMRef          `json:"from"`
-	Summary ChangeSummary    `json:"summary"`
-	To      SBOMRef          `json:"to"`
+	Schema  *string              `json:"$schema,omitempty"`
+	Changes *[]ComponentDiff     `json:"changes"`
+	From    SBOMRef              `json:"from"`
+	Summary ChangeSummary        `json:"summary"`
+	To      SBOMRef              `json:"to"`
+	Vulns   *ChangelogVulnTotals `json:"vulns,omitempty"`
+}
+
+// ChangelogVulnTotals defines model for ChangelogVulnTotals.
+type ChangelogVulnTotals struct {
+	Closed SeverityTally `json:"closed"`
+	Opened SeverityTally `json:"opened"`
 }
 
 // ClusterAgentResponse defines model for ClusterAgentResponse.
@@ -2224,14 +2268,19 @@ type ComponentDetail struct {
 
 // ComponentDiff defines model for ComponentDiff.
 type ComponentDiff struct {
-	Direction       string  `json:"direction"`
-	Group           *string `json:"group,omitempty"`
-	Name            string  `json:"name"`
-	NodeRef         *string `json:"nodeRef,omitempty"`
-	PreviousVersion *string `json:"previousVersion,omitempty"`
-	Purl            *string `json:"purl,omitempty"`
-	Type            string  `json:"type"`
-	Version         *string `json:"version,omitempty"`
+	// Closes CVEs on the previous version that the new version does not have (changelog only)
+	Closes    *[]ChangeVuln `json:"closes,omitempty"`
+	Direction string        `json:"direction"`
+	Group     *string       `json:"group,omitempty"`
+	Name      string        `json:"name"`
+	NodeRef   *string       `json:"nodeRef,omitempty"`
+
+	// Opens CVEs on the new version that the previous version did not have (changelog only)
+	Opens           *[]ChangeVuln `json:"opens,omitempty"`
+	PreviousVersion *string       `json:"previousVersion,omitempty"`
+	Purl            *string       `json:"purl,omitempty"`
+	Type            string        `json:"type"`
+	Version         *string       `json:"version,omitempty"`
 }
 
 // ComponentSummary defines model for ComponentSummary.
@@ -4278,6 +4327,15 @@ type SetNamespaceMemberInputBody struct {
 
 // SetNamespaceMemberInputBodyRole Role to grant in this namespace
 type SetNamespaceMemberInputBodyRole string
+
+// SeverityTally defines model for SeverityTally.
+type SeverityTally struct {
+	Critical int64 `json:"critical"`
+	High     int64 `json:"high"`
+	Low      int64 `json:"low"`
+	Medium   int64 `json:"medium"`
+	Unknown  int64 `json:"unknown"`
+}
 
 // SourceResponse defines model for SourceResponse.
 type SourceResponse struct {

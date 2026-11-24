@@ -77,6 +77,9 @@ type ChangelogEntry struct {
 	To      SBOMRef         `json:"to"`
 	Summary ChangeSummary   `json:"summary"`
 	Changes []ComponentDiff `json:"changes"`
+	// Vulns totals the CVEs the release closed and opened. Set on changelog
+	// entries only, where it is always present.
+	Vulns *ChangelogVulnTotals `json:"vulns,omitempty" doc:"CVEs closed and opened by this release, by severity (changelog only)"`
 }
 
 // SBOMRef is a lightweight reference to an SBOM in a changelog entry.
@@ -117,6 +120,16 @@ type ComponentDiff struct {
 	Purl            *string `json:"purl,omitempty"`
 	PreviousVersion *string `json:"previousVersion,omitempty"`
 	NodeRef         *string `json:"nodeRef,omitempty"` // ID of the matching ComponentSummary node
+	// Closes and Opens are the CVEs this change takes away from or brings to
+	// its package: findings on the previous version absent from the new one,
+	// and the reverse. Set on changelog entries only.
+	Closes []ChangeVuln `json:"closes,omitempty" doc:"CVEs on the previous version that the new version does not have (changelog only)"`
+	Opens  []ChangeVuln `json:"opens,omitempty" doc:"CVEs on the new version that the previous version did not have (changelog only)"`
+
+	// previousPurl is the from-side purl of a modified change, which Purl
+	// (the to side) cannot recover once reconcileVersionedPackages has paired
+	// two differently named packages.
+	previousPurl *string
 }
 
 // DiffSBOMs computes the diff between two arbitrary SBOMs.
@@ -434,6 +447,11 @@ func (s *searchService) GetArtifactChangelog(ctx context.Context, artifactIDStr 
 		return Changelog{}, err
 	}
 
+	vulnsBySBOM, err := vulnsForSBOMs(ctx, q, window)
+	if err != nil {
+		return Changelog{}, err
+	}
+
 	prevMap := buildPackageMap(pkgsBySBOM[window[0].sbom.ID])
 
 	for i := 1; i < len(window); i++ {
@@ -448,7 +466,9 @@ func (s *searchService) GetArtifactChangelog(ctx context.Context, artifactIDStr 
 		toRef.Architecture = nonEmptyStrPtr(window[i].arch)
 		toRef.Flavor = nonEmptyStrPtr(window[i].flavor)
 
-		changelog.Entries = append(changelog.Entries, diffComponents(fromRef, toRef, prevMap, currMap))
+		entry := diffComponents(fromRef, toRef, prevMap, currMap)
+		annotateVulns(&entry, vulnsBySBOM[window[i-1].sbom.ID], vulnsBySBOM[window[i].sbom.ID])
+		changelog.Entries = append(changelog.Entries, entry)
 
 		prevMap = currMap
 	}

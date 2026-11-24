@@ -2336,6 +2336,12 @@ export interface components {
             /** Format: int64 */
             upgraded: number;
         };
+        ChangeVuln: {
+            /** @description Canonical vulnerability id; aliases are collapsed */
+            id: string;
+            /** @enum {string} */
+            severity: "CRITICAL" | "HIGH" | "MEDIUM" | "LOW" | "UNKNOWN";
+        };
         Changelog: {
             /**
              * Format: uri
@@ -2362,6 +2368,14 @@ export interface components {
             from: components["schemas"]["SBOMRef"];
             summary: components["schemas"]["ChangeSummary"];
             to: components["schemas"]["SBOMRef"];
+            /** @description CVEs closed and opened by this release, by severity (changelog only) */
+            vulns?: components["schemas"]["ChangelogVulnTotals"];
+        };
+        ChangelogVulnTotals: {
+            /** @description CVEs the previous release had and this one does not */
+            closed: components["schemas"]["SeverityTally"];
+            /** @description CVEs this release has and the previous one did not */
+            opened: components["schemas"]["SeverityTally"];
         };
         ClusterAgentResponse: {
             /** @description Kubernetes server version (gitVersion) */
@@ -2583,10 +2597,14 @@ export interface components {
             vulnCount?: number;
         };
         ComponentDiff: {
+            /** @description CVEs on the previous version that the new version does not have (changelog only) */
+            closes?: components["schemas"]["ChangeVuln"][] | null;
             direction: string;
             group?: string;
             name: string;
             nodeRef?: string;
+            /** @description CVEs on the new version that the previous version did not have (changelog only) */
+            opens?: components["schemas"]["ChangeVuln"][] | null;
             previousVersion?: string;
             purl?: string;
             type: string;
@@ -4805,6 +4823,18 @@ export interface components {
              * @enum {string}
              */
             role: "owner" | "maintainer" | "security" | "developer" | "viewer";
+        };
+        SeverityTally: {
+            /** Format: int64 */
+            critical: number;
+            /** Format: int64 */
+            high: number;
+            /** Format: int64 */
+            low: number;
+            /** Format: int64 */
+            medium: number;
+            /** Format: int64 */
+            unknown: number;
         };
         SourceResponse: {
             /**

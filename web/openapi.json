@@ -633,6 +633,30 @@
         ],
         "type": "object"
       },
+      "ChangeVuln": {
+        "additionalProperties": false,
+        "properties": {
+          "id": {
+            "description": "Canonical vulnerability id; aliases are collapsed",
+            "type": "string"
+          },
+          "severity": {
+            "enum": [
+              "CRITICAL",
+              "HIGH",
+              "MEDIUM",
+              "LOW",
+              "UNKNOWN"
+            ],
+            "type": "string"
+          }
+        },
+        "required": [
+          "id",
+          "severity"
+        ],
+        "type": "object"
+      },
       "Changelog": {
         "additionalProperties": false,
         "properties": {
@@ -725,6 +749,10 @@
           },
           "to": {
             "$ref": "#/components/schemas/SBOMRef"
+          },
+          "vulns": {
+            "$ref": "#/components/schemas/ChangelogVulnTotals",
+            "description": "CVEs closed and opened by this release, by severity (changelog only)"
           }
         },
         "required": [
@@ -732,6 +760,24 @@
           "to",
           "summary",
           "changes"
+        ],
+        "type": "object"
+      },
+      "ChangelogVulnTotals": {
+        "additionalProperties": false,
+        "properties": {
+          "closed": {
+            "$ref": "#/components/schemas/SeverityTally",
+            "description": "CVEs the previous release had and this one does not"
+          },
+          "opened": {
+            "$ref": "#/components/schemas/SeverityTally",
+            "description": "CVEs this release has and the previous one did not"
+          }
+        },
+        "required": [
+          "closed",
+          "opened"
         ],
         "type": "object"
       },
@@ -1287,6 +1333,16 @@
       "ComponentDiff": {
         "additionalProperties": false,
         "properties": {
+          "closes": {
+            "description": "CVEs on the previous version that the new version does not have (changelog only)",
+            "items": {
+              "$ref": "#/components/schemas/ChangeVuln"
+            },
+            "type": [
+              "array",
+              "null"
+            ]
+          },
           "direction": {
             "type": "string"
           },
@@ -1298,6 +1354,16 @@
           },
           "nodeRef": {
             "type": "string"
+          },
+          "opens": {
+            "description": "CVEs on the new version that the previous version did not have (changelog only)",
+            "items": {
+              "$ref": "#/components/schemas/ChangeVuln"
+            },
+            "type": [
+              "array",
+              "null"
+            ]
           },
           "previousVersion": {
             "type": "string"
@@ -7178,6 +7244,39 @@
         },
         "required": [
           "role"
+        ],
+        "type": "object"
+      },
+      "SeverityTally": {
+        "additionalProperties": false,
+        "properties": {
+          "critical": {
+            "format": "int64",
+            "type": "integer"
+          },
+          "high": {
+            "format": "int64",
+            "type": "integer"
+          },
+          "low": {
+            "format": "int64",
+            "type": "integer"
+          },
+          "medium": {
+            "format": "int64",
+            "type": "integer"
+          },
+          "unknown": {
+            "format": "int64",
+            "type": "integer"
+          }
+        },
+        "required": [
+          "critical",
+          "high",
+          "medium",
+          "low",
+          "unknown"
         ],
         "type": "object"
       },
