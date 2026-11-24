@@ -44,11 +44,16 @@ spec:
         requests:
           cpu: 10m
       env:
-        - name: GITHUB_TOKEN
+        - name: GITHUB_APP_ID
           valueFrom:
             secretKeyRef:
-              key: git-provider-token
-              name: "{{ git_auth_secret }}"
+              key: app-id
+              name: github-checks-app
+        - name: GITHUB_APP_PRIVATE_KEY
+          valueFrom:
+            secretKeyRef:
+              key: private-key
+              name: github-checks-app
       image: ghcr.io/pfenerty/apko-cicd/base:stable
       name: report-running
       onError: continue
@@ -72,6 +77,36 @@ spec:
         def now-iso []: nothing -> string { date now | date to-timezone UTC | format date '%Y-%m-%dT%H:%M:%SZ' }
 
         def param-id [value: string]: nothing -> any { if ($value | str trim) =~ '^\d+$' { $value | str trim } else { null } }
+
+        def b64url []: string -> string { str replace -a '+' '-' | str replace -a '/' '_' | str replace -a '=' '' }
+
+        def app-jwt []: nothing -> string {
+          let now = (date now | format date '%s' | into int)
+          # iat is backdated a minute for clock drift; GitHub rejects an exp more than 10 minutes out.
+          let header = ({ alg: "RS256", typ: "JWT" } | to json -r | encode base64 | b64url)
+          let claims = ({ iat: ($now - 60), exp: ($now + 540), iss: ($env.GITHUB_APP_ID | str trim) } | to json -r | encode base64 | b64url)
+          let key = (mktemp -t tektonic-app-key.XXXXXX)
+          try {
+            $env.GITHUB_APP_PRIVATE_KEY | save -f $key
+            let sig = ($"($header).($claims)" | ^openssl dgst -sha256 -sign $key -binary | ^openssl base64 -A | b64url)
+            rm -f $key
+            $"($header).($claims).($sig)"
+          } catch { |e| rm -f $key; error make { msg: $e.msg } }
+        }
+
+        def app-token []: nothing -> string {
+          let headers = [
+            Authorization $"Bearer (app-jwt)"
+            Accept "application/vnd.github+json"
+            X-GitHub-Api-Version "2022-11-28"
+          ]
+          let repo = "$(params.repo-full-name)"
+          let installation = (http get $"https://api.github.com/repos/($repo)/installation" -H $headers | get id)
+          let body = { repositories: [($repo | split row "/" | last)], permissions: { checks: "write" } }
+          http post $"https://api.github.com/app/installations/($installation)/access_tokens" $body -t application/json -H $headers | get token
+        }
+
+        try { $env.GITHUB_TOKEN = (app-token) } catch { |e| log $"github-app: cannot mint an installation token: ($e.msg)" }
 
         try { date now | format date '%s' | save -f /tekton/home/.status-started-at } catch { |e| log $"check-running: cannot record start time: ($e.msg)" }
 
@@ -245,11 +280,16 @@ spec:
         requests:
           cpu: 10m
       env:
-        - name: GITHUB_TOKEN
+        - name: GITHUB_APP_ID
           valueFrom:
             secretKeyRef:
-              key: git-provider-token
-              name: "{{ git_auth_secret }}"
+              key: app-id
+              name: github-checks-app
+        - name: GITHUB_APP_PRIVATE_KEY
+          valueFrom:
+            secretKeyRef:
+              key: private-key
+              name: github-checks-app
       image: ghcr.io/pfenerty/apko-cicd/base:stable
       name: report-status
       script: |-
@@ -272,6 +312,36 @@ spec:
         def now-iso []: nothing -> string { date now | date to-timezone UTC | format date '%Y-%m-%dT%H:%M:%SZ' }
 
         def param-id [value: string]: nothing -> any { if ($value | str trim) =~ '^\d+$' { $value | str trim } else { null } }
+
+        def b64url []: string -> string { str replace -a '+' '-' | str replace -a '/' '_' | str replace -a '=' '' }
+
+        def app-jwt []: nothing -> string {
+          let now = (date now | format date '%s' | into int)
+          # iat is backdated a minute for clock drift; GitHub rejects an exp more than 10 minutes out.
+          let header = ({ alg: "RS256", typ: "JWT" } | to json -r | encode base64 | b64url)
+          let claims = ({ iat: ($now - 60), exp: ($now + 540), iss: ($env.GITHUB_APP_ID | str trim) } | to json -r | encode base64 | b64url)
+          let key = (mktemp -t tektonic-app-key.XXXXXX)
+          try {
+            $env.GITHUB_APP_PRIVATE_KEY | save -f $key
+            let sig = ($"($header).($claims)" | ^openssl dgst -sha256 -sign $key -binary | ^openssl base64 -A | b64url)
+            rm -f $key
+            $"($header).($claims).($sig)"
+          } catch { |e| rm -f $key; error make { msg: $e.msg } }
+        }
+
+        def app-token []: nothing -> string {
+          let headers = [
+            Authorization $"Bearer (app-jwt)"
+            Accept "application/vnd.github+json"
+            X-GitHub-Api-Version "2022-11-28"
+          ]
+          let repo = "$(params.repo-full-name)"
+          let installation = (http get $"https://api.github.com/repos/($repo)/installation" -H $headers | get id)
+          let body = { repositories: [($repo | split row "/" | last)], permissions: { checks: "write" } }
+          http post $"https://api.github.com/app/installations/($installation)/access_tokens" $body -t application/json -H $headers | get token
+        }
+
+        try { $env.GITHUB_TOKEN = (app-token) } catch { |e| log $"github-app: cannot mint an installation token: ($e.msg)" }
 
         def format-duration [secs: int]: nothing -> string {
           let secs = ([$secs 0] | math max)

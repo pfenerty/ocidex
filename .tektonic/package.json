@@ -12,7 +12,7 @@
   },
   "dependencies": {
     "@tektonic-ci/core": "^2.5.0",
-    "@tektonic-ci/reporter-github": "^2.5.0"
+    "@tektonic-ci/reporter-github": "^2.6.0"
   },
   "devDependencies": {
     "@types/node": "^26.0.0",

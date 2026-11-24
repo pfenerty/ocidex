@@ -28,20 +28,21 @@ export const kyvernoImage = "ghcr.io/pfenerty/apko-cicd/kyverno:1.18.1-helm4";
 // Queued and reconciled runs link the PipelineRun on the tailnet-only Tekton Dashboard,
 // running and finished ones the TaskRun.
 //
-// The Checks API takes only a GitHub App installation token, so the reporter steps (and
-// only those) read PAC's per-run App token: PAC substitutes {{ git_auth_secret }} in the
-// task files it applies. It is deliberately not a pod-wide GITHUB_TOKEN: Tekton gives pod
-// template env precedence over step env, so that would replace the github-pipeline-token
-// PAT the SARIF upload and gh-release steps set for themselves, and hand a repo-write
-// token to every step, PR test code included.
+// The Checks API takes only a GitHub App installation token. The reporter steps (and only
+// those) mint their own from the ocidex-ci-checks App (Checks: write, nothing else), whose
+// ID and key homelab puts in the github-checks-app Secret. PAC's per-run token would be
+// simpler but lasts an hour from when PAC creates the run, and runs wait in the PAC queue
+// (concurrency_limit 1) for longer than that, which left checks queued forever and held
+// up Renovate's automerge. It is deliberately not a pod-wide GITHUB_TOKEN either: Tekton
+// gives pod template env precedence over step env, so that would replace the
+// github-pipeline-token PAT the SARIF upload and gh-release steps set for themselves.
 //
 // ocidex is public, so a failing step's output tail is public too. No step prints a
 // secret: gitleaks runs with --redact, and the API key and PAT are never logged.
 const detailsUrl = tektonDashboardUrl("https://tekton-dashboard.bear-velociraptor.ts.net");
 
 const checksReporterOptions = {
-  tokenSecretName: "{{ git_auth_secret }}",
-  tokenSecretKey: "git-provider-token",
+  appAuth: { secretName: "github-checks-app" },
   detailsUrl,
   // The pending task's one step POSTs a check run per context. The default 512Mi limit
   // per step causes OOM on constrained nodes; these are tight but sufficient for nushell
