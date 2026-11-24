@@ -213,7 +213,12 @@
 }
 
 .home-cut {
-    grid-template-columns: minmax(0, 1fr) minmax(0, 1fr) auto auto;
+    grid-template-columns: minmax(5rem, 1fr) minmax(0, 1fr) auto auto;
+}
+
+/* In the half-width card the registry path is noise next to the name. */
+.home-cut .image-name-prefix {
+    display: none;
 }
 
 /* The signed-in band keeps its Dashboard.css look but sits in this column. */
