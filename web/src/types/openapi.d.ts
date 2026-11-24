@@ -1862,6 +1862,26 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/v1/users/me/moves": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Get my upgrade queue
+         * @description For each image running in your clusters (or, with none, each artifact's newest tag), the same-flavor tag with the fewest criticals, then highs, and how long a better tag has been out; the criticals left after every upgrade; and before/after totals per namespace. Scoped to the calling user: only resources you own, excluding public resources owned by others.
+         */
+        get: operations["get-my-moves"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/v1/users/me/namespaces": {
         parameters: {
             query?: never;
@@ -2166,6 +2186,17 @@ export interface components {
             fixedVersions: string[] | null;
             group?: string;
             name: string;
+        };
+        AlternativeTag: {
+            after: components["schemas"]["CritHigh"];
+            /**
+             * Format: date-time
+             * @description Image build date, else when the SBOM was ingested
+             */
+            builtAt: string;
+            flavor?: string;
+            sbomId: string;
+            tag: string;
         };
         ArtifactDetail: {
             /**
@@ -2990,6 +3021,12 @@ export interface components {
              */
             namespaceId: string;
         };
+        CritHigh: {
+            /** Format: int64 */
+            critical: number;
+            /** Format: int64 */
+            high: number;
+        };
         CursorMeta: {
             /** @description Whether more results exist after this page */
             hasMore: boolean;
@@ -3664,6 +3701,20 @@ export interface components {
              */
             writesPerHour?: number;
         };
+        LeftoverCritical: {
+            /** Format: float */
+            cvssScore?: number;
+            /** @description Matcher fix state: fixed, not-fixed, wont-fix or unknown */
+            fixState?: string;
+            /** @description Upstream fix version no available tag ships yet */
+            fixedVersion?: string;
+            /** @description Canonical vulnerability id */
+            id: string;
+            /** @description Images still carrying it */
+            images: string[] | null;
+            package: string;
+            packageVersion?: string;
+        };
         LicenseCategoryMix: {
             /** Format: int64 */
             copyleft: number;
@@ -4151,6 +4202,56 @@ export interface components {
             /** @description User role: admin, member, or viewer */
             role: string;
         };
+        MoveTag: {
+            /**
+             * Format: date-time
+             * @description Image build date, else when the SBOM was ingested
+             */
+            builtAt: string;
+            flavor?: string;
+            sbomId: string;
+            tag: string;
+        };
+        Moves: {
+            /**
+             * Format: uri
+             * @description A URL to the JSON Schema for this object.
+             * @example https://example.com/api/schemas/Moves.json
+             */
+            readonly $schema?: string;
+            /** @description Criticals still running after every upgrade, highest CVSS first */
+            leftoverCriticals: components["schemas"]["LeftoverCritical"][] | null;
+            /** @description Before/after totals per namespace, most criticals first */
+            namespaces: components["schemas"]["NamespaceMoves"][] | null;
+            /** @enum {string} */
+            source: "cluster" | "owned";
+            totals: components["schemas"]["MovesTotals"];
+            /** @description Images with a better tag, longest waiting first */
+            upgrades: components["schemas"]["Upgrade"][] | null;
+        };
+        MovesTotals: {
+            after: components["schemas"]["CritHigh"];
+            before: components["schemas"]["CritHigh"];
+            /** Format: int64 */
+            images: number;
+            /**
+             * Format: int64
+             * @description Distinct critical CVEs left after every upgrade
+             */
+            leftoverCriticals: number;
+            /** Format: int64 */
+            longestWaitDays: number;
+            longestWaitImage?: string;
+            /** Format: int64 */
+            pods: number;
+            /** Format: int64 */
+            upgrades: number;
+            /**
+             * Format: int64
+             * @description Upgrades that reduce criticals
+             */
+            upgradesCutCritical: number;
+        };
         MyMembership: {
             /** @description Namespace UUID */
             namespaceId: string;
@@ -4191,6 +4292,15 @@ export interface components {
             userId: string;
             /** @description GitHub username of the member */
             username: string;
+        };
+        NamespaceMoves: {
+            after: components["schemas"]["CritHigh"];
+            before: components["schemas"]["CritHigh"];
+            /** Format: int64 */
+            images: number;
+            name: string;
+            /** Format: int64 */
+            pods: number;
         };
         NamespaceResponse: {
             /**
@@ -5144,6 +5254,29 @@ export interface components {
              * @enum {string}
              */
             role: "admin" | "member" | "viewer";
+        };
+        Upgrade: {
+            after: components["schemas"]["CritHigh"];
+            alternative?: components["schemas"]["AlternativeTag"];
+            artifactId: string;
+            before: components["schemas"]["CritHigh"];
+            /** @description Oldest same-flavor tag better than the running one */
+            firstBetter: components["schemas"]["MoveTag"];
+            image: string;
+            namespaces: string[] | null;
+            /**
+             * Format: int64
+             * @description Running pods; 0 without a cluster
+             */
+            pods: number;
+            running: components["schemas"]["MoveTag"];
+            /** @description Same-flavor tag with the fewest criticals, then highs; newest on a tie */
+            target: components["schemas"]["MoveTag"];
+            /**
+             * Format: int64
+             * @description Days since firstBetter was built
+             */
+            waitingDays: number;
         };
         UserResponse: {
             /**
@@ -9283,6 +9416,35 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["ListRecentDriftOutputBody"];
+                };
+            };
+            /** @description Error */
+            default: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["ErrorModel"];
+                };
+            };
+        };
+    };
+    "get-my-moves": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description OK */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Moves"];
                 };
             };
             /** @description Error */

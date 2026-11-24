@@ -418,6 +418,18 @@ func registerAuthOps(r chi.Router, api huma.API, h *Handler) {
 		Middlewares: huma.Middlewares{authMW},
 	}, h.ListMyVulnerabilities)
 
+	huma.Register(api, huma.Operation{
+		OperationID: "get-my-moves",
+		Method:      http.MethodGet,
+		Path:        "/api/v1/users/me/moves",
+		Summary:     "Get my upgrade queue",
+		Description: "For each image running in your clusters (or, with none, each artifact's newest tag), the same-flavor tag " +
+			"with the fewest criticals, then highs, and how long a better tag has been out; the criticals left after every " +
+			"upgrade; and before/after totals per namespace. " + descSelfScoped,
+		Tags:        []string{tagAuth},
+		Middlewares: huma.Middlewares{authMW},
+	}, h.GetMyMoves)
+
 	// Watchlist. The watch pair is self-scoped like the
 	// collections above — the caller is implied, never a path segment — but the
 	// two mutating verbs additionally need write scope, because a read-only API

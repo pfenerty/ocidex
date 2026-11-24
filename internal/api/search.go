@@ -836,6 +836,18 @@ func (h *Handler) ListMyVulnerabilities(ctx context.Context, input *ListMyVulner
 	return h.listTopVulnerabilities(ctx, &input.ListTopVulnerabilitiesInput, ownedFilterFromContext(ctx))
 }
 
+// GetMyMoves handles GET /api/v1/users/me/moves.
+func (h *Handler) GetMyMoves(ctx context.Context, _ *struct{}) (*GetMyMovesOutput, error) {
+	if _, ok := UserFromContext(ctx); !ok {
+		return nil, huma.Error401Unauthorized("not authenticated")
+	}
+	moves, err := h.insights.GetMyMoves(ctx, ownedFilterFromContext(ctx))
+	if err != nil {
+		return nil, mapServiceError(err)
+	}
+	return &GetMyMovesOutput{Body: *moves}, nil
+}
+
 func (h *Handler) listTopVulnerabilities(ctx context.Context, input *ListTopVulnerabilitiesInput, vis service.VisibilityFilter) (*ListTopVulnerabilitiesOutput, error) {
 	filter := service.TopVulnFilter{
 		Limit:      input.Limit,

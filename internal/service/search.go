@@ -52,6 +52,7 @@ type SearchService interface {
 	ListSBOMDriftHistory(ctx context.Context, sbomID string, page DriftPage, vis VisibilityFilter) (CursorPage[ProvenanceDriftSummary], error)
 	ListRecentProvenanceDrift(ctx context.Context, page DriftPage, vis VisibilityFilter) (CursorPage[RecentDriftEntry], error)
 	ListOwnedActivity(ctx context.Context, ownerID string, keyNamespaces []string, page FeedPage) (CursorPage[ActivityEntry], error)
+	GetMyMoves(ctx context.Context, vis VisibilityFilter) (*Moves, error)
 	LookupArtifact(ctx context.Context, query ArtifactLookupQuery, vis VisibilityFilter) ([]LookupCandidate, error)
 	ResolveArtifactEntryNumber(ctx context.Context, entryNumber int64, vis VisibilityFilter) (string, error)
 	LookupSBOM(ctx context.Context, query SBOMLookupQuery, vis VisibilityFilter) ([]LookupCandidate, error)

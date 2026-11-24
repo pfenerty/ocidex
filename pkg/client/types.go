@@ -504,6 +504,24 @@ func (e ListArtifactVersionsOutputBodyResolvedMode) Valid() bool {
 	}
 }
 
+// Defines values for MovesSource.
+const (
+	MovesSourceCluster MovesSource = "cluster"
+	MovesSourceOwned   MovesSource = "owned"
+)
+
+// Valid indicates whether the value is a known member of the MovesSource enum.
+func (e MovesSource) Valid() bool {
+	switch e {
+	case MovesSourceCluster:
+		return true
+	case MovesSourceOwned:
+		return true
+	default:
+		return false
+	}
+}
+
 // Defines values for MyMembershipRole.
 const (
 	MyMembershipRoleDeveloper  MyMembershipRole = "developer"
@@ -1865,6 +1883,17 @@ type AffectedComponent struct {
 	Name                 string    `json:"name"`
 }
 
+// AlternativeTag defines model for AlternativeTag.
+type AlternativeTag struct {
+	After CritHigh `json:"after"`
+
+	// BuiltAt Image build date, else when the SBOM was ingested
+	BuiltAt time.Time `json:"builtAt"`
+	Flavor  *string   `json:"flavor,omitempty"`
+	SbomId  string    `json:"sbomId"`
+	Tag     string    `json:"tag"`
+}
+
 // ArtifactDetail defines model for ArtifactDetail.
 type ArtifactDetail struct {
 	// Schema A URL to the JSON Schema for this object.
@@ -2658,6 +2687,12 @@ type CreateSourceInputBody struct {
 	NamespaceId openapi_types.UUID `json:"namespaceId"`
 }
 
+// CritHigh defines model for CritHigh.
+type CritHigh struct {
+	Critical int64 `json:"critical"`
+	High     int64 `json:"high"`
+}
+
 // CursorMeta defines model for CursorMeta.
 type CursorMeta struct {
 	// HasMore Whether more results exist after this page
@@ -3287,6 +3322,25 @@ type KeySelfOutputBody struct {
 // KeySelfOutputBodyKind session for a browser session; otherwise the API key's kind
 type KeySelfOutputBodyKind string
 
+// LeftoverCritical defines model for LeftoverCritical.
+type LeftoverCritical struct {
+	CvssScore *float32 `json:"cvssScore,omitempty"`
+
+	// FixState Matcher fix state: fixed, not-fixed, wont-fix or unknown
+	FixState *string `json:"fixState,omitempty"`
+
+	// FixedVersion Upstream fix version no available tag ships yet
+	FixedVersion *string `json:"fixedVersion,omitempty"`
+
+	// Id Canonical vulnerability id
+	Id string `json:"id"`
+
+	// Images Images still carrying it
+	Images         *[]string `json:"images"`
+	Package        string    `json:"package"`
+	PackageVersion *string   `json:"packageVersion,omitempty"`
+}
+
 // LicenseCategoryMix defines model for LicenseCategoryMix.
 type LicenseCategoryMix struct {
 	Copyleft      int64 `json:"copyleft"`
@@ -3688,6 +3742,52 @@ type MeOutputBody struct {
 	Role string `json:"role"`
 }
 
+// MoveTag defines model for MoveTag.
+type MoveTag struct {
+	// BuiltAt Image build date, else when the SBOM was ingested
+	BuiltAt time.Time `json:"builtAt"`
+	Flavor  *string   `json:"flavor,omitempty"`
+	SbomId  string    `json:"sbomId"`
+	Tag     string    `json:"tag"`
+}
+
+// Moves defines model for Moves.
+type Moves struct {
+	// Schema A URL to the JSON Schema for this object.
+	Schema *string `json:"$schema,omitempty"`
+
+	// LeftoverCriticals Criticals still running after every upgrade, highest CVSS first
+	LeftoverCriticals *[]LeftoverCritical `json:"leftoverCriticals"`
+
+	// Namespaces Before/after totals per namespace, most criticals first
+	Namespaces *[]NamespaceMoves `json:"namespaces"`
+	Source     MovesSource       `json:"source"`
+	Totals     MovesTotals       `json:"totals"`
+
+	// Upgrades Images with a better tag, longest waiting first
+	Upgrades *[]Upgrade `json:"upgrades"`
+}
+
+// MovesSource defines model for Moves.Source.
+type MovesSource string
+
+// MovesTotals defines model for MovesTotals.
+type MovesTotals struct {
+	After  CritHigh `json:"after"`
+	Before CritHigh `json:"before"`
+	Images int64    `json:"images"`
+
+	// LeftoverCriticals Distinct critical CVEs left after every upgrade
+	LeftoverCriticals int64   `json:"leftoverCriticals"`
+	LongestWaitDays   int64   `json:"longestWaitDays"`
+	LongestWaitImage  *string `json:"longestWaitImage,omitempty"`
+	Pods              int64   `json:"pods"`
+	Upgrades          int64   `json:"upgrades"`
+
+	// UpgradesCutCritical Upgrades that reduce criticals
+	UpgradesCutCritical int64 `json:"upgradesCutCritical"`
+}
+
 // MyMembership defines model for MyMembership.
 type MyMembership struct {
 	// NamespaceId Namespace UUID
@@ -3735,6 +3835,15 @@ type NamespaceMemberResponse struct {
 
 // NamespaceMemberResponseRole The member's role in this namespace
 type NamespaceMemberResponseRole string
+
+// NamespaceMoves defines model for NamespaceMoves.
+type NamespaceMoves struct {
+	After  CritHigh `json:"after"`
+	Before CritHigh `json:"before"`
+	Images int64    `json:"images"`
+	Name   string   `json:"name"`
+	Pods   int64    `json:"pods"`
+}
 
 // NamespaceResponse defines model for NamespaceResponse.
 type NamespaceResponse struct {
@@ -4632,6 +4741,25 @@ type UpdateUserRoleInputBody struct {
 
 // UpdateUserRoleInputBodyRole New role
 type UpdateUserRoleInputBodyRole string
+
+// Upgrade defines model for Upgrade.
+type Upgrade struct {
+	After       CritHigh        `json:"after"`
+	Alternative *AlternativeTag `json:"alternative,omitempty"`
+	ArtifactId  string          `json:"artifactId"`
+	Before      CritHigh        `json:"before"`
+	FirstBetter MoveTag         `json:"firstBetter"`
+	Image       string          `json:"image"`
+	Namespaces  *[]string       `json:"namespaces"`
+
+	// Pods Running pods; 0 without a cluster
+	Pods    int64   `json:"pods"`
+	Running MoveTag `json:"running"`
+	Target  MoveTag `json:"target"`
+
+	// WaitingDays Days since firstBetter was built
+	WaitingDays int64 `json:"waitingDays"`
+}
 
 // UserResponse defines model for UserResponse.
 type UserResponse struct {

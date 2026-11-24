@@ -58,6 +58,11 @@ type ListMyVulnerabilitiesInput struct {
 	ListTopVulnerabilitiesInput
 }
 
+// GetMyMovesOutput is the response for GET /api/v1/users/me/moves.
+type GetMyMovesOutput struct {
+	Body service.Moves
+}
+
 // ListTopVulnerabilitiesOutput is the response for GET /api/v1/vulns.
 type ListTopVulnerabilitiesOutput struct {
 	Body struct {

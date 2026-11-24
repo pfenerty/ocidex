@@ -325,6 +325,10 @@ func (f *fakeSearchService) ListOwnedActivity(_ context.Context, _ string, _ []s
 	return service.CursorPage[service.ActivityEntry]{}, nil
 }
 
+func (f *fakeSearchService) GetMyMoves(_ context.Context, _ service.VisibilityFilter) (*service.Moves, error) {
+	return &service.Moves{}, nil
+}
+
 func (f *fakeSearchService) LookupArtifact(_ context.Context, _ service.ArtifactLookupQuery, _ service.VisibilityFilter) ([]service.LookupCandidate, error) {
 	return []service.LookupCandidate{
 		{ID: "3e671687-395b-41f5-a30f-a58921a69b79", Qualifiers: map[string]string{"name": "ubuntu", "type": "container", "group": ""}},
