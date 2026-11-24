@@ -581,6 +581,7 @@ func (h *Handler) ListArtifactVersions(ctx context.Context, input *ListArtifactV
 			Vulns:         v.Vulns,
 			VulnMatched:   v.VulnMatched,
 			CountedSbom:   v.CountedSBOM,
+			Flavor:        v.Flavor,
 		})
 	}
 
@@ -802,6 +803,8 @@ func (h *Handler) GetDiscovery(ctx context.Context, _ *struct{}) (*DiscoveryOutp
 	out.Body.RecentArtifacts = discovery.RecentArtifacts
 	out.Body.TopVulnerabilities = discovery.TopVulnerabilities
 	out.Body.LicenseSpread = discovery.LicenseSpread
+	out.Body.TopPackages = discovery.TopPackages
+	out.Body.CriticalCuts = discovery.CriticalCuts
 	out.Body.Warming = discovery.Warming
 
 	if discovery.Warming {
@@ -834,6 +837,18 @@ func (h *Handler) ListMyVulnerabilities(ctx context.Context, input *ListMyVulner
 		return nil, huma.Error401Unauthorized("not authenticated")
 	}
 	return h.listTopVulnerabilities(ctx, &input.ListTopVulnerabilitiesInput, ownedFilterFromContext(ctx))
+}
+
+// GetMyMoves handles GET /api/v1/users/me/moves.
+func (h *Handler) GetMyMoves(ctx context.Context, _ *struct{}) (*GetMyMovesOutput, error) {
+	if _, ok := UserFromContext(ctx); !ok {
+		return nil, huma.Error401Unauthorized("not authenticated")
+	}
+	moves, err := h.insights.GetMyMoves(ctx, ownedFilterFromContext(ctx))
+	if err != nil {
+		return nil, mapServiceError(err)
+	}
+	return &GetMyMovesOutput{Body: *moves}, nil
 }
 
 func (h *Handler) listTopVulnerabilities(ctx context.Context, input *ListTopVulnerabilitiesInput, vis service.VisibilityFilter) (*ListTopVulnerabilitiesOutput, error) {

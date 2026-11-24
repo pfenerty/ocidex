@@ -333,6 +333,8 @@ type PackageVulnerability struct {
 	FixState        pgtype.Text        `json:"fix_state"`
 	GoSymbolSetID   int64              `json:"go_symbol_set_id"`
 	DbBuiltAt       pgtype.Timestamptz `json:"db_built_at"`
+	// When the matcher first reported this mapping fixed. NULL while not fixed. Backfilled from updated_at, a lower bound on how long the fix has been out only in the sense that it is no earlier than the first pass that saw it.
+	FixAvailableSince pgtype.Timestamptz `json:"fix_available_since"`
 }
 
 type PendingAction struct {
@@ -513,6 +515,13 @@ type UserIdentity struct {
 	Email     pgtype.Text        `json:"email"`
 	CreatedAt pgtype.Timestamptz `json:"created_at"`
 	UpdatedAt pgtype.Timestamptz `json:"updated_at"`
+}
+
+type VulnLatestRollup struct {
+	CanonicalID       string             `json:"canonical_id"`
+	NamespaceID       pgtype.UUID        `json:"namespace_id"`
+	ArtifactID        pgtype.UUID        `json:"artifact_id"`
+	FixAvailableSince pgtype.Timestamptz `json:"fix_available_since"`
 }
 
 type VulnRefreshState struct {

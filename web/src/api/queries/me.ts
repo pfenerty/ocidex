@@ -85,6 +85,26 @@ export function useMyVulnerabilities(limit = 5, opts?: SelfScopedOptions) {
     }));
 }
 
+/**
+ * useMyMoves — the caller's upgrade queue: per running image, the tag that
+ * removes the most criticals and how long a better tag has been out, plus the
+ * criticals left after every upgrade and the same totals by namespace.
+ */
+export function useMyMoves(opts?: SelfScopedOptions) {
+    return createQuery(() => ({
+        queryKey: ["me", "moves"] as const,
+        enabled: selfScopedEnabled(opts),
+        queryFn: () => unwrap(client.GET("/api/v1/users/me/moves")),
+        // The API sends empty lists as null; the page should not have to care.
+        select: (m) => ({
+            ...m,
+            upgrades: (m.upgrades ?? []).map((u) => ({ ...u, namespaces: u.namespaces ?? [] })),
+            leftoverCriticals: (m.leftoverCriticals ?? []).map((l) => ({ ...l, images: l.images ?? [] })),
+            namespaces: m.namespaces ?? [],
+        }),
+    }));
+}
+
 /** A running image with no SBOM in one of the caller's clusters. */
 export interface SeenOnlyImage {
     clusterId: string;

@@ -186,6 +186,21 @@ LIMIT @row_limit::int;
 WITH public_ns AS (
     SELECT visible_namespace_ids(NULL::uuid, false) AS id
 ),
+-- The SBOM each public artifact is counted from, resolved once per artifact.
+-- Calling artifact_headline_sbom() per candidate hit instead re-resolves the
+-- same artifact for every matching SBOM of every candidate, which ran past the
+-- warmer's 10 minute deadline on production data.
+headline AS MATERIALIZED (
+    SELECT h.id AS sbom_id
+    FROM artifact a
+    CROSS JOIN LATERAL (SELECT artifact_headline_sbom(a.id, NULL::uuid, false) AS id) h
+    WHERE EXISTS (
+        SELECT 1 FROM sbom s
+        WHERE s.artifact_id = a.id
+          AND s.namespace_id IN (SELECT id FROM public_ns)
+    )
+      AND h.id IS NOT NULL
+),
 canonical AS (
     -- Collapse aliased OSV records (GO-xxxx + GHSA-yyyy) to one row per
     -- real-world vulnerability, preferring the alias that carries a severity.
@@ -220,16 +235,12 @@ FROM candidate cd
 JOIN canonical v ON v.canonical_id = cd.canonical_id
 -- Counted the way an artifact row counts: an artifact is affected when the
 -- SBOM it is counted from is, so one that fixed the CVE releases ago drops out.
+-- Each artifact has one headline SBOM, so distinct SBOMs are distinct artifacts.
 CROSS JOIN LATERAL (
-    SELECT COUNT(*)::bigint AS affected_artifact_count
-    FROM (
-        SELECT DISTINCT s.artifact_id, s.id
-        FROM component c
-        JOIN sbom s ON s.id = c.sbom_id
-        WHERE c.purl = ANY (cd.purls)
-          AND s.namespace_id IN (SELECT id FROM public_ns)
-    ) hit
-    WHERE hit.id = artifact_headline_sbom(hit.artifact_id, NULL::uuid, false)
+    SELECT COUNT(DISTINCT c.sbom_id)::bigint AS affected_artifact_count
+    FROM component c
+    JOIN headline h ON h.sbom_id = c.sbom_id
+    WHERE c.purl = ANY (cd.purls)
 ) ar
 -- A candidate every affected artifact has since fixed affects nothing now.
 WHERE ar.affected_artifact_count > 0
@@ -328,7 +339,19 @@ SELECT p.id                                   AS artifact_id,
        lc.weak_copyleft_count,
        lc.copyleft_count,
        lc.uncategorized_count,
-       sbom_vuln_settled(l.sbom_id) AS vuln_matched
+       sbom_vuln_settled(l.sbom_id) AS vuln_matched,
+       COALESCE(
+         (SELECT e.data->>'created' FROM enrichment e
+           WHERE e.sbom_id = l.sbom_id AND e.enricher_name = 'oci-metadata' AND e.status = 'success'),
+         (SELECT e.data->>'created' FROM enrichment e
+           WHERE e.sbom_id = l.sbom_id AND e.enricher_name = 'user' AND e.status = 'success'),
+         '')::text AS build_date,
+       -- Public tags, keyed as the versions table keys them only where it is
+       -- cheap: a digest-only SBOM counts as its own tag.
+       (SELECT COUNT(DISTINCT COALESCE(s2.subject_version, s2.id::text))
+          FROM sbom s2
+         WHERE s2.artifact_id = p.id
+           AND s2.namespace_id IN (SELECT id FROM public_ns))::bigint AS tag_count
 FROM picked p
 CROSS JOIN LATERAL (
     SELECT s.id AS sbom_id, s.subject_version, s.created_at
@@ -357,3 +380,109 @@ CROSS JOIN LATERAL (
 ORDER BY p.ord, pc.package_count DESC, p.name
 LIMIT @row_limit::int;
 
+
+-- name: GetDiscoverTopPackages :many
+-- The package found in the most public SBOMs, one per ecosystem (purl type),
+-- read from component_rollup so it needs no configuration and no scan of
+-- component. Packages with no known critical or high are skipped: what
+-- tops an ecosystem by count alone is distro scaffolding (base-files,
+-- ca-certificates), which nobody recognizes and nothing is wrong with. A
+-- package spanning two ecosystems lists once, under its larger one.
+-- critical/high are the largest per-namespace counts, a lower bound on the
+-- distinct total across namespaces.
+WITH public_ns AS (
+    SELECT visible_namespace_ids(NULL::uuid, false) AS id
+),
+pkg AS (
+    SELECT cr.type, cr.name, cr.group_name, pt::text AS ecosystem,
+           SUM(cr.sbom_count)::bigint AS sbom_count,
+           MAX(cr.critical)::bigint   AS critical,
+           MAX(cr.high)::bigint       AS high
+    FROM component_rollup cr
+    CROSS JOIN LATERAL unnest(cr.purl_types) pt
+    WHERE cr.namespace_id IN (SELECT id FROM public_ns)
+    GROUP BY cr.type, cr.name, cr.group_name, pt
+),
+per_package AS (
+    SELECT DISTINCT ON (type, name, group_name) *
+    FROM pkg
+    WHERE critical + high > 0
+    ORDER BY type, name, group_name, sbom_count DESC, ecosystem
+),
+top AS (
+    SELECT DISTINCT ON (ecosystem) *
+    FROM per_package
+    ORDER BY ecosystem, sbom_count DESC, name
+)
+SELECT t.ecosystem,
+       t.name,
+       COALESCE(t.group_name, '')::text AS group_name,
+       t.sbom_count,
+       t.critical,
+       t.high,
+       (SELECT COUNT(DISTINCT v)
+          FROM component_rollup cr
+          CROSS JOIN LATERAL unnest(cr.versions) v
+         WHERE cr.type = t.type AND cr.name = t.name
+           AND cr.group_name IS NOT DISTINCT FROM t.group_name
+           AND t.ecosystem = ANY (cr.purl_types)
+           AND cr.namespace_id IN (SELECT id FROM public_ns))::bigint AS version_count
+FROM top t
+ORDER BY t.sbom_count DESC, t.name
+LIMIT @row_limit::int;
+
+-- name: GetDiscoverCriticalCuts :many
+-- Public releases that removed criticals: per artifact, the consecutive pair
+-- of stable versions (same flavor and variant line, one SBOM per version on
+-- the preferred architecture) with the largest critical drop in the window,
+-- by the rollup counts the changelog totals agree with. Both sides must be
+-- vuln-matched, or an unscanned tag would read as a clean one.
+WITH public_ns AS (
+    SELECT visible_namespace_ids(NULL::uuid, false) AS id
+),
+v AS (
+    SELECT DISTINCT ON (s.artifact_id, s.subject_version, COALESCE(s.flavor, ''))
+           s.id, s.artifact_id, s.subject_version, COALESCE(s.flavor, '') AS flavor, s.version_variant,
+           s.version_major, s.version_minor, s.version_patch, s.created_at,
+           COALESCE(r.critical, 0)::bigint AS critical
+    FROM sbom s
+    CROSS JOIN LATERAL (SELECT sbom_architecture(s.id) AS arch) x
+    LEFT JOIN sbom_vuln_rollup r ON r.sbom_id = s.id
+    WHERE s.namespace_id IN (SELECT id FROM public_ns)
+      AND s.version_major IS NOT NULL
+      AND NOT s.version_prerelease
+      AND s.created_at > now() - make_interval(days => @window_days::int)
+      AND sbom_vuln_settled(s.id)
+    ORDER BY s.artifact_id, s.subject_version, COALESCE(s.flavor, ''), sbom_arch_rank(x.arch), x.arch, s.created_at DESC
+),
+pairs AS (
+    SELECT v.*,
+           lag(v.id)              OVER w AS from_id,
+           lag(v.subject_version) OVER w AS from_version,
+           lag(v.critical)        OVER w AS from_critical
+    FROM v
+    WINDOW w AS (PARTITION BY artifact_id, flavor, version_variant
+                 ORDER BY version_major, version_minor NULLS FIRST, version_patch NULLS FIRST)
+),
+cuts AS (
+    SELECT DISTINCT ON (artifact_id) *
+    FROM pairs
+    WHERE from_critical > critical
+    ORDER BY artifact_id, (from_critical - critical) DESC, created_at DESC
+)
+SELECT c.artifact_id,
+       a.name,
+       c.from_id::uuid           AS from_sbom_id,
+       c.from_version::text      AS from_version,
+       c.from_critical::bigint   AS from_critical,
+       c.id                      AS to_sbom_id,
+       COALESCE(c.subject_version, '')::text AS to_version,
+       c.critical                AS to_critical,
+       COALESCE(
+         (SELECT e.data->>'created' FROM enrichment e
+           WHERE e.sbom_id = c.id AND e.enricher_name = 'oci-metadata' AND e.status = 'success'),
+         to_char(c.created_at AT TIME ZONE 'UTC', 'YYYY-MM-DD"T"HH24:MI:SS"Z"'))::text AS released_at
+FROM cuts c
+JOIN artifact a ON a.id = c.artifact_id
+ORDER BY (c.from_critical - c.critical) DESC, c.created_at DESC
+LIMIT @row_limit::int;

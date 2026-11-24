@@ -135,6 +135,35 @@
         ],
         "type": "object"
       },
+      "AlternativeTag": {
+        "additionalProperties": false,
+        "properties": {
+          "after": {
+            "$ref": "#/components/schemas/CritHigh"
+          },
+          "builtAt": {
+            "description": "Image build date, else when the SBOM was ingested",
+            "format": "date-time",
+            "type": "string"
+          },
+          "flavor": {
+            "type": "string"
+          },
+          "sbomId": {
+            "type": "string"
+          },
+          "tag": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "after",
+          "sbomId",
+          "tag",
+          "builtAt"
+        ],
+        "type": "object"
+      },
       "ArtifactDetail": {
         "additionalProperties": false,
         "properties": {
@@ -417,6 +446,10 @@
             "format": "date-time",
             "type": "string"
           },
+          "flavor": {
+            "description": "Base-image flavor of the counted SBOM (alpine, debian, ...); absent when unknown",
+            "type": "string"
+          },
           "imageVersion": {
             "type": "string"
           },
@@ -633,6 +666,30 @@
         ],
         "type": "object"
       },
+      "ChangeVuln": {
+        "additionalProperties": false,
+        "properties": {
+          "id": {
+            "description": "Canonical vulnerability id; aliases are collapsed",
+            "type": "string"
+          },
+          "severity": {
+            "enum": [
+              "CRITICAL",
+              "HIGH",
+              "MEDIUM",
+              "LOW",
+              "UNKNOWN"
+            ],
+            "type": "string"
+          }
+        },
+        "required": [
+          "id",
+          "severity"
+        ],
+        "type": "object"
+      },
       "Changelog": {
         "additionalProperties": false,
         "properties": {
@@ -725,6 +782,10 @@
           },
           "to": {
             "$ref": "#/components/schemas/SBOMRef"
+          },
+          "vulns": {
+            "$ref": "#/components/schemas/ChangelogVulnTotals",
+            "description": "CVEs closed and opened by this release, by severity"
           }
         },
         "required": [
@@ -732,6 +793,24 @@
           "to",
           "summary",
           "changes"
+        ],
+        "type": "object"
+      },
+      "ChangelogVulnTotals": {
+        "additionalProperties": false,
+        "properties": {
+          "closed": {
+            "$ref": "#/components/schemas/SeverityTally",
+            "description": "CVEs the previous release had and this one does not"
+          },
+          "opened": {
+            "$ref": "#/components/schemas/SeverityTally",
+            "description": "CVEs this release has and the previous one did not"
+          }
+        },
+        "required": [
+          "closed",
+          "opened"
         ],
         "type": "object"
       },
@@ -1287,6 +1366,16 @@
       "ComponentDiff": {
         "additionalProperties": false,
         "properties": {
+          "closes": {
+            "description": "CVEs on the previous version that the new version does not have ",
+            "items": {
+              "$ref": "#/components/schemas/ChangeVuln"
+            },
+            "type": [
+              "array",
+              "null"
+            ]
+          },
           "direction": {
             "type": "string"
           },
@@ -1298,6 +1387,16 @@
           },
           "nodeRef": {
             "type": "string"
+          },
+          "opens": {
+            "description": "CVEs on the new version that the previous version did not have",
+            "items": {
+              "$ref": "#/components/schemas/ChangeVuln"
+            },
+            "type": [
+              "array",
+              "null"
+            ]
           },
           "previousVersion": {
             "type": "string"
@@ -2245,6 +2344,24 @@
         ],
         "type": "object"
       },
+      "CritHigh": {
+        "additionalProperties": false,
+        "properties": {
+          "critical": {
+            "format": "int64",
+            "type": "integer"
+          },
+          "high": {
+            "format": "int64",
+            "type": "integer"
+          }
+        },
+        "required": [
+          "critical",
+          "high"
+        ],
+        "type": "object"
+      },
       "CursorMeta": {
         "additionalProperties": false,
         "properties": {
@@ -2605,10 +2722,62 @@
         ],
         "type": "object"
       },
+      "DiscoverCut": {
+        "additionalProperties": false,
+        "properties": {
+          "artifactId": {
+            "type": "string"
+          },
+          "fromCritical": {
+            "format": "int64",
+            "type": "integer"
+          },
+          "fromSbomId": {
+            "type": "string"
+          },
+          "fromVersion": {
+            "type": "string"
+          },
+          "name": {
+            "type": "string"
+          },
+          "releasedAt": {
+            "description": "Build date of the release, else when it was indexed",
+            "format": "date-time",
+            "type": "string"
+          },
+          "toCritical": {
+            "format": "int64",
+            "type": "integer"
+          },
+          "toSbomId": {
+            "type": "string"
+          },
+          "toVersion": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "artifactId",
+          "name",
+          "fromSbomId",
+          "fromVersion",
+          "fromCritical",
+          "toSbomId",
+          "toVersion",
+          "toCritical"
+        ],
+        "type": "object"
+      },
       "DiscoverFeatured": {
         "additionalProperties": false,
         "properties": {
           "artifactId": {
+            "type": "string"
+          },
+          "builtAt": {
+            "description": "Build date of the counted SBOM's image, when known",
+            "format": "date-time",
             "type": "string"
           },
           "countedSbom": {
@@ -2646,6 +2815,11 @@
           "subjectVersion": {
             "type": "string"
           },
+          "tagCount": {
+            "description": "Public tags indexed for this artifact",
+            "format": "int64",
+            "type": "integer"
+          },
           "type": {
             "type": "string"
           },
@@ -2666,7 +2840,8 @@
           "packageCount",
           "vulns",
           "licenses",
-          "vulnMatched"
+          "vulnMatched",
+          "tagCount"
         ],
         "type": "object"
       },
@@ -2695,6 +2870,48 @@
           "name",
           "category",
           "componentCount"
+        ],
+        "type": "object"
+      },
+      "DiscoverPackage": {
+        "additionalProperties": false,
+        "properties": {
+          "critical": {
+            "description": "Known critical CVEs across its versions",
+            "format": "int64",
+            "type": "integer"
+          },
+          "ecosystem": {
+            "description": "purl type",
+            "type": "string"
+          },
+          "group": {
+            "type": "string"
+          },
+          "high": {
+            "description": "Known high CVEs across its versions",
+            "format": "int64",
+            "type": "integer"
+          },
+          "name": {
+            "type": "string"
+          },
+          "sbomCount": {
+            "format": "int64",
+            "type": "integer"
+          },
+          "versionCount": {
+            "format": "int64",
+            "type": "integer"
+          }
+        },
+        "required": [
+          "ecosystem",
+          "name",
+          "sbomCount",
+          "versionCount",
+          "critical",
+          "high"
         ],
         "type": "object"
       },
@@ -2792,6 +3009,16 @@
             "readOnly": true,
             "type": "string"
           },
+          "criticalCuts": {
+            "description": "Recent public releases that removed the most criticals, one per artifact",
+            "items": {
+              "$ref": "#/components/schemas/DiscoverCut"
+            },
+            "type": [
+              "array",
+              "null"
+            ]
+          },
           "featuredArtifacts": {
             "description": "Featured public artifacts (DISCOVER_FEATURED, in order), each summarised from its newest SBOM",
             "items": {
@@ -2836,6 +3063,16 @@
               "null"
             ]
           },
+          "topPackages": {
+            "description": "The package in the most public SBOMs per ecosystem, among those with a known critical or high",
+            "items": {
+              "$ref": "#/components/schemas/DiscoverPackage"
+            },
+            "type": [
+              "array",
+              "null"
+            ]
+          },
           "topVulnerabilities": {
             "description": "Vulnerabilities ranked by how many public artifacts they affect",
             "items": {
@@ -2857,6 +3094,8 @@
           "recentArtifacts",
           "topVulnerabilities",
           "licenseSpread",
+          "topPackages",
+          "criticalCuts",
           "warming"
         ],
         "type": "object"
@@ -4039,6 +4278,49 @@
         "required": [
           "kind",
           "capabilities"
+        ],
+        "type": "object"
+      },
+      "LeftoverCritical": {
+        "additionalProperties": false,
+        "properties": {
+          "cvssScore": {
+            "format": "float",
+            "type": "number"
+          },
+          "fixState": {
+            "description": "Matcher fix state: fixed, not-fixed, wont-fix or unknown",
+            "type": "string"
+          },
+          "fixedVersion": {
+            "description": "Upstream fix version no available tag ships yet",
+            "type": "string"
+          },
+          "id": {
+            "description": "Canonical vulnerability id",
+            "type": "string"
+          },
+          "images": {
+            "description": "Images still carrying it",
+            "items": {
+              "type": "string"
+            },
+            "type": [
+              "array",
+              "null"
+            ]
+          },
+          "package": {
+            "type": "string"
+          },
+          "packageVersion": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "id",
+          "package",
+          "images"
         ],
         "type": "object"
       },
@@ -5469,6 +5751,144 @@
         ],
         "type": "object"
       },
+      "MoveTag": {
+        "additionalProperties": false,
+        "properties": {
+          "builtAt": {
+            "description": "Image build date, else when the SBOM was ingested",
+            "format": "date-time",
+            "type": "string"
+          },
+          "flavor": {
+            "type": "string"
+          },
+          "sbomId": {
+            "type": "string"
+          },
+          "tag": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "sbomId",
+          "tag",
+          "builtAt"
+        ],
+        "type": "object"
+      },
+      "Moves": {
+        "additionalProperties": false,
+        "properties": {
+          "$schema": {
+            "description": "A URL to the JSON Schema for this object.",
+            "examples": [
+              "https://example.com/api/schemas/Moves.json"
+            ],
+            "format": "uri",
+            "readOnly": true,
+            "type": "string"
+          },
+          "leftoverCriticals": {
+            "description": "Criticals still running after every upgrade, highest CVSS first",
+            "items": {
+              "$ref": "#/components/schemas/LeftoverCritical"
+            },
+            "type": [
+              "array",
+              "null"
+            ]
+          },
+          "namespaces": {
+            "description": "Before/after totals per namespace, most criticals first",
+            "items": {
+              "$ref": "#/components/schemas/NamespaceMoves"
+            },
+            "type": [
+              "array",
+              "null"
+            ]
+          },
+          "source": {
+            "enum": [
+              "cluster",
+              "owned"
+            ],
+            "type": "string"
+          },
+          "totals": {
+            "$ref": "#/components/schemas/MovesTotals"
+          },
+          "upgrades": {
+            "description": "Images with a better tag, longest waiting first",
+            "items": {
+              "$ref": "#/components/schemas/Upgrade"
+            },
+            "type": [
+              "array",
+              "null"
+            ]
+          }
+        },
+        "required": [
+          "source",
+          "upgrades",
+          "leftoverCriticals",
+          "namespaces",
+          "totals"
+        ],
+        "type": "object"
+      },
+      "MovesTotals": {
+        "additionalProperties": false,
+        "properties": {
+          "after": {
+            "$ref": "#/components/schemas/CritHigh"
+          },
+          "before": {
+            "$ref": "#/components/schemas/CritHigh"
+          },
+          "images": {
+            "format": "int64",
+            "type": "integer"
+          },
+          "leftoverCriticals": {
+            "description": "Distinct critical CVEs left after every upgrade",
+            "format": "int64",
+            "type": "integer"
+          },
+          "longestWaitDays": {
+            "format": "int64",
+            "type": "integer"
+          },
+          "longestWaitImage": {
+            "type": "string"
+          },
+          "pods": {
+            "format": "int64",
+            "type": "integer"
+          },
+          "upgrades": {
+            "format": "int64",
+            "type": "integer"
+          },
+          "upgradesCutCritical": {
+            "description": "Upgrades that reduce criticals",
+            "format": "int64",
+            "type": "integer"
+          }
+        },
+        "required": [
+          "images",
+          "pods",
+          "before",
+          "after",
+          "upgrades",
+          "upgradesCutCritical",
+          "longestWaitDays",
+          "leftoverCriticals"
+        ],
+        "type": "object"
+      },
       "MyMembership": {
         "additionalProperties": false,
         "properties": {
@@ -5579,6 +5999,36 @@
           "role",
           "capabilities",
           "createdAt"
+        ],
+        "type": "object"
+      },
+      "NamespaceMoves": {
+        "additionalProperties": false,
+        "properties": {
+          "after": {
+            "$ref": "#/components/schemas/CritHigh"
+          },
+          "before": {
+            "$ref": "#/components/schemas/CritHigh"
+          },
+          "images": {
+            "format": "int64",
+            "type": "integer"
+          },
+          "name": {
+            "type": "string"
+          },
+          "pods": {
+            "format": "int64",
+            "type": "integer"
+          }
+        },
+        "required": [
+          "name",
+          "images",
+          "pods",
+          "before",
+          "after"
         ],
         "type": "object"
       },
@@ -7181,6 +7631,39 @@
         ],
         "type": "object"
       },
+      "SeverityTally": {
+        "additionalProperties": false,
+        "properties": {
+          "critical": {
+            "format": "int64",
+            "type": "integer"
+          },
+          "high": {
+            "format": "int64",
+            "type": "integer"
+          },
+          "low": {
+            "format": "int64",
+            "type": "integer"
+          },
+          "medium": {
+            "format": "int64",
+            "type": "integer"
+          },
+          "unknown": {
+            "format": "int64",
+            "type": "integer"
+          }
+        },
+        "required": [
+          "critical",
+          "high",
+          "medium",
+          "low",
+          "unknown"
+        ],
+        "type": "object"
+      },
       "SourceResponse": {
         "additionalProperties": false,
         "properties": {
@@ -7404,12 +7887,27 @@
             "format": "float",
             "type": "number"
           },
+          "fixAvailableSince": {
+            "description": "Earliest a fix was reported for it on a latest tag that still carries it",
+            "format": "date-time",
+            "type": "string"
+          },
           "id": {
             "type": "string"
+          },
+          "latestAffectedCount": {
+            "description": "Artifacts whose latest tag still carries this vulnerability",
+            "format": "int64",
+            "type": "integer"
           },
           "publishedAt": {
             "format": "date-time",
             "type": "string"
+          },
+          "runningPods": {
+            "description": "Pods in clusters you can see running an image that carries it; signed-in callers only",
+            "format": "int64",
+            "type": "integer"
           },
           "severity": {
             "type": "string"
@@ -7424,7 +7922,8 @@
           "severity",
           "aliases",
           "affectedSbomCount",
-          "affectedPurlCount"
+          "affectedPurlCount",
+          "latestAffectedCount"
         ],
         "type": "object"
       },
@@ -7888,6 +8387,69 @@
         },
         "required": [
           "role"
+        ],
+        "type": "object"
+      },
+      "Upgrade": {
+        "additionalProperties": false,
+        "properties": {
+          "after": {
+            "$ref": "#/components/schemas/CritHigh"
+          },
+          "alternative": {
+            "$ref": "#/components/schemas/AlternativeTag"
+          },
+          "artifactId": {
+            "type": "string"
+          },
+          "before": {
+            "$ref": "#/components/schemas/CritHigh"
+          },
+          "firstBetter": {
+            "$ref": "#/components/schemas/MoveTag",
+            "description": "Oldest same-flavor tag better than the running one"
+          },
+          "image": {
+            "type": "string"
+          },
+          "namespaces": {
+            "items": {
+              "type": "string"
+            },
+            "type": [
+              "array",
+              "null"
+            ]
+          },
+          "pods": {
+            "description": "Running pods; 0 without a cluster",
+            "format": "int64",
+            "type": "integer"
+          },
+          "running": {
+            "$ref": "#/components/schemas/MoveTag"
+          },
+          "target": {
+            "$ref": "#/components/schemas/MoveTag",
+            "description": "Same-flavor tag with the fewest criticals, then highs; newest on a tie"
+          },
+          "waitingDays": {
+            "description": "Days since firstBetter was built",
+            "format": "int64",
+            "type": "integer"
+          }
+        },
+        "required": [
+          "artifactId",
+          "image",
+          "namespaces",
+          "pods",
+          "running",
+          "target",
+          "firstBetter",
+          "waitingDays",
+          "before",
+          "after"
         ],
         "type": "object"
       },
@@ -14913,6 +15475,38 @@
         ]
       }
     },
+    "/api/v1/users/me/moves": {
+      "get": {
+        "description": "For each image running in your clusters (or, with none, each artifact's newest tag), the same-flavor tag with the fewest criticals, then highs, and how long a better tag has been out; the criticals left after every upgrade; and before/after totals per namespace. Scoped to the calling user: only resources you own, excluding public resources owned by others.",
+        "operationId": "get-my-moves",
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Moves"
+                }
+              }
+            },
+            "description": "OK"
+          },
+          "default": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorModel"
+                }
+              }
+            },
+            "description": "Error"
+          }
+        },
+        "summary": "Get my upgrade queue",
+        "tags": [
+          "Auth"
+        ]
+      }
+    },
     "/api/v1/users/me/namespaces": {
       "get": {
         "description": "Scoped to the calling user: only resources you own, excluding public resources owned by others.",
@@ -15098,17 +15692,19 @@
             }
           },
           {
-            "description": "Sort field",
+            "description": "Sort field. fixAge ranks by how long a fix has been available among vulnerabilities a latest tag still carries",
             "explode": false,
             "in": "query",
             "name": "sort",
             "schema": {
-              "description": "Sort field",
+              "description": "Sort field. fixAge ranks by how long a fix has been available among vulnerabilities a latest tag still carries",
               "enum": [
                 "severity",
                 "cvssScore",
                 "affectedSbomCount",
                 "affectedPurlCount",
+                "latestAffectedCount",
+                "fixAge",
                 "publishedAt",
                 "canonicalId"
               ],
@@ -15462,17 +16058,19 @@
             }
           },
           {
-            "description": "Sort field",
+            "description": "Sort field. fixAge ranks by how long a fix has been available among vulnerabilities a latest tag still carries",
             "explode": false,
             "in": "query",
             "name": "sort",
             "schema": {
-              "description": "Sort field",
+              "description": "Sort field. fixAge ranks by how long a fix has been available among vulnerabilities a latest tag still carries",
               "enum": [
                 "severity",
                 "cvssScore",
                 "affectedSbomCount",
                 "affectedPurlCount",
+                "latestAffectedCount",
+                "fixAge",
                 "publishedAt",
                 "canonicalId"
               ],

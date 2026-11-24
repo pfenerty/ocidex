@@ -77,6 +77,8 @@ type ChangelogEntry struct {
 	To      SBOMRef         `json:"to"`
 	Summary ChangeSummary   `json:"summary"`
 	Changes []ComponentDiff `json:"changes"`
+	// Vulns totals the CVEs the release closed and opened.
+	Vulns *ChangelogVulnTotals `json:"vulns,omitempty" doc:"CVEs closed and opened by this release, by severity"`
 }
 
 // SBOMRef is a lightweight reference to an SBOM in a changelog entry.
@@ -117,6 +119,16 @@ type ComponentDiff struct {
 	Purl            *string `json:"purl,omitempty"`
 	PreviousVersion *string `json:"previousVersion,omitempty"`
 	NodeRef         *string `json:"nodeRef,omitempty"` // ID of the matching ComponentSummary node
+	// Closes and Opens are the CVEs this change takes away from or brings to
+	// its package: findings on the previous version absent from the new one,
+	// and the reverse.
+	Closes []ChangeVuln `json:"closes,omitempty" doc:"CVEs on the previous version that the new version does not have "`
+	Opens  []ChangeVuln `json:"opens,omitempty" doc:"CVEs on the new version that the previous version did not have"`
+
+	// previousPurl is the from-side purl of a modified change, which Purl
+	// (the to side) cannot recover once reconcileVersionedPackages has paired
+	// two differently named packages.
+	previousPurl *string
 }
 
 // DiffSBOMs computes the diff between two arbitrary SBOMs.
@@ -181,7 +193,13 @@ func (s *searchService) DiffSBOMs(ctx context.Context, fromIDStr string, toIDStr
 		CreatedAt:      toSBOM.CreatedAt.Time,
 	}
 
-	return diffComponents(fromRef, toRef, buildComponentMap(fromComps), buildComponentMap(toComps)), nil
+	entry := diffComponents(fromRef, toRef, buildComponentMap(fromComps), buildComponentMap(toComps))
+	vulns, err := vulnsForSBOMs(ctx, q, []pgtype.UUID{fromID, toID})
+	if err != nil {
+		return ChangelogEntry{}, err
+	}
+	annotateVulns(&entry, vulns[fromID], vulns[toID])
+	return entry, nil
 }
 
 // DiffSBOMsWithTree computes the diff between two SBOMs and returns it alongside
@@ -294,12 +312,7 @@ func (s *searchService) DiffSBOMsWithTree(ctx context.Context, fromIDStr string,
 // packagesForSBOMs fetches the packages for all candidate SBOMs in a single
 // query and groups them by SBOM id, replacing a per-version N+1.
 func (s *searchService) packagesForSBOMs(ctx context.Context, q *repository.Queries, candidates []changelogCandidate) (map[pgtype.UUID][]repository.ListSBOMPackagesRow, error) {
-	ids := make([]pgtype.UUID, 0, len(candidates))
-	for _, c := range candidates {
-		ids = append(ids, c.sbom.ID)
-	}
-
-	rows, err := q.ListSBOMPackagesBySBOMIDs(ctx, ids)
+	rows, err := q.ListSBOMPackagesBySBOMIDs(ctx, candidateIDs(candidates))
 	if err != nil {
 		return nil, fmt.Errorf("listing components for sboms: %w", err)
 	}
@@ -317,6 +330,15 @@ func (s *searchService) packagesForSBOMs(ctx context.Context, q *repository.Quer
 		})
 	}
 	return bySBOM, nil
+}
+
+// candidateIDs returns the SBOM ids of candidates, in order.
+func candidateIDs(candidates []changelogCandidate) []pgtype.UUID {
+	ids := make([]pgtype.UUID, 0, len(candidates))
+	for _, c := range candidates {
+		ids = append(ids, c.sbom.ID)
+	}
+	return ids
 }
 
 // GetArtifactChangelog generates a changelog by diffing consecutive SBOMs for an artifact.
@@ -434,6 +456,11 @@ func (s *searchService) GetArtifactChangelog(ctx context.Context, artifactIDStr 
 		return Changelog{}, err
 	}
 
+	vulnsBySBOM, err := vulnsForSBOMs(ctx, q, candidateIDs(window))
+	if err != nil {
+		return Changelog{}, err
+	}
+
 	prevMap := buildPackageMap(pkgsBySBOM[window[0].sbom.ID])
 
 	for i := 1; i < len(window); i++ {
@@ -448,7 +475,9 @@ func (s *searchService) GetArtifactChangelog(ctx context.Context, artifactIDStr 
 		toRef.Architecture = nonEmptyStrPtr(window[i].arch)
 		toRef.Flavor = nonEmptyStrPtr(window[i].flavor)
 
-		changelog.Entries = append(changelog.Entries, diffComponents(fromRef, toRef, prevMap, currMap))
+		entry := diffComponents(fromRef, toRef, prevMap, currMap)
+		annotateVulns(&entry, vulnsBySBOM[window[i-1].sbom.ID], vulnsBySBOM[window[i].sbom.ID])
+		changelog.Entries = append(changelog.Entries, entry)
 
 		prevMap = currMap
 	}

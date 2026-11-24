@@ -179,6 +179,7 @@ func diffComponents(from, to SBOMRef, oldMap, newMap map[string]componentIdentit
 				Version:         curr.version,
 				Purl:            curr.purl,
 				PreviousVersion: prev.version,
+				previousPurl:    prev.purl,
 			})
 		}
 	}
@@ -298,6 +299,7 @@ func reconcileVersionedPackages(changes []ComponentDiff, newNormCount map[string
 			Version:         added.diff.Version,
 			Purl:            added.diff.Purl,
 			PreviousVersion: removed.diff.Version,
+			previousPurl:    removed.diff.Purl,
 		})
 		toRemove[added.idx] = true
 		toRemove[removed.idx] = true

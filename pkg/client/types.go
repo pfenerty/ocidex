@@ -36,6 +36,33 @@ func (e ArtifactVersionSummarySigningStatus) Valid() bool {
 	}
 }
 
+// Defines values for ChangeVulnSeverity.
+const (
+	ChangeVulnSeverityCRITICAL ChangeVulnSeverity = "CRITICAL"
+	ChangeVulnSeverityHIGH     ChangeVulnSeverity = "HIGH"
+	ChangeVulnSeverityLOW      ChangeVulnSeverity = "LOW"
+	ChangeVulnSeverityMEDIUM   ChangeVulnSeverity = "MEDIUM"
+	ChangeVulnSeverityUNKNOWN  ChangeVulnSeverity = "UNKNOWN"
+)
+
+// Valid indicates whether the value is a known member of the ChangeVulnSeverity enum.
+func (e ChangeVulnSeverity) Valid() bool {
+	switch e {
+	case ChangeVulnSeverityCRITICAL:
+		return true
+	case ChangeVulnSeverityHIGH:
+		return true
+	case ChangeVulnSeverityLOW:
+		return true
+	case ChangeVulnSeverityMEDIUM:
+		return true
+	case ChangeVulnSeverityUNKNOWN:
+		return true
+	default:
+		return false
+	}
+}
+
 // Defines values for ClusterHealthResponseState.
 const (
 	Erroring      ClusterHealthResponseState = "erroring"
@@ -471,6 +498,24 @@ func (e ListArtifactVersionsOutputBodyResolvedMode) Valid() bool {
 	case ListArtifactVersionsOutputBodyResolvedModeAll:
 		return true
 	case ListArtifactVersionsOutputBodyResolvedModeSemver:
+		return true
+	default:
+		return false
+	}
+}
+
+// Defines values for MovesSource.
+const (
+	MovesSourceCluster MovesSource = "cluster"
+	MovesSourceOwned   MovesSource = "owned"
+)
+
+// Valid indicates whether the value is a known member of the MovesSource enum.
+func (e MovesSource) Valid() bool {
+	switch e {
+	case MovesSourceCluster:
+		return true
+	case MovesSourceOwned:
 		return true
 	default:
 		return false
@@ -1676,12 +1721,14 @@ func (e ListMyVulnerabilitiesParamsSeverity) Valid() bool {
 
 // Defines values for ListMyVulnerabilitiesParamsSort.
 const (
-	ListMyVulnerabilitiesParamsSortAffectedPurlCount ListMyVulnerabilitiesParamsSort = "affectedPurlCount"
-	ListMyVulnerabilitiesParamsSortAffectedSbomCount ListMyVulnerabilitiesParamsSort = "affectedSbomCount"
-	ListMyVulnerabilitiesParamsSortCanonicalId       ListMyVulnerabilitiesParamsSort = "canonicalId"
-	ListMyVulnerabilitiesParamsSortCvssScore         ListMyVulnerabilitiesParamsSort = "cvssScore"
-	ListMyVulnerabilitiesParamsSortPublishedAt       ListMyVulnerabilitiesParamsSort = "publishedAt"
-	ListMyVulnerabilitiesParamsSortSeverity          ListMyVulnerabilitiesParamsSort = "severity"
+	ListMyVulnerabilitiesParamsSortAffectedPurlCount   ListMyVulnerabilitiesParamsSort = "affectedPurlCount"
+	ListMyVulnerabilitiesParamsSortAffectedSbomCount   ListMyVulnerabilitiesParamsSort = "affectedSbomCount"
+	ListMyVulnerabilitiesParamsSortCanonicalId         ListMyVulnerabilitiesParamsSort = "canonicalId"
+	ListMyVulnerabilitiesParamsSortCvssScore           ListMyVulnerabilitiesParamsSort = "cvssScore"
+	ListMyVulnerabilitiesParamsSortFixAge              ListMyVulnerabilitiesParamsSort = "fixAge"
+	ListMyVulnerabilitiesParamsSortLatestAffectedCount ListMyVulnerabilitiesParamsSort = "latestAffectedCount"
+	ListMyVulnerabilitiesParamsSortPublishedAt         ListMyVulnerabilitiesParamsSort = "publishedAt"
+	ListMyVulnerabilitiesParamsSortSeverity            ListMyVulnerabilitiesParamsSort = "severity"
 )
 
 // Valid indicates whether the value is a known member of the ListMyVulnerabilitiesParamsSort enum.
@@ -1694,6 +1741,10 @@ func (e ListMyVulnerabilitiesParamsSort) Valid() bool {
 	case ListMyVulnerabilitiesParamsSortCanonicalId:
 		return true
 	case ListMyVulnerabilitiesParamsSortCvssScore:
+		return true
+	case ListMyVulnerabilitiesParamsSortFixAge:
+		return true
+	case ListMyVulnerabilitiesParamsSortLatestAffectedCount:
 		return true
 	case ListMyVulnerabilitiesParamsSortPublishedAt:
 		return true
@@ -1748,12 +1799,14 @@ func (e ListTopVulnerabilitiesParamsSeverity) Valid() bool {
 
 // Defines values for ListTopVulnerabilitiesParamsSort.
 const (
-	ListTopVulnerabilitiesParamsSortAffectedPurlCount ListTopVulnerabilitiesParamsSort = "affectedPurlCount"
-	ListTopVulnerabilitiesParamsSortAffectedSbomCount ListTopVulnerabilitiesParamsSort = "affectedSbomCount"
-	ListTopVulnerabilitiesParamsSortCanonicalId       ListTopVulnerabilitiesParamsSort = "canonicalId"
-	ListTopVulnerabilitiesParamsSortCvssScore         ListTopVulnerabilitiesParamsSort = "cvssScore"
-	ListTopVulnerabilitiesParamsSortPublishedAt       ListTopVulnerabilitiesParamsSort = "publishedAt"
-	ListTopVulnerabilitiesParamsSortSeverity          ListTopVulnerabilitiesParamsSort = "severity"
+	ListTopVulnerabilitiesParamsSortAffectedPurlCount   ListTopVulnerabilitiesParamsSort = "affectedPurlCount"
+	ListTopVulnerabilitiesParamsSortAffectedSbomCount   ListTopVulnerabilitiesParamsSort = "affectedSbomCount"
+	ListTopVulnerabilitiesParamsSortCanonicalId         ListTopVulnerabilitiesParamsSort = "canonicalId"
+	ListTopVulnerabilitiesParamsSortCvssScore           ListTopVulnerabilitiesParamsSort = "cvssScore"
+	ListTopVulnerabilitiesParamsSortFixAge              ListTopVulnerabilitiesParamsSort = "fixAge"
+	ListTopVulnerabilitiesParamsSortLatestAffectedCount ListTopVulnerabilitiesParamsSort = "latestAffectedCount"
+	ListTopVulnerabilitiesParamsSortPublishedAt         ListTopVulnerabilitiesParamsSort = "publishedAt"
+	ListTopVulnerabilitiesParamsSortSeverity            ListTopVulnerabilitiesParamsSort = "severity"
 )
 
 // Valid indicates whether the value is a known member of the ListTopVulnerabilitiesParamsSort enum.
@@ -1766,6 +1819,10 @@ func (e ListTopVulnerabilitiesParamsSort) Valid() bool {
 	case ListTopVulnerabilitiesParamsSortCanonicalId:
 		return true
 	case ListTopVulnerabilitiesParamsSortCvssScore:
+		return true
+	case ListTopVulnerabilitiesParamsSortFixAge:
+		return true
+	case ListTopVulnerabilitiesParamsSortLatestAffectedCount:
 		return true
 	case ListTopVulnerabilitiesParamsSortPublishedAt:
 		return true
@@ -1836,6 +1893,17 @@ type AffectedComponent struct {
 	FixedVersions        *[]string `json:"fixedVersions"`
 	Group                *string   `json:"group,omitempty"`
 	Name                 string    `json:"name"`
+}
+
+// AlternativeTag defines model for AlternativeTag.
+type AlternativeTag struct {
+	After CritHigh `json:"after"`
+
+	// BuiltAt Image build date, else when the SBOM was ingested
+	BuiltAt time.Time `json:"builtAt"`
+	Flavor  *string   `json:"flavor,omitempty"`
+	SbomId  string    `json:"sbomId"`
+	Tag     string    `json:"tag"`
 }
 
 // ArtifactDetail defines model for ArtifactDetail.
@@ -1922,8 +1990,11 @@ type ArtifactVersionSummary struct {
 	BuildDate     *time.Time   `json:"buildDate,omitempty"`
 	CountedSbom   *CountedSBOM `json:"countedSbom,omitempty"`
 	CreatedAt     time.Time    `json:"createdAt"`
-	ImageVersion  *string      `json:"imageVersion,omitempty"`
-	Revision      *string      `json:"revision,omitempty"`
+
+	// Flavor Base-image flavor of the counted SBOM (alpine, debian, ...); absent when unknown
+	Flavor       *string `json:"flavor,omitempty"`
+	ImageVersion *string `json:"imageVersion,omitempty"`
+	Revision     *string `json:"revision,omitempty"`
 
 	// SbomCount Total number of SBOMs ingested for this version
 	SbomCount int64  `json:"sbomCount"`
@@ -1987,6 +2058,16 @@ type ChangeSummary struct {
 	Upgraded   int64 `json:"upgraded"`
 }
 
+// ChangeVuln defines model for ChangeVuln.
+type ChangeVuln struct {
+	// Id Canonical vulnerability id; aliases are collapsed
+	Id       string             `json:"id"`
+	Severity ChangeVulnSeverity `json:"severity"`
+}
+
+// ChangeVulnSeverity defines model for ChangeVuln.Severity.
+type ChangeVulnSeverity string
+
 // Changelog defines model for Changelog.
 type Changelog struct {
 	// Schema A URL to the JSON Schema for this object.
@@ -2003,11 +2084,18 @@ type Changelog struct {
 // ChangelogEntry defines model for ChangelogEntry.
 type ChangelogEntry struct {
 	// Schema A URL to the JSON Schema for this object.
-	Schema  *string          `json:"$schema,omitempty"`
-	Changes *[]ComponentDiff `json:"changes"`
-	From    SBOMRef          `json:"from"`
-	Summary ChangeSummary    `json:"summary"`
-	To      SBOMRef          `json:"to"`
+	Schema  *string              `json:"$schema,omitempty"`
+	Changes *[]ComponentDiff     `json:"changes"`
+	From    SBOMRef              `json:"from"`
+	Summary ChangeSummary        `json:"summary"`
+	To      SBOMRef              `json:"to"`
+	Vulns   *ChangelogVulnTotals `json:"vulns,omitempty"`
+}
+
+// ChangelogVulnTotals defines model for ChangelogVulnTotals.
+type ChangelogVulnTotals struct {
+	Closed SeverityTally `json:"closed"`
+	Opened SeverityTally `json:"opened"`
 }
 
 // ClusterAgentResponse defines model for ClusterAgentResponse.
@@ -2224,14 +2312,19 @@ type ComponentDetail struct {
 
 // ComponentDiff defines model for ComponentDiff.
 type ComponentDiff struct {
-	Direction       string  `json:"direction"`
-	Group           *string `json:"group,omitempty"`
-	Name            string  `json:"name"`
-	NodeRef         *string `json:"nodeRef,omitempty"`
-	PreviousVersion *string `json:"previousVersion,omitempty"`
-	Purl            *string `json:"purl,omitempty"`
-	Type            string  `json:"type"`
-	Version         *string `json:"version,omitempty"`
+	// Closes CVEs on the previous version that the new version does not have
+	Closes    *[]ChangeVuln `json:"closes,omitempty"`
+	Direction string        `json:"direction"`
+	Group     *string       `json:"group,omitempty"`
+	Name      string        `json:"name"`
+	NodeRef   *string       `json:"nodeRef,omitempty"`
+
+	// Opens CVEs on the new version that the previous version did not have
+	Opens           *[]ChangeVuln `json:"opens,omitempty"`
+	PreviousVersion *string       `json:"previousVersion,omitempty"`
+	Purl            *string       `json:"purl,omitempty"`
+	Type            string        `json:"type"`
+	Version         *string       `json:"version,omitempty"`
 }
 
 // ComponentSummary defines model for ComponentSummary.
@@ -2609,6 +2702,12 @@ type CreateSourceInputBody struct {
 	NamespaceId openapi_types.UUID `json:"namespaceId"`
 }
 
+// CritHigh defines model for CritHigh.
+type CritHigh struct {
+	Critical int64 `json:"critical"`
+	High     int64 `json:"high"`
+}
+
 // CursorMeta defines model for CursorMeta.
 type CursorMeta struct {
 	// HasMore Whether more results exist after this page
@@ -2698,9 +2797,27 @@ type DiscoverArtifact struct {
 	VersionCount int64      `json:"versionCount"`
 }
 
+// DiscoverCut defines model for DiscoverCut.
+type DiscoverCut struct {
+	ArtifactId   string `json:"artifactId"`
+	FromCritical int64  `json:"fromCritical"`
+	FromSbomId   string `json:"fromSbomId"`
+	FromVersion  string `json:"fromVersion"`
+	Name         string `json:"name"`
+
+	// ReleasedAt Build date of the release, else when it was indexed
+	ReleasedAt *time.Time `json:"releasedAt,omitempty"`
+	ToCritical int64      `json:"toCritical"`
+	ToSbomId   string     `json:"toSbomId"`
+	ToVersion  string     `json:"toVersion"`
+}
+
 // DiscoverFeatured defines model for DiscoverFeatured.
 type DiscoverFeatured struct {
-	ArtifactId  string       `json:"artifactId"`
+	ArtifactId string `json:"artifactId"`
+
+	// BuiltAt Build date of the counted SBOM's image, when known
+	BuiltAt     *time.Time   `json:"builtAt,omitempty"`
 	CountedSbom *CountedSBOM `json:"countedSbom,omitempty"`
 	CreatedAt   time.Time    `json:"createdAt"`
 
@@ -2713,7 +2830,10 @@ type DiscoverFeatured struct {
 	PackageCount   int64   `json:"packageCount"`
 	SbomId         string  `json:"sbomId"`
 	SubjectVersion *string `json:"subjectVersion,omitempty"`
-	Type           string  `json:"type"`
+
+	// TagCount Public tags indexed for this artifact
+	TagCount int64  `json:"tagCount"`
+	Type     string `json:"type"`
 
 	// VulnMatched The newest SBOM has been matched against the vulnerability store
 	VulnMatched bool               `json:"vulnMatched"`
@@ -2727,6 +2847,22 @@ type DiscoverLicense struct {
 	Id             string  `json:"id"`
 	Name           string  `json:"name"`
 	SpdxId         *string `json:"spdxId,omitempty"`
+}
+
+// DiscoverPackage defines model for DiscoverPackage.
+type DiscoverPackage struct {
+	// Critical Known critical CVEs across its versions
+	Critical int64 `json:"critical"`
+
+	// Ecosystem purl type
+	Ecosystem string  `json:"ecosystem"`
+	Group     *string `json:"group,omitempty"`
+
+	// High Known high CVEs across its versions
+	High         int64  `json:"high"`
+	Name         string `json:"name"`
+	SbomCount    int64  `json:"sbomCount"`
+	VersionCount int64  `json:"versionCount"`
 }
 
 // DiscoverRecent defines model for DiscoverRecent.
@@ -2759,6 +2895,9 @@ type DiscoveryOutputBody struct {
 	// Schema A URL to the JSON Schema for this object.
 	Schema *string `json:"$schema,omitempty"`
 
+	// CriticalCuts Recent public releases that removed the most criticals, one per artifact
+	CriticalCuts *[]DiscoverCut `json:"criticalCuts"`
+
 	// FeaturedArtifacts Featured public artifacts (DISCOVER_FEATURED, in order), each summarised from its newest SBOM
 	FeaturedArtifacts *[]DiscoverFeatured `json:"featuredArtifacts"`
 
@@ -2773,6 +2912,9 @@ type DiscoveryOutputBody struct {
 
 	// TopArtifacts Artifacts ranked by how widely they are used, how many versions are tracked, and how recently they were seen
 	TopArtifacts *[]DiscoverArtifact `json:"topArtifacts"`
+
+	// TopPackages The package in the most public SBOMs per ecosystem, among those with a known critical or high
+	TopPackages *[]DiscoverPackage `json:"topPackages"`
 
 	// TopVulnerabilities Vulnerabilities ranked by how many public artifacts they affect
 	TopVulnerabilities *[]DiscoverVuln `json:"topVulnerabilities"`
@@ -3238,6 +3380,25 @@ type KeySelfOutputBody struct {
 // KeySelfOutputBodyKind session for a browser session; otherwise the API key's kind
 type KeySelfOutputBodyKind string
 
+// LeftoverCritical defines model for LeftoverCritical.
+type LeftoverCritical struct {
+	CvssScore *float32 `json:"cvssScore,omitempty"`
+
+	// FixState Matcher fix state: fixed, not-fixed, wont-fix or unknown
+	FixState *string `json:"fixState,omitempty"`
+
+	// FixedVersion Upstream fix version no available tag ships yet
+	FixedVersion *string `json:"fixedVersion,omitempty"`
+
+	// Id Canonical vulnerability id
+	Id string `json:"id"`
+
+	// Images Images still carrying it
+	Images         *[]string `json:"images"`
+	Package        string    `json:"package"`
+	PackageVersion *string   `json:"packageVersion,omitempty"`
+}
+
 // LicenseCategoryMix defines model for LicenseCategoryMix.
 type LicenseCategoryMix struct {
 	Copyleft      int64 `json:"copyleft"`
@@ -3639,6 +3800,52 @@ type MeOutputBody struct {
 	Role string `json:"role"`
 }
 
+// MoveTag defines model for MoveTag.
+type MoveTag struct {
+	// BuiltAt Image build date, else when the SBOM was ingested
+	BuiltAt time.Time `json:"builtAt"`
+	Flavor  *string   `json:"flavor,omitempty"`
+	SbomId  string    `json:"sbomId"`
+	Tag     string    `json:"tag"`
+}
+
+// Moves defines model for Moves.
+type Moves struct {
+	// Schema A URL to the JSON Schema for this object.
+	Schema *string `json:"$schema,omitempty"`
+
+	// LeftoverCriticals Criticals still running after every upgrade, highest CVSS first
+	LeftoverCriticals *[]LeftoverCritical `json:"leftoverCriticals"`
+
+	// Namespaces Before/after totals per namespace, most criticals first
+	Namespaces *[]NamespaceMoves `json:"namespaces"`
+	Source     MovesSource       `json:"source"`
+	Totals     MovesTotals       `json:"totals"`
+
+	// Upgrades Images with a better tag, longest waiting first
+	Upgrades *[]Upgrade `json:"upgrades"`
+}
+
+// MovesSource defines model for Moves.Source.
+type MovesSource string
+
+// MovesTotals defines model for MovesTotals.
+type MovesTotals struct {
+	After  CritHigh `json:"after"`
+	Before CritHigh `json:"before"`
+	Images int64    `json:"images"`
+
+	// LeftoverCriticals Distinct critical CVEs left after every upgrade
+	LeftoverCriticals int64   `json:"leftoverCriticals"`
+	LongestWaitDays   int64   `json:"longestWaitDays"`
+	LongestWaitImage  *string `json:"longestWaitImage,omitempty"`
+	Pods              int64   `json:"pods"`
+	Upgrades          int64   `json:"upgrades"`
+
+	// UpgradesCutCritical Upgrades that reduce criticals
+	UpgradesCutCritical int64 `json:"upgradesCutCritical"`
+}
+
 // MyMembership defines model for MyMembership.
 type MyMembership struct {
 	// NamespaceId Namespace UUID
@@ -3686,6 +3893,15 @@ type NamespaceMemberResponse struct {
 
 // NamespaceMemberResponseRole The member's role in this namespace
 type NamespaceMemberResponseRole string
+
+// NamespaceMoves defines model for NamespaceMoves.
+type NamespaceMoves struct {
+	After  CritHigh `json:"after"`
+	Before CritHigh `json:"before"`
+	Images int64    `json:"images"`
+	Name   string   `json:"name"`
+	Pods   int64    `json:"pods"`
+}
 
 // NamespaceResponse defines model for NamespaceResponse.
 type NamespaceResponse struct {
@@ -4279,6 +4495,15 @@ type SetNamespaceMemberInputBody struct {
 // SetNamespaceMemberInputBodyRole Role to grant in this namespace
 type SetNamespaceMemberInputBodyRole string
 
+// SeverityTally defines model for SeverityTally.
+type SeverityTally struct {
+	Critical int64 `json:"critical"`
+	High     int64 `json:"high"`
+	Low      int64 `json:"low"`
+	Medium   int64 `json:"medium"`
+	Unknown  int64 `json:"unknown"`
+}
+
 // SourceResponse defines model for SourceResponse.
 type SourceResponse struct {
 	// Schema A URL to the JSON Schema for this object.
@@ -4360,15 +4585,24 @@ type TestRegistryConnectionOutputBody struct {
 
 // TopVulnEntry defines model for TopVulnEntry.
 type TopVulnEntry struct {
-	AffectedPurlCount int64      `json:"affectedPurlCount"`
-	AffectedSbomCount int64      `json:"affectedSbomCount"`
-	Aliases           *[]string  `json:"aliases"`
-	CanonicalId       string     `json:"canonicalId"`
-	CvssScore         *float32   `json:"cvssScore,omitempty"`
+	AffectedPurlCount int64     `json:"affectedPurlCount"`
+	AffectedSbomCount int64     `json:"affectedSbomCount"`
+	Aliases           *[]string `json:"aliases"`
+	CanonicalId       string    `json:"canonicalId"`
+	CvssScore         *float32  `json:"cvssScore,omitempty"`
+
+	// FixAvailableSince Earliest a fix was reported for it on a latest tag that still carries it
+	FixAvailableSince *time.Time `json:"fixAvailableSince,omitempty"`
 	Id                string     `json:"id"`
-	PublishedAt       *time.Time `json:"publishedAt,omitempty"`
-	Severity          string     `json:"severity"`
-	Summary           *string    `json:"summary,omitempty"`
+
+	// LatestAffectedCount Artifacts whose latest tag still carries this vulnerability
+	LatestAffectedCount int64      `json:"latestAffectedCount"`
+	PublishedAt         *time.Time `json:"publishedAt,omitempty"`
+
+	// RunningPods Pods in clusters you can see running an image that carries it; signed-in callers only
+	RunningPods *int64  `json:"runningPods,omitempty"`
+	Severity    string  `json:"severity"`
+	Summary     *string `json:"summary,omitempty"`
 }
 
 // UnknownHostResponse defines model for UnknownHostResponse.
@@ -4574,6 +4808,25 @@ type UpdateUserRoleInputBody struct {
 
 // UpdateUserRoleInputBodyRole New role
 type UpdateUserRoleInputBodyRole string
+
+// Upgrade defines model for Upgrade.
+type Upgrade struct {
+	After       CritHigh        `json:"after"`
+	Alternative *AlternativeTag `json:"alternative,omitempty"`
+	ArtifactId  string          `json:"artifactId"`
+	Before      CritHigh        `json:"before"`
+	FirstBetter MoveTag         `json:"firstBetter"`
+	Image       string          `json:"image"`
+	Namespaces  *[]string       `json:"namespaces"`
+
+	// Pods Running pods; 0 without a cluster
+	Pods    int64   `json:"pods"`
+	Running MoveTag `json:"running"`
+	Target  MoveTag `json:"target"`
+
+	// WaitingDays Days since firstBetter was built
+	WaitingDays int64 `json:"waitingDays"`
+}
 
 // UserResponse defines model for UserResponse.
 type UserResponse struct {
@@ -5447,7 +5700,7 @@ type ListMyVulnerabilitiesParams struct {
 	// Severity Filter by severity
 	Severity *ListMyVulnerabilitiesParamsSeverity `form:"severity,omitempty" json:"severity,omitempty"`
 
-	// Sort Sort field
+	// Sort Sort field. fixAge ranks by how long a fix has been available among vulnerabilities a latest tag still carries
 	Sort *ListMyVulnerabilitiesParamsSort `form:"sort,omitempty" json:"sort,omitempty"`
 
 	// SortDir Sort direction (asc or desc)
@@ -5495,7 +5748,7 @@ type ListTopVulnerabilitiesParams struct {
 	// Severity Filter by severity
 	Severity *ListTopVulnerabilitiesParamsSeverity `form:"severity,omitempty" json:"severity,omitempty"`
 
-	// Sort Sort field
+	// Sort Sort field. fixAge ranks by how long a fix has been available among vulnerabilities a latest tag still carries
 	Sort *ListTopVulnerabilitiesParamsSort `form:"sort,omitempty" json:"sort,omitempty"`
 
 	// SortDir Sort direction (asc or desc)

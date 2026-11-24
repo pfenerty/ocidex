@@ -118,7 +118,7 @@ func TestRollupRefreshClearsAndRepopulatesEveryRollup(t *testing.T) {
 	_, err := refresherFor(tx).refresh(context.Background())
 	is.NoErr(err)
 
-	for _, table := range []string{"component_rollup", "component_version_rollup", "license_rollup", "vuln_rollup", "sbom_vuln_rollup"} {
+	for _, table := range []string{"component_rollup", "component_version_rollup", "license_rollup", "vuln_rollup", "sbom_vuln_rollup", "vuln_latest_rollup"} {
 		is.True(tx.firstIndex("CREATE TEMP TABLE tmp_"+table) >= 0)
 		cleared := tx.firstIndex("DELETE FROM " + table)
 		insert := tx.firstIndex("INSERT INTO " + table)
@@ -355,4 +355,25 @@ func normalizeSQL(s string) string {
 		kept = append(kept, line)
 	}
 	return strings.Join(strings.Fields(strings.Join(kept, " ")), " ")
+}
+
+// vuln_latest_rollup (ocidex-jdk1) was authored against the current schema, so
+// its seed in 00110 and the refresh aggregate must be the same query.
+func TestVulnLatestRollupSeedMatchesTheRefreshAggregate(t *testing.T) {
+	is := is.New(t)
+
+	aggregate, ok := repository.RollupAggregate("vuln_latest_rollup")
+	is.True(ok)
+
+	raw, err := dbfs.Migrations.ReadFile("migrations/00110_vuln_latest_rollup.sql")
+	is.NoErr(err)
+
+	const insertPrefix = "INSERT INTO vuln_latest_rollup (canonical_id, namespace_id, artifact_id, fix_available_since)"
+	start := strings.Index(string(raw), insertPrefix)
+	is.True(start >= 0)
+	body := string(raw)[start+len(insertPrefix):]
+	end := strings.Index(body, ";")
+	is.True(end >= 0)
+
+	is.Equal(normalizeSQL(body[:end]), normalizeSQL(aggregate))
 }

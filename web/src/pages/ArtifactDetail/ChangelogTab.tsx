@@ -1,9 +1,9 @@
-import { Show, For, type JSX } from "solid-js";
+import { Show, For, createSignal, type JSX } from "solid-js";
 import "./ChangelogTab.css";
 import type { ChangelogEntryData } from "~/utils/diff";
 import type { PaginationMeta } from "~/api/client";
 import { ViewToggle } from "~/components/DiffPairView";
-import { DiffEntryCard } from "~/components/DiffEntryCard";
+import { CveEntryCard } from "./CveEntryCard";
 import { EmptyState } from "~/components/Feedback";
 import Pagination from "~/components/Pagination";
 import { TabBar } from "~/components/ui";
@@ -11,6 +11,26 @@ import { Combobox } from "~/components/ui/Combobox";
 
 /** Above this many architectures the pills become a picker. */
 const MAX_ARCH_PILLS = 4;
+
+/** Where the viewer's "only CVE rows" choice is kept, per browser. */
+export const CVE_ONLY_KEY = "ocidex.changelog.cveOnly";
+
+/** The viewer's stored choice; on unless they turned it off. */
+export function readCveOnly(): boolean {
+    try {
+        return localStorage.getItem(CVE_ONLY_KEY) !== "false";
+    } catch {
+        return true;
+    }
+}
+
+function writeCveOnly(on: boolean): void {
+    try {
+        localStorage.setItem(CVE_ONLY_KEY, String(on));
+    } catch {
+        // Storage blocked: the choice lasts for this page only.
+    }
+}
 
 // The changelog is a page of a longer timeline, not the whole of it
 // (ocidex-7gf7.4). Both the page and the tree/list mode are owned by the parent:
@@ -35,6 +55,11 @@ export function ChangelogTab(props: {
         props.selectedArch ?? props.availableArchitectures[0];
     const effectiveFlavor = () =>
         props.selectedFlavor ?? props.availableFlavors[0];
+    const [cveOnly, setCveOnly] = createSignal(readCveOnly());
+    const toggleCveOnly = (on: boolean) => {
+        setCveOnly(on);
+        writeCveOnly(on);
+    };
 
     return (
         <>
@@ -78,8 +103,26 @@ export function ChangelogTab(props: {
                         onSelect={props.onFlavorChange}
                     />
                 </Show>
+                <label class="changelog-cve-only">
+                    <input
+                        type="checkbox"
+                        checked={cveOnly()}
+                        onChange={(ev) => toggleCveOnly(ev.currentTarget.checked)}
+                    />
+                    Only package changes that close or open a CVE
+                </label>
                 <span class="changelog-controls-end">
-                    <ViewToggle mode={props.viewMode} onChange={props.onViewModeChange} />
+                    <span class="cve-legend">
+                        <span>
+                            <span class="cve-sw cve-sw-critical" /> closed
+                        </span>
+                        <span>
+                            <span class="cve-sw cve-sw-opened" /> opened
+                        </span>
+                    </span>
+                    <Show when={!cveOnly()}>
+                        <ViewToggle mode={props.viewMode} onChange={props.onViewModeChange} />
+                    </Show>
                 </span>
             </div>
             <Show
@@ -106,11 +149,7 @@ export function ChangelogTab(props: {
             >
                 <For each={props.entries}>
                     {(entry) => (
-                        <DiffEntryCard
-                            entry={entry}
-                            viewMode={props.viewMode}
-                            defaultExpanded={false}
-                        />
+                        <CveEntryCard entry={entry} cveOnly={cveOnly()} viewMode={props.viewMode} />
                     )}
                 </For>
                 <Show when={props.pagination}>

@@ -52,6 +52,7 @@ type SearchService interface {
 	ListSBOMDriftHistory(ctx context.Context, sbomID string, page DriftPage, vis VisibilityFilter) (CursorPage[ProvenanceDriftSummary], error)
 	ListRecentProvenanceDrift(ctx context.Context, page DriftPage, vis VisibilityFilter) (CursorPage[RecentDriftEntry], error)
 	ListOwnedActivity(ctx context.Context, ownerID string, keyNamespaces []string, page FeedPage) (CursorPage[ActivityEntry], error)
+	GetMyMoves(ctx context.Context, vis VisibilityFilter) (*Moves, error)
 	LookupArtifact(ctx context.Context, query ArtifactLookupQuery, vis VisibilityFilter) ([]LookupCandidate, error)
 	ResolveArtifactEntryNumber(ctx context.Context, entryNumber int64, vis VisibilityFilter) (string, error)
 	LookupSBOM(ctx context.Context, query SBOMLookupQuery, vis VisibilityFilter) ([]LookupCandidate, error)
@@ -131,6 +132,14 @@ type TopVulnEntry struct {
 	PublishedAt       *time.Time `json:"publishedAt,omitempty"`
 	AffectedSbomCount int64      `json:"affectedSbomCount"`
 	AffectedPurlCount int64      `json:"affectedPurlCount"`
+	// LatestAffectedCount counts artifacts whose newest tag still carries it,
+	// where AffectedSbomCount counts every SBOM ever ingested.
+	LatestAffectedCount int64 `json:"latestAffectedCount" doc:"Artifacts whose latest tag still carries this vulnerability"`
+	// FixAvailableSince is when a fix first became available for it on one of
+	// those latest tags.
+	FixAvailableSince *time.Time `json:"fixAvailableSince,omitempty" doc:"Earliest a fix was reported for it on a latest tag that still carries it"`
+	// RunningPods is set for a signed-in caller only.
+	RunningPods *int64 `json:"runningPods,omitempty" doc:"Pods in clusters you can see running an image that carries it; signed-in callers only"`
 }
 
 // TopVulnFilter holds parameters for listing top vulnerabilities.
@@ -700,6 +709,8 @@ type ArtifactVersion struct {
 	VulnMatched bool `json:"vulnMatched" doc:"Matched against the vulnerability store, and the counts reflect it: an absent vulns then means none known"`
 	// CountedSBOM is the SBOM this row's counts are from.
 	CountedSBOM *CountedSBOM `json:"countedSbom,omitempty" doc:"The SBOM this version's counts come from"`
+	// Flavor is the counted SBOM's base-image flavor (ADR-0020); empty when unknown.
+	Flavor string `json:"flavor,omitempty"`
 }
 
 // SBOMSummary is a lightweight SBOM representation for list views.

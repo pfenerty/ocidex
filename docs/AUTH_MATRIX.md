@@ -106,6 +106,7 @@ cookies carry no ceiling and are unaffected.
 | GET | `/api/v1/users/me/activity` | `list-my-activity` | `authenticated` | — |  | Owned rows only; excludes others' public rows, and admins get no widening. |
 | GET | `/api/v1/users/me/artifacts` | `list-my-artifacts` | `authenticated` | — |  | Owned rows only; excludes others' public rows, and admins get no widening. |
 | GET | `/api/v1/users/me/drift-feed` | `list-my-drift-feed` | `authenticated` | — |  | Owned rows only; excludes others' public rows, and admins get no widening. |
+| GET | `/api/v1/users/me/moves` | `get-my-moves` | `authenticated` | — |  | Running images come from clusters in owned namespaces only; the tags offered as targets are any the caller can see, which may include others' public tags. |
 | GET | `/api/v1/users/me/namespaces` | `list-my-namespaces` | `authenticated` | — |  | Owned rows only; excludes others' public rows, and admins get no widening. |
 | GET | `/api/v1/users/me/registries` | `list-my-registries` | `authenticated` | — |  | Owned rows only; excludes others' public rows, and admins get no widening. |
 | GET | `/api/v1/users/me/sources` | `list-my-sources` | `authenticated` | — |  | Owned rows only; excludes others' public rows, and admins get no widening. |

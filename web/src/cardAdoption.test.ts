@@ -22,7 +22,6 @@ import { stripComments } from "./testing/sourceCode";
 const MIGRATED = [
     "components/ComponentMetadata.tsx",
     "components/DataTable.tsx",
-    "components/DiffEntryCard.tsx",
     "components/GitCommitCard.tsx",
     "components/ImageMetadataCard.tsx",
     "components/ProvenanceCard.tsx",

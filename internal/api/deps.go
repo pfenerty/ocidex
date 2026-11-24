@@ -70,6 +70,7 @@ type InsightReader interface {
 	VulnDBBuiltAt(ctx context.Context) (*time.Time, error)
 	ListRecentProvenanceDrift(ctx context.Context, page service.DriftPage, vis service.VisibilityFilter) (service.CursorPage[service.RecentDriftEntry], error)
 	ListOwnedActivity(ctx context.Context, ownerID string, keyNamespaces []string, page service.FeedPage) (service.CursorPage[service.ActivityEntry], error)
+	GetMyMoves(ctx context.Context, vis service.VisibilityFilter) (*service.Moves, error)
 }
 
 // Authenticator checks the credential a request presents.

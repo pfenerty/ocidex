@@ -1,11 +1,14 @@
 package tests
 
 import (
+	"context"
 	"encoding/json"
 	"io"
+	"log/slog"
 	"net/http"
 	"strings"
 	"testing"
+	"time"
 
 	"github.com/google/uuid"
 	"github.com/jackc/pgx/v5/pgtype"
@@ -169,7 +172,8 @@ type discoverPayload struct {
 		SpdxID         string `json:"spdxId"`
 		ComponentCount int64  `json:"componentCount"`
 	} `json:"licenseSpread"`
-	Warming bool `json:"warming"`
+	GeneratedAt time.Time `json:"generatedAt"`
+	Warming     bool      `json:"warming"`
 }
 
 // fetchDiscovery returns the decoded payload and the raw body it came from.
@@ -265,11 +269,19 @@ func TestDiscoverExcludesPrivateNamespaces(t *testing.T) {
 	is.True(cold.Warming)
 	is.Equal(len(cold.TopArtifacts), 0)
 
-	_, err = searchSvc.WarmDiscovery(t.Context())
-	is.NoErr(err)
-
+	// Warmed by the background warmer itself, not a direct WarmDiscovery call:
+	// production's /discover stayed warming while /stats warmed, because the
+	// warmer's discovery pass never stored a snapshot.
+	warmCtx, stopWarmer := context.WithCancel(t.Context())
+	go service.NewStatsWarmer(searchSvc, time.Hour, slog.Default()).Run(warmCtx)
 	anonPayload, anonRaw := fetchDiscovery(t, srv.URL, "")
+	for deadline := time.Now().Add(time.Minute); anonPayload.Warming && time.Now().Before(deadline); {
+		time.Sleep(100 * time.Millisecond)
+		anonPayload, anonRaw = fetchDiscovery(t, srv.URL, "")
+	}
+	stopWarmer()
 	is.True(!anonPayload.Warming)
+	is.True(!anonPayload.GeneratedAt.IsZero())
 
 	// --- the payload is identical for every caller -------------------------
 	//

@@ -24,6 +24,8 @@ type DiscoveryOutput struct {
 		RecentArtifacts    []service.DiscoverRecent   `json:"recentArtifacts" doc:"Most recently updated public artifacts, one row per artifact"`
 		TopVulnerabilities []service.DiscoverVuln     `json:"topVulnerabilities" doc:"Vulnerabilities ranked by how many public artifacts they affect"`
 		LicenseSpread      []service.DiscoverLicense  `json:"licenseSpread" doc:"License distribution across public content, by distinct package identity"`
+		TopPackages        []service.DiscoverPackage  `json:"topPackages" doc:"The package in the most public SBOMs per ecosystem, among those with a known critical or high"`
+		CriticalCuts       []service.DiscoverCut      `json:"criticalCuts" doc:"Recent public releases that removed the most criticals, one per artifact"`
 		GeneratedAt        string                     `json:"generatedAt,omitempty" doc:"When this snapshot was computed; absent while warming"`
 		Warming            bool                       `json:"warming" doc:"No snapshot is available yet, so every section is empty because nothing is known — not because the catalog is empty; render a loading state and retry"`
 	}

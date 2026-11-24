@@ -156,8 +156,10 @@ var authRules = map[string]AuthRule{
 	// narrowing is the same one.
 	"list-my-drift-feed":      {Class: ClassAuthenticated, Notes: noteSelfScoped},
 	"list-my-vulnerabilities": {Class: ClassAuthenticated, Notes: noteSelfScoped},
-	"watch-artifact":          {Class: ClassAuthenticated, Write: true, Notes: noteWatch},
-	"unwatch-artifact":        {Class: ClassAuthenticated, Write: true, Notes: "Removes the caller's own watch; idempotent."},
+	"get-my-moves": {Class: ClassAuthenticated,
+		Notes: "Running images come from clusters in owned namespaces only; the tags offered as targets are any the caller can see, which may include others' public tags."},
+	"watch-artifact":   {Class: ClassAuthenticated, Write: true, Notes: noteWatch},
+	"unwatch-artifact": {Class: ClassAuthenticated, Write: true, Notes: "Removes the caller's own watch; idempotent."},
 	"list-auth-providers": {Class: ClassPublic,
 		Notes: "Names the operator gave their own issuers; the login page renders these before anyone is signed in."},
 	"get-key-self":           {Class: ClassAuthenticated, Notes: "Describes only the calling credential."},

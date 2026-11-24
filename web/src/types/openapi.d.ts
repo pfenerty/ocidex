@@ -1862,6 +1862,26 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/v1/users/me/moves": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Get my upgrade queue
+         * @description For each image running in your clusters (or, with none, each artifact's newest tag), the same-flavor tag with the fewest criticals, then highs, and how long a better tag has been out; the criticals left after every upgrade; and before/after totals per namespace. Scoped to the calling user: only resources you own, excluding public resources owned by others.
+         */
+        get: operations["get-my-moves"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/v1/users/me/namespaces": {
         parameters: {
             query?: never;
@@ -2167,6 +2187,17 @@ export interface components {
             group?: string;
             name: string;
         };
+        AlternativeTag: {
+            after: components["schemas"]["CritHigh"];
+            /**
+             * Format: date-time
+             * @description Image build date, else when the SBOM was ingested
+             */
+            builtAt: string;
+            flavor?: string;
+            sbomId: string;
+            tag: string;
+        };
         ArtifactDetail: {
             /**
              * Format: uri
@@ -2266,6 +2297,8 @@ export interface components {
             countedSbom?: components["schemas"]["CountedSBOM"];
             /** Format: date-time */
             createdAt: string;
+            /** @description Base-image flavor of the counted SBOM (alpine, debian, ...); absent when unknown */
+            flavor?: string;
             imageVersion?: string;
             revision?: string;
             /**
@@ -2336,6 +2369,12 @@ export interface components {
             /** Format: int64 */
             upgraded: number;
         };
+        ChangeVuln: {
+            /** @description Canonical vulnerability id; aliases are collapsed */
+            id: string;
+            /** @enum {string} */
+            severity: "CRITICAL" | "HIGH" | "MEDIUM" | "LOW" | "UNKNOWN";
+        };
         Changelog: {
             /**
              * Format: uri
@@ -2362,6 +2401,14 @@ export interface components {
             from: components["schemas"]["SBOMRef"];
             summary: components["schemas"]["ChangeSummary"];
             to: components["schemas"]["SBOMRef"];
+            /** @description CVEs closed and opened by this release, by severity */
+            vulns?: components["schemas"]["ChangelogVulnTotals"];
+        };
+        ChangelogVulnTotals: {
+            /** @description CVEs the previous release had and this one does not */
+            closed: components["schemas"]["SeverityTally"];
+            /** @description CVEs this release has and the previous one did not */
+            opened: components["schemas"]["SeverityTally"];
         };
         ClusterAgentResponse: {
             /** @description Kubernetes server version (gitVersion) */
@@ -2583,10 +2630,14 @@ export interface components {
             vulnCount?: number;
         };
         ComponentDiff: {
+            /** @description CVEs on the previous version that the new version does not have */
+            closes?: components["schemas"]["ChangeVuln"][] | null;
             direction: string;
             group?: string;
             name: string;
             nodeRef?: string;
+            /** @description CVEs on the new version that the previous version did not have */
+            opens?: components["schemas"]["ChangeVuln"][] | null;
             previousVersion?: string;
             purl?: string;
             type: string;
@@ -2972,6 +3023,12 @@ export interface components {
              */
             namespaceId: string;
         };
+        CritHigh: {
+            /** Format: int64 */
+            critical: number;
+            /** Format: int64 */
+            high: number;
+        };
         CursorMeta: {
             /** @description Whether more results exist after this page */
             hasMore: boolean;
@@ -3071,8 +3128,30 @@ export interface components {
             /** Format: int64 */
             versionCount: number;
         };
+        DiscoverCut: {
+            artifactId: string;
+            /** Format: int64 */
+            fromCritical: number;
+            fromSbomId: string;
+            fromVersion: string;
+            name: string;
+            /**
+             * Format: date-time
+             * @description Build date of the release, else when it was indexed
+             */
+            releasedAt?: string;
+            /** Format: int64 */
+            toCritical: number;
+            toSbomId: string;
+            toVersion: string;
+        };
         DiscoverFeatured: {
             artifactId: string;
+            /**
+             * Format: date-time
+             * @description Build date of the counted SBOM's image, when known
+             */
+            builtAt?: string;
             /** @description The SBOM the card's counts come from */
             countedSbom?: components["schemas"]["CountedSBOM"];
             /** Format: date-time */
@@ -3088,6 +3167,11 @@ export interface components {
             packageCount: number;
             sbomId: string;
             subjectVersion?: string;
+            /**
+             * Format: int64
+             * @description Public tags indexed for this artifact
+             */
+            tagCount: number;
             type: string;
             /** @description The newest SBOM has been matched against the vulnerability store */
             vulnMatched: boolean;
@@ -3100,6 +3184,26 @@ export interface components {
             id: string;
             name: string;
             spdxId?: string;
+        };
+        DiscoverPackage: {
+            /**
+             * Format: int64
+             * @description Known critical CVEs across its versions
+             */
+            critical: number;
+            /** @description purl type */
+            ecosystem: string;
+            group?: string;
+            /**
+             * Format: int64
+             * @description Known high CVEs across its versions
+             */
+            high: number;
+            name: string;
+            /** Format: int64 */
+            sbomCount: number;
+            /** Format: int64 */
+            versionCount: number;
         };
         DiscoverRecent: {
             artifactId: string;
@@ -3134,6 +3238,8 @@ export interface components {
              * @example https://example.com/api/schemas/DiscoveryOutputBody.json
              */
             readonly $schema?: string;
+            /** @description Recent public releases that removed the most criticals, one per artifact */
+            criticalCuts: components["schemas"]["DiscoverCut"][] | null;
             /** @description Featured public artifacts (DISCOVER_FEATURED, in order), each summarised from its newest SBOM */
             featuredArtifacts: components["schemas"]["DiscoverFeatured"][] | null;
             /** @description When this snapshot was computed; absent while warming */
@@ -3144,6 +3250,8 @@ export interface components {
             recentArtifacts: components["schemas"]["DiscoverRecent"][] | null;
             /** @description Artifacts ranked by how widely they are used, how many versions are tracked, and how recently they were seen */
             topArtifacts: components["schemas"]["DiscoverArtifact"][] | null;
+            /** @description The package in the most public SBOMs per ecosystem, among those with a known critical or high */
+            topPackages: components["schemas"]["DiscoverPackage"][] | null;
             /** @description Vulnerabilities ranked by how many public artifacts they affect */
             topVulnerabilities: components["schemas"]["DiscoverVuln"][] | null;
             /** @description No snapshot is available yet, so every section is empty because nothing is known — not because the catalog is empty; render a loading state and retry */
@@ -3646,6 +3754,20 @@ export interface components {
              */
             writesPerHour?: number;
         };
+        LeftoverCritical: {
+            /** Format: float */
+            cvssScore?: number;
+            /** @description Matcher fix state: fixed, not-fixed, wont-fix or unknown */
+            fixState?: string;
+            /** @description Upstream fix version no available tag ships yet */
+            fixedVersion?: string;
+            /** @description Canonical vulnerability id */
+            id: string;
+            /** @description Images still carrying it */
+            images: string[] | null;
+            package: string;
+            packageVersion?: string;
+        };
         LicenseCategoryMix: {
             /** Format: int64 */
             copyleft: number;
@@ -4133,6 +4255,56 @@ export interface components {
             /** @description User role: admin, member, or viewer */
             role: string;
         };
+        MoveTag: {
+            /**
+             * Format: date-time
+             * @description Image build date, else when the SBOM was ingested
+             */
+            builtAt: string;
+            flavor?: string;
+            sbomId: string;
+            tag: string;
+        };
+        Moves: {
+            /**
+             * Format: uri
+             * @description A URL to the JSON Schema for this object.
+             * @example https://example.com/api/schemas/Moves.json
+             */
+            readonly $schema?: string;
+            /** @description Criticals still running after every upgrade, highest CVSS first */
+            leftoverCriticals: components["schemas"]["LeftoverCritical"][] | null;
+            /** @description Before/after totals per namespace, most criticals first */
+            namespaces: components["schemas"]["NamespaceMoves"][] | null;
+            /** @enum {string} */
+            source: "cluster" | "owned";
+            totals: components["schemas"]["MovesTotals"];
+            /** @description Images with a better tag, longest waiting first */
+            upgrades: components["schemas"]["Upgrade"][] | null;
+        };
+        MovesTotals: {
+            after: components["schemas"]["CritHigh"];
+            before: components["schemas"]["CritHigh"];
+            /** Format: int64 */
+            images: number;
+            /**
+             * Format: int64
+             * @description Distinct critical CVEs left after every upgrade
+             */
+            leftoverCriticals: number;
+            /** Format: int64 */
+            longestWaitDays: number;
+            longestWaitImage?: string;
+            /** Format: int64 */
+            pods: number;
+            /** Format: int64 */
+            upgrades: number;
+            /**
+             * Format: int64
+             * @description Upgrades that reduce criticals
+             */
+            upgradesCutCritical: number;
+        };
         MyMembership: {
             /** @description Namespace UUID */
             namespaceId: string;
@@ -4173,6 +4345,15 @@ export interface components {
             userId: string;
             /** @description GitHub username of the member */
             username: string;
+        };
+        NamespaceMoves: {
+            after: components["schemas"]["CritHigh"];
+            before: components["schemas"]["CritHigh"];
+            /** Format: int64 */
+            images: number;
+            name: string;
+            /** Format: int64 */
+            pods: number;
         };
         NamespaceResponse: {
             /**
@@ -4806,6 +4987,18 @@ export interface components {
              */
             role: "owner" | "maintainer" | "security" | "developer" | "viewer";
         };
+        SeverityTally: {
+            /** Format: int64 */
+            critical: number;
+            /** Format: int64 */
+            high: number;
+            /** Format: int64 */
+            low: number;
+            /** Format: int64 */
+            medium: number;
+            /** Format: int64 */
+            unknown: number;
+        };
         SourceResponse: {
             /**
              * Format: uri
@@ -4896,9 +5089,24 @@ export interface components {
             canonicalId: string;
             /** Format: float */
             cvssScore?: number;
+            /**
+             * Format: date-time
+             * @description Earliest a fix was reported for it on a latest tag that still carries it
+             */
+            fixAvailableSince?: string;
             id: string;
+            /**
+             * Format: int64
+             * @description Artifacts whose latest tag still carries this vulnerability
+             */
+            latestAffectedCount: number;
             /** Format: date-time */
             publishedAt?: string;
+            /**
+             * Format: int64
+             * @description Pods in clusters you can see running an image that carries it; signed-in callers only
+             */
+            runningPods?: number;
             severity: string;
             summary?: string;
         };
@@ -5114,6 +5322,29 @@ export interface components {
              * @enum {string}
              */
             role: "admin" | "member" | "viewer";
+        };
+        Upgrade: {
+            after: components["schemas"]["CritHigh"];
+            alternative?: components["schemas"]["AlternativeTag"];
+            artifactId: string;
+            before: components["schemas"]["CritHigh"];
+            /** @description Oldest same-flavor tag better than the running one */
+            firstBetter: components["schemas"]["MoveTag"];
+            image: string;
+            namespaces: string[] | null;
+            /**
+             * Format: int64
+             * @description Running pods; 0 without a cluster
+             */
+            pods: number;
+            running: components["schemas"]["MoveTag"];
+            /** @description Same-flavor tag with the fewest criticals, then highs; newest on a tie */
+            target: components["schemas"]["MoveTag"];
+            /**
+             * Format: int64
+             * @description Days since firstBetter was built
+             */
+            waitingDays: number;
         };
         UserResponse: {
             /**
@@ -9266,6 +9497,35 @@ export interface operations {
             };
         };
     };
+    "get-my-moves": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description OK */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Moves"];
+                };
+            };
+            /** @description Error */
+            default: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["ErrorModel"];
+                };
+            };
+        };
+    };
     "list-my-namespaces": {
         parameters: {
             query?: never;
@@ -9369,8 +9629,8 @@ export interface operations {
                 q?: string;
                 /** @description Filter by severity */
                 severity?: "CRITICAL" | "HIGH" | "MEDIUM" | "LOW";
-                /** @description Sort field */
-                sort?: "severity" | "cvssScore" | "affectedSbomCount" | "affectedPurlCount" | "publishedAt" | "canonicalId";
+                /** @description Sort field. fixAge ranks by how long a fix has been available among vulnerabilities a latest tag still carries */
+                sort?: "severity" | "cvssScore" | "affectedSbomCount" | "affectedPurlCount" | "latestAffectedCount" | "fixAge" | "publishedAt" | "canonicalId";
                 /** @description Sort direction (asc or desc) */
                 sortDir?: "asc" | "desc";
             };
@@ -9575,8 +9835,8 @@ export interface operations {
                 q?: string;
                 /** @description Filter by severity */
                 severity?: "CRITICAL" | "HIGH" | "MEDIUM" | "LOW";
-                /** @description Sort field */
-                sort?: "severity" | "cvssScore" | "affectedSbomCount" | "affectedPurlCount" | "publishedAt" | "canonicalId";
+                /** @description Sort field. fixAge ranks by how long a fix has been available among vulnerabilities a latest tag still carries */
+                sort?: "severity" | "cvssScore" | "affectedSbomCount" | "affectedPurlCount" | "latestAffectedCount" | "fixAge" | "publishedAt" | "canonicalId";
                 /** @description Sort direction (asc or desc) */
                 sortDir?: "asc" | "desc";
             };
