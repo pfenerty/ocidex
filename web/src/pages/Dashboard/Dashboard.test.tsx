@@ -1,37 +1,31 @@
 // @vitest-environment happy-dom
 import { describe, it, expect, vi, beforeEach } from "vitest";
-import { render } from "@solidjs/testing-library";
+import { fireEvent, render } from "@solidjs/testing-library";
 import type { JSX } from "solid-js";
 import {
-    useMyNamespaces,
+    useMyMoves,
+    useDiff,
     useMyActivity,
     useMyDriftFeed,
-    useMyVulnerabilities,
     useMyClusters,
-    useWatchFeed,
+    useMySeenOnlyImages,
 } from "~/api/queries";
 import { useAuth } from "~/context/auth";
-import Dashboard from "./index";
+import type { components } from "~/types/openapi";
+import Dashboard, { fixLabel, receiptRows, shortImage } from "./index";
+import { countSince } from "./StatusFooter";
 
 vi.mock("~/api/queries", () => ({
-    useMyNamespaces: vi.fn(),
+    useMyMoves: vi.fn(),
+    useDiff: vi.fn(),
     useMyActivity: vi.fn(),
     useMyDriftFeed: vi.fn(),
-    useMyVulnerabilities: vi.fn(),
     useMyClusters: vi.fn(),
-    // ClustersPanel borrows StalenessPill from the Clusters page, whose module
-    // imports these at load time.
-    useListClusters: vi.fn(),
-    useCreateCluster: vi.fn(),
-    useUpdateCluster: vi.fn(),
-    useDeleteCluster: vi.fn(),
-    useWatchFeed: vi.fn(),
+    useMySeenOnlyImages: vi.fn(),
 }));
 
 vi.mock("~/context/auth", () => ({ useAuth: vi.fn() }));
 
-// The router stub forwards href so the "links to its detail view" assertions
-// can read it; a stub that dropped it would make every one of them vacuous.
 vi.mock("@solidjs/router", () => ({
     A: (props: { href: string; class?: string; children?: JSX.Element }) => (
         <a href={props.href} class={props.class}>
@@ -40,333 +34,177 @@ vi.mock("@solidjs/router", () => ({
     ),
 }));
 
-interface Query {
-    isLoading: boolean;
-    isError: boolean;
-    error?: unknown;
-    data: { data: unknown[] } | undefined;
-}
+type Moves = NonNullable<ReturnType<typeof useMyMoves>["data"]>;
+type ComponentDiff = components["schemas"]["ComponentDiff"];
 
-const loaded = (rows: unknown[]): Query => ({
-    isLoading: false,
-    isError: false,
-    error: undefined,
-    data: { data: rows },
-});
+const tag = (t: string, id: string, builtAt = "2026-10-07T00:00:00Z") => ({ tag: t, sbomId: id, builtAt });
 
-const loading: Query = { isLoading: true, isError: false, error: undefined, data: undefined };
-
-const mocks = {
-    namespaces: vi.mocked(useMyNamespaces),
-    activity: vi.mocked(useMyActivity),
-    drift: vi.mocked(useMyDriftFeed),
-    vulns: vi.mocked(useMyVulnerabilities),
-    clusters: vi.mocked(useMyClusters),
-    watchFeed: vi.mocked(useWatchFeed),
+const moves: Moves = {
+    source: "cluster",
+    upgrades: [
+        {
+            artifactId: "a-dex",
+            image: "ghcr.io/dexidp/dex",
+            namespaces: ["auth"],
+            pods: 2,
+            running: tag("v2.45.1", "s-run"),
+            target: tag("v2.46.1", "s-target"),
+            firstBetter: tag("v2.46.0", "s-first"),
+            waitingDays: 47,
+            before: { critical: 16, high: 89 },
+            after: { critical: 2, high: 36 },
+            alternative: { ...tag("v2.46.1-distroless", "s-alt"), after: { critical: 1, high: 21 } },
+        },
+        {
+            artifactId: "a-pg",
+            image: "ghcr.io/cloudnative-pg/postgresql",
+            namespaces: ["databases"],
+            pods: 1,
+            running: tag("18.6", "p-run"),
+            target: tag("18.7", "p-target"),
+            firstBetter: tag("18.7", "p-target"),
+            waitingDays: 11,
+            before: { critical: 1, high: 47 },
+            after: { critical: 1, high: 45 },
+        },
+    ],
+    leftoverCriticals: [
+        { id: "CVE-2026-6653", cvssScore: 9.8, package: "libxml2", packageVersion: "2.9.14", fixState: "wont-fix", images: ["ghcr.io/cloudnative-pg/postgresql"] },
+        { id: "CVE-2026-4738", cvssScore: 9.4, package: "zlib", packageVersion: "1.3.2-r1", fixedVersion: "1.4-r0", fixState: "fixed", images: ["ghcr.io/dexidp/dex"] },
+    ],
+    namespaces: [
+        { name: "auth", images: 1, pods: 2, before: { critical: 16, high: 89 }, after: { critical: 2, high: 36 } },
+        { name: "databases", images: 1, pods: 1, before: { critical: 1, high: 47 }, after: { critical: 1, high: 45 } },
+    ],
+    totals: {
+        images: 2,
+        pods: 3,
+        before: { critical: 17, high: 136 },
+        after: { critical: 3, high: 81 },
+        upgrades: 2,
+        upgradesCutCritical: 1,
+        longestWaitDays: 47,
+        longestWaitImage: "ghcr.io/dexidp/dex",
+        leftoverCriticals: 2,
+    },
 };
 
-// The hooks return as many different row types as there are panels, so one loop
-// cannot name a single ReturnType that satisfies them all. `never` is assignable
-// to every one of them, which is exactly the "this stub is deliberately
-// untyped" claim.
-function setAll(query: Query) {
-    for (const m of Object.values(mocks)) {
-        m.mockReturnValue(query as never);
-    }
-}
+const change = (name: string, closes: string[], opens: string[] = []): ComponentDiff => ({
+    name,
+    type: "modified",
+    direction: "upgraded",
+    version: "2",
+    previousVersion: "1",
+    closes: closes.map((s, i) => ({ id: `CVE-${name}-${i}`, severity: s as "CRITICAL" })),
+    opens: opens.map((s, i) => ({ id: `CVE-${name}-o${i}`, severity: s as "CRITICAL" })),
+});
 
-/**
- * Sign the mocked auth context in, optionally with namespace memberships. No
- * memberships is the ordinary case and the one every pre-existing test here
- * runs under: it produces the "balanced" emphasis, which is the ordering the
- * page shipped with.
- */
-function signedInAs(...roles: string[]) {
-    const memberships = roles.map((role, i) => ({ namespaceId: `n${String(i)}`, role }));
-    vi.mocked(useAuth).mockReturnValue({
-        user: (() => ({
-            id: "u1",
-            displayName: "octocat",
-            role: "member",
-            memberships,
-        })) as unknown as ReturnType<typeof useAuth>["user"],
-        refetch: vi.fn(),
-    });
-}
+const loaded = <T,>(data: T) => ({ isLoading: false, isError: false, error: undefined, data });
 
 beforeEach(() => {
-    vi.clearAllMocks();
-    signedInAs();
-    setAll(loaded([]));
+    vi.mocked(useAuth).mockReturnValue({ user: () => ({ displayName: "Pat" }) } as never);
+    vi.mocked(useMyMoves).mockReturnValue(loaded(moves) as never);
+    vi.mocked(useDiff).mockReturnValue(
+        loaded({ changes: [change("libssl3", ["CRITICAL", "HIGH"]), change("busybox", []), change("otel", [], ["MEDIUM"])] }) as never,
+    );
+    vi.mocked(useMyActivity).mockReturnValue(loaded({ data: [] }) as never);
+    vi.mocked(useMyDriftFeed).mockReturnValue(loaded({ data: [] }) as never);
+    vi.mocked(useMyClusters).mockReturnValue(
+        loaded({ data: [{ id: "c1", name: "homelab", lastSeenAt: new Date().toISOString() }] }) as never,
+    );
+    vi.mocked(useMySeenOnlyImages).mockReturnValue(loaded([{ imageDigest: "d" }]) as never);
 });
 
 describe("Dashboard", () => {
-    it("renders every section, so a new panel cannot silently go missing", () => {
+    it("renders the KPI strip from the moves totals", () => {
+        const { getByLabelText } = render(() => <Dashboard />);
+        const kpi = getByLabelText("Fleet summary").textContent;
+        expect(kpi).toContain("2 images · 3 pods");
+        expect(kpi).toContain("17 3 after upgrades");
+        expect(kpi).toContain("136 81 after");
+        expect(kpi).toContain("2 1 cut criticals");
+        expect(kpi).toContain("47 d dex");
+    });
+
+    it("lists upgrades in the order the API ranked them, with deltas and a diff link", () => {
+        const { getByLabelText } = render(() => <Dashboard />);
+        const table = getByLabelText("Upgrades");
+        const rows = table.querySelectorAll(".ws-up-row");
+        expect(rows).toHaveLength(2);
+        expect(rows[0].textContent).toContain("dex");
+        expect(rows[0].textContent).toContain("16 → 2−14");
+        expect(rows[0].querySelector("a")?.getAttribute("href")).toBe("/diff?from=s-run&to=s-target");
+        expect(rows[1].textContent).toContain("1 → 1±0");
+        expect(table.querySelector(".ws-up-total")?.textContent).toContain("17 → 3−14");
+    });
+
+    it("expands a row into the running-to-target receipt", () => {
+        const { getByLabelText, getAllByRole } = render(() => <Dashboard />);
+        const table = getByLabelText("Upgrades");
+        expect(table.querySelector(".ws-receipt")).toBeNull();
+        fireEvent.click(getAllByRole("button")[0]);
+        const receipt = table.querySelector(".ws-receipt")?.textContent ?? "";
+        expect(vi.mocked(useDiff)).toHaveBeenCalled();
+        expect(receipt).toContain("3 package changes");
+        expect(receipt).toContain("1 close a CVE");
+        expect(receipt).toContain("1 open one");
+        expect(receipt).toContain("libssl3");
+        expect(receipt).toContain("v2.46.1-distroless instead: criticals 1, highs 21");
+    });
+
+    it("renders leftover criticals and namespaces", () => {
+        const { getByLabelText } = render(() => <Dashboard />);
+        const left = getByLabelText("Criticals left after upgrades").textContent;
+        expect(left).toContain("CVE-2026-6653");
+        expect(left).toContain("won't fix");
+        expect(left).toContain("1.4-r0 upstream, no tag ships it yet");
+        const ns = getByLabelText("By namespace").querySelectorAll(".ws-ns");
+        expect(ns).toHaveLength(3); // header + 2
+        expect(ns[1].textContent).toContain("auth");
+    });
+
+    it("has no panel grid any more", () => {
+        const { container } = render(() => <Dashboard />);
+        expect(container.querySelector(".dash-grid")).toBeNull();
+    });
+
+    it("says so when nothing runs", () => {
+        vi.mocked(useMyMoves).mockReturnValue(
+            loaded({ ...moves, upgrades: [], totals: { ...moves.totals, images: 0 } }) as never,
+        );
         const { getByText } = render(() => <Dashboard />);
-        for (const heading of [
-            "My namespaces",
-            "Ingest activity",
-            "Provenance drift",
-            "Vulnerability exposure",
-            "My clusters",
-            "Watched artifacts",
-        ]) {
-            expect(getByText(heading)).toBeDefined();
-        }
+        expect(getByText("Nothing running or owned yet.")).toBeTruthy();
     });
 
-    it("greets the signed-in user", () => {
-        const { getByText } = render(() => <Dashboard />);
-        expect(getByText("Signed in as octocat")).toBeDefined();
+    it("shows the status footer", () => {
+        const { container } = render(() => <Dashboard />);
+        const footer = container.querySelector(".ws-footer")?.textContent ?? "";
+        expect(footer).toContain("Running, no SBOM1 images");
+        expect(footer).toContain("homelab");
+    });
+});
+
+describe("helpers", () => {
+    it("receiptRows keeps CVE-closing changes, most criticals first", () => {
+        const rows = receiptRows([change("a", ["HIGH", "HIGH", "HIGH"]), change("b", []), change("c", ["CRITICAL"])]);
+        expect(rows.map((r) => r.name)).toEqual(["c", "a"]);
     });
 
-    it("shows a per-panel empty message rather than an endless skeleton", () => {
-        const { getByText } = render(() => <Dashboard />);
-        expect(getByText("You do not own any namespaces yet.")).toBeDefined();
-        expect(getByText("No provenance drift on your artifacts.")).toBeDefined();
-        expect(getByText("No known vulnerabilities in what you own.")).toBeDefined();
-        expect(
-            getByText("No clusters connected. Connect one to see what your clusters actually run."),
-        ).toBeDefined();
+    it("fixLabel distinguishes an unshipped fix, won't fix and no fix", () => {
+        expect(fixLabel({ id: "x", package: "p", images: [], fixedVersion: "1.4" })).toBe("upstream, no tag ships it yet");
+        expect(fixLabel({ id: "x", package: "p", images: [], fixState: "wont-fix" })).toBe("won't fix");
+        expect(fixLabel({ id: "x", package: "p", images: [], fixState: "not-fixed" })).toBe("no fix yet");
+        expect(fixLabel({ id: "x", package: "p", images: [] })).toBe("no fix known");
     });
 
-    it("links each row to the page that owns it", () => {
-        mocks.namespaces.mockReturnValue(
-            loaded([
-                { id: "n1", name: "workspace-ns", visibility: "private", createdAt: new Date().toISOString(), updatedAt: new Date().toISOString() },
-            ]) as unknown as ReturnType<typeof useMyNamespaces>,
-        );
-        mocks.activity.mockReturnValue(
-            loaded([
-                {
-                    sbomId: "s1",
-                    artifactName: "ubuntu",
-                    namespaceId: "n1",
-                    namespaceName: "prod",
-                    createdAt: new Date().toISOString(),
-                },
-            ]) as unknown as ReturnType<typeof useMyActivity>,
-        );
-        mocks.drift.mockReturnValue(
-            loaded([
-                {
-                    sbomId: "s2",
-                    artifactName: "alpine",
-                    previousStatus: "verified",
-                    newStatus: "unsigned",
-                    reason: "reverification_failed",
-                    detectedAt: new Date().toISOString(),
-                },
-            ]) as unknown as ReturnType<typeof useMyDriftFeed>,
-        );
-        mocks.vulns.mockReturnValue(
-            loaded([
-                {
-                    id: "CVE-2099-0001",
-                    canonicalId: "CVE-2099-0001",
-                    severity: "HIGH",
-                    aliases: null,
-                    affectedSbomCount: 3,
-                    affectedPurlCount: 1,
-                },
-            ]) as unknown as ReturnType<typeof useMyVulnerabilities>,
-        );
-        mocks.clusters.mockReturnValue(
-            loaded([
-                {
-                    id: "c1",
-                    name: "prod-eu-west",
-                    namespaceId: "n1",
-                    namespaceName: "prod",
-                    lastSeenAt: new Date().toISOString(),
-                    health: { state: "healthy" },
-                    summary: { coverage: { total: 10, matched: 8, unknown: 2, unresolvable: 0, pods: 12 }, runningCriticals: 2 },
-                    createdAt: new Date().toISOString(),
-                    updatedAt: new Date().toISOString(),
-                },
-            ]) as unknown as ReturnType<typeof useMyClusters>,
-        );
-
-        const { getByText, container } = render(() => <Dashboard />);
-        expect(getByText("workspace-ns").closest("a")?.getAttribute("href")).toBe("/admin/namespaces");
-        expect(getByText("prod-eu-west").closest("a")?.getAttribute("href")).toBe("/clusters/c1");
-        expect(getByText("ubuntu").closest("a")?.getAttribute("href")).toBe("/sboms/s1");
-        expect(getByText("alpine").closest("a")?.getAttribute("href")).toBe("/sboms/s2");
-        expect(getByText("CVE-2099-0001").closest("a")?.getAttribute("href")).toBe(
-            "/vulnerabilities/CVE-2099-0001",
-        );
-        // ocidex-70eo.8: the panel opens with fleet health and running exposure.
-        expect(container.querySelector('[data-testid="cluster-fleet-summary"]')?.textContent).toContain(
-            "2 critical",
-        );
+    it("shortImage keeps the last path segment", () => {
+        expect(shortImage("ghcr.io/fluxcd/kustomize-controller")).toBe("kustomize-controller");
     });
 
-    // Every panel used to render with identical weight, so a provenance
-    // regression read exactly like a list of namespaces (ocidex-ag4q.40).
-    describe("panel severity", () => {
-        it("marks an alarm panel raised only when it has something to report", () => {
-            mocks.drift.mockReturnValue(
-                loaded([
-                    {
-                        sbomId: "s2",
-                        artifactName: "alpine",
-                        previousStatus: "verified",
-                        newStatus: "unsigned",
-                        reason: "reverification_failed",
-                        detectedAt: new Date().toISOString(),
-                    },
-                ]) as unknown as ReturnType<typeof useMyDriftFeed>,
-            );
-
-            const { container } = render(() => <Dashboard />);
-            const drift = container.querySelector('[data-section="drift"]');
-            const exposure = container.querySelector('[data-section="exposure"]');
-            expect(drift?.querySelector(".dash-panel-alert")).not.toBeNull();
-            // Exposure came back empty, so it stays quiet.
-            expect(exposure?.querySelector(".dash-panel-alert")).toBeNull();
-            // Inventory panels never carry alert weight, full or empty.
-            expect(container.querySelector('[data-section="namespaces"] .dash-panel-alert')).toBeNull();
-        });
-
-        it("holds an in-flight alarm panel in the pending state", () => {
-            setAll(loading);
-            const { container } = render(() => <Dashboard />);
-            const drift = container.querySelector('[data-section="drift"]');
-            // Not "clear": a panel that is about to raise must not sink to the
-            // bottom of the grid and jump back up when its rows arrive.
-            expect(drift?.querySelector(".dash-panel-pending")).not.toBeNull();
-            expect(drift?.querySelector(".dash-panel-alert")).toBeNull();
-        });
-
-        it("orders the alarm sections ahead of the inventory", () => {
-            const { container } = render(() => <Dashboard />);
-            const ids = [...container.querySelectorAll("[data-section]")].map((el) =>
-                el.getAttribute("data-section"),
-            );
-            expect(ids.slice(0, 2)).toEqual(["drift", "exposure"]);
-            // The tone is on the wrapper, which is what Dashboard.css uses to
-            // sink an alarm section that has come back clear.
-            expect(ids.length).toBe(6);
-            expect(
-                container.querySelector('[data-section="drift"]')?.classList.contains("dash-section-alert"),
-            ).toBe(true);
-            expect(
-                container
-                    .querySelector('[data-section="namespaces"]')
-                    ?.classList.contains("dash-section-inventory"),
-            ).toBe(true);
-        });
-    });
-
-    describe("role emphasis", () => {
-        const sectionIDs = (container: HTMLElement) =>
-            [...container.querySelectorAll("[data-section]")].map((el) => el.getAttribute("data-section"));
-
-        it("leads a mostly-security caller with what is wrong", () => {
-            signedInAs("security", "security", "developer");
-            const { container } = render(() => <Dashboard />);
-            expect(sectionIDs(container).slice(0, 3)).toEqual(["drift", "exposure", "clusters"]);
-        });
-
-        it("leads a mostly-developer caller with what they just shipped", () => {
-            signedInAs("developer", "developer", "security");
-            const { container } = render(() => <Dashboard />);
-            expect(sectionIDs(container).slice(0, 2)).toEqual(["ingest", "namespaces"]);
-        });
-
-        it("keeps the shipped ordering for an owner", () => {
-            signedInAs("owner", "security");
-            const { container } = render(() => <Dashboard />);
-            expect(sectionIDs(container)).toEqual([
-                "drift",
-                "exposure",
-                "namespaces",
-                "ingest",
-                "clusters",
-                "watch-feed",
-            ]);
-        });
-
-        // The point of the story, and the thing a reordering bug would break
-        // silently: emphasis is a permutation of the panels, never a filter.
-        // Hiding a panel a caller is allowed to see would make the page lie
-        // about what they have access to.
-        it("renders every section under every emphasis", () => {
-            const all = ["drift", "exposure", "namespaces", "ingest", "clusters", "watch-feed"];
-            for (const roles of [["security"], ["developer"], ["owner"], []]) {
-                signedInAs(...roles);
-                const { container, unmount } = render(() => <Dashboard />);
-                expect([...sectionIDs(container)].sort()).toEqual([...all].sort());
-                unmount();
-            }
-        });
-    });
-
-    // A repository that pushes on every commit filled all five visible slots
-    // with itself, so the feed carried one fact five times.
-    it("collapses the ingest feed to one row per artifact", () => {
-        const at = (mins: number) => new Date(Date.now() - mins * 60_000).toISOString();
-        mocks.activity.mockReturnValue(
-            loaded([
-                { sbomId: "s1", artifactId: "a1", artifactName: "ocidex", namespaceId: "n1", namespaceName: "prod", createdAt: at(1) },
-                { sbomId: "s2", artifactId: "a1", artifactName: "ocidex", namespaceId: "n1", namespaceName: "prod", createdAt: at(5) },
-                { sbomId: "s3", artifactId: "a1", artifactName: "ocidex", namespaceId: "n1", namespaceName: "prod", createdAt: at(9) },
-                { sbomId: "s4", artifactId: "a2", artifactName: "tektonic", namespaceId: "n1", namespaceName: "prod", createdAt: at(20) },
-            ]) as unknown as ReturnType<typeof useMyActivity>,
-        );
-
-        const { container, getByText } = render(() => <Dashboard />);
-        const rows = [
-            ...(container.querySelector('[data-section="ingest"]')?.querySelectorAll(".dash-row") ?? []),
-        ];
-        expect(rows.length).toBe(2);
-        // The newest of the collapsed run is the one kept...
-        expect(getByText("ocidex").closest("a")?.getAttribute("href")).toBe("/sboms/s1");
-        // ...and the ones it hid are counted, not silently dropped.
-        expect(getByText(/3 ingests/)).toBeDefined();
-    });
-
-    it("routes each watch-event kind to the page that explains it", () => {
-        mocks.watchFeed.mockReturnValue(
-            loaded([
-                {
-                    kind: "new_version",
-                    id: "e1",
-                    artifactId: "a1",
-                    artifactName: "curl",
-                    artifactType: "container",
-                    sbomId: "s9",
-                    version: "8.6.0",
-                    previousVersion: "8.5.0",
-                    occurredAt: new Date().toISOString(),
-                },
-                {
-                    kind: "vulnerability",
-                    id: "e2",
-                    artifactId: "a1",
-                    artifactName: "openssl",
-                    artifactType: "container",
-                    sbomId: "s9",
-                    vulnerabilityId: "CVE-2099-0002",
-                    severity: "CRITICAL",
-                    occurredAt: new Date().toISOString(),
-                },
-            ]) as unknown as ReturnType<typeof useWatchFeed>,
-        );
-
-        const { getByText } = render(() => <Dashboard />);
-        // A version event describes the step it represents, and lands on the SBOM.
-        expect(getByText("new version 8.6.0 (was 8.5.0)")).toBeDefined();
-        expect(getByText("curl").closest("a")?.getAttribute("href")).toBe("/sboms/s9");
-        // A vulnerability event lands on the CVE, not on the SBOM.
-        expect(getByText("openssl").closest("a")?.getAttribute("href")).toBe(
-            "/vulnerabilities/CVE-2099-0002",
-        );
-    });
-
-    it("shows a skeleton, not an empty message, while the first fetch is in flight", () => {
-        setAll(loading);
-        const { queryByText } = render(() => <Dashboard />);
-        expect(queryByText("You do not own any namespaces yet.")).toBeNull();
+    it("countSince counts rows inside the window", () => {
+        const now = Date.parse("2026-11-23T12:00:00Z");
+        const rows = ["2026-11-23T01:00:00Z", "2026-11-20T00:00:00Z", "2026-11-01T00:00:00Z"];
+        expect(countSince(rows, (r) => r, 1, now)).toBe(1);
+        expect(countSince(rows, (r) => r, 7, now)).toBe(2);
     });
 });

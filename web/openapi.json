@@ -781,7 +781,7 @@
           },
           "vulns": {
             "$ref": "#/components/schemas/ChangelogVulnTotals",
-            "description": "CVEs closed and opened by this release, by severity (changelog only)"
+            "description": "CVEs closed and opened by this release, by severity"
           }
         },
         "required": [
@@ -1363,7 +1363,7 @@
         "additionalProperties": false,
         "properties": {
           "closes": {
-            "description": "CVEs on the previous version that the new version does not have (changelog only)",
+            "description": "CVEs on the previous version that the new version does not have ",
             "items": {
               "$ref": "#/components/schemas/ChangeVuln"
             },
@@ -1385,7 +1385,7 @@
             "type": "string"
           },
           "opens": {
-            "description": "CVEs on the new version that the previous version did not have (changelog only)",
+            "description": "CVEs on the new version that the previous version did not have",
             "items": {
               "$ref": "#/components/schemas/ChangeVuln"
             },

@@ -1,124 +1,445 @@
-/* Workspace dashboard (ocidex-998g.5).
- *
- * The grid is auto-fill rather than a fixed column count so a new section —
- * clusters is the one already on the roadmap — costs one entry in SECTIONS and
- * no layout change. A section that needs the full width opts in with
- * `dash-section-wide`; everything else finds its own column. */
+/* Workspace (ocidex-alsk): an operational page read off /users/me/moves.
+ * Numbers sit in tables at body size; nothing here is display type. Rows are
+ * CSS grids rather than <table> so a row can collapse to two cells on a phone
+ * and expand into a receipt without a second layout. */
 
-.dash-grid {
+.ws {
+    display: flex;
+    flex-direction: column;
+    gap: 1.25rem;
+}
+
+.ws-label {
+    font-size: var(--text-xs);
+    letter-spacing: 0.06em;
+    text-transform: uppercase;
+    color: var(--color-text-muted);
+}
+
+.ws-muted {
+    color: var(--color-text-muted);
+}
+
+.ws-dim {
+    color: var(--color-text-dim);
+}
+
+.ws-small {
+    font-size: var(--text-sm);
+}
+
+.ws-normal {
+    font-weight: 400;
+}
+
+.ws-strong {
+    color: var(--color-text);
+}
+
+.ws-right {
+    text-align: right;
+}
+
+.ws-mono {
+    font-family: var(--font-mono);
+    font-size: var(--text-sm);
+}
+
+.ws-num {
+    text-align: right;
+    font-family: var(--font-mono);
+    font-size: var(--text-sm);
+    font-variant-numeric: tabular-nums;
+    white-space: nowrap;
+}
+
+.ws-ellipsis {
+    min-width: 0;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+}
+
+.ws-empty {
+    padding: 0.75rem 1rem;
+    color: var(--color-text-dim);
+}
+
+.ws-critical {
+    color: var(--color-severity-critical);
+}
+
+.ws-high {
+    color: var(--color-severity-high);
+}
+
+.ws-delta {
+    display: inline-flex;
+    gap: 0.6rem;
+}
+
+.ws-delta-critical {
+    color: var(--color-severity-critical);
+}
+
+.ws-delta-high {
+    color: var(--color-severity-high);
+}
+
+/* --- KPI strip --------------------------------------------------------- */
+.ws-kpi {
     display: grid;
-    grid-template-columns: repeat(auto-fill, minmax(22rem, 1fr));
-    gap: 1rem;
-    align-items: start;
+    grid-template-columns: repeat(5, minmax(0, 1fr));
+    background: var(--color-surface);
+    border: 1px solid var(--color-border);
+    border-radius: var(--radius-lg);
 }
 
-.dash-section-wide {
-    grid-column: 1 / -1;
-}
-
-/* Alarm panels (drift, exposure) lead the grid — they are first in SECTIONS —
- * but only while they have something to report. One that comes back clear
- * sinks below the inventory rather than leading the page with its own "no
- * provenance drift" heading, which is how the alarm became indistinguishable
- * from the inventory in the first place (ocidex-ag4q.40).
- *
- * `pending` is excluded so a panel whose query is still in flight holds its
- * place instead of sinking and jumping back up when the rows arrive. */
-.dash-grid > .dash-section-alert:not(:has(.dash-panel-alert)):not(:has(.dash-panel-pending)) {
-    order: 1;
-}
-
-/* Alert weight: the same danger colour the .alert styles use, as a spine down
- * the left edge rather than a filled block — the panel still has to be
- * readable as a list. */
-.dash-panel-alert {
-    border-color: color-mix(in srgb, var(--color-danger) 35%, transparent);
-    box-shadow: inset 3px 0 0 var(--color-danger);
-}
-
-.dash-panel-alert .card-header h3 {
-    color: var(--color-danger);
-}
-
-.dash-panel-alert .card-header .badge {
-    background: var(--color-danger-bg);
-    color: var(--color-danger);
-}
-
-/* Panel bodies are capped and scroll internally: these are previews of feeds
- * that have their own full pages, and a long one must not push the panels
- * below it off the screen. */
-.dash-list {
-    display: flex;
-    flex-direction: column;
-    gap: 0.5rem;
-    max-height: 20rem;
-    overflow-y: auto;
-}
-
-.dash-row {
-    display: flex;
-    align-items: baseline;
-    justify-content: space-between;
-    gap: 0.75rem;
-    padding: 0.4rem 0;
-    border-bottom: 1px solid var(--color-border);
-    font-size: 0.8125rem;
-    color: inherit;
-    text-decoration: none;
-}
-
-.dash-row:last-child {
-    border-bottom: none;
-}
-
-.dash-row:hover .dash-row-title {
-    color: var(--color-secondary);
-}
-
-.dash-row-main {
-    display: flex;
-    flex-direction: column;
-    gap: 0.125rem;
+.ws-kpi > div {
+    padding: 0.75rem 1rem;
+    border-left: 1px solid var(--color-border);
     min-width: 0;
 }
 
-.dash-row-title {
-    font-weight: 500;
-    overflow: hidden;
-    text-overflow: ellipsis;
-    white-space: nowrap;
+.ws-kpi > div:first-child {
+    border-left: none;
 }
 
-.dash-row-sub {
-    font-size: 0.75rem;
-    color: var(--color-text-muted);
-    overflow: hidden;
-    text-overflow: ellipsis;
-    white-space: nowrap;
-}
-
-.dash-row-meta {
-    flex-shrink: 0;
-    font-size: 0.75rem;
+.ws-kv {
     font-family: var(--font-mono);
-    color: var(--color-text-dim);
+    font-size: 1.25rem;
+    font-weight: 500;
+    font-variant-numeric: tabular-nums;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
 }
 
-.dash-empty {
-    font-size: 0.8125rem;
-    color: var(--color-text-dim);
-    padding: 0.5rem 0;
-}
-
-.dash-link {
-    font-size: 0.75rem;
+.ws-kv-sub {
+    font-size: var(--text-sm);
+    font-weight: 400;
     color: var(--color-text-muted);
+}
+
+/* --- cards and rows ---------------------------------------------------- */
+.ws-card {
+    background: var(--color-surface);
+    border: 1px solid var(--color-border);
+    border-radius: var(--radius-lg);
+    min-width: 0;
+}
+
+.ws-card-head {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 0.5rem 1.25rem;
+    justify-content: space-between;
+    align-items: baseline;
+    padding: 0.75rem 1rem 0.6rem;
+}
+
+.ws-card-head h2 {
+    margin: 0;
+    font-size: var(--text-base);
+    font-weight: 600;
+}
+
+.ws-up {
+    display: grid;
+    grid-template-columns:
+        minmax(0, 2.3fr) minmax(0, 1.2fr) 2.5rem minmax(0, 1fr) minmax(0, 1fr)
+        8.5rem 8rem 8.5rem 3.5rem;
+    gap: 1rem;
+    align-items: center;
+    padding: 0.55rem 1rem;
+    border-top: 1px solid var(--color-border);
+}
+
+.ws-up-head {
+    padding-top: 0.45rem;
+    padding-bottom: 0.45rem;
+}
+
+.ws-up-row:hover,
+.ws-up-open {
+    background: var(--color-surface-hover);
+}
+
+.ws-up-total {
+    border-top-color: var(--color-border-hover);
+    font-weight: 600;
+}
+
+.ws-expand {
+    display: flex;
+    align-items: center;
+    gap: 0.4rem;
+    min-width: 0;
+    padding: 0;
+    border: none;
+    background: none;
+    color: inherit;
+    font: inherit;
+    text-align: left;
+    cursor: pointer;
+}
+
+.ws-caret {
+    flex: none;
+    width: 0.8rem;
+    color: var(--color-text-muted);
+}
+
+.ws-image {
+    min-width: 0;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+    font-family: var(--font-mono);
+    font-size: var(--text-sm);
+}
+
+.ws-image-prefix {
+    color: var(--color-text-dim);
+}
+
+.ws-image-name {
+    font-weight: 600;
+}
+
+.ws-cell-ns {
+    min-width: 0;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+}
+
+.ws-wait {
+    display: flex;
+    align-items: center;
+    gap: 0.5rem;
+}
+
+.ws-track {
+    position: relative;
+    flex: 1;
+    height: 6px;
+    background: var(--color-surface-hover);
+    border-radius: 3px;
+}
+
+/* The width is set per row at runtime (element.style), so the CSP allows it. */
+.ws-age {
+    position: absolute;
+    inset: 0 auto 0 0;
+    border-radius: 3px;
+    background: var(--color-text-muted);
+}
+
+.ws-wait-days {
+    width: 2.6rem;
+}
+
+.ws-button {
+    padding: 0.2rem 0.6rem;
+    border: 1px solid var(--color-border-hover);
+    border-radius: var(--radius-md);
+    font-size: var(--text-sm);
+    text-align: center;
+    color: var(--color-text);
     text-decoration: none;
 }
 
-.dash-link:hover {
+.ws-button:hover {
+    border-color: var(--color-text-muted);
+}
+
+/* --- receipt ------------------------------------------------------------ */
+.ws-receipt {
+    padding: 0.3rem 1rem 0.8rem 2.4rem;
+    border-top: 1px solid var(--color-border);
+    background: color-mix(in srgb, var(--color-surface-hover) 60%, var(--color-surface));
+    font-size: var(--text-sm);
+}
+
+.ws-receipt-summary,
+.ws-receipt-phone {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 0.35rem 1.5rem;
+    padding: 0.5rem 0;
+}
+
+/* The columns a phone's collapsed row hides; wide screens show them inline. */
+.ws-receipt-phone {
+    display: none;
+}
+
+.ws-rc {
+    display: grid;
+    grid-template-columns: minmax(0, 1.6fr) minmax(0, 1.6fr) 10rem minmax(0, 2fr);
+    gap: 1rem;
+    align-items: center;
+    padding: 0.4rem 0;
+    border-top: 1px solid var(--color-border);
+}
+
+.ws-rc.ws-label {
+    border-top: none;
+    padding: 0.1rem 0;
+}
+
+.ws-closes {
+    display: inline-flex;
+    align-items: center;
+    gap: 0.3rem;
+    font-variant-numeric: tabular-nums;
+}
+
+/* Hatched swatches: the severity ramp as an outline plus stripes, so the three
+ * read apart by pattern weight as well as hue. */
+.ws-sw {
+    display: inline-block;
+    width: 9px;
+    height: 9px;
+    margin-left: 0.4rem;
+    border-radius: 2px;
+}
+
+.ws-sw:first-child {
+    margin-left: 0;
+}
+
+.ws-sw-critical {
+    background: repeating-linear-gradient(135deg, var(--color-severity-critical) 0 2px, transparent 2px 4px);
+    box-shadow: inset 0 0 0 1px var(--color-severity-critical);
+}
+
+.ws-sw-high {
+    background: repeating-linear-gradient(135deg, var(--color-severity-high) 0 2px, transparent 2px 4px);
+    box-shadow: inset 0 0 0 1px var(--color-severity-high);
+}
+
+.ws-sw-medium {
+    background: repeating-linear-gradient(135deg, var(--color-severity-medium) 0 2px, transparent 2px 4px);
+    box-shadow: inset 0 0 0 1px var(--color-severity-medium);
+}
+
+.ws-receipt-foot {
+    padding-top: 0.5rem;
+}
+
+/* --- leftovers and namespaces -------------------------------------------- */
+.ws-split {
+    display: grid;
+    grid-template-columns: minmax(0, 1.5fr) minmax(0, 1fr);
+    gap: 1.25rem;
+    align-items: start;
+}
+
+.ws-lc,
+.ws-ns {
+    display: grid;
+    gap: 0.75rem;
+    align-items: center;
+    padding: 0.5rem 1rem;
+    border-top: 1px solid var(--color-border);
+    font-size: var(--text-sm);
+}
+
+.ws-lc {
+    grid-template-columns: minmax(0, 1.3fr) 2.75rem minmax(0, 1.4fr) minmax(0, 1.5fr) minmax(0, 1.6fr);
+}
+
+.ws-ns {
+    grid-template-columns: minmax(0, 1.4fr) 2.5rem 2.5rem 9rem 6rem;
+}
+
+/* --- footer -------------------------------------------------------------- */
+.ws-footer {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(12rem, 1fr));
+    gap: 0.5rem 1.5rem;
+    padding-top: 0.9rem;
+    border-top: 1px solid var(--color-border);
+    font-size: var(--text-sm);
+}
+
+.ws-footer a {
+    color: var(--color-text);
+    text-decoration: none;
+}
+
+.ws-footer a:hover .ws-label {
     color: var(--color-secondary);
+}
+
+/* --- narrow ------------------------------------------------------------------
+ * A phone keeps the image and how long it has waited; the rest of the row is
+ * one tap away in the receipt. */
+@media (max-width: 900px) {
+    .ws-kpi {
+        grid-template-columns: repeat(2, minmax(0, 1fr));
+    }
+
+    .ws-kpi > div {
+        border-left: none;
+        border-top: 1px solid var(--color-border);
+    }
+
+    .ws-kpi > div:nth-child(-n + 2) {
+        border-top: none;
+    }
+
+    .ws-up {
+        grid-template-columns: minmax(0, 1fr) 7.5rem;
+    }
+
+    .ws-up > :not(:first-child):not(:nth-child(6)) {
+        display: none;
+    }
+
+    .ws-up-total {
+        display: none;
+    }
+
+    .ws-receipt {
+        padding-left: 1rem;
+    }
+
+    .ws-receipt-phone {
+        display: flex;
+    }
+
+    .ws-rc {
+        grid-template-columns: minmax(0, 1fr) auto;
+    }
+
+    .ws-rc > :nth-child(2),
+    .ws-rc > :nth-child(4) {
+        display: none;
+    }
+
+    .ws-split {
+        grid-template-columns: minmax(0, 1fr);
+    }
+
+    .ws-lc {
+        grid-template-columns: minmax(0, 1fr) 2.75rem minmax(0, 1fr);
+    }
+
+    .ws-lc > :nth-child(4),
+    .ws-lc > :nth-child(5) {
+        display: none;
+    }
+
+    .ws-ns {
+        grid-template-columns: minmax(0, 1fr) 2.5rem 5.5rem 5.5rem;
+    }
+
+    .ws-ns > :nth-child(3) {
+        display: none;
+    }
 }
 
 /* Signed-in band on the public landing page. It sits above the discovery

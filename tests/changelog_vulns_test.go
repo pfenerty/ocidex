@@ -45,7 +45,7 @@ type changelogVulnPage struct {
 
 // seedChangelogSBOM inserts one version of an artifact carrying the given
 // packages, each a (name, version, purl) triple.
-func seedChangelogSBOM(t *testing.T, pool *pgxpool.Pool, nsID string, artifactID pgtype.UUID, version string, created time.Time, pkgs ...[3]string) {
+func seedChangelogSBOM(t *testing.T, pool *pgxpool.Pool, nsID string, artifactID pgtype.UUID, version string, created time.Time, pkgs ...[3]string) string {
 	t.Helper()
 	ctx := t.Context()
 	var sbomID string
@@ -63,6 +63,7 @@ func seedChangelogSBOM(t *testing.T, pool *pgxpool.Pool, nsID string, artifactID
 			t.Fatalf("seed component %s: %v", p[0], err)
 		}
 	}
+	return sbomID
 }
 
 // TestArtifactChangelogVulns covers what each package change does to its own
@@ -84,12 +85,12 @@ func TestArtifactChangelogVulns(t *testing.T) {
 	art := seedBlastArtifact(t, pool, "docker.io/changelog-vulns")
 
 	now := time.Now()
-	seedChangelogSBOM(t, pool, nsID, art, "1.0.0", now.Add(-2*time.Hour),
+	fromID := seedChangelogSBOM(t, pool, nsID, art, "1.0.0", now.Add(-2*time.Hour),
 		[3]string{"liba", "1.0.0", "pkg:generic/liba@1.0.0"},
 		[3]string{"libb", "1.0.0", "pkg:generic/libb@1.0.0"},
 		[3]string{"libc", "1.0.0", "pkg:generic/libc@1.0.0"},
 	)
-	seedChangelogSBOM(t, pool, nsID, art, "1.1.0", now.Add(-time.Hour),
+	toID := seedChangelogSBOM(t, pool, nsID, art, "1.1.0", now.Add(-time.Hour),
 		[3]string{"liba", "2.0.0", "pkg:generic/liba@2.0.0"},
 		[3]string{"libb", "1.0.0", "pkg:generic/libb@1.0.0"},
 		[3]string{"libe", "1.0.0", "pkg:generic/libe@1.0.0"},
@@ -131,4 +132,21 @@ func TestArtifactChangelogVulns(t *testing.T) {
 	// CVE-2031-0002 is still on libb, so the image did not close it.
 	is.Equal(e.Vulns.Closed, map[string]int{"critical": 1, "high": 0, "medium": 0, "low": 1, "unknown": 0})
 	is.Equal(e.Vulns.Opened, map[string]int{"critical": 0, "high": 0, "medium": 1, "low": 1, "unknown": 0})
+
+	// The compare endpoint reports the same, so a diff across several releases
+	// (the Workspace's running -> target receipt) carries it too.
+	diffResp, err := doWithAuth(t, http.MethodGet, srv.URL+"/api/v1/sboms/diff?from="+fromID+"&to="+toID, "", "")
+	is.NoErr(err)
+	defer diffResp.Body.Close()
+	is.Equal(diffResp.StatusCode, http.StatusOK)
+	var diff struct {
+		Vulns *struct {
+			Closed map[string]int `json:"closed"`
+			Opened map[string]int `json:"opened"`
+		} `json:"vulns"`
+	}
+	is.NoErr(json.NewDecoder(diffResp.Body).Decode(&diff))
+	is.True(diff.Vulns != nil)
+	is.Equal(diff.Vulns.Closed, e.Vulns.Closed)
+	is.Equal(diff.Vulns.Opened, e.Vulns.Opened)
 }

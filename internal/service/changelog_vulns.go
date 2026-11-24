@@ -61,17 +61,13 @@ func (v sbomVulns) all() map[string]string {
 	return out
 }
 
-// vulnsForSBOMs loads the findings for every SBOM in the window in one query.
-func vulnsForSBOMs(ctx context.Context, q *repository.Queries, candidates []changelogCandidate) (map[pgtype.UUID]sbomVulns, error) {
-	ids := make([]pgtype.UUID, 0, len(candidates))
-	for _, c := range candidates {
-		ids = append(ids, c.sbom.ID)
-	}
+// vulnsForSBOMs loads the findings for every given SBOM in one query.
+func vulnsForSBOMs(ctx context.Context, q *repository.Queries, ids []pgtype.UUID) (map[pgtype.UUID]sbomVulns, error) {
 	rows, err := q.ListSBOMsComponentCanonicalVulns(ctx, ids)
 	if err != nil {
 		return nil, fmt.Errorf("listing changelog vulnerabilities: %w", err)
 	}
-	out := make(map[pgtype.UUID]sbomVulns, len(candidates))
+	out := make(map[pgtype.UUID]sbomVulns, len(ids))
 	for _, r := range rows {
 		bySBOM := out[r.SbomID]
 		if bySBOM == nil {

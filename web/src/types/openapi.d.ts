@@ -2399,7 +2399,7 @@ export interface components {
             from: components["schemas"]["SBOMRef"];
             summary: components["schemas"]["ChangeSummary"];
             to: components["schemas"]["SBOMRef"];
-            /** @description CVEs closed and opened by this release, by severity (changelog only) */
+            /** @description CVEs closed and opened by this release, by severity */
             vulns?: components["schemas"]["ChangelogVulnTotals"];
         };
         ChangelogVulnTotals: {
@@ -2628,13 +2628,13 @@ export interface components {
             vulnCount?: number;
         };
         ComponentDiff: {
-            /** @description CVEs on the previous version that the new version does not have (changelog only) */
+            /** @description CVEs on the previous version that the new version does not have */
             closes?: components["schemas"]["ChangeVuln"][] | null;
             direction: string;
             group?: string;
             name: string;
             nodeRef?: string;
-            /** @description CVEs on the new version that the previous version did not have (changelog only) */
+            /** @description CVEs on the new version that the previous version did not have */
             opens?: components["schemas"]["ChangeVuln"][] | null;
             previousVersion?: string;
             purl?: string;

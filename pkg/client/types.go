@@ -2297,14 +2297,14 @@ type ComponentDetail struct {
 
 // ComponentDiff defines model for ComponentDiff.
 type ComponentDiff struct {
-	// Closes CVEs on the previous version that the new version does not have (changelog only)
+	// Closes CVEs on the previous version that the new version does not have
 	Closes    *[]ChangeVuln `json:"closes,omitempty"`
 	Direction string        `json:"direction"`
 	Group     *string       `json:"group,omitempty"`
 	Name      string        `json:"name"`
 	NodeRef   *string       `json:"nodeRef,omitempty"`
 
-	// Opens CVEs on the new version that the previous version did not have (changelog only)
+	// Opens CVEs on the new version that the previous version did not have
 	Opens           *[]ChangeVuln `json:"opens,omitempty"`
 	PreviousVersion *string       `json:"previousVersion,omitempty"`
 	Purl            *string       `json:"purl,omitempty"`
