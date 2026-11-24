@@ -236,6 +236,10 @@
             "format": "int64",
             "type": "integer"
           },
+          "vulnMatched": {
+            "description": "The counted SBOM was matched against the vulnerability store: an absent vulns then means none known. List responses only.",
+            "type": "boolean"
+          },
           "vulns": {
             "$ref": "#/components/schemas/VulnSummary"
           },
@@ -389,6 +393,10 @@
           },
           "type": {
             "type": "string"
+          },
+          "vulnMatched": {
+            "description": "The counted SBOM was matched against the vulnerability store: an absent vulns then means none known. List responses only.",
+            "type": "boolean"
           },
           "vulns": {
             "$ref": "#/components/schemas/VulnSummary"

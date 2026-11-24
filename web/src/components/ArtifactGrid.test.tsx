@@ -6,7 +6,7 @@ import { ArtifactGrid } from "./ArtifactGrid";
 import type { ArtifactSummary } from "~/api/client";
 
 const artifact = (n: number, name: string): ArtifactSummary =>
-    ({ id: `a${n}`, type: "container", name, sbomCount: 1, sufficientSbomCount: 1, signingStatus: "unsigned", entryNumber: n });
+    ({ id: `a${n}`, type: "container", name, sbomCount: 1, sufficientSbomCount: 1, signingStatus: "unsigned", entryNumber: n, vulnMatched: false });
 
 function renderGrid(props: Parameters<typeof ArtifactGrid>[0]) {
     return render(() => (
@@ -50,9 +50,16 @@ describe("ArtifactGrid", () => {
             vulns: { critical: 0, high: 1, medium: 0, low: 0, unknown: 0, total: 1 },
             criticalHistory: [{ versionKey: "1.0.0", critical: 0 }],
         };
-        const { container } = renderGrid({ artifacts: [withCrit, clean, artifact(3, "ghcr.io/x/c")] });
+        // Scanned with no findings: no summary, but matched, so a zero.
+        const none: ArtifactSummary = { ...artifact(4, "ghcr.io/x/d"), vulnMatched: true };
+        const { container } = renderGrid({ artifacts: [withCrit, clean, artifact(3, "ghcr.io/x/c"), none] });
         const slots = [...container.querySelectorAll(".artifact-slot")];
-        expect(slots.map((s) => s.querySelector(".artifact-slot-crit")?.textContent)).toEqual(["4 critical", "0 critical", undefined]);
+        expect(slots.map((s) => s.querySelector(".artifact-slot-crit")?.textContent)).toEqual([
+            "4 critical",
+            "0 critical",
+            undefined,
+            "0 critical",
+        ]);
         expect(slots[0].querySelectorAll(".sprite-bar-critical")).toHaveLength(1);
         expect(slots[1].querySelectorAll(".sprite-bar-critical")).toHaveLength(0);
     });

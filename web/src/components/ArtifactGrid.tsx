@@ -41,16 +41,15 @@ export function ArtifactGrid(props: { artifacts: ArtifactSummary[]; seenOnly?: S
                             <span class="artifact-slot-name">{short(a)}</span>
                             {/* The latest version's critical count: the sprite is
                                 scaled to the artifact's own history, so on its own
-                                it cannot say how many. Absent when not scanned. */}
-                            <Show when={a.vulns}>
-                                {(v) => (
-                                    <span
-                                        class="artifact-slot-crit"
-                                        classList={{ "artifact-slot-crit-some": v().critical > 0 }}
-                                    >
-                                        {v().critical.toLocaleString()} critical
-                                    </span>
-                                )}
+                                it cannot say how many. Absent when not scanned;
+                                zero when scanned with no findings. */}
+                            <Show when={a.vulns !== undefined || a.vulnMatched}>
+                                <span
+                                    class="artifact-slot-crit"
+                                    classList={{ "artifact-slot-crit-some": (a.vulns?.critical ?? 0) > 0 }}
+                                >
+                                    {(a.vulns?.critical ?? 0).toLocaleString()} critical
+                                </span>
                             </Show>
                         </A>
                     </li>

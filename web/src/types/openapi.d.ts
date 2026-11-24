@@ -2231,6 +2231,8 @@ export interface components {
             type: string;
             /** Format: int64 */
             versionCount: number;
+            /** @description The counted SBOM was matched against the vulnerability store: an absent vulns then means none known. List responses only. */
+            vulnMatched?: boolean;
             vulns?: components["schemas"]["VulnSummary"];
             watched: boolean;
         };
@@ -2282,6 +2284,8 @@ export interface components {
             /** Format: int64 */
             sufficientSbomCount: number;
             type: string;
+            /** @description The counted SBOM was matched against the vulnerability store: an absent vulns then means none known. List responses only. */
+            vulnMatched?: boolean;
             vulns?: components["schemas"]["VulnSummary"];
         };
         ArtifactTypeCountEntry: {

@@ -141,15 +141,17 @@ const columns: Column<ArtifactSummary>[] = [
             const counted = countedLabel(a.countedSbom);
             return (
                 <span title={counted !== undefined ? `Counted over ${counted}` : undefined}>
-                    {/* `vulns` is absent when the artifact's newest SBOM has no
-                        rollup row, which means "no findings" or "never scanned"
-                        without distinguishing them. Rendering that as a zero —
-                        or as VulnCountBadges' own em dash, which reads the same
-                        — would claim a clean bill of health nobody issued
-                        (ADR-044). */}
+                    {/* `vulns` is absent when the counted SBOM has no findings
+                        recorded; `vulnMatched` says whether that is "scanned,
+                        none known" or "never scanned". Only the first may read
+                        as clean (ADR-044). */}
                     <Show
                         when={a.vulns}
-                        fallback={<StatusChip status={VULN_DATA_STATUS.unscanned} />}
+                        fallback={
+                            <StatusChip
+                                status={a.vulnMatched ? VULN_DATA_STATUS.clean : VULN_DATA_STATUS.unscanned}
+                            />
+                        }
                     >
                         {(v) => (
                             <>
