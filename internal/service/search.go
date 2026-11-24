@@ -132,6 +132,14 @@ type TopVulnEntry struct {
 	PublishedAt       *time.Time `json:"publishedAt,omitempty"`
 	AffectedSbomCount int64      `json:"affectedSbomCount"`
 	AffectedPurlCount int64      `json:"affectedPurlCount"`
+	// LatestAffectedCount counts artifacts whose newest tag still carries it,
+	// where AffectedSbomCount counts every SBOM ever ingested.
+	LatestAffectedCount int64 `json:"latestAffectedCount" doc:"Artifacts whose latest tag still carries this vulnerability"`
+	// FixAvailableSince is when a fix first became available for it on one of
+	// those latest tags.
+	FixAvailableSince *time.Time `json:"fixAvailableSince,omitempty" doc:"Earliest a fix was reported for it on a latest tag that still carries it"`
+	// RunningPods is set for a signed-in caller only.
+	RunningPods *int64 `json:"runningPods,omitempty" doc:"Pods in clusters you can see running an image that carries it; signed-in callers only"`
 }
 
 // TopVulnFilter holds parameters for listing top vulnerabilities.

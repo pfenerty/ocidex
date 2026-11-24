@@ -7887,12 +7887,27 @@
             "format": "float",
             "type": "number"
           },
+          "fixAvailableSince": {
+            "description": "Earliest a fix was reported for it on a latest tag that still carries it",
+            "format": "date-time",
+            "type": "string"
+          },
           "id": {
             "type": "string"
+          },
+          "latestAffectedCount": {
+            "description": "Artifacts whose latest tag still carries this vulnerability",
+            "format": "int64",
+            "type": "integer"
           },
           "publishedAt": {
             "format": "date-time",
             "type": "string"
+          },
+          "runningPods": {
+            "description": "Pods in clusters you can see running an image that carries it; signed-in callers only",
+            "format": "int64",
+            "type": "integer"
           },
           "severity": {
             "type": "string"
@@ -7907,7 +7922,8 @@
           "severity",
           "aliases",
           "affectedSbomCount",
-          "affectedPurlCount"
+          "affectedPurlCount",
+          "latestAffectedCount"
         ],
         "type": "object"
       },
@@ -15676,17 +15692,19 @@
             }
           },
           {
-            "description": "Sort field",
+            "description": "Sort field. fixAge ranks by how long a fix has been available among vulnerabilities a latest tag still carries",
             "explode": false,
             "in": "query",
             "name": "sort",
             "schema": {
-              "description": "Sort field",
+              "description": "Sort field. fixAge ranks by how long a fix has been available among vulnerabilities a latest tag still carries",
               "enum": [
                 "severity",
                 "cvssScore",
                 "affectedSbomCount",
                 "affectedPurlCount",
+                "latestAffectedCount",
+                "fixAge",
                 "publishedAt",
                 "canonicalId"
               ],
@@ -16040,17 +16058,19 @@
             }
           },
           {
-            "description": "Sort field",
+            "description": "Sort field. fixAge ranks by how long a fix has been available among vulnerabilities a latest tag still carries",
             "explode": false,
             "in": "query",
             "name": "sort",
             "schema": {
-              "description": "Sort field",
+              "description": "Sort field. fixAge ranks by how long a fix has been available among vulnerabilities a latest tag still carries",
               "enum": [
                 "severity",
                 "cvssScore",
                 "affectedSbomCount",
                 "affectedPurlCount",
+                "latestAffectedCount",
+                "fixAge",
                 "publishedAt",
                 "canonicalId"
               ],

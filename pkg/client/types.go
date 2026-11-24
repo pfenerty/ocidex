@@ -1721,12 +1721,14 @@ func (e ListMyVulnerabilitiesParamsSeverity) Valid() bool {
 
 // Defines values for ListMyVulnerabilitiesParamsSort.
 const (
-	ListMyVulnerabilitiesParamsSortAffectedPurlCount ListMyVulnerabilitiesParamsSort = "affectedPurlCount"
-	ListMyVulnerabilitiesParamsSortAffectedSbomCount ListMyVulnerabilitiesParamsSort = "affectedSbomCount"
-	ListMyVulnerabilitiesParamsSortCanonicalId       ListMyVulnerabilitiesParamsSort = "canonicalId"
-	ListMyVulnerabilitiesParamsSortCvssScore         ListMyVulnerabilitiesParamsSort = "cvssScore"
-	ListMyVulnerabilitiesParamsSortPublishedAt       ListMyVulnerabilitiesParamsSort = "publishedAt"
-	ListMyVulnerabilitiesParamsSortSeverity          ListMyVulnerabilitiesParamsSort = "severity"
+	ListMyVulnerabilitiesParamsSortAffectedPurlCount   ListMyVulnerabilitiesParamsSort = "affectedPurlCount"
+	ListMyVulnerabilitiesParamsSortAffectedSbomCount   ListMyVulnerabilitiesParamsSort = "affectedSbomCount"
+	ListMyVulnerabilitiesParamsSortCanonicalId         ListMyVulnerabilitiesParamsSort = "canonicalId"
+	ListMyVulnerabilitiesParamsSortCvssScore           ListMyVulnerabilitiesParamsSort = "cvssScore"
+	ListMyVulnerabilitiesParamsSortFixAge              ListMyVulnerabilitiesParamsSort = "fixAge"
+	ListMyVulnerabilitiesParamsSortLatestAffectedCount ListMyVulnerabilitiesParamsSort = "latestAffectedCount"
+	ListMyVulnerabilitiesParamsSortPublishedAt         ListMyVulnerabilitiesParamsSort = "publishedAt"
+	ListMyVulnerabilitiesParamsSortSeverity            ListMyVulnerabilitiesParamsSort = "severity"
 )
 
 // Valid indicates whether the value is a known member of the ListMyVulnerabilitiesParamsSort enum.
@@ -1739,6 +1741,10 @@ func (e ListMyVulnerabilitiesParamsSort) Valid() bool {
 	case ListMyVulnerabilitiesParamsSortCanonicalId:
 		return true
 	case ListMyVulnerabilitiesParamsSortCvssScore:
+		return true
+	case ListMyVulnerabilitiesParamsSortFixAge:
+		return true
+	case ListMyVulnerabilitiesParamsSortLatestAffectedCount:
 		return true
 	case ListMyVulnerabilitiesParamsSortPublishedAt:
 		return true
@@ -1793,12 +1799,14 @@ func (e ListTopVulnerabilitiesParamsSeverity) Valid() bool {
 
 // Defines values for ListTopVulnerabilitiesParamsSort.
 const (
-	ListTopVulnerabilitiesParamsSortAffectedPurlCount ListTopVulnerabilitiesParamsSort = "affectedPurlCount"
-	ListTopVulnerabilitiesParamsSortAffectedSbomCount ListTopVulnerabilitiesParamsSort = "affectedSbomCount"
-	ListTopVulnerabilitiesParamsSortCanonicalId       ListTopVulnerabilitiesParamsSort = "canonicalId"
-	ListTopVulnerabilitiesParamsSortCvssScore         ListTopVulnerabilitiesParamsSort = "cvssScore"
-	ListTopVulnerabilitiesParamsSortPublishedAt       ListTopVulnerabilitiesParamsSort = "publishedAt"
-	ListTopVulnerabilitiesParamsSortSeverity          ListTopVulnerabilitiesParamsSort = "severity"
+	ListTopVulnerabilitiesParamsSortAffectedPurlCount   ListTopVulnerabilitiesParamsSort = "affectedPurlCount"
+	ListTopVulnerabilitiesParamsSortAffectedSbomCount   ListTopVulnerabilitiesParamsSort = "affectedSbomCount"
+	ListTopVulnerabilitiesParamsSortCanonicalId         ListTopVulnerabilitiesParamsSort = "canonicalId"
+	ListTopVulnerabilitiesParamsSortCvssScore           ListTopVulnerabilitiesParamsSort = "cvssScore"
+	ListTopVulnerabilitiesParamsSortFixAge              ListTopVulnerabilitiesParamsSort = "fixAge"
+	ListTopVulnerabilitiesParamsSortLatestAffectedCount ListTopVulnerabilitiesParamsSort = "latestAffectedCount"
+	ListTopVulnerabilitiesParamsSortPublishedAt         ListTopVulnerabilitiesParamsSort = "publishedAt"
+	ListTopVulnerabilitiesParamsSortSeverity            ListTopVulnerabilitiesParamsSort = "severity"
 )
 
 // Valid indicates whether the value is a known member of the ListTopVulnerabilitiesParamsSort enum.
@@ -1811,6 +1819,10 @@ func (e ListTopVulnerabilitiesParamsSort) Valid() bool {
 	case ListTopVulnerabilitiesParamsSortCanonicalId:
 		return true
 	case ListTopVulnerabilitiesParamsSortCvssScore:
+		return true
+	case ListTopVulnerabilitiesParamsSortFixAge:
+		return true
+	case ListTopVulnerabilitiesParamsSortLatestAffectedCount:
 		return true
 	case ListTopVulnerabilitiesParamsSortPublishedAt:
 		return true
@@ -4573,15 +4585,24 @@ type TestRegistryConnectionOutputBody struct {
 
 // TopVulnEntry defines model for TopVulnEntry.
 type TopVulnEntry struct {
-	AffectedPurlCount int64      `json:"affectedPurlCount"`
-	AffectedSbomCount int64      `json:"affectedSbomCount"`
-	Aliases           *[]string  `json:"aliases"`
-	CanonicalId       string     `json:"canonicalId"`
-	CvssScore         *float32   `json:"cvssScore,omitempty"`
+	AffectedPurlCount int64     `json:"affectedPurlCount"`
+	AffectedSbomCount int64     `json:"affectedSbomCount"`
+	Aliases           *[]string `json:"aliases"`
+	CanonicalId       string    `json:"canonicalId"`
+	CvssScore         *float32  `json:"cvssScore,omitempty"`
+
+	// FixAvailableSince Earliest a fix was reported for it on a latest tag that still carries it
+	FixAvailableSince *time.Time `json:"fixAvailableSince,omitempty"`
 	Id                string     `json:"id"`
-	PublishedAt       *time.Time `json:"publishedAt,omitempty"`
-	Severity          string     `json:"severity"`
-	Summary           *string    `json:"summary,omitempty"`
+
+	// LatestAffectedCount Artifacts whose latest tag still carries this vulnerability
+	LatestAffectedCount int64      `json:"latestAffectedCount"`
+	PublishedAt         *time.Time `json:"publishedAt,omitempty"`
+
+	// RunningPods Pods in clusters you can see running an image that carries it; signed-in callers only
+	RunningPods *int64  `json:"runningPods,omitempty"`
+	Severity    string  `json:"severity"`
+	Summary     *string `json:"summary,omitempty"`
 }
 
 // UnknownHostResponse defines model for UnknownHostResponse.
@@ -5679,7 +5700,7 @@ type ListMyVulnerabilitiesParams struct {
 	// Severity Filter by severity
 	Severity *ListMyVulnerabilitiesParamsSeverity `form:"severity,omitempty" json:"severity,omitempty"`
 
-	// Sort Sort field
+	// Sort Sort field. fixAge ranks by how long a fix has been available among vulnerabilities a latest tag still carries
 	Sort *ListMyVulnerabilitiesParamsSort `form:"sort,omitempty" json:"sort,omitempty"`
 
 	// SortDir Sort direction (asc or desc)
@@ -5727,7 +5748,7 @@ type ListTopVulnerabilitiesParams struct {
 	// Severity Filter by severity
 	Severity *ListTopVulnerabilitiesParamsSeverity `form:"severity,omitempty" json:"severity,omitempty"`
 
-	// Sort Sort field
+	// Sort Sort field. fixAge ranks by how long a fix has been available among vulnerabilities a latest tag still carries
 	Sort *ListTopVulnerabilitiesParamsSort `form:"sort,omitempty" json:"sort,omitempty"`
 
 	// SortDir Sort direction (asc or desc)

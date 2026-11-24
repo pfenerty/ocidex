@@ -3,11 +3,15 @@ import { describe, it, expect, vi, beforeEach, afterEach } from "vitest";
 import { Router } from "@solidjs/router";
 import { render, fireEvent, waitFor, cleanup } from "@solidjs/testing-library";
 import { useTopVulnerabilities } from "~/api/queries";
-import Vulnerabilities from "~/pages/Vulnerabilities";
+import Vulnerabilities, { fixAgeDays } from "~/pages/Vulnerabilities";
+import { useAuth } from "~/context/auth";
 
 vi.mock("~/api/queries", () => ({
     useTopVulnerabilities: vi.fn(),
 }));
+
+// Signed out unless a test says otherwise: the pods column is signed-in only.
+vi.mock("~/context/auth", () => ({ useAuth: vi.fn(() => ({ user: () => undefined })) }));
 
 // The router is real here, not stubbed. Both filters on this page are URL state
 // now, so a stub would let a broken read or write pass: the severity strip and
@@ -38,6 +42,7 @@ const rows = [
         summary: "something bad",
         affectedSbomCount: 3,
         affectedPurlCount: 2,
+        latestAffectedCount: 1,
         publishedAt: "2024-01-01T00:00:00Z",
     },
 ];
@@ -125,9 +130,9 @@ describe("Vulnerabilities sorting", () => {
         vi.clearAllMocks();
     });
 
-    it("defaults to the severity ranking", () => {
+    it("defaults to how long a fix has been out", () => {
         const { params } = renderPage();
-        expect(params().sort).toBe("severity");
+        expect(params().sort).toBe("fixAge");
         expect(params().sortDir).toBe("desc");
     });
 
@@ -136,9 +141,9 @@ describe("Vulnerabilities sorting", () => {
     it("re-queries with the clicked column instead of reordering the page", () => {
         const { getByText, params } = renderPage();
 
-        fireEvent.click(getByText("Affected SBOMs"));
+        fireEvent.click(getByText("Latest tags still affected"));
 
-        expect(params().sort).toBe("affectedSbomCount");
+        expect(params().sort).toBe("latestAffectedCount");
         expect(params().sortDir).toBe("desc");
         // A new ordering invalidates the current page window.
         expect(params().offset).toBe(0);
@@ -160,7 +165,7 @@ describe("Vulnerabilities sorting", () => {
 
         fireEvent.click(getByText("Summary"));
 
-        expect(params().sort).toBe("severity");
+        expect(params().sort).toBe("fixAge");
     });
 });
 
@@ -251,5 +256,51 @@ describe("Vulnerabilities id filter", () => {
         })) as unknown as typeof useTopVulnerabilities);
         const { container } = renderAt("/vulnerabilities");
         expect(container.querySelector(".empty-state a")).toBeNull();
+    });
+});
+
+describe("Vulnerabilities latest-tag columns", () => {
+    const row = {
+        id: "CVE-2031-1",
+        canonicalId: "CVE-2031-1",
+        severity: "HIGH",
+        aliases: [],
+        affectedSbomCount: 1018,
+        affectedPurlCount: 2,
+        latestAffectedCount: 3,
+        fixAvailableSince: new Date(Date.now() - 12 * 86_400_000).toISOString(),
+        runningPods: 7,
+    };
+    const withRows = () =>
+        mockUseTopVulns.mockReturnValue({
+            data: { data: [row], pagination: { total: 1, limit: 25, offset: 0 } },
+            isFetching: false,
+            isError: false,
+            error: null,
+        } as never);
+
+    afterEach(() => vi.mocked(useAuth).mockReturnValue({ user: () => undefined } as never));
+
+    it("counts latest tags, not every SBOM, and says how long the fix has been out", () => {
+        withRows();
+        const { container } = renderAt("/vulnerabilities");
+        const text = container.textContent;
+        expect(text).toContain("Latest tags still affected");
+        expect(text).not.toContain("Affected SBOMs");
+        expect(text).toContain("12 d");
+        expect(text).not.toContain("Running pods");
+    });
+
+    it("adds running pods for a signed-in caller", () => {
+        withRows();
+        vi.mocked(useAuth).mockReturnValue({ user: () => ({ displayName: "x" }) } as never);
+        const { container } = renderAt("/vulnerabilities");
+        expect(container.textContent).toContain("Running pods");
+    });
+
+    it("fixAgeDays floors to whole days and never goes negative", () => {
+        const now = Date.parse("2026-11-23T12:00:00Z");
+        expect(fixAgeDays("2026-11-20T13:00:00Z", now)).toBe(2);
+        expect(fixAgeDays("2026-11-24T00:00:00Z", now)).toBe(0);
     });
 });

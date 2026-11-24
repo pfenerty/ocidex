@@ -47,7 +47,7 @@ type ListTopVulnerabilitiesInput struct {
 	PaginationParams
 	Q        string `query:"q" maxLength:"128" doc:"Filter by vulnerability id (CVE/GHSA/OSV), substring match against the canonical id and its aliases"`
 	Severity string `query:"severity" enum:"CRITICAL,HIGH,MEDIUM,LOW" doc:"Filter by severity"`
-	Sort     string `query:"sort" enum:"severity,cvssScore,affectedSbomCount,affectedPurlCount,publishedAt,canonicalId" doc:"Sort field"`
+	Sort     string `query:"sort" enum:"severity,cvssScore,affectedSbomCount,affectedPurlCount,latestAffectedCount,fixAge,publishedAt,canonicalId" doc:"Sort field. fixAge ranks by how long a fix has been available among vulnerabilities a latest tag still carries"`
 	SortDir  string `query:"sortDir" enum:"asc,desc" doc:"Sort direction (asc or desc)"`
 }
 

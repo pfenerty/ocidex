@@ -517,6 +517,13 @@ type UserIdentity struct {
 	UpdatedAt pgtype.Timestamptz `json:"updated_at"`
 }
 
+type VulnLatestRollup struct {
+	CanonicalID       string             `json:"canonical_id"`
+	NamespaceID       pgtype.UUID        `json:"namespace_id"`
+	ArtifactID        pgtype.UUID        `json:"artifact_id"`
+	FixAvailableSince pgtype.Timestamptz `json:"fix_available_since"`
+}
+
 type VulnRefreshState struct {
 	ID              bool               `json:"id"`
 	LastRefreshedAt pgtype.Timestamptz `json:"last_refreshed_at"`

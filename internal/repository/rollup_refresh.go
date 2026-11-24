@@ -37,6 +37,7 @@ var rollupTargets = []struct {
 	{"license_component_rollup", licenseComponentRollupAggregate},
 	{"vuln_rollup", vulnRollupAggregate},
 	{"sbom_vuln_rollup", sbomVulnRollupAggregate},
+	{"vuln_latest_rollup", vulnLatestRollupAggregate},
 }
 
 // RollupAggregate returns the aggregate that defines a rollup table, and
@@ -231,6 +232,44 @@ SELECT f.sbom_id, s.namespace_id,
 FROM findings f
 JOIN sbom s ON s.id = f.sbom_id
 GROUP BY f.sbom_id, s.namespace_id`
+
+// One row per (canonical vulnerability, namespace, artifact) whose newest tag in
+// that namespace carries the vulnerability, with the earliest time a fix for it
+// on that tag was reported. "Newest" is artifact_headline_sbom's order, applied
+// per namespace so the row does not depend on the viewer. Seeded by
+// db/migrations/00110_vuln_latest_rollup.sql with this same text.
+const vulnLatestRollupAggregate = `
+WITH latest AS (
+    SELECT DISTINCT ON (s.artifact_id, s.namespace_id) s.id, s.artifact_id, s.namespace_id
+    FROM sbom s
+    WHERE s.artifact_id IS NOT NULL
+    ORDER BY s.artifact_id, s.namespace_id,
+             s.version_prerelease,
+             s.version_major DESC NULLS LAST,
+             s.version_minor DESC NULLS LAST,
+             s.version_patch DESC NULLS LAST,
+             s.version_variant <> '',
+             s.version_variant,
+             sbom_arch_rank(sbom_architecture(s.id)),
+             s.created_at DESC, s.id DESC
+), scope AS (
+    SELECT DISTINCT l.namespace_id, l.artifact_id, c1.purl::text AS match_purl, COALESCE(c1.go_symbol_set_id, 0) AS go_symbol_set_id
+    FROM latest l
+    JOIN component c1 ON c1.sbom_id = l.id
+    WHERE c1.purl IS NOT NULL
+    UNION
+    SELECT DISTINCT l.namespace_id, l.artifact_id, c2.source_purl::text AS match_purl, 0::bigint AS go_symbol_set_id
+    FROM latest l
+    JOIN component c2 ON c2.sbom_id = l.id
+    WHERE c2.source_purl IS NOT NULL
+)
+SELECT v.canonical_id, sc.namespace_id, sc.artifact_id,
+       min(pv.fix_available_since) AS fix_available_since
+FROM scope sc
+JOIN package_vulnerability pv ON pv.purl = sc.match_purl AND pv.go_symbol_set_id = sc.go_symbol_set_id
+JOIN vulnerability v ON v.id = pv.vulnerability_id
+WHERE v.canonical_id <> ''
+GROUP BY v.canonical_id, sc.namespace_id, sc.artifact_id`
 
 // RollupWatermark summarises the ingest state the rollups were built from. Two
 // passes that observe the same watermark would compute the same component and

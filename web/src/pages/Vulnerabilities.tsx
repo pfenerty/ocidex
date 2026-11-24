@@ -8,6 +8,8 @@ import DataTable from "~/components/DataTable";
 import type { Column, SortDir } from "~/components/DataTable";
 import { SeverityPill, VulnId } from "~/components/cells";
 import { PageHeader, TabBar, Toolbar } from "~/components/ui";
+import { useAuth } from "~/context/auth";
+import { formatDate } from "~/utils/format";
 import type { ToolbarField } from "~/components/ui";
 
 type TopVulnEntry = components["schemas"]["TopVulnEntry"];
@@ -25,9 +27,17 @@ const FILTERS: ToolbarField[] = [
     },
 ];
 
+/** Whole days since `iso`, never negative. */
+export function fixAgeDays(iso: string, now = Date.now()): number {
+    return Math.max(0, Math.floor((now - new Date(iso).getTime()) / 86_400_000));
+}
+
 export default function Vulnerabilities() {
     const [offset, setOffset] = createSignal(0);
-    const [sortBy, setSortBy] = createSignal<TopVulnSort>("severity");
+    // How long a fix has been out for what is still shipped: the oldest
+    // unpatched exposure first.
+    const [sortBy, setSortBy] = createSignal<TopVulnSort>("fixAge");
+    const { user } = useAuth();
     const [sortDir, setSortDir] = createSignal<SortDir>("desc");
 
     // Both filters live in the URL now. The id box used to be a submit-on-Enter
@@ -108,11 +118,35 @@ export default function Vulnerabilities() {
             ),
         },
         {
-            header: "Affected SBOMs",
+            // Artifacts whose newest tag still carries it. "Affected SBOMs"
+            // counted every SBOM ever ingested, so it only ever grew.
+            header: "Latest tags still affected",
             align: "right",
-            sortKey: "affectedSbomCount",
+            sortKey: "latestAffectedCount",
             sortType: "numeric",
-            render: (row) => row.affectedSbomCount.toLocaleString(),
+            render: (row) => (
+                <span
+                    class="font-mono tabular-nums"
+                    title={`${row.affectedSbomCount.toLocaleString()} SBOMs across every version`}
+                >
+                    {row.latestAffectedCount.toLocaleString()}
+                </span>
+            ),
+        },
+        {
+            header: "Fix out",
+            align: "right",
+            sortKey: "fixAge",
+            sortType: "numeric",
+            render: (row) => (
+                <Show when={row.latestAffectedCount > 0 ? row.fixAvailableSince : undefined} fallback={<span class="text-muted">—</span>}>
+                    {(since) => (
+                        <span class="font-mono tabular-nums" title={`fix available since ${formatDate(since())}`}>
+                            {fixAgeDays(since())} d
+                        </span>
+                    )}
+                </Show>
+            ),
         },
         {
             header: "Affected Packages",
@@ -124,6 +158,14 @@ export default function Vulnerabilities() {
         // No Published column: grype's match metadata carries no publication
         // date, so every row read "—" (ocidex-nps9.12).
     ];
+    const podsColumn: Column<TopVulnEntry> = {
+        header: "Running pods",
+        align: "right",
+        render: (row) => <span class="font-mono tabular-nums">{(row.runningPods ?? 0).toLocaleString()}</span>,
+    };
+    // Pods come back only for a signed-in caller; a signed-out reader gets no
+    // column rather than a column of zeros.
+    const visibleColumns = () => (user() !== undefined ? [...columns, podsColumn] : columns);
 
     return (
         <>
@@ -131,7 +173,7 @@ export default function Vulnerabilities() {
                 title="Vulnerabilities"
                 subtitle={
                     <>
-                        Vulnerabilities found in any indexed version of a tracked artifact, worst first
+                        Vulnerabilities in tracked artifacts, longest-available fix first
                         <Show when={query.data}>
                             {(d) => (
                                 <span class="text-muted">
@@ -176,7 +218,7 @@ export default function Vulnerabilities() {
             <Toolbar class="mb-4" fields={FILTERS} onChange={() => setOffset(0)} />
 
             <DataTable
-                columns={columns}
+                columns={visibleColumns()}
                 rows={query.data?.data ?? undefined}
                 loading={query.isFetching}
                 isError={query.isError}

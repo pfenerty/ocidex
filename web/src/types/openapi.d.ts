@@ -5089,9 +5089,24 @@ export interface components {
             canonicalId: string;
             /** Format: float */
             cvssScore?: number;
+            /**
+             * Format: date-time
+             * @description Earliest a fix was reported for it on a latest tag that still carries it
+             */
+            fixAvailableSince?: string;
             id: string;
+            /**
+             * Format: int64
+             * @description Artifacts whose latest tag still carries this vulnerability
+             */
+            latestAffectedCount: number;
             /** Format: date-time */
             publishedAt?: string;
+            /**
+             * Format: int64
+             * @description Pods in clusters you can see running an image that carries it; signed-in callers only
+             */
+            runningPods?: number;
             severity: string;
             summary?: string;
         };
@@ -9614,8 +9629,8 @@ export interface operations {
                 q?: string;
                 /** @description Filter by severity */
                 severity?: "CRITICAL" | "HIGH" | "MEDIUM" | "LOW";
-                /** @description Sort field */
-                sort?: "severity" | "cvssScore" | "affectedSbomCount" | "affectedPurlCount" | "publishedAt" | "canonicalId";
+                /** @description Sort field. fixAge ranks by how long a fix has been available among vulnerabilities a latest tag still carries */
+                sort?: "severity" | "cvssScore" | "affectedSbomCount" | "affectedPurlCount" | "latestAffectedCount" | "fixAge" | "publishedAt" | "canonicalId";
                 /** @description Sort direction (asc or desc) */
                 sortDir?: "asc" | "desc";
             };
@@ -9820,8 +9835,8 @@ export interface operations {
                 q?: string;
                 /** @description Filter by severity */
                 severity?: "CRITICAL" | "HIGH" | "MEDIUM" | "LOW";
-                /** @description Sort field */
-                sort?: "severity" | "cvssScore" | "affectedSbomCount" | "affectedPurlCount" | "publishedAt" | "canonicalId";
+                /** @description Sort field. fixAge ranks by how long a fix has been available among vulnerabilities a latest tag still carries */
+                sort?: "severity" | "cvssScore" | "affectedSbomCount" | "affectedPurlCount" | "latestAffectedCount" | "fixAge" | "publishedAt" | "canonicalId";
                 /** @description Sort direction (asc or desc) */
                 sortDir?: "asc" | "desc";
             };

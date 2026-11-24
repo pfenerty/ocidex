@@ -21,7 +21,8 @@ import (
 func normalizeTopVulnSort(sort, dir string) (string, string) {
 	sort = columnName(sort)
 	switch sort {
-	case sortBySeverity, sortByCVSS, "affected_sbom_count", "affected_purl_count", "published_at", sortByCanonicalID:
+	case sortBySeverity, sortByCVSS, "affected_sbom_count", "affected_purl_count", "published_at", sortByCanonicalID,
+		"latest_affected_count", "fix_age":
 	default:
 		sort = sortBySeverity
 	}
@@ -77,20 +78,31 @@ func (s *searchService) ListTopVulnerabilities(ctx context.Context, filter TopVu
 			total = r.TotalCount
 		}
 		entry := TopVulnEntry{
-			ID:                r.ID,
-			CanonicalID:       r.CanonicalID,
-			Severity:          severityOrUnknown(r.Severity),
-			CvssScore:         float4ToPtr(r.CvssScore),
-			Summary:           textToPtr(r.Summary),
-			Aliases:           r.Aliases,
-			AffectedSbomCount: r.AffectedSbomCount,
-			AffectedPurlCount: r.AffectedPurlCount,
+			ID:                  r.ID,
+			CanonicalID:         r.CanonicalID,
+			Severity:            severityOrUnknown(r.Severity),
+			CvssScore:           float4ToPtr(r.CvssScore),
+			Summary:             textToPtr(r.Summary),
+			Aliases:             r.Aliases,
+			AffectedSbomCount:   r.AffectedSbomCount,
+			AffectedPurlCount:   r.AffectedPurlCount,
+			LatestAffectedCount: r.LatestAffectedCount,
 		}
 		if r.PublishedAt.Valid {
 			t := r.PublishedAt.Time
 			entry.PublishedAt = &t
 		}
+		if r.FixAvailableSince.Valid {
+			t := r.FixAvailableSince.Time
+			entry.FixAvailableSince = &t
+		}
 		entries = append(entries, entry)
+	}
+
+	if filter.Visibility.UserID != "" && len(entries) > 0 {
+		if err := attachRunningPods(ctx, q, filter.Visibility, entries); err != nil {
+			return PagedResult[TopVulnEntry]{}, err
+		}
 	}
 
 	return PagedResult[TopVulnEntry]{
@@ -99,6 +111,33 @@ func (s *searchService) ListTopVulnerabilities(ctx context.Context, filter TopVu
 		Limit:  filter.Limit,
 		Offset: filter.Offset,
 	}, nil
+}
+
+// attachRunningPods fills RunningPods on one page of entries, zero included:
+// for a signed-in caller "no pods" is an answer, not an absence.
+func attachRunningPods(ctx context.Context, q *repository.Queries, vis VisibilityFilter, entries []TopVulnEntry) error {
+	ids := make([]string, 0, len(entries))
+	for _, e := range entries {
+		ids = append(ids, e.CanonicalID)
+	}
+	rows, err := q.CountRunningPodsByCanonical(ctx, repository.CountRunningPodsByCanonicalParams{
+		UserID:        uuidOrNull(vis.UserID),
+		IsAdmin:       visAdminBool(vis),
+		KeyNamespaces: vis.keyNamespaces(),
+		CanonicalIds:  ids,
+	})
+	if err != nil {
+		return fmt.Errorf("counting running pods: %w", err)
+	}
+	pods := make(map[string]int64, len(rows))
+	for _, r := range rows {
+		pods[r.CanonicalID] = r.Pods
+	}
+	for i := range entries {
+		n := pods[entries[i].CanonicalID]
+		entries[i].RunningPods = &n
+	}
+	return nil
 }
 
 func (s *searchService) GetVulnerabilityDetail(
